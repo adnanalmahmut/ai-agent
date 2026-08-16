@@ -1,0 +1,200 @@
+import { render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { LOCALE_META } from '@repo/i18n-core';
+import { DirectionProvider } from '@repo/ui';
+import { createMemoryRouter, RouterProvider } from 'react-router';
+import { IntlProvider } from 'use-intl';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { PROTECTED_ROUTE_ID } from '@/features/auth/loaders';
+import type { OrganizationData } from '../loaders';
+import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import { organization } from '@/test/organization-fixtures';
+
+import english from '../../../../messages/en.json';
+
+vi.mock('@/features/auth/auth-client', async () => {
+  const { authClientStub } = await import('@/test/auth-client-stub');
+  return { authClient: authClientStub };
+});
+
+vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
+
+const restoreOrganization = vi.fn();
+
+vi.mock('../organization-api', () => ({
+  archiveOrganization: vi.fn(),
+  restoreOrganization: (...args: unknown[]) => restoreOrganization(...args),
+  listArchivedOrganizations: vi.fn(),
+}));
+
+const { OrganizationShellBlock } = await import('./organization-shell-block');
+
+const SESSION = {
+  user: {
+    id: 'user_owner',
+    name: 'Sara Haddad',
+    email: 'sara@example.com',
+    emailVerified: true,
+    image: null,
+  },
+  session: { id: 'session_1', token: 'token', userId: 'user_owner' },
+};
+
+/**
+ * The layout reads the session from the protected route's loader, so the test
+ * has to provide a route with that id — which is the arrangement the
+ * application actually has, and worth reproducing rather than stubbing.
+ */
+function renderShell(data: OrganizationData, tab = <span>tab</span>) {
+  const router = createMemoryRouter([
+    {
+      id: PROTECTED_ROUTE_ID,
+      path: '/',
+      loader: () => SESSION,
+      element: (
+        <IntlProvider locale="en" messages={english} timeZone="UTC">
+          <DirectionProvider direction={LOCALE_META.en.direction}>
+            <OrganizationShellBlock data={data} />
+          </DirectionProvider>
+        </IntlProvider>
+      ),
+      children: [{ index: true, element: tab }],
+    },
+  ]);
+
+  return render(<RouterProvider router={router} />);
+}
+
+beforeEach(() => {
+  resetNavigationStub();
+  restoreOrganization.mockReset();
+  restoreOrganization.mockResolvedValue({ organizationId: 'org_1' });
+});
+
+describe('a loaded organization', () => {
+  const ready: OrganizationData = { state: 'ready', organization: organization() };
+
+  it('names it once, as the page heading', async () => {
+    renderShell(ready);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Acme Research' }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the reader’s role in this organization', async () => {
+    renderShell(ready);
+
+    expect(await screen.findByText('Owner')).toBeInTheDocument();
+  });
+
+  it('offers its four sections', async () => {
+    renderShell(ready);
+
+    const tabs = await screen.findByRole('navigation', {
+      name: 'Organization sections',
+    });
+
+    for (const label of ['Overview', 'Members', 'Invitations', 'Settings']) {
+      expect(
+        within(tabs).getByRole('link', { name: label }),
+      ).toBeInTheDocument();
+    }
+  });
+
+  it('renders the tab below it', async () => {
+    renderShell(ready, <span>the members tab</span>);
+
+    expect(await screen.findByText('the members tab')).toBeInTheDocument();
+  });
+});
+
+describe('an archived organization', () => {
+  it('explains the state instead of failing', async () => {
+    // Reached by being refused: the backend makes every organization endpoint
+    // inert for an archived one, so this page exists because the normal page
+    // cannot load.
+    renderShell({
+      state: 'archived',
+      organizationId: 'org_1',
+      restorable: null,
+    });
+
+    expect(
+      await screen.findByText('This organization is archived'),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing was deleted', async () => {
+    renderShell({
+      state: 'archived',
+      organizationId: 'org_1',
+      restorable: null,
+    });
+
+    expect(
+      await screen.findByText('Members keep their places — nobody is removed.'),
+    ).toBeInTheDocument();
+  });
+
+  it('offers no restore when the server did not list it as restorable', async () => {
+    renderShell({
+      state: 'archived',
+      organizationId: 'org_1',
+      restorable: null,
+    });
+
+    await screen.findByText('This organization is archived');
+    expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull();
+  });
+
+  it('restores when it did', async () => {
+    renderShell({
+      state: 'archived',
+      organizationId: 'org_1',
+      restorable: {
+        id: 'org_1',
+        name: 'Acme Research',
+        slug: 'acme-research',
+        archivedAt: '2026-06-01T00:00:00.000Z',
+        canRestore: true,
+      },
+    });
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Restore' }));
+
+    await waitFor(() => expect(restoreOrganization).toHaveBeenCalledWith('org_1'));
+    expect(revalidateSpy).toHaveBeenCalled();
+  });
+
+  it('renders no tab underneath', async () => {
+    renderShell(
+      { state: 'archived', organizationId: 'org_1', restorable: null },
+      <span>the members tab</span>,
+    );
+
+    await screen.findByText('This organization is archived');
+    expect(screen.queryByText('the members tab')).toBeNull();
+  });
+});
+
+describe('an organization that could not be opened', () => {
+  it('gives one answer for every remaining reason', async () => {
+    // Telling a non-member that an organization exists would answer a
+    // question the backend declined to answer.
+    renderShell({ state: 'error', error: 'NOT_A_MEMBER' });
+
+    expect(
+      await screen.findByText('This organization could not be opened'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders no tab underneath', async () => {
+    renderShell({ state: 'error', error: 'UNKNOWN' }, <span>the members tab</span>);
+
+    await screen.findByText('This organization could not be opened');
+    expect(screen.queryByText('the members tab')).toBeNull();
+  });
+});

@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${POSTGRES_CONTAINER_NAME:-backend_dev_postgres}
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - backend_network
+
+    mem_limit: ${POSTGRES_MEM_LIMIT:-512m}
+    mem_reservation: ${POSTGRES_MEM_RESERVATION:-256m}
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  postgres-test:
+    profiles:
+      - test
+
+    image: postgres:16-alpine
+    container_name: ${POSTGRES_TEST_CONTAINER_NAME:-backend_test_postgres}
+    restart: 'no'
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-backend_test_user}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-backend_test_password}
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-backend_test}
+
+    ports:
+      - '${POSTGRES_TEST_PORT:-5433}:5432'
+
+    tmpfs:
+      - /var/lib/postgresql/data
+
+    networks:
+      - backend_network
+
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  backend_network:
+    driver: bridge

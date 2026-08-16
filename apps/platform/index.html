@@ -1,0 +1,24 @@
+<!doctype html>
+<!--
+  The document shell.
+
+  `lang` and `dir` are placeholders: the real values depend on the locale in
+  the URL, which only the router knows, so `LocaleDocument` writes them onto
+  this element as soon as it resolves. Shipping `dir="ltr"` here rather than
+  nothing keeps the first paint from being laid out as an unstyled LTR page
+  and then jumping.
+-->
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/platform/favicon.ico" sizes="any" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Private application: nothing here should be indexed. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <title>%VITE_APP_NAME%</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

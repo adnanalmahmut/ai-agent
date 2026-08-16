@@ -1,0 +1,220 @@
+// Better Auth schema (core + admin + organization) plus this application's
+// own lifecycle state.
+//
+// The Better Auth half is not hand-designed: it was taken from
+// `getAuthTables()` in the installed better-auth@1.6.27, called with this
+// project's actual auth configuration, and compared field by field. That
+// matters because the adapter addresses models as `prisma[modelName]` and
+// fails at runtime — not at build time — when a column is missing.
+//
+// Relation field names follow the adapter's `getJoinKeyName` rule: singular on
+// the side holding the foreign key (`Session.user`), pluralised on the other
+// (`User.sessions`).
+//
+// ---------------------------------------------------------------------------
+// Referential-action policy
+// ---------------------------------------------------------------------------
+// Identity roots are never physically deleted by this application: users are
+// soft-deleted (`User.deletedAt`) and organizations are archived
+// (`Organization.archivedAt`). Cascades therefore exist only where the child
+// is genuinely worthless without its parent, and every one is justified here.
+//
+//   session.userId  -> Cascade   A session is ephemeral authentication state
+//                                with no historical value, and Better Auth
+//                                already deletes sessions wholesale via
+//                                `deleteUserSessions`. Cascade matches the
+//                                semantics that are already in force.
+//   account.userId  -> Cascade   A provider linkage is meaningless without the
+//                                identity it links to, and it is re-creatable
+//                                by signing in again.
+//
+//   member.userId          -> Restrict
+//   member.organizationId  -> Restrict
+//   invitation.inviterId   -> Restrict
+//   invitation.organizationId -> Restrict
+//
+// The four Restricts are deliberate. Membership and invitation rows carry
+// history, and hard deletion of a user or an organization is not an operation
+// this application offers. If a physical delete is ever attempted — by hand, by
+// a future migration, or by a Better Auth route we failed to disable — it must
+// fail loudly rather than quietly shredding organizational history.
+//
+// Deliberately absent: `UserPermissionOverride`, `team`, `teamMember`,
+// `organizationRole`. Teams and dynamic access control are disabled, so their
+// tables would be dead weight the schema promises to keep.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  /// Outbound-message language for this account: 'ar' | 'en'.
+  /// Nullable because an account may never have expressed a preference, and
+  /// always re-validated through `parseAppLocale` on read — the column is a
+  /// hint, never a trusted locale.
+  preferredLanguage String?
+
+  // --- Better Auth admin plugin ---------------------------------------------
+  /// Comma-separated global role names; null means the plugin's `defaultRole`.
+  role       String?
+  banned     Boolean?  @default(false)
+  banReason  String?
+  banExpires DateTime?
+
+  // --- Application account lifecycle ----------------------------------------
+  /// Set when the account is deactivated. A soft delete: every row below stays
+  /// intact and the account can be restored by a `super_admin`.
+  ///
+  /// Independent of `banned`. A ban is a moderation decision; a deactivation is
+  /// a lifecycle state. Restoring one must never clear the other, which is why
+  /// this is a separate column rather than an overload of `banned`.
+  deletedAt       DateTime?
+  /// Who performed the deactivation. Not a relation: the actor is an audit
+  /// fact, and a foreign key here would make the actor's own lifecycle depend
+  /// on the records they touched.
+  deletedByUserId String?
+  deletionReason  String?
+
+  sessions    Session[]
+  accounts    Account[]
+  memberships Member[]
+  invitations Invitation[] @relation("InvitationInviter")
+
+  @@unique([email])
+  @@index([deletedAt])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // --- Better Auth admin plugin ---------------------------------------------
+  impersonatedBy String?
+
+  // --- Better Auth organization plugin --------------------------------------
+  /// Request context, never authorization. Proves only which organization the
+  /// session has selected — membership and permission are read from `member`.
+  activeOrganizationId String?
+
+  @@unique([token])
+  @@index([userId])
+  @@index([activeOrganizationId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(uuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String
+  logo      String?
+  createdAt DateTime @default(now())
+  metadata  String?
+
+  // --- Application organization lifecycle -----------------------------------
+  /// Set when the organization is archived. Every member, invitation and
+  /// business resource survives; the organization simply becomes operationally
+  /// inert (see `auth-hooks.ts`) until an owner or a `super_admin` restores it.
+  ///
+  /// Not declared to Better Auth. The organization plugin has no notion of a
+  /// soft-deleted organization, so enforcement is ours and the column is read
+  /// through `PrismaService`. Extra nullable columns are invisible to the
+  /// adapter's create/update payloads.
+  archivedAt       DateTime?
+  archivedByUserId String?
+  archiveReason    String?
+
+  members     Member[]
+  invitations Invitation[]
+
+  @@unique([slug])
+  @@index([archivedAt])
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  /// Comma-separated organization role names.
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  email          String
+  role           String?
+  /// 'pending' | 'accepted' | 'rejected' | 'canceled'
+  status         String       @default("pending")
+  expiresAt      DateTime
+  createdAt      DateTime     @default(now())
+  inviterId      String
+  inviter        User         @relation("InvitationInviter", fields: [inviterId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([inviterId])
+  @@map("invitation")
+}

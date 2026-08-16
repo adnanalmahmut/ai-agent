@@ -1,0 +1,24 @@
+{
+  "name": "ai-agents",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "prepare": "pnpm run build:packages",
+    "dev": "pnpm run build:packages && pnpm --parallel --filter './apps/*' --filter './packages/*' run dev",
+    "dev:backend": "pnpm run build:packages && pnpm --filter backend dev",
+    "start:backend" : "pnpm --filter backend start",
+    "dev:web": "pnpm run build:packages && pnpm --filter web dev",
+    "dev:platform": "pnpm run build:packages && pnpm --filter platform dev",
+    "build:platform": "pnpm run build:packages && pnpm --filter platform build",
+    "build": "pnpm run build:packages && pnpm --filter './apps/*' run build",
+    "build:packages": "pnpm --filter './packages/*' run build",
+    "build:backend": "pnpm run build:packages && pnpm --filter backend build",
+    "build:web": "pnpm run build:packages && pnpm --filter web build",
+    "ui:add": "pnpm dlx shadcn@latest add -c packages/ui"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.29.3"
+}

@@ -1,0 +1,22 @@
+{
+  "REQUIRED": "This field is required",
+  "INVALID_EMAIL": "The email address is not valid",
+  "INVALID_STRING": "The value must be a string",
+  "INVALID_NUMBER": "The value must be a number",
+  "INVALID_INT": "The value must be an integer",
+  "INVALID_BOOLEAN": "The value must be true or false",
+  "INVALID_UUID": "The identifier is not a valid UUID",
+  "INVALID_URL": "The URL is not valid",
+  "INVALID_FORMAT": "The value format is not valid",
+  "INVALID_ENUM": "The value is not one of the allowed options",
+  "INVALID_VALUE": "The value is not valid",
+  "INVALID_DATE": "The date is not valid",
+  "MIN_LENGTH": "Must be at least {min} characters long",
+  "MAX_LENGTH": "Must be at most {max} characters long",
+  "MIN": "Must be greater than or equal to {min}",
+  "MAX": "Must be less than or equal to {max}",
+  "NOT_ARRAY": "The value must be an array",
+  "ARRAY_MIN_SIZE": "Must contain at least {min} item(s)",
+  "ARRAY_MAX_SIZE": "Must contain at most {max} item(s)",
+  "UNRECOGNIZED_KEY": "This field is not recognised and is not allowed"
+}

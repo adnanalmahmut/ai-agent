@@ -1,0 +1,105 @@
+/*
+ * Web fonts for the platform.
+ *
+ * `next/font/local` generated these declarations before the migration; Vite
+ * has no equivalent, and it does not need one — the design system already
+ * names the families in `--font-sans` and `--font-serif`, so all that is
+ * missing is the `@font-face` set that binds those names to files.
+ *
+ * The paths reach into the design-system package rather than copying the
+ * files here, so one upgrade of the typeface reaches both applications. Vite
+ * fingerprints and emits them like any other asset.
+ *
+ * `font-display: swap` keeps text readable while the face loads, which is
+ * what `next/font` did and is worth preserving on a sign-in page.
+ */
+
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('../../../../packages/ui/src/fonts/thmanyahsans-Light.woff2')
+    format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('../../../../packages/ui/src/fonts/thmanyahsans-Regular.woff2')
+    format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('../../../../packages/ui/src/fonts/thmanyahsans-Medium.woff2')
+    format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('../../../../packages/ui/src/fonts/thmanyahsans-Bold.woff2')
+    format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Sans';
+  src: url('../../../../packages/ui/src/fonts/thmanyahsans-Black.woff2')
+    format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../../../../packages/ui/src/fonts/thmanyahserifdisplay-Light.woff2')
+    format('woff2');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../../../../packages/ui/src/fonts/thmanyahserifdisplay-Regular.woff2')
+    format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../../../../packages/ui/src/fonts/thmanyahserifdisplay-Medium.woff2')
+    format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../../../../packages/ui/src/fonts/thmanyahserifdisplay-Bold.woff2')
+    format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Thmanyah Serif Display';
+  src: url('../../../../packages/ui/src/fonts/thmanyahserifdisplay-Black.woff2')
+    format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}

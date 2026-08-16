@@ -1,0 +1,18 @@
+{
+  "USER_NOT_FOUND": "User was not found",
+  "EMAIL_ALREADY_EXISTS": "This email address is already in use",
+  "INVALID_CREDENTIALS": "The provided credentials are incorrect",
+  "UNAUTHORIZED": "You must be signed in to continue",
+  "FORBIDDEN": "You do not have permission to perform this action",
+  "NOT_FOUND": "The requested resource was not found",
+  "BAD_REQUEST": "The request is invalid",
+  "CONFLICT": "The request conflicts with the current state of the resource",
+  "VALIDATION_ERROR": "The request data is invalid",
+  "TOO_MANY_REQUESTS": "Too many requests, please try again later",
+  "INTERNAL_SERVER_ERROR": "An unexpected error occurred, please try again later",
+  "ACCOUNT_ALREADY_DEACTIVATED": "This account is already deactivated",
+  "ACCOUNT_NOT_DEACTIVATED": "This account is active and does not need to be restored",
+  "ORGANIZATION_ALREADY_ARCHIVED": "This organization is already archived",
+  "ORGANIZATION_NOT_ARCHIVED": "This organization is active and does not need to be restored",
+  "ORGANIZATION_ARCHIVED": "This organization is archived and cannot be used until it is restored"
+}

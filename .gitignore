@@ -1,0 +1,69 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# build outputs
+dist/
+build/
+.next/
+out/
+.turbo/
+
+# environment
+.env
+.env*
+.env.local
+.env.*.local
+
+# logs
+*.log
+
+# scratch output — notably .tmp/mail/, whose rendered emails contain live
+# single-use verification and password-reset tokens
+.tmp/
+
+# coverage
+coverage/
+
+# misc
+*.tsbuildinfo
+.DS_Store
+
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts

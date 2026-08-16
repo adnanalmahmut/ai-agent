@@ -1,0 +1,249 @@
+{
+  "Common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "close": "Close",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "default": "Default"
+  },
+  "Navigation": {
+    "languageLabel": "Language",
+    "changeLanguage": "Change language",
+    "onThisPage": "On this page",
+    "foundations": "Foundations",
+    "colors": "Colors",
+    "typography": "Typography",
+    "surfaces": "Surfaces",
+    "buttons": "Buttons",
+    "inputs": "Inputs",
+    "cards": "Cards",
+    "dialogs": "Dialogs",
+    "internationalization": "Internationalization",
+    "formatting": "Formatting"
+  },
+  "Theme": {
+    "toggle": "Toggle theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "Showcase": {
+    "brand": "UI System",
+    "brandDescription": "Component reference",
+    "title": "Design System Showcase",
+    "description": "shadcn/ui components with full RTL and LTR support.",
+    "localeInfo": "Current language: {locale} — reading direction: {dir}",
+    "mixedContentTest": "Bidirectional content test: Latin values inside the surrounding text must stay readable and correctly ordered.",
+    "emailSample": "Email:",
+    "orderSample": "Order number:",
+    "urlSample": "Link:",
+    "footerTitle": "UI Design System"
+  },
+  "Foundations": {
+    "title": "Foundations",
+    "description": "The visual primitives used to keep components and product surfaces consistent across the application.",
+    "direction": {
+      "title": "Direction",
+      "description": "Logical RTL and LTR layout"
+    },
+    "locale": {
+      "title": "Locale",
+      "description": "Active application locale"
+    },
+    "radius": {
+      "title": "Radius",
+      "value": "Semantic",
+      "description": "Shared corner language"
+    },
+    "theme": {
+      "title": "Theme",
+      "value": "Adaptive",
+      "description": "Light and dark modes"
+    }
+  },
+  "Colors": {
+    "title": "Color tokens",
+    "description": "Semantic colors are used instead of hard-coded palette values. Switch the theme to verify both modes.",
+    "paletteTitle": "Semantic palette",
+    "background": "Background",
+    "foreground": "Foreground",
+    "card": "Card",
+    "primary": "Primary",
+    "secondary": "Secondary",
+    "muted": "Muted",
+    "accent": "Accent",
+    "destructive": "Destructive",
+    "borders": {
+      "title": "Borders",
+      "description": "Border strength communicates hierarchy without relying on decorative shadows.",
+      "default": {
+        "title": "Default border",
+        "description": "Standard component boundary."
+      },
+      "accent": {
+        "title": "Accent border",
+        "description": "Used for relevant emphasis."
+      },
+      "destructive": {
+        "title": "Destructive border",
+        "description": "Reserved for dangerous or destructive states."
+      }
+    }
+  },
+  "Typography": {
+    "title": "Typography",
+    "description": "A restrained type scale with clear separation between display text, headings, body copy and metadata.",
+    "scaleTitle": "Type scale",
+    "display": {
+      "label": "Display",
+      "sample": "Design System"
+    },
+    "heading1": {
+      "label": "Heading 1",
+      "sample": "Heading one"
+    },
+    "heading2": {
+      "label": "Heading 2",
+      "sample": "Heading two"
+    },
+    "heading3": {
+      "label": "Heading 3",
+      "sample": "Heading three"
+    },
+    "body": {
+      "label": "Body",
+      "sample": "The quick brown fox jumps over the lazy dog."
+    },
+    "small": {
+      "label": "Small",
+      "sample": "Secondary and supporting information."
+    },
+    "muted": {
+      "label": "Muted",
+      "sample": "Muted supporting content and descriptions."
+    },
+    "caption": {
+      "label": "Caption",
+      "sample": "Metadata, captions and helper information."
+    }
+  },
+  "Surfaces": {
+    "title": "Surfaces and radius",
+    "description": "Containers rely primarily on background contrast, borders and consistent corner radii.",
+    "hierarchyTitle": "Surface hierarchy",
+    "mediumRadius": "Medium radius",
+    "largeRadius": "Large radius",
+    "extraLargeRadius": "Extra large radius",
+    "mutedSurface": {
+      "title": "Muted surface",
+      "description": "Use muted backgrounds to group secondary information without creating unnecessary cards."
+    },
+    "spacing": {
+      "title": "Spacing rhythm",
+      "description": "A consistent spacing scale keeps layout density and visual relationships predictable."
+    }
+  },
+  "Buttons": {
+    "title": "Buttons",
+    "variantsTitle": "Button variants",
+    "variantsDesc": "Icons take their position from the reading direction, with no language-specific condition.",
+    "default": "Default",
+    "secondary": "Secondary",
+    "destructive": "Destructive",
+    "outline": "Outline",
+    "ghost": "Ghost",
+    "link": "Link",
+    "sizes": {
+      "title": "Sizes",
+      "description": "Button dimensions should reflect action hierarchy rather than decoration.",
+      "small": "Small",
+      "default": "Default",
+      "large": "Large"
+    },
+    "states": {
+      "title": "States",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "danger": "Danger"
+    },
+    "settingsLabel": "Settings"
+  },
+  "Dialogs": {
+    "title": "Dialogs",
+    "headerTitle": "Edit profile",
+    "headerDesc": "Make changes to your profile here, then save when you're done.",
+    "trigger": "Open dialog",
+    "nameLabel": "Name",
+    "usernameLabel": "Username",
+    "saveChanges": "Save changes",
+    "showcaseDescription": "Open the dialog to review overlay behavior, fields, spacing and action hierarchy."
+  },
+  "Inputs": {
+    "title": "Inputs",
+    "description": "Input fields shown with practical content, disabled states and bidirectional values.",
+    "placeholder": "Type something…",
+    "emailPlaceholder": "name@example.com",
+    "textFieldsTitle": "Text fields",
+    "name": {
+      "label": "Name",
+      "helper": "Standard text input"
+    },
+    "email": {
+      "label": "Email",
+      "helper": "Email keyboard and validation semantics"
+    },
+    "withValue": {
+      "label": "With value"
+    },
+    "disabled": {
+      "label": "Disabled",
+      "value": "Unavailable"
+    },
+    "composition": {
+      "title": "Field composition",
+      "label": "Account email",
+      "helper": "Helper text explains requirements without competing with the field label."
+    }
+  },
+  "Cards": {
+    "title": "Cards",
+    "description": "Cards are used for self-contained content. Avoid wrapping every section in a card.",
+    "standard": {
+      "title": "Standard card",
+      "description": "Primary content with a clear title and supporting copy.",
+      "content": "Card content inherits the application's semantic colors and adapts automatically between themes."
+    },
+    "secondary": {
+      "title": "Secondary card",
+      "description": "A quieter presentation for secondary information.",
+      "action": "Secondary action"
+    }
+  },
+  "Internationalization": {
+    "title": "Internationalization",
+    "description": "Direction, locale and mixed-content behavior are part of the design system rather than implementation details."
+  },
+  "Formatting": {
+    "title": "Formatting",
+    "description": "Dates, numbers and currencies are formatted through Intl per locale — never written by hand.",
+    "valuesTitle": "Locale-aware values",
+    "dateLabel": "Date:",
+    "numberLabel": "Number:",
+    "currencyLabel": "Amount:",
+    "notificationsCount": "{count, plural, =0 {No notifications} one {# notification} other {# notifications}}"
+  },
+  "Samples": {
+    "name": "Adnan Almahmut",
+    "username": "@adnan",
+    "email": "user@example.com",
+    "orderNumber": "ORD-2026-1048",
+    "url": "https://example.com/account/settings",
+    "unavailable": "Unavailable"
+  },
+  "Errors": {
+    "notFoundTitle": "Page not found",
+    "notFoundDescription": "The page you requested could not be found.",
+    "backHome": "Back to home"
+  }
+}

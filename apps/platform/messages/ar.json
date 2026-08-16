@@ -1,0 +1,611 @@
+{
+  "Common": {
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "close": "إغلاق",
+    "enabled": "مفعّل",
+    "disabled": "معطّل",
+    "default": "افتراضي"
+  },
+  "Navigation": {
+    "languageLabel": "اللغة",
+    "changeLanguage": "تغيير اللغة",
+    "onThisPage": "محتويات الصفحة",
+    "foundations": "الأساسيات",
+    "colors": "الألوان",
+    "typography": "الخطوط",
+    "surfaces": "الأسطح",
+    "buttons": "الأزرار",
+    "inputs": "حقول الإدخال",
+    "cards": "البطاقات",
+    "dialogs": "النوافذ المنبثقة",
+    "internationalization": "دعم اللغات",
+    "formatting": "التنسيق"
+  },
+  "Theme": {
+    "toggle": "تبديل المظهر",
+    "light": "فاتح",
+    "dark": "داكن",
+    "system": "حسب النظام"
+  },
+  "Showcase": {
+    "brand": "نظام الواجهة",
+    "brandDescription": "مرجع المكونات",
+    "title": "عرض نظام التصميم",
+    "description": "مكونات shadcn/ui مع دعم كامل للاتجاهين RTL وLTR.",
+    "localeInfo": "اللغة الحالية: {locale} — اتجاه القراءة: {dir}",
+    "mixedContentTest": "اختبار المحتوى ثنائي الاتجاه: القيم اللاتينية داخل نص عربي يجب أن تبقى مقروءة وبالترتيب الصحيح.",
+    "emailSample": "البريد الإلكتروني:",
+    "orderSample": "رقم الطلب:",
+    "urlSample": "الرابط:",
+    "footerTitle": "نظام تصميم الواجهة"
+  },
+  "Foundations": {
+    "title": "الأساسيات",
+    "description": "العناصر البصرية الأساسية المستخدمة للحفاظ على اتساق المكونات وواجهات المنتج عبر التطبيق.",
+    "direction": {
+      "title": "اتجاه الواجهة",
+      "description": "دعم منطقي لاتجاهي RTL وLTR"
+    },
+    "locale": {
+      "title": "اللغة",
+      "description": "اللغة النشطة حاليًا في التطبيق"
+    },
+    "radius": {
+      "title": "استدارة الحواف",
+      "value": "دلالية",
+      "description": "نظام موحّد لاستدارة الحواف"
+    },
+    "theme": {
+      "title": "المظهر",
+      "value": "متكيف",
+      "description": "دعم الوضعين الفاتح والداكن"
+    }
+  },
+  "Colors": {
+    "title": "رموز الألوان",
+    "description": "تُستخدم الألوان الدلالية بدلًا من قيم الألوان الثابتة. بدّل المظهر لاختبار الوضعين الفاتح والداكن.",
+    "paletteTitle": "لوحة الألوان الدلالية",
+    "background": "الخلفية",
+    "foreground": "النص الأساسي",
+    "card": "البطاقة",
+    "primary": "الأساسي",
+    "secondary": "الثانوي",
+    "muted": "الخافت",
+    "accent": "التمييز",
+    "destructive": "الخطر",
+    "borders": {
+      "title": "الحدود",
+      "description": "تُستخدم قوة الحدود لإظهار التسلسل البصري دون الاعتماد على ظلال زخرفية.",
+      "default": {
+        "title": "الحد الافتراضي",
+        "description": "الحد القياسي للمكونات."
+      },
+      "accent": {
+        "title": "حد التمييز",
+        "description": "يُستخدم لإبراز العناصر المهمة."
+      },
+      "destructive": {
+        "title": "حد الخطر",
+        "description": "مخصص للحالات والإجراءات الخطرة."
+      }
+    }
+  },
+  "Typography": {
+    "title": "نظام الخطوط",
+    "description": "مقياس خطوط متزن يفصل بوضوح بين النصوص البارزة والعناوين والمحتوى الأساسي والبيانات الوصفية.",
+    "scaleTitle": "مقياس الخطوط",
+    "display": {
+      "label": "النص البارز",
+      "sample": "نظام التصميم"
+    },
+    "heading1": {
+      "label": "العنوان الأول",
+      "sample": "عنوان رئيسي"
+    },
+    "heading2": {
+      "label": "العنوان الثاني",
+      "sample": "عنوان ثانوي"
+    },
+    "heading3": {
+      "label": "العنوان الثالث",
+      "sample": "عنوان فرعي"
+    },
+    "body": {
+      "label": "النص الأساسي",
+      "sample": "هذا مثال على النص الأساسي المستخدم داخل واجهة المستخدم."
+    },
+    "small": {
+      "label": "النص الصغير",
+      "sample": "معلومات ثانوية وداعمة للمحتوى."
+    },
+    "muted": {
+      "label": "النص الخافت",
+      "sample": "محتوى داعم ذو أهمية بصرية أقل."
+    },
+    "caption": {
+      "label": "الوصف",
+      "sample": "بيانات وصفية وتسميات ومعلومات مساعدة."
+    }
+  },
+  "Surfaces": {
+    "title": "الأسطح واستدارة الحواف",
+    "description": "تعتمد الحاويات بشكل أساسي على تباين الخلفيات والحدود واستدارة الحواف المتناسقة.",
+    "hierarchyTitle": "تسلسل الأسطح",
+    "mediumRadius": "استدارة متوسطة",
+    "largeRadius": "استدارة كبيرة",
+    "extraLargeRadius": "استدارة كبيرة جدًا",
+    "mutedSurface": {
+      "title": "سطح خافت",
+      "description": "استخدم الخلفيات الخافتة لتجميع المعلومات الثانوية دون إنشاء بطاقات غير ضرورية."
+    },
+    "spacing": {
+      "title": "نظام المسافات",
+      "description": "يحافظ مقياس المسافات الموحد على كثافة الواجهة والعلاقات البصرية بشكل متوقع."
+    }
+  },
+  "Buttons": {
+    "title": "الأزرار",
+    "variantsTitle": "أنماط الأزرار",
+    "variantsDesc": "الأيقونة تأخذ موضعها من اتجاه القراءة، بدون أي شرط خاص باللغة.",
+    "default": "افتراضي",
+    "secondary": "ثانوي",
+    "destructive": "إجراء خطر",
+    "outline": "محدّد",
+    "ghost": "شفاف",
+    "link": "رابط",
+    "sizes": {
+      "title": "الأحجام",
+      "description": "يجب أن تعكس أبعاد الزر أهمية الإجراء بدل استخدامها كعنصر زخرفي.",
+      "small": "صغير",
+      "default": "افتراضي",
+      "large": "كبير"
+    },
+    "states": {
+      "title": "الحالات",
+      "enabled": "مفعّل",
+      "disabled": "معطّل",
+      "danger": "خطر"
+    },
+    "settingsLabel": "الإعدادات"
+  },
+  "Dialogs": {
+    "title": "النوافذ المنبثقة",
+    "headerTitle": "تعديل الملف الشخصي",
+    "headerDesc": "عدّل بياناتك هنا، ثم احفظ التغييرات عند الانتهاء.",
+    "trigger": "فتح النافذة",
+    "nameLabel": "الاسم",
+    "usernameLabel": "اسم المستخدم",
+    "saveChanges": "حفظ التغييرات",
+    "showcaseDescription": "افتح النافذة لمراجعة سلوك الطبقة المنبثقة والحقول والمسافات وتسلسل الإجراءات."
+  },
+  "Inputs": {
+    "title": "حقول الإدخال",
+    "description": "عرض حقول الإدخال مع المحتوى العملي والحالات المعطلة والقيم ثنائية الاتجاه.",
+    "placeholder": "اكتب شيئًا…",
+    "emailPlaceholder": "name@example.com",
+    "textFieldsTitle": "الحقول النصية",
+    "name": {
+      "label": "الاسم",
+      "helper": "حقل نصي قياسي"
+    },
+    "email": {
+      "label": "البريد الإلكتروني",
+      "helper": "دلالات الإدخال والتحقق الخاصة بالبريد الإلكتروني"
+    },
+    "withValue": {
+      "label": "حقل يحتوي على قيمة"
+    },
+    "disabled": {
+      "label": "معطّل",
+      "value": "غير متاح"
+    },
+    "composition": {
+      "title": "تركيب الحقل",
+      "label": "البريد الإلكتروني للحساب",
+      "helper": "يوضح النص المساعد متطلبات الحقل دون أن ينافس عنوانه بصريًا."
+    }
+  },
+  "Cards": {
+    "title": "البطاقات",
+    "description": "تُستخدم البطاقات للمحتوى المستقل، ويُفضل عدم وضع كل قسم داخل بطاقة.",
+    "standard": {
+      "title": "بطاقة قياسية",
+      "description": "محتوى أساسي بعنوان واضح ونص داعم.",
+      "content": "تعتمد البطاقة على الألوان الدلالية للنظام وتتكيّف تلقائيًا مع الوضعين الفاتح والداكن."
+    },
+    "secondary": {
+      "title": "بطاقة ثانوية",
+      "description": "عرض أكثر هدوءًا للمعلومات الثانوية.",
+      "action": "إجراء ثانوي"
+    }
+  },
+  "Internationalization": {
+    "title": "دعم اللغات",
+    "description": "اتجاه الصفحة واللغة وسلوك المحتوى المختلط أجزاء أساسية من نظام التصميم وليست مجرد تفاصيل تنفيذية."
+  },
+  "Formatting": {
+    "title": "التنسيق",
+    "description": "التواريخ والأرقام والعملات تُنسَّق عبر Intl حسب اللغة، ولا تُكتب يدويًا.",
+    "valuesTitle": "قيم منسقة حسب اللغة",
+    "dateLabel": "التاريخ:",
+    "numberLabel": "الرقم:",
+    "currencyLabel": "المبلغ:",
+    "notificationsCount": "{count, plural, =0 {لا توجد إشعارات} one {إشعار واحد} two {إشعاران} few {# إشعارات} many {# إشعارًا} other {# إشعار}}"
+  },
+  "Samples": {
+    "name": "عدنان المحمود",
+    "username": "@adnan",
+    "email": "user@example.com",
+    "orderNumber": "ORD-2026-1048",
+    "url": "https://example.com/account/settings",
+    "unavailable": "غير متاح"
+  },
+  "Errors": {
+    "notFound": {
+      "title": "الصفحة غير موجودة",
+      "description": "العنوان الذي فتحته لا يؤدي إلى أي مكان في المنصة.",
+      "action": "الذهاب إلى لوحة التحكم"
+    },
+    "unavailable": {
+      "title": "تعذّر الوصول إلى المنصة",
+      "description": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك ثم أعد المحاولة.",
+      "action": "إعادة تحميل الصفحة"
+    },
+    "unexpected": {
+      "title": "حدث خطأ ما",
+      "description": "تعذّر تحميل هذه الصفحة. غالبًا ما تحلّ إعادة التحميل المشكلة.",
+      "action": "إعادة تحميل الصفحة"
+    }
+  },
+  "Auth": {
+    "signIn": {
+      "title": "تسجيل الدخول",
+      "description": "استخدم بريدك الإلكتروني وكلمة المرور، أو تابع باستخدام Google.",
+      "submit": "تسجيل الدخول",
+      "forgotPassword": "نسيت كلمة المرور؟",
+      "noAccount": "هل أنت جديد هنا؟",
+      "createAccount": "أنشئ حسابًا"
+    },
+    "signUp": {
+      "title": "أنشئ حسابك",
+      "description": "لن يستغرق الأمر سوى دقيقة. سنرسل رابطًا لتأكيد بريدك الإلكتروني.",
+      "submit": "إنشاء الحساب",
+      "haveAccount": "لديك حساب بالفعل؟",
+      "signInInstead": "تسجيل الدخول"
+    },
+    "verifyEmail": {
+      "pendingTitle": "أكّد بريدك الإلكتروني",
+      "pendingDescription": "أرسلنا رابط التأكيد إلى <address>{email}</address>.",
+      "pendingHint": "افتح الرابط على هذا الجهاز لإكمال إعداد حسابك. تنتهي صلاحية الرابط بعد فترة، ويمكنك طلب رابط جديد في أي وقت.",
+      "standaloneDescription": "أدخل بريدك الإلكتروني وسنرسل رابط التأكيد مرة أخرى.",
+      "successTitle": "تم تأكيد البريد الإلكتروني",
+      "successDescription": "تم تأكيد بريدك الإلكتروني. يمكنك تسجيل الدخول الآن.",
+      "successHint": "لأمانك، تأكيد البريد الإلكتروني لا يسجّل دخولك تلقائيًا.",
+      "failedTitle": "هذا الرابط لم يعمل",
+      "failedDescription": "روابط التأكيد تُستخدم مرة واحدة وتنتهي صلاحيتها. اطلب رابطًا جديدًا أدناه.",
+      "resend": "أرسل الرابط مرة أخرى",
+      "resendAction": "أرسله مرة أخرى",
+      "resendSent": "تم إرسال الرابط",
+      "resendConfirmation": "إذا كان هذا العنوان بحاجة إلى تأكيد، فالرابط الجديد في طريقه إليك.",
+      "goToSignIn": "الانتقال إلى تسجيل الدخول",
+      "backToSignIn": "العودة إلى تسجيل الدخول"
+    },
+    "forgotPassword": {
+      "title": "إعادة تعيين كلمة المرور",
+      "description": "أخبرنا ببريدك الإلكتروني وسنرسل لك رابطًا لاختيار كلمة مرور جديدة.",
+      "submit": "إرسال رابط إعادة التعيين",
+      "sentTitle": "تحقّق من بريدك",
+      "sentDescription": "إذا كان هناك حساب بهذا العنوان، فرابط إعادة التعيين في طريقه إليه.",
+      "sentHint": "تنتهي صلاحية الرابط خلال ساعة. إن لم يصلك، تحقّق من مجلد البريد غير المرغوب فيه قبل المحاولة مجددًا.",
+      "backToSignIn": "العودة إلى تسجيل الدخول"
+    },
+    "resetPassword": {
+      "title": "اختر كلمة مرور جديدة",
+      "description": "اختر كلمة مرور لم تستخدمها هنا من قبل.",
+      "submit": "حفظ كلمة المرور الجديدة",
+      "doneTitle": "تم تحديث كلمة المرور",
+      "doneDescription": "تم تغيير كلمة المرور الخاصة بك.",
+      "doneHint": "أي أجهزة أخرى سجّلت الدخول بكلمة المرور القديمة ستحتاج إليها من جديد.",
+      "goToSignIn": "الانتقال إلى تسجيل الدخول",
+      "unusableTitle": "لا يمكن استخدام هذا الرابط",
+      "unusableDescription": "روابط إعادة التعيين تُستخدم مرة واحدة وتنتهي صلاحيتها بعد ساعة.",
+      "requestNew": "اطلب رابطًا جديدًا",
+      "backToSignIn": "العودة إلى تسجيل الدخول"
+    },
+    "google": {
+      "continue": "المتابعة باستخدام Google",
+      "divider": "أو"
+    },
+    "fields": {
+      "name": "الاسم الكامل",
+      "namePlaceholder": "سارة حداد",
+      "email": "البريد الإلكتروني",
+      "emailPlaceholder": "you@example.com",
+      "password": "كلمة المرور",
+      "newPassword": "كلمة المرور الجديدة",
+      "confirmPassword": "تأكيد كلمة المرور الجديدة",
+      "passwordHint": "{min} أحرف على الأقل."
+    },
+    "password": {
+      "show": "إظهار كلمة المرور",
+      "hide": "إخفاء كلمة المرور"
+    },
+    "validation": {
+      "nameRequired": "أدخل اسمك.",
+      "nameTooLong": "هذا الاسم طويل جدًا.",
+      "emailRequired": "أدخل بريدك الإلكتروني.",
+      "emailInvalid": "هذا لا يبدو بريدًا إلكترونيًا صحيحًا.",
+      "passwordRequired": "أدخل كلمة المرور.",
+      "passwordTooShort": "كلمة المرور تحتاج إلى 8 أحرف على الأقل.",
+      "passwordTooLong": "كلمة المرور هذه طويلة جدًا.",
+      "confirmPasswordRequired": "أعد كتابة كلمة المرور الجديدة.",
+      "passwordsDoNotMatch": "كلمتا المرور غير متطابقتين.",
+      "organizationNameRequired": "أدخل اسمًا للمؤسسة.",
+      "organizationNameTooShort": "الاسم قصير جدًا.",
+      "organizationNameTooLong": "الاسم طويل جدًا.",
+      "organizationSlugRequired": "أدخل عنوانًا للمؤسسة.",
+      "organizationSlugTooShort": "العنوان قصير جدًا.",
+      "organizationSlugTooLong": "العنوان طويل جدًا.",
+      "organizationSlugInvalid": "استخدم حروفًا إنجليزية صغيرة وأرقامًا وشرطات مفردة."
+    },
+    "errors": {
+      "title": "حدث خطأ ما",
+      "INVALID_CREDENTIALS": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+      "EMAIL_NOT_VERIFIED": "أكّد بريدك الإلكتروني قبل تسجيل الدخول.",
+      "ACCOUNT_DEACTIVATED": "تم تعطيل هذا الحساب. تواصل مع الدعم إذا كنت ترى أن هذا خطأ.",
+      "ACCOUNT_BANNED": "تم إيقاف هذا الحساب.",
+      "EMAIL_ALREADY_REGISTERED": "يوجد حساب بهذا البريد الإلكتروني بالفعل.",
+      "EMAIL_ALREADY_VERIFIED": "هذا البريد الإلكتروني مؤكّد بالفعل.",
+      "WEAK_PASSWORD": "كلمة المرور هذه لا تستوفي الشروط.",
+      "INVALID_TOKEN": "هذا الرابط غير صالح.",
+      "TOKEN_EXPIRED": "انتهت صلاحية هذا الرابط.",
+      "PROVIDER_UNAVAILABLE": "تسجيل الدخول باستخدام Google غير متاح حاليًا.",
+      "ACCOUNT_LINK_CONFLICT": "لا يمكن ربط حساب Google هذا بهذا الحساب.",
+      "UNAUTHENTICATED": "انتهت جلستك. سجّل الدخول من جديد للمتابعة.",
+      "FORBIDDEN": "ليس لديك صلاحية للوصول إلى ذلك.",
+      "RATE_LIMITED": "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.",
+      "NETWORK_ERROR": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك ثم أعد المحاولة.",
+      "UNKNOWN": "حدث خطأ ما. أعد المحاولة."
+    }
+  },
+  "Organization": {
+    "roles": {
+      "owner": "مالك",
+      "admin": "مسؤول",
+      "member": "عضو"
+    },
+    "switcher": {
+      "label": "المؤسسة",
+      "placeholder": "اختر مؤسسة",
+      "loading": "جارٍ تحميل المؤسسات",
+      "none": "لا توجد مؤسسة بعد"
+    },
+    "active": {
+      "loading": "جارٍ تحميل المؤسسة",
+      "none": "لم تُختَر أي مؤسسة",
+      "notAMember": "لست عضوًا"
+    },
+    "invitation": {
+      "title": "لقد تلقيت دعوة",
+      "description": "تمت دعوتك للانضمام إلى <name>{organization}</name>.",
+      "invitedAs": "الدور",
+      "invitedEmail": "العنوان المدعو",
+      "invitedBy": "الدعوة من",
+      "expiresAt": "تنتهي في",
+      "accept": "قبول الدعوة",
+      "decline": "رفض",
+      "failureTitle": "لا يمكن استخدام هذه الدعوة",
+      "unavailableTitle": "الدعوة غير متاحة",
+      "unavailableDescription": "تعذّر فتح هذه الدعوة.",
+      "goToDashboard": "الانتقال إلى المنصة",
+      "signInRequiredTitle": "سجّل الدخول لعرض هذه الدعوة",
+      "signInRequiredDescription": "الدعوات مرتبطة بالعنوان الذي أُرسلت إليه، لذا نحتاج أولًا إلى معرفة من أنت.",
+      "signInRequiredHint": "سجّل الدخول بالعنوان الذي وصلت إليه الدعوة، أو أنشئ حسابًا به. سنعيدك إلى هنا مباشرة.",
+      "signInAction": "تسجيل الدخول",
+      "signUpAction": "إنشاء حساب",
+      "failures": {
+        "UNAVAILABLE": "هذه الدعوة لم تعد صالحة. ربما انتهت صلاحيتها أو سُحبت أو قُبلت من قبل. اطلب دعوة جديدة.",
+        "WRONG_ACCOUNT": "أُرسلت هذه الدعوة إلى بريد إلكتروني آخر. سجّل الخروج ثم ادخل بالعنوان المدعو.",
+        "EMAIL_VERIFICATION_REQUIRED": "أكّد بريدك الإلكتروني قبل قبول أي دعوة.",
+        "ORGANIZATION_ARCHIVED": "هذه المؤسسة مؤرشفة ولا يمكن الانضمام إليها حتى تتم استعادتها.",
+        "ORGANIZATION_UNAVAILABLE": "لم تعد هذه المؤسسة متاحة.",
+        "INVITER_GONE": "الشخص الذي دعاك لم يعد عضوًا في هذه المؤسسة. اطلب من شخص آخر فيها أن يدعوك.",
+        "MEMBERSHIP_LIMIT_REACHED": "بلغت هذه المؤسسة الحد الأقصى لعدد الأعضاء.",
+        "FORBIDDEN": "لا يُسمح لك باستخدام هذه الدعوة.",
+        "NETWORK_ERROR": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك ثم أعد المحاولة.",
+        "UNKNOWN": "حدث خطأ ما. أعد المحاولة."
+      }
+    },
+    "errors": {
+      "title": "لم تنجح العملية",
+      "FORBIDDEN": "لا تملك صلاحية القيام بذلك في هذه المؤسسة.",
+      "NOT_A_MEMBER": "لست عضوًا في هذه المؤسسة.",
+      "ORGANIZATION_ARCHIVED": "هذه المؤسسة مؤرشفة. استعِدها قبل إجراء أي تغيير.",
+      "ORGANIZATION_NOT_FOUND": "هذه المؤسسة غير متاحة.",
+      "ORGANIZATION_NOT_ARCHIVED": "هذه المؤسسة نشطة بالفعل.",
+      "ORGANIZATION_ALREADY_ARCHIVED": "هذه المؤسسة مؤرشفة بالفعل.",
+      "SLUG_TAKEN": "هذا العنوان مستخدم بالفعل. جرّب عنوانًا آخر.",
+      "ORGANIZATION_LIMIT_REACHED": "لقد بلغت الحد الأقصى لعدد المؤسسات.",
+      "MEMBER_NOT_FOUND": "لم يعد هذا العضو ضمن المؤسسة.",
+      "MEMBER_LIMIT_REACHED": "بلغت هذه المؤسسة الحد الأقصى لعدد الأعضاء.",
+      "ALREADY_A_MEMBER": "هذا الشخص عضو في المؤسسة بالفعل.",
+      "ALREADY_INVITED": "هذا العنوان لديه دعوة معلّقة بالفعل.",
+      "INVITATION_NOT_FOUND": "لم تعد هذه الدعوة موجودة.",
+      "INVITATION_LIMIT_REACHED": "بلغت هذه المؤسسة الحد الأقصى لعدد الدعوات.",
+      "ROLE_NOT_ALLOWED": "لا يُسمح لك بمنح هذا الدور.",
+      "LAST_OWNER": "لا بد أن يكون للمؤسسة مالك واحد على الأقل. عيّن شخصًا آخر مالكًا أولًا.",
+      "EMAIL_VERIFICATION_REQUIRED": "أكّد بريدك الإلكتروني قبل القيام بذلك.",
+      "RATE_LIMITED": "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.",
+      "NETWORK_ERROR": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك وأعد المحاولة.",
+      "UNKNOWN": "حدث خطأ ما. أعد المحاولة."
+    },
+    "fields": {
+      "name": "اسم المؤسسة",
+      "namePlaceholder": "أبحاث أكمي",
+      "slug": "العنوان",
+      "slugPlaceholder": "acme-research",
+      "slugHint": "حروف إنجليزية صغيرة وأرقام وشرطات. يُستخدم في الروابط المؤدية إلى هذه المؤسسة.",
+      "slugChecking": "جارٍ التحقق من التوفر…",
+      "slugAvailable": "هذا العنوان متاح.",
+      "slugTaken": "هذا العنوان مستخدم بالفعل.",
+      "inviteEmail": "البريد الإلكتروني",
+      "inviteRole": "الدور",
+      "emailPlaceholder": "name@example.com"
+    },
+    "list": {
+      "title": "المؤسسات",
+      "description": "المؤسسات التي تنتمي إليها. افتح واحدة لإدارة أعضائها ودعواتها.",
+      "create": "مؤسسة جديدة",
+      "emptyTitle": "لست ضمن أي مؤسسة بعد",
+      "emptyDescription": "أنشئ مؤسسة للبدء، أو انتظر دعوة من شخص آخر للانضمام إلى مؤسسته.",
+      "archivedTitle": "المؤرشفة",
+      "archivedDescription": "هذه المؤسسات خارج الخدمة. لم يُحذف أي شيء، واستعادة أي منها تعيدها كما كانت تمامًا.",
+      "archivedBadge": "مؤرشفة"
+    },
+    "create": {
+      "title": "مؤسسة جديدة",
+      "description": "ستكون مالكها، ويمكنك دعوة أشخاص آخرين بعد إنشائها.",
+      "formTitle": "التفاصيل",
+      "submit": "إنشاء المؤسسة",
+      "cancel": "إلغاء"
+    },
+    "tabs": {
+      "label": "أقسام المؤسسة",
+      "overview": "نظرة عامة",
+      "members": "الأعضاء",
+      "invitations": "الدعوات",
+      "settings": "الإعدادات"
+    },
+    "overview": {
+      "memberCount": "الأعضاء",
+      "pendingInvitationCount": "الدعوات المعلّقة",
+      "viewMembers": "عرض الأعضاء",
+      "viewInvitations": "عرض الدعوات",
+      "detailsTitle": "التفاصيل",
+      "detailsDescription": "ما هي هذه المؤسسة، وما موقعك داخلها.",
+      "createdAt": "أُنشئت في",
+      "yourRole": "دورك"
+    },
+    "members": {
+      "title": "الأعضاء",
+      "description": "كل من ينتمي إلى هذه المؤسسة. ما يمكنك تغييره هنا يعتمد على دورك أنت.",
+      "columnMember": "العضو",
+      "columnRole": "الدور",
+      "columnJoined": "تاريخ الانضمام",
+      "columnActions": "الإجراءات",
+      "joinedOn": "انضم في",
+      "roleLabelFor": "دور {person}",
+      "removeAction": "إزالة",
+      "leaveAction": "مغادرة",
+      "removeTitle": "إزالة هذا العضو؟",
+      "removeDescription": "سيفقد {person} إمكانية الوصول إلى هذه المؤسسة.",
+      "removeConfirm": "إزالة العضو",
+      "leaveTitle": "مغادرة هذه المؤسسة؟",
+      "leaveDescription": "ستفقد إمكانية الوصول إلى {organization} وستحتاج إلى دعوة جديدة للعودة.",
+      "leaveConfirm": "مغادرة المؤسسة",
+      "cancel": "إلغاء",
+      "removalPreserves": "لا يُحذف شيء مما أنشأه. ينتهي فقط وصوله إلى هذه المؤسسة."
+    },
+    "invitations": {
+      "title": "الدعوات",
+      "description": "الدعوات إلى هذه المؤسسة وسجلّها.",
+      "inviteTitle": "دعوة شخص",
+      "inviteDescription": "سيصله بريد إلكتروني يحتوي على رابط. إرسال دعوة جديدة إلى العنوان نفسه يلغي الدعوة السابقة.",
+      "inviteSubmit": "إرسال الدعوة",
+      "inviteSent": "أُرسلت دعوة إلى <address>{email}</address>.",
+      "listTitle": "كل الدعوات",
+      "pendingCount": "{count, plural, =0 {لا توجد دعوات بانتظار القبول} one {دعوة واحدة بانتظار القبول} two {دعوتان بانتظار القبول} few {# دعوات بانتظار القبول} many {# دعوة بانتظار القبول} other {# دعوة بانتظار القبول}}",
+      "emptyTitle": "لا توجد دعوات بعد",
+      "emptyDescription": "ادعُ شخصًا من الأعلى وستظهر دعوته هنا.",
+      "cancelAction": "سحب",
+      "expiresOn": "تنتهي في {date}",
+      "expiredOn": "انتهت في {date}",
+      "status": {
+        "pending": "معلّقة",
+        "accepted": "مقبولة",
+        "rejected": "مرفوضة",
+        "canceled": "مسحوبة"
+      }
+    },
+    "settings": {
+      "title": "الإعدادات",
+      "description": "كيف تظهر هذه المؤسسة، وماذا يحدث لها.",
+      "profileTitle": "ملف المؤسسة",
+      "profileDescription": "الاسم الذي يراه الناس، والعنوان المستخدم في الروابط.",
+      "save": "حفظ التغييرات",
+      "saved": "تم حفظ تغييراتك.",
+      "readOnlyTitle": "لا يمكنك تغيير هذه الإعدادات",
+      "readOnlyDescription": "يستطيع تعديل ملف المؤسسة مسؤولوها أو مالكها فقط.",
+      "dangerTitle": "منطقة الخطر",
+      "dangerDescription": "إجراءات تؤثّر على كل من في هذه المؤسسة.",
+      "archiveTitle": "أرشفة هذه المؤسسة",
+      "archiveExplanation": "تُخرج المؤسسة من الخدمة للجميع. لا يُحذف شيء ويمكن استعادتها.",
+      "archiveAction": "أرشفة",
+      "archiveConfirmTitle": "أرشفة هذه المؤسسة؟",
+      "archiveConfirmDescription": "ستخرج {organization} من الخدمة لكل الأعضاء حتى يستعيدها أحدهم.",
+      "archiveConfirm": "أرشفة المؤسسة",
+      "cancel": "إلغاء",
+      "restoreAction": "استعادة"
+    },
+    "archived": {
+      "title": "هذه المؤسسة مؤرشفة",
+      "description": "هي خارج الخدمة للجميع. لم يُحذف أي شيء.",
+      "preservedMembers": "يحتفظ الأعضاء بمواقعهم — لا يُزال أحد.",
+      "preservedResources": "كل ما أُنشئ داخلها محفوظ.",
+      "canceledInvitations": "تُسحب الدعوات التي لم تُقبل بعد.",
+      "reversible": "يمكن استعادة المؤسسة في أي وقت.",
+      "backToList": "العودة إلى المؤسسات"
+    },
+    "unavailable": {
+      "title": "تعذّر فتح هذه المؤسسة",
+      "description": "قد تكون لم تعد موجودة، أو قد لا تكون عضوًا فيها."
+    }
+  },
+  "Platform": {
+    "nav": {
+      "label": "تنقّل المنصة",
+      "mobileDescription": "تنقّل بين أقسام المنصة.",
+      "accountLabel": "الحساب والإعدادات",
+      "toggle": "إظهار قائمة التنقّل أو إخفاؤها",
+      "platformGroup": "المنصة",
+      "dashboard": "لوحة التحكم",
+      "organizations": "المؤسسات",
+      "designSystem": "نظام التصميم",
+      "overview": "نظرة عامة",
+      "members": "الأعضاء",
+      "invitations": "الدعوات",
+      "settings": "الإعدادات"
+    },
+    "account": {
+      "label": "فتح قائمة الحساب",
+      "unnamed": "حسابك",
+      "administration": "الإدارة",
+      "signOut": "تسجيل الخروج"
+    },
+    "dashboard": {
+      "greeting": "أهلًا بعودتك، {name}",
+      "description": "هذا هو الجانب الخاص من المنصة. كل ما هنا يتطلب حسابًا مسجّل الدخول.",
+      "account": {
+        "title": "حسابك",
+        "description": "الطريقة التي سجّلت بها الدخول الآن.",
+        "email": "البريد الإلكتروني",
+        "verification": "حالة البريد الإلكتروني",
+        "verified": "مؤكّد",
+        "unverified": "غير مؤكّد"
+      },
+      "organization": {
+        "title": "المؤسسة",
+        "description": "المؤسسة التي تعرضها المنصة حاليًا.",
+        "hint": "اختيار مؤسسة يحدّد السياق فقط. ما يمكنك فعله داخلها يعتمد على دورك فيها، وكل إجراء يتحقق منه الخادم من جديد."
+      },
+      "organizations": {
+        "title": "مؤسساتك",
+        "viewAll": "عرض الكل",
+        "emptyTitle": "لست ضمن أي مؤسسة بعد",
+        "emptyDescription": "أنشئ مؤسسة للبدء، أو انتظر دعوة من شخص آخر للانضمام إلى مؤسسته.",
+        "create": "إنشاء مؤسسة"
+      }
+    }
+  }
+}
