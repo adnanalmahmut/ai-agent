@@ -99,8 +99,16 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
     const status =
       ERROR_STATUS_CODES[exception.code] ?? HttpStatus.INTERNAL_SERVER_ERROR;
 
+    const details =
+      exception.context &&
+      typeof exception.context === 'object' &&
+      'details' in exception.context
+        ? (exception.context.details as Record<string, unknown>)
+        : undefined;
+
     return this.formatEnvelope(status, exception.code, locale, requestId, {
       args: exception.context,
+      details,
     });
   }
 
