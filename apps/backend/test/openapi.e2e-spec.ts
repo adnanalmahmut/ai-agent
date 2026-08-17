@@ -105,7 +105,7 @@ describe('OpenAPI enabled (e2e)', () => {
       expect(schemes.sessionCookie).toMatchObject({
         type: 'apiKey',
         in: 'cookie',
-        name: 'better-auth.session_token',
+        name: '__Host-session',
       });
       expect(schemes).not.toHaveProperty('bearerAuth');
     });

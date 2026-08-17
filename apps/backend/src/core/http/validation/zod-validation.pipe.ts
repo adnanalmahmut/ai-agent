@@ -1,9 +1,4 @@
-import {
-  ArgumentMetadata,
-  Injectable,
-  PipeTransform,
-} from '@nestjs/common';
-import type { z } from 'zod';
+import { ArgumentMetadata, Injectable, PipeTransform } from '@nestjs/common';
 
 import { ValidationException } from './validation-issue';
 import { isZodDto } from './zod-dto';
@@ -18,7 +13,7 @@ export class ZodValidationPipe implements PipeTransform {
       return value;
     }
 
-    const schema = metatype.zodSchema as z.ZodTypeAny;
+    const schema = metatype.zodSchema;
 
     const result = schema.safeParse(value);
 

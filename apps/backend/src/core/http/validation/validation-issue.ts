@@ -32,9 +32,12 @@ export interface ValidationIssue {
   args?: Record<string, unknown>;
 }
 
-export class ValidationException {
+export class ValidationException extends Error {
   readonly status = HttpStatus.BAD_REQUEST;
   readonly code = 'VALIDATION_ERROR';
 
-  constructor(readonly issues: ValidationIssue[]) {}
+  constructor(readonly issues: ValidationIssue[]) {
+    super('Validation failed');
+    this.name = 'ValidationException';
+  }
 }

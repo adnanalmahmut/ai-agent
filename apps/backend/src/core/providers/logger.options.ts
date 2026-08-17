@@ -46,7 +46,8 @@ export function createLoggerOptions(
       }),
 
       autoLogging: {
-        ignore: (req) => req.url === '/health',
+        ignore: (req) =>
+          req.url === '/api/health/live' || req.url === '/api/health/ready',
       },
     },
   };

@@ -723,7 +723,7 @@ describe('Organizations (e2e)', () => {
 
       const archivedRows = (body: unknown): ArchivedRow[] => {
         if (body && typeof body === 'object' && 'data' in body) {
-          return ((body as { data: ArchivedRow[] }).data) ?? [];
+          return (body as { data: ArchivedRow[] }).data ?? [];
         }
         return (body as ArchivedRow[]) ?? [];
       };
@@ -842,10 +842,13 @@ describe('Organizations (e2e)', () => {
           '/organizations/archived',
         );
 
-        const rows = (response.body && typeof response.body === 'object' && 'data' in response.body) ? (response.body as { data: { id: string }[] }).data : (response.body as { id: string }[]);
-        expect(
-          (rows ?? []).map((row) => row.id),
-        ).not.toContain(archivedOrg);
+        const rows =
+          response.body &&
+          typeof response.body === 'object' &&
+          'data' in response.body
+            ? (response.body as { data: { id: string }[] }).data
+            : (response.body as { id: string }[]);
+        expect((rows ?? []).map((row) => row.id)).not.toContain(archivedOrg);
       });
 
       it('leaves invitations canceled by the archive canceled', async () => {

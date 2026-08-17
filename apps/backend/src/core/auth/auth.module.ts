@@ -1,3 +1,4 @@
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Module } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { AuthModule } from '@thallesp/nestjs-better-auth';
@@ -68,7 +69,11 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
         // genReqId lives). This hook runs the same shared assignRequestId
         // function so every auth response carries X-Request-ID from the
         // single source of truth.
-        middleware: (req: any, res: any, next: () => void) => {
+        middleware: (
+          req: IncomingMessage,
+          res: ServerResponse,
+          next: () => void,
+        ) => {
           assignRequestId(req, res);
           next();
         },

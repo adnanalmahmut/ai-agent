@@ -1,6 +1,24 @@
 {
   "version": 1,
   "skills": {
+    "code-review": {
+      "source": "block/agent-skills",
+      "sourceType": "github",
+      "skillPath": "code-review/SKILL.md",
+      "computedHash": "206a8f9446c66b75a52dff6bc3ebe1e60977e7619208fd9993bf6280e8615924"
+    },
+    "jest": {
+      "source": "mindrally/skills",
+      "sourceType": "github",
+      "skillPath": "jest/SKILL.md",
+      "computedHash": "c92bc60ac2a54f6cbc0ec0c4e5204f7ec2f6847326aeade455edc85a833ac1df"
+    },
+    "nestjs-best-practices": {
+      "source": "kadajett/agent-nestjs-skills",
+      "sourceType": "github",
+      "skillPath": "skills/nestjs-best-practices/SKILL.md",
+      "computedHash": "58f8a630637be3acce1f118c747d68160346ada8a43d76cb52a5b4c4edaa2d37"
+    },
     "next-cache-components-adoption": {
       "source": "vercel/next.js",
       "sourceType": "github",
@@ -24,6 +42,12 @@
       "sourceType": "github",
       "skillPath": "skills/next-partial-prefetching-adoption/SKILL.md",
       "computedHash": "6c94969d634f91dd14806fb836a89e653db4f0d4f084127eb9f5ffcb1416045e"
+    },
+    "security-review": {
+      "source": "getsentry/skills",
+      "sourceType": "github",
+      "skillPath": "skills/security-review/SKILL.md",
+      "computedHash": "ec9792f5fd065e020c48ab5a57707c83435c286c449ba98dfa726d7b1842c868"
     },
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",

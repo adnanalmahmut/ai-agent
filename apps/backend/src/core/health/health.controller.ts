@@ -32,7 +32,7 @@ export class HealthController {
 
     if (result.status === 'error') {
       throw new AppException('SERVICE_UNAVAILABLE', {
-        details: result.dependencies,
+        publicDetails: result.dependencies,
       });
     }
 

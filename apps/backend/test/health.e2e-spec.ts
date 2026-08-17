@@ -78,7 +78,9 @@ describe('Health checks (e2e)', () => {
         },
       });
 
-      expect(JSON.stringify(response.body)).not.toContain('Connection terminated unexpectedly');
+      expect(JSON.stringify(response.body)).not.toContain(
+        'Connection terminated unexpectedly',
+      );
       querySpy.mockRestore();
     });
   });

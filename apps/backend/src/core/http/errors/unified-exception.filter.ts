@@ -15,7 +15,10 @@ import {
   ValidationException,
   type ValidationIssue,
 } from '../validation/validation-issue';
-import type { ApiErrorResponse, ApiFieldError } from '../response/response.types';
+import type {
+  ApiErrorResponse,
+  ApiFieldError,
+} from '../response/response.types';
 import { AppI18nService } from '../../i18n/app-i18n.service';
 import {
   ERROR_STATUS_CODES,
@@ -23,7 +26,10 @@ import {
   VALIDATION_TRANSLATION_KEYS,
   errorCodeForStatus,
 } from '../../i18n/error-translation-map';
-import { nodeHeaderGetter, resolveLocaleFromHeaders } from '../../i18n/request-locale';
+import {
+  nodeHeaderGetter,
+  resolveLocaleFromHeaders,
+} from '../../i18n/request-locale';
 
 /**
  * The single exception filter for the HTTP boundary.
@@ -47,7 +53,12 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
       (response.getHeader('X-Request-ID') as string) ??
       'req_unknown';
 
-    const { status, body } = this.buildErrorResponse(exception, locale, requestId, host);
+    const { status, body } = this.buildErrorResponse(
+      exception,
+      locale,
+      requestId,
+      host,
+    );
 
     response.status(status).json(body);
   }
@@ -99,16 +110,9 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
     const status =
       ERROR_STATUS_CODES[exception.code] ?? HttpStatus.INTERNAL_SERVER_ERROR;
 
-    const details =
-      exception.context &&
-      typeof exception.context === 'object' &&
-      'details' in exception.context
-        ? (exception.context.details as Record<string, unknown>)
-        : undefined;
-
     return this.formatEnvelope(status, exception.code, locale, requestId, {
       args: exception.context,
-      details,
+      details: exception.publicDetails,
     });
   }
 
@@ -127,7 +131,8 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
       exceptionResponse !== null &&
       'details' in exceptionResponse
     ) {
-      details = (exceptionResponse as { details: Record<string, unknown> }).details;
+      details = (exceptionResponse as { details: Record<string, unknown> })
+        .details;
     }
 
     return this.formatEnvelope(status, code, locale, requestId, { details });
@@ -210,7 +215,10 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
     );
   }
 
-  private toFieldError(issue: ValidationIssue, locale: AppLocale): ApiFieldError {
+  private toFieldError(
+    issue: ValidationIssue,
+    locale: AppLocale,
+  ): ApiFieldError {
     return {
       field: issue.field,
       code: issue.code,
