@@ -38,7 +38,20 @@ interface ErrorBody {
   timestamp: string;
 }
 
-const errorBody = (response: Response): ErrorBody => response.body as ErrorBody;
+const errorBody = (response: Response): ErrorBody => {
+  const b = response.body as Record<string, any>;
+  if (b && b.error) {
+    return {
+      success: b.success,
+      statusCode: response.status,
+      errorCode: b.error.code,
+      message: b.error.message,
+      errors: b.error.details,
+      timestamp: b.meta?.timestamp,
+    };
+  }
+  return b as ErrorBody;
+};
 
 const fieldErrors = (response: Response): FieldErrorBody[] =>
   errorBody(response).errors ?? [];
@@ -119,7 +132,7 @@ class TestI18nController {
 
   @Post('sign-up')
   signUp(@Body() dto: SignUpDto) {
-    return { success: true, data: dto };
+    return dto;
   }
 }
 
@@ -186,9 +199,10 @@ describe('Backend i18n (e2e)', () => {
       expect(response.status).toBe(404);
       expect(response.body).toMatchObject({
         success: false,
-        statusCode: 404,
-        errorCode: 'USER_NOT_FOUND',
-        message: 'المستخدم غير موجود في النظام',
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'المستخدم غير موجود في النظام',
+        },
       });
       expect(errorBody(response).timestamp).toEqual(expect.any(String));
     });
@@ -200,8 +214,10 @@ describe('Backend i18n (e2e)', () => {
 
       expect(response.status).toBe(404);
       expect(response.body).toMatchObject({
-        errorCode: 'USER_NOT_FOUND',
-        message: 'User was not found',
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'User was not found',
+        },
       });
     });
 
@@ -218,8 +234,10 @@ describe('Backend i18n (e2e)', () => {
 
       expect(response.status).toBe(403);
       expect(response.body).toMatchObject({
-        errorCode: 'FORBIDDEN',
-        message: 'You do not have permission to perform this action',
+        error: {
+          code: 'FORBIDDEN',
+          message: 'You do not have permission to perform this action',
+        },
       });
     });
   });
@@ -232,7 +250,7 @@ describe('Backend i18n (e2e)', () => {
     it.each([
       ['unprocessable', HttpStatus.UNPROCESSABLE_ENTITY, 'BAD_REQUEST'],
       ['method-not-allowed', HttpStatus.METHOD_NOT_ALLOWED, 'BAD_REQUEST'],
-      ['unavailable', HttpStatus.SERVICE_UNAVAILABLE, 'INTERNAL_SERVER_ERROR'],
+      ['unavailable', HttpStatus.SERVICE_UNAVAILABLE, 'SERVICE_UNAVAILABLE'],
       ['teapot', HttpStatus.I_AM_A_TEAPOT, 'BAD_REQUEST'],
     ])(
       'preserves the original status for /%s (%i)',
@@ -315,8 +333,10 @@ describe('Backend i18n (e2e)', () => {
 
       expect(response.status).toBe(500);
       expect(response.body).toMatchObject({
-        errorCode: 'INTERNAL_SERVER_ERROR',
-        message: 'An unexpected error occurred, please try again later',
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'An unexpected error occurred, please try again later',
+        },
       });
 
       const serialized = JSON.stringify(response.body);
@@ -355,9 +375,10 @@ describe('Backend i18n (e2e)', () => {
       expect(response.status).toBe(400);
       expect(response.body).toMatchObject({
         success: false,
-        statusCode: 400,
-        errorCode: 'VALIDATION_ERROR',
-        message: 'بيانات الطلب غير صالحة',
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'بيانات الطلب غير صالحة',
+        },
       });
 
       expect(fieldErrors(response)).toEqual(

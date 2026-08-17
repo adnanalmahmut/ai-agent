@@ -106,7 +106,18 @@ class ProbeController {
 }
 
 type ErrorBody = { statusCode: number; errorCode: string; message: string };
-const errorBody = (response: Response) => response.body as ErrorBody;
+
+const errorBody = (response: Response): ErrorBody => {
+  const b = response.body as Record<string, any>;
+  if (b && typeof b === 'object' && b.error && typeof b.error === 'object') {
+    return {
+      statusCode: response.status,
+      errorCode: b.error.code,
+      message: b.error.message,
+    };
+  }
+  return b as ErrorBody;
+};
 
 const EMAIL = `e2e-${Date.now()}@example.com`;
 const PASSWORD = 'super-secret-password';
@@ -168,8 +179,11 @@ describe('Better Auth (e2e)', () => {
         .send({ email: 'user@example.com', age: '30' });
 
       expect(response.status).toBe(201);
-      expect(response.body).toEqual({
-        received: { email: 'user@example.com', age: 30 },
+      expect(response.body).toMatchObject({
+        success: true,
+        data: {
+          received: { email: 'user@example.com', age: 30 },
+        },
       });
     });
 
@@ -199,7 +213,10 @@ describe('Better Auth (e2e)', () => {
       const response = await request(server).get('/e2e/optional');
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ authenticated: false });
+      expect(response.body).toMatchObject({
+        success: true,
+        data: { authenticated: false },
+      });
     });
 
     /**
@@ -318,7 +335,10 @@ describe('Better Auth (e2e)', () => {
         .set('Cookie', sessionCookie);
 
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ email: EMAIL });
+      expect(response.body).toMatchObject({
+        success: true,
+        data: { email: EMAIL },
+      });
     });
 
     it('reports the session on an optional-auth route', async () => {
@@ -326,7 +346,10 @@ describe('Better Auth (e2e)', () => {
         .get('/e2e/optional')
         .set('Cookie', sessionCookie);
 
-      expect(response.body).toEqual({ authenticated: true });
+      expect(response.body).toMatchObject({
+        success: true,
+        data: { authenticated: true },
+      });
     });
 
     it('dispatches a password-reset email on request', async () => {

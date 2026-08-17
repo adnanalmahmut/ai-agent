@@ -65,7 +65,7 @@ describe('single-origin deployment (e2e)', () => {
       );
 
       expect(response.status).toBe(200);
-      expect(Array.isArray(response.body)).toBe(true);
+      expect(Array.isArray(response.body.data)).toBe(true);
     });
 
     it('no longer answers at the unprefixed path', async () => {

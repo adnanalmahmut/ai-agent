@@ -201,9 +201,25 @@ export type ErrorBody = {
   statusCode: number;
   errorCode: string;
   message: string;
+  error?: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
 };
 
-export const errorBody = (response: Response) => response.body as ErrorBody;
+export const errorBody = (response: Response): ErrorBody => {
+  const b = response.body as Record<string, any>;
+  if (b && typeof b === 'object' && b.error && typeof b.error === 'object') {
+    return {
+      statusCode: response.status,
+      errorCode: b.error.code,
+      message: b.error.message,
+      error: b.error,
+    };
+  }
+  return b as ErrorBody;
+};
 
 /** Signed-in request helpers, so suites read as intent rather than plumbing. */
 export const as = (harness: Harness, user: Pick<TestUser, 'cookie'>) => ({

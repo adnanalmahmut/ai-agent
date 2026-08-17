@@ -721,8 +721,15 @@ describe('Organizations (e2e)', () => {
     describe('listing archived organizations', () => {
       type ArchivedRow = { id: string; canRestore: boolean };
 
+      const archivedRows = (body: unknown): ArchivedRow[] => {
+        if (body && typeof body === 'object' && 'data' in body) {
+          return ((body as { data: ArchivedRow[] }).data) ?? [];
+        }
+        return (body as ArchivedRow[]) ?? [];
+      };
+
       const archivedIds = (body: unknown) =>
-        (body as ArchivedRow[]).map((row) => row.id);
+        archivedRows(body).map((row) => row.id);
 
       it('shows it to the owner, marked restorable', async () => {
         const response = await as(harness, archiveOwner).get(
@@ -731,7 +738,7 @@ describe('Organizations (e2e)', () => {
 
         expect(response.status).toBe(200);
 
-        const row = (response.body as ArchivedRow[]).find(
+        const row = archivedRows(response.body).find(
           (candidate) => candidate.id === archivedOrg,
         );
 
@@ -774,7 +781,7 @@ describe('Organizations (e2e)', () => {
           '/organizations/archived',
         );
 
-        const row = (response.body as ArchivedRow[]).find(
+        const row = archivedRows(response.body).find(
           (candidate) => candidate.id === archivedOrg,
         );
 
@@ -835,8 +842,9 @@ describe('Organizations (e2e)', () => {
           '/organizations/archived',
         );
 
+        const rows = (response.body && typeof response.body === 'object' && 'data' in response.body) ? (response.body as { data: { id: string }[] }).data : (response.body as { id: string }[]);
         expect(
-          (response.body as { id: string }[]).map((row) => row.id),
+          (rows ?? []).map((row) => row.id),
         ).not.toContain(archivedOrg);
       });
 
