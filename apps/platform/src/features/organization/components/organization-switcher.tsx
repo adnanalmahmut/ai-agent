@@ -28,16 +28,13 @@ import { useOrganizationSwitcher } from '../hooks/use-organization-switcher';
  */
 export function OrganizationSwitcher() {
   const t = useTranslations('Organization');
-  const {
-    organizations,
-    activeOrganization,
-    isLoading,
-    pendingId,
-    switchTo,
-  } = useOrganizationSwitcher();
+  const { organizations, activeOrganization, isLoading, pendingId, switchTo } =
+    useOrganizationSwitcher();
 
   if (isLoading) {
-    return <Skeleton className="h-9 w-40" aria-label={t('switcher.loading')} />;
+    return (
+      <Skeleton className="h-9 w-full" aria-label={t('switcher.loading')} />
+    );
   }
 
   if (organizations.length === 0) {
@@ -52,7 +49,7 @@ export function OrganizationSwitcher() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="max-w-52 justify-between gap-2">
+        <Button variant="outline" className=" justify-between gap-2">
           <Building2 className="size-4 shrink-0 text-muted-foreground" />
 
           {/*
