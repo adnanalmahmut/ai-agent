@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { PinoLogger } from 'nestjs-pino';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { PinoLogger } from 'nestjs-pino';
 
 import type { LogMailConfig } from '../../config/mail.config';
 import { maskEmail } from './mail-redaction';

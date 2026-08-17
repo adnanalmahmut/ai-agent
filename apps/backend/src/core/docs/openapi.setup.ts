@@ -5,38 +5,23 @@ import { apiReference } from '@scalar/nestjs-api-reference';
 
 import { appConfig, openapiConfig } from '../../config';
 
-/**
- * The session cookie Better Auth issues, and the only credential this
- * application's own routes accept.
- *
- * Documented as an api-key-in-cookie scheme rather than bearer auth: the
- * `bearer()` plugin is not installed, so no application route reads an
- * `Authorization` header, and advertising one would be documentation that
- * lies. Better Auth's own document describes its own schemes; we do not edit
- * it.
- */
+// Application routes authenticate with Better Auth's session cookie.
+// Do not advertise bearer auth unless bearer-token authentication is added.
 const SESSION_COOKIE_SCHEME = 'sessionCookie';
-const SESSION_COOKIE_NAME = 'better-auth.session_token';
+const SESSION_COOKIE_NAME = '__Host-session';
 
 /**
- * One documentation experience, two schema sources.
+ * Mounts one Scalar UI backed by separate Application and Better Auth
+ * OpenAPI documents.
  *
- * The two documents are *not* merged, for reasons that are properties of the
- * artifacts rather than preferences: they are produced at different times (the
- * Nest document at bootstrap from decorator metadata, Better Auth's at request
- * time from its live plugin list), they both define `User` and `Session`
- * component schemas, they both define a `bearerAuth` security scheme, Better
- * Auth tags its core routes `Default`, and their `servers` differ — Better
- * Auth's paths are relative to `/api/auth`, ours to `/`. A merge would need a
- * rename strategy for all of that, and renames break `$ref`s. Scalar renders
- * multiple sources natively with a document selector, so the user-facing goal
- * — one place to read the API — is met without any of it.
+ * The schemas intentionally remain separate to avoid component/security
+ * collisions and brittle $ref rewriting.
  *
- * Returns `false` when documentation is disabled, so callers and tests can
- * assert that nothing was mounted.
+ * Returns false when documentation is disabled.
  */
 export function setupOpenApi(app: INestApplication): boolean {
   const openapi = app.get<ConfigType<typeof openapiConfig>>(openapiConfig.KEY);
+
   if (!openapi.enabled) return false;
 
   const application = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
@@ -44,8 +29,7 @@ export function setupOpenApi(app: INestApplication): boolean {
   const document = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
-      // Matches the 3.1.1 Better Auth's generator emits, so both sources in
-      // the same UI speak the same dialect.
+      // Keep both OpenAPI sources on the same specification version.
       .setOpenAPIVersion('3.1.1')
       .setTitle(`${application.name} — Application API`)
       .setDescription(
@@ -54,9 +38,7 @@ export function setupOpenApi(app: INestApplication): boolean {
           'under the "Authentication API" source.',
       )
       .setVersion('1.0.0')
-      // Matches `setGlobalPrefix('api')` in main.ts: every application route
-      // is served under it, so a document that claimed `/` would produce
-      // "try it" requests that 404.
+      // Keep in sync with the application's global API prefix.
       .addServer('/api')
       .addCookieAuth(
         SESSION_COOKIE_NAME,
@@ -67,21 +49,19 @@ export function setupOpenApi(app: INestApplication): boolean {
       .build(),
   );
 
-  // `ui: false` is what keeps this to one documentation UI. Swagger UI would
-  // otherwise be served alongside Scalar and the two would drift.
+  // Expose only the JSON document; Scalar is the single documentation UI.
   SwaggerModule.setup('docs-app', app, document, {
     ui: false,
     raw: ['json'],
     jsonDocumentUrl: openapi.jsonPath,
   });
 
-  // Relative source URLs: Scalar fetches them from the browser, so they
-  // resolve against whatever origin the docs are being read from and no host
-  // is baked into the build.
+  // Relative URLs keep the docs origin-agnostic across environments.
   app.use(
     openapi.path,
     apiReference({
       pageTitle: `${application.name} API`,
+      theme: 'purple',
       sources: [
         {
           title: 'Application API',

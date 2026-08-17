@@ -106,6 +106,7 @@ function formatCode(format: string): ValidationIssueCode {
       return 'INVALID_URL';
     case 'date':
     case 'datetime':
+      return 'INVALID_DATE';
     case 'iso_date':
     case 'iso_datetime':
       return 'INVALID_DATE';
