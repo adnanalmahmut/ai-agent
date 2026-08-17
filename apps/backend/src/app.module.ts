@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 
 import { appConfig, configurations, observabilityConfig } from './config';
 import { AppAuthModule } from './core/auth';
+import { HealthModule } from './core/health';
 import { HttpInfrastructureModule } from './core/http';
 import { AppI18nModule } from './core/i18n';
 import { MailModule } from './core/mail';
@@ -26,6 +27,7 @@ import { DatabaseModule } from './database';
     DatabaseModule,
     MailModule,
     AppAuthModule,
+    HealthModule,
   ],
 })
 export class AppModule {}

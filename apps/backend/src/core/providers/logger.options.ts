@@ -2,6 +2,7 @@ import type { ConfigType } from '@nestjs/config';
 import type { Params } from 'nestjs-pino';
 
 import { appConfig, observabilityConfig } from '../../config';
+import { assignRequestId } from './request-id';
 
 export function createLoggerOptions(
   app: ConfigType<typeof appConfig>,
@@ -10,6 +11,7 @@ export function createLoggerOptions(
   return {
     pinoHttp: {
       level: observability.level,
+      genReqId: (req, res) => assignRequestId(req, res),
 
       transport: observability.pretty
         ? {
@@ -28,11 +30,8 @@ export function createLoggerOptions(
           'req.headers.authorization',
           'req.headers.cookie',
           'res.headers.set-cookie',
-          // Mail transports log an explicit whitelist and never these, but a
-          // redaction rule costs nothing and covers the case where someone
-          // adds a log line without reading the policy: `actionUrl` carries a
-          // single-use verification or password-reset token, and the variable
-          // bag is where it comes from.
+          // Defense in depth: mail variables and action URLs may contain
+          // single-use verification or password-reset tokens.
           'variables',
           'actionUrl',
           '*.variables',

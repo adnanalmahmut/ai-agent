@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { DEFAULT_LOCALE } from '@repo/i18n-core';
-
 /**
  * Locates the translation directory for the *running* build.
  *

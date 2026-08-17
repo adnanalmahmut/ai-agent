@@ -1,7 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 
 import type { AppErrorCode } from '../errors';
-import type { ValidationIssueCode } from '../http/validation-issue';
+import type { ValidationIssueCode } from '../http/validation/validation-issue';
 import type { I18nPath } from '../../generated/i18n.generated';
 
 /**
@@ -33,6 +33,10 @@ export const ERROR_TRANSLATION_KEYS = {
   ORGANIZATION_ALREADY_ARCHIVED: 'errors.ORGANIZATION_ALREADY_ARCHIVED',
   ORGANIZATION_NOT_ARCHIVED: 'errors.ORGANIZATION_NOT_ARCHIVED',
   ORGANIZATION_ARCHIVED: 'errors.ORGANIZATION_ARCHIVED',
+  SERVICE_UNAVAILABLE: 'errors.SERVICE_UNAVAILABLE',
+  QUEUE_UNAVAILABLE: 'errors.QUEUE_UNAVAILABLE',
+  AI_PROVIDER_UNAVAILABLE: 'errors.AI_PROVIDER_UNAVAILABLE',
+  RESOURCE_CONFLICT: 'errors.RESOURCE_CONFLICT',
 } as const satisfies Record<AppErrorCode, I18nPath>;
 
 export const ERROR_STATUS_CODES = {
@@ -56,12 +60,12 @@ export const ERROR_STATUS_CODES = {
   // 403: the organization exists and the caller may well be a member, but the
   // organization's lifecycle state forbids the operation.
   ORGANIZATION_ARCHIVED: HttpStatus.FORBIDDEN,
+  SERVICE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  QUEUE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  AI_PROVIDER_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
+  RESOURCE_CONFLICT: HttpStatus.CONFLICT,
 } as const satisfies Record<AppErrorCode, HttpStatus>;
 
-/**
- * Fallback used when an `HttpException` reaches the boundary without a domain
- * code of its own (thrown by a guard, by Nest itself, or by a library).
- */
 /**
  * Field-level counterpart of `ERROR_TRANSLATION_KEYS`, and the *only* route
  * from a validation code to a translation key.
@@ -100,6 +104,7 @@ const STATUS_ERROR_CODES: Partial<Record<number, AppErrorCode>> = {
   [HttpStatus.NOT_FOUND]: 'NOT_FOUND',
   [HttpStatus.CONFLICT]: 'CONFLICT',
   [HttpStatus.TOO_MANY_REQUESTS]: 'TOO_MANY_REQUESTS',
+  [HttpStatus.SERVICE_UNAVAILABLE]: 'SERVICE_UNAVAILABLE',
 };
 
 export function errorCodeForStatus(status: number): AppErrorCode {

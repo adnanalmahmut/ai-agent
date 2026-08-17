@@ -23,4 +23,4 @@ export {
   webHeaderGetter,
 } from './request-locale';
 export type { HeaderGetter } from './request-locale';
-export { UnifiedExceptionFilter } from './unified-exception.filter';
+export { UnifiedExceptionFilter } from '../http/errors/unified-exception.filter';

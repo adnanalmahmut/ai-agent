@@ -14,5 +14,9 @@
   "ACCOUNT_NOT_DEACTIVATED": "This account is active and does not need to be restored",
   "ORGANIZATION_ALREADY_ARCHIVED": "This organization is already archived",
   "ORGANIZATION_NOT_ARCHIVED": "This organization is active and does not need to be restored",
-  "ORGANIZATION_ARCHIVED": "This organization is archived and cannot be used until it is restored"
+  "ORGANIZATION_ARCHIVED": "This organization is archived and cannot be used until it is restored",
+  "SERVICE_UNAVAILABLE": "The service is temporarily unavailable",
+  "QUEUE_UNAVAILABLE": "The queue service is temporarily unavailable",
+  "AI_PROVIDER_UNAVAILABLE": "The AI provider service is temporarily unavailable",
+  "RESOURCE_CONFLICT": "The resource already exists or conflicts with existing state"
 }

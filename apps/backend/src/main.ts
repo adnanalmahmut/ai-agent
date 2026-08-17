@@ -11,33 +11,18 @@ async function bootstrap() {
     bufferLogs: true,
     bodyParser: false,
   });
+
   app.disable('x-powered-by');
 
-  /**
-   * Everything this application serves lives under `/api`.
-   *
-   * Production puts all three applications on one origin behind one reverse
-   * proxy — `/` for the web application, `/platform/*` for the Platform,
-   * `/api/*` for this one — so the prefix is what makes routing by path
-   * possible without rewriting requests.
-   *
-   * Better Auth is already excluded: `@thallesp/nestjs-better-auth` appends
-   * its own base path (`/api/auth`) to the global-prefix exclude list at
-   * construction, so it keeps serving exactly where `BETTER_AUTH_URL` says it
-   * does rather than moving to `/api/api/auth`.
-   *
-   * The documentation routes are unaffected too — Scalar is mounted with
-   * `app.use()` and Swagger's JSON with `useGlobalPrefix` off — so `/docs`
-   * stays where it is.
-   */
+  // API routes live under /api for path-based reverse-proxy routing.
+  // Better Auth keeps its own /api/auth path and is excluded from the global prefix.
   app.setGlobalPrefix('api');
   const logger = app.get(Logger);
   app.useLogger(logger);
 
   const config = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
 
-  // Mounts /docs and /openapi.json, or does nothing at all when
-  // OPENAPI_ENABLED is off — which is the default in production.
+  // No-op when OpenAPI is disabled.
   const docsMounted = setupOpenApi(app);
 
   await app.listen(config.port);

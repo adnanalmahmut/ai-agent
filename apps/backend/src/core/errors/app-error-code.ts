@@ -1,12 +1,9 @@
 /**
- * Stable, machine-readable error identifiers.
+ * Stable, machine-readable application error codes.
  *
- * These are the API contract. Clients branch on `errorCode`; the human
- * `message` that travels next to it is a localized presentation detail and
- * may change wording or language at any time without being a breaking change.
- *
- * Domain and application code throws these codes and nothing else — it never
- * knows a language, a translation key, or an HTTP status.
+ * Clients branch on `errorCode`, never on the localized human-readable
+ * message. Domain and application code remain unaware of localization
+ * and HTTP status mapping.
  */
 export const APP_ERROR_CODES = [
   'USER_NOT_FOUND',
@@ -21,16 +18,19 @@ export const APP_ERROR_CODES = [
   'TOO_MANY_REQUESTS',
   'INTERNAL_SERVER_ERROR',
 
-  // Account and organization lifecycle. These exist because "already in that
-  // state" is a genuinely different machine condition from "not allowed" or
-  // "not found" — a client retrying a deactivation needs to distinguish an
-  // idempotent no-op from a permission failure, and it must be able to do so
-  // without parsing a localized sentence.
+  // Explicit lifecycle states let clients distinguish idempotent retries
+  // from authorization, validation, and not-found failures.
   'ACCOUNT_ALREADY_DEACTIVATED',
   'ACCOUNT_NOT_DEACTIVATED',
   'ORGANIZATION_ALREADY_ARCHIVED',
   'ORGANIZATION_NOT_ARCHIVED',
   'ORGANIZATION_ARCHIVED',
+
+  // Infrastructure and external-provider failures.
+  'SERVICE_UNAVAILABLE',
+  'QUEUE_UNAVAILABLE',
+  'AI_PROVIDER_UNAVAILABLE',
+  'RESOURCE_CONFLICT',
 ] as const;
 
 export type AppErrorCode = (typeof APP_ERROR_CODES)[number];

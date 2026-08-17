@@ -5,6 +5,7 @@ import { AuthModule } from '@thallesp/nestjs-better-auth';
 import { appConfig, authConfig, openapiConfig } from '../../config';
 import { DatabaseModule, PrismaService } from '../../database';
 import { MailModule, MailService } from '../mail';
+import { assignRequestId } from '../providers/request-id';
 import { AccountLifecycleService } from './account-lifecycle.service';
 import { createAuth } from './auth.factory';
 import {
@@ -59,6 +60,18 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
           app,
           openApiEnabled: openapi.enabled,
         }),
+        bodyParser: {
+          json: { limit: '1mb' },
+          urlencoded: { extended: true, limit: '1mb' },
+        },
+        // Better Auth routes bypass the NestJS middleware chain (where Pino
+        // genReqId lives). This hook runs the same shared assignRequestId
+        // function so every auth response carries X-Request-ID from the
+        // single source of truth.
+        middleware: (req: any, res: any, next: () => void) => {
+          assignRequestId(req, res);
+          next();
+        },
       }),
     }),
   ],
