@@ -1,4 +1,8 @@
-import { LOCALE_META, SUPPORTED_LOCALES, type AppLocale } from '@repo/i18n-core';
+import {
+  LOCALE_META,
+  SUPPORTED_LOCALES,
+  type AppLocale,
+} from '@repo/i18n-core';
 import {
   Button,
   DropdownMenu,
@@ -40,7 +44,7 @@ export function LanguageSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="icon" aria-label={t('changeLanguage')}>
-          <Languages className="size-[1.2rem]" />
+          <Languages className="size-[1.2rem] text-secondary-foreground" />
           <span className="sr-only">{t('changeLanguage')}</span>
         </Button>
       </DropdownMenuTrigger>
