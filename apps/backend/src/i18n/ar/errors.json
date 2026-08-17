@@ -14,5 +14,9 @@
   "ACCOUNT_NOT_DEACTIVATED": "هذا الحساب نشط ولا يحتاج إلى استعادة",
   "ORGANIZATION_ALREADY_ARCHIVED": "هذه المؤسسة مؤرشفة بالفعل",
   "ORGANIZATION_NOT_ARCHIVED": "هذه المؤسسة نشطة ولا تحتاج إلى استعادة",
-  "ORGANIZATION_ARCHIVED": "هذه المؤسسة مؤرشفة ولا يمكن استخدامها حتى تتم استعادتها"
+  "ORGANIZATION_ARCHIVED": "هذه المؤسسة مؤرشفة ولا يمكن استخدامها حتى تتم استعادتها",
+  "SERVICE_UNAVAILABLE": "الخدمة غير متاحة حالياً",
+  "QUEUE_UNAVAILABLE": "خدمة الترتيب غير متاحة حاليًا",
+  "AI_PROVIDER_UNAVAILABLE": "مزود الذكاء الاصطناعي غير متاح حاليًا",
+  "RESOURCE_CONFLICT": "المورد موجود بالفعل أو يتعارض مع الحالة الحالية"
 }

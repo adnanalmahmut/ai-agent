@@ -27,6 +27,10 @@ export type I18nTranslations = {
         "ORGANIZATION_ALREADY_ARCHIVED": string;
         "ORGANIZATION_NOT_ARCHIVED": string;
         "ORGANIZATION_ARCHIVED": string;
+        "SERVICE_UNAVAILABLE": string;
+        "QUEUE_UNAVAILABLE": string;
+        "AI_PROVIDER_UNAVAILABLE": string;
+        "RESOURCE_CONFLICT": string;
     };
     "mail": {
         "passwordReset": {
