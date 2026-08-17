@@ -34,6 +34,20 @@ class TestContractController {
     throw new AppException('USER_NOT_FOUND');
   }
 
+  @Get('internal-context-error')
+  throwInternalContextError() {
+    throw new AppException('USER_NOT_FOUND', {
+      context: { secretQuery: 'SELECT * FROM users', internalId: 42 },
+    });
+  }
+
+  @Get('public-details-error')
+  throwPublicDetailsError() {
+    throw new AppException('SERVICE_UNAVAILABLE', {
+      publicDetails: { postgres: { status: 'down' } },
+    });
+  }
+
   @Get('unknown-error')
   throwUnknownError() {
     throw new Error('Secret database internal failure stack trace');
@@ -103,6 +117,30 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
 
       expect(res.headers['x-request-id']).toBe(customId);
       expect(res.body.meta.requestId).toBe(customId);
+    });
+
+    it('rejects oversized client-provided X-Request-ID (>128 chars) and generates a safe server ID', async () => {
+      const oversizedId = 'req_' + 'a'.repeat(150);
+      const res = await request(harness.server)
+        .get('/api/health/live')
+        .set('X-Request-ID', oversizedId)
+        .expect(200);
+
+      expect(res.headers['x-request-id']).not.toBe(oversizedId);
+      expect(res.headers['x-request-id']).toMatch(/^req_[0-9a-f-]+$/);
+      expect(res.body.meta.requestId).toBe(res.headers['x-request-id']);
+    });
+
+    it('rejects client-provided X-Request-ID with invalid characters and generates a safe server ID', async () => {
+      const invalidId = 'req_invalid <script>alert(1)</script>';
+      const res = await request(harness.server)
+        .get('/api/health/live')
+        .set('X-Request-ID', invalidId)
+        .expect(200);
+
+      expect(res.headers['x-request-id']).not.toBe(invalidId);
+      expect(res.headers['x-request-id']).toMatch(/^req_[0-9a-f-]+$/);
+      expect(res.body.meta.requestId).toBe(res.headers['x-request-id']);
     });
   });
 
@@ -175,9 +213,7 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
 
   describe('Route Boundaries (/api/authors vs /api/auth/*)', () => {
     it('wraps /api/authors in unified application success envelope', async () => {
-      const res = await request(harness.server)
-        .get('/api/authors')
-        .expect(200);
+      const res = await request(harness.server).get('/api/authors').expect(200);
 
       expect(res.body).toMatchObject({
         success: true,
@@ -225,6 +261,43 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
       expect(res.body.statusCode).toBeUndefined();
     });
 
+    it('never leaks internal context into error response or details', async () => {
+      const res = await request(harness.server)
+        .get('/api/test-contract/internal-context-error')
+        .expect(404);
+
+      expect(res.body).toMatchObject({
+        success: false,
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: expect.any(String),
+        },
+      });
+      // Details must be undefined and internal context keys must not leak
+      expect(res.body.error.details).toBeUndefined();
+      expect(JSON.stringify(res.body)).not.toContain('secretQuery');
+      expect(JSON.stringify(res.body)).not.toContain('SELECT * FROM users');
+      expect(JSON.stringify(res.body)).not.toContain('internalId');
+    });
+
+    it('serializes explicit publicDetails into error.details', async () => {
+      const res = await request(harness.server)
+        .get('/api/test-contract/public-details-error')
+        .expect(503);
+
+      expect(res.body).toMatchObject({
+        success: false,
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          details: {
+            postgres: {
+              status: 'down',
+            },
+          },
+        },
+      });
+    });
+
     it('converts unknown errors to generic 500 without leaking stack trace or SQL details', async () => {
       const res = await request(harness.server)
         .get('/api/test-contract/unknown-error')
@@ -240,7 +313,9 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
           requestId: expect.any(String),
         },
       });
-      expect(JSON.stringify(res.body)).not.toContain('Secret database internal failure');
+      expect(JSON.stringify(res.body)).not.toContain(
+        'Secret database internal failure',
+      );
     });
 
     it('keeps 503 Service Unavailable status when infrastructure exception is thrown', async () => {
@@ -279,7 +354,11 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
       const uniqueEmail = `test-auth-${Date.now()}@example.com`;
       const res = await request(harness.server)
         .post('/api/auth/sign-up/email')
-        .send({ email: uniqueEmail, password: 'password123', name: 'Auth User' })
+        .send({
+          email: uniqueEmail,
+          password: 'password123',
+          name: 'Auth User',
+        })
         .expect(200);
 
       // Native Better Auth response shape: { token, user: { id, email, ... } }
@@ -302,6 +381,17 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
       expect(res.body.success).toBeUndefined();
       expect(res.headers['x-request-id']).toBeDefined();
       expect(res.headers['x-request-id']).toMatch(/^req_/);
+    });
+
+    it('preserves client-provided X-Request-ID on native Better Auth routes', async () => {
+      const customAuthId = 'req_auth_custom_777';
+      const res = await request(harness.server)
+        .post('/api/auth/sign-in/email')
+        .set('X-Request-ID', customAuthId)
+        .send({ email: 'nonexistent@example.com', password: 'wrongpassword' })
+        .expect(401);
+
+      expect(res.headers['x-request-id']).toBe(customAuthId);
     });
   });
 });

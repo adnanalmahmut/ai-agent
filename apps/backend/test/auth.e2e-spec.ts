@@ -326,7 +326,7 @@ describe('Better Auth (e2e)', () => {
 
       const cookies = response.headers['set-cookie'] as unknown as string[];
       sessionCookie = (cookies ?? []).join('; ');
-      expect(sessionCookie).toContain('session_token');
+      expect(sessionCookie).toContain('__Host-session');
     });
 
     it('admits the session to a protected application route', async () => {

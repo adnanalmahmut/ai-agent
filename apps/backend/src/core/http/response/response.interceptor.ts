@@ -13,9 +13,10 @@ import { IS_RAW_RESPONSE_KEY } from './raw-response.decorator';
 import type { ApiSuccessResponse, PaginationMeta } from './response.types';
 
 @Injectable()
-export class ResponseInterceptor<T>
-  implements NestInterceptor<T, ApiSuccessResponse<T> | T>
-{
+export class ResponseInterceptor<T> implements NestInterceptor<
+  T,
+  ApiSuccessResponse<T> | T
+> {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(
@@ -58,7 +59,10 @@ export class ResponseInterceptor<T>
           'items' in data &&
           'pagination' in data
         ) {
-          const paginated = data as { items: unknown; pagination: PaginationMeta };
+          const paginated = data as {
+            items: unknown;
+            pagination: PaginationMeta;
+          };
           responseData = paginated.items;
           paginationMeta = paginated.pagination;
         }
