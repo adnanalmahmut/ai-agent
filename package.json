@@ -8,6 +8,8 @@
     "dev": "pnpm run build:packages && pnpm --parallel --filter './apps/*' --filter './packages/*' run dev",
     "dev:backend": "pnpm run build:packages && pnpm --filter backend dev",
     "start:backend" : "pnpm --filter backend start",
+    "dev:worker": "pnpm run build:packages && pnpm --filter backend worker:dev",
+    "start:worker": "pnpm --filter backend worker:prod",
     "dev:web": "pnpm run build:packages && pnpm --filter web dev",
     "dev:platform": "pnpm run build:packages && pnpm --filter platform dev",
     "build:platform": "pnpm run build:packages && pnpm --filter platform build",

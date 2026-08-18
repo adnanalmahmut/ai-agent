@@ -122,10 +122,19 @@ jobs:
       - name: Validate Prisma schema
         run: pnpm --filter backend run prisma:validate
 
-      # `src/generated/prisma` is not committed, so every later step depends on
-      # this one.
+      # The generated client is committed, so this step is not about producing
+      # it — it is about proving the committed copy is what the schema says it
+      # should be. A stale client type-checks perfectly against the code that
+      # was written for it and fails only at runtime, on a column the adapter
+      # cannot find.
       - name: Generate Prisma client
         run: pnpm --filter backend run prisma:generate
+
+      # A generated client that differs from the committed one means the schema
+      # changed without regenerating. Failing here says so plainly, instead of
+      # letting the rest of the run pass against a client nobody has reviewed.
+      - name: Check the committed Prisma client is current
+        run: git diff --exit-code -- apps/backend/src/generated/prisma
 
       - name: Typecheck
         run: pnpm --filter backend run typecheck

@@ -105,7 +105,15 @@ export class OutboxDispatcher {
    *
    * First in the worker's shutdown sequence, and it has to be: everything after
    * it takes away something this depends on. Awaiting the in-flight pass is what
-   * makes the rest of the sequence safe rather than merely ordered.
+   * makes the rest of the sequence safe rather than merely ordered — the queue
+   * is not closed underneath a publish that is still running.
+   *
+   * The wait is bounded, because "wait for the pass" is a promise about someone
+   * else's work: a claim against an unresponsive database, or a publish to a
+   * Redis that is neither answering nor refusing, can outlast any deployment
+   * grace period. Giving up is safe by construction — the events are claimed
+   * under a lease, so abandoning them mid-pass is the same state a crash would
+   * leave, and another dispatcher reclaims them when the lease expires.
    */
   async stop(): Promise<void> {
     this.stopping = true;
@@ -115,11 +123,39 @@ export class OutboxDispatcher {
       this.timer = undefined;
     }
 
-    try {
-      await this.inFlight;
-    } catch {
-      // A pass that failed on its way out has already logged; the shutdown
-      // sequence must continue regardless.
+    const pass = this.inFlight;
+
+    if (pass) {
+      let timer: NodeJS.Timeout | undefined;
+      let settled = false;
+
+      try {
+        await Promise.race([
+          pass.then(
+            () => {
+              settled = true;
+            },
+            () => {
+              // A pass that failed on its way out has already logged. It still
+              // counts as settled: nothing of ours is left running.
+              settled = true;
+            },
+          ),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, this.config.shutdownGraceMs);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+
+      if (!settled) {
+        this.logger.warn(
+          { graceMs: this.config.shutdownGraceMs },
+          'Outbox pass did not finish within the shutdown grace period; ' +
+            'its events stay claimed and are reclaimed when their lease expires',
+        );
+      }
     }
 
     this.logger.info('Outbox dispatcher stopped');

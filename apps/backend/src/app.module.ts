@@ -7,6 +7,7 @@ import { AppAuthModule } from './core/auth';
 import { HealthModule } from './core/health';
 import { HttpInfrastructureModule } from './core/http';
 import { AppI18nModule } from './core/i18n';
+import { LifecycleModule } from './core/lifecycle';
 import { MailModule } from './core/mail';
 import { createLoggerOptions } from './core/providers/logger.options';
 import { DatabaseModule } from './database';
@@ -22,6 +23,7 @@ import { DatabaseModule } from './database';
       inject: [appConfig.KEY, observabilityConfig.KEY],
       useFactory: createLoggerOptions,
     }),
+    LifecycleModule,
     AppI18nModule,
     HttpInfrastructureModule,
     DatabaseModule,

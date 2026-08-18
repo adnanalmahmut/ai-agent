@@ -71,7 +71,10 @@ describe('transactional outbox (e2e)', () => {
   let inspector: Queue;
 
   beforeAll(async () => {
-    prisma = new PrismaService({ url: process.env.DATABASE_URL ?? '' });
+    prisma = new PrismaService({
+      url: process.env.DATABASE_URL ?? '',
+      connectTimeoutMs: 5_000,
+    });
     await prisma.onModuleInit();
     repository = new OutboxRepository(prisma);
 
