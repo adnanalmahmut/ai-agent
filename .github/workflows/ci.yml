@@ -1,0 +1,153 @@
+# The merge gate for `apps/backend`.
+#
+# Everything here is verify-only. No step writes to the repository, no step
+# carries a `--fix` flag, and no step reaches an external provider: a pipeline
+# that repairs its own input cannot tell you whether what you pushed was
+# correct, and one that needs a third-party API key fails for reasons that have
+# nothing to do with the change under review.
+#
+# The dependency-bearing steps run against service containers rather than
+# mocks, because the things most worth catching here — a migration that does
+# not apply, a queue connection that never becomes ready — are invisible to a
+# suite that stubs the dependency out.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A superseded pull-request run tells nobody anything, so it releases its
+# runner to the revision that is actually being waited on. Pushes to `main`
+# are deliberately not cancelled: cancelling one would leave the branch
+# without a verdict for that commit.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Read-only by default. Nothing in this workflow publishes, comments, or
+# pushes, so nothing here needs a token that could.
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      # Mirrors the `postgres-test` service in apps/backend/docker-compose.yml,
+      # including its credentials, so a failure reproduces locally with
+      # `pnpm --filter backend db:up --profile test` and nothing else.
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: backend_test_user
+          POSTGRES_PASSWORD: backend_test_password
+          POSTGRES_DB: backend_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U backend_test_user -d backend_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+      # Mirrors the `redis-test` compose service. The compose file pins
+      # `maxmemory-policy noeviction` explicitly; here it is inherited, since
+      # an unconfigured Redis has no `maxmemory` limit and therefore already
+      # evicts nothing. Service containers take no command, so the guarantee is
+      # asserted by the test suite instead of restated here.
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Points at the service containers above. Both suites and
+      # `prisma migrate deploy` read these.
+      DATABASE_URL: postgresql://backend_test_user:backend_test_password@localhost:5432/backend_test
+      REDIS_URL: redis://localhost:6379
+
+      # Boot-time configuration the e2e suites need in order to construct the
+      # real `AppModule`. These are throwaway CI values, not secrets: the
+      # secret only has to satisfy the 32-character minimum, and no signed
+      # artifact outlives the job.
+      BETTER_AUTH_SECRET: ci-better-auth-secret-value-0000000000
+      BETTER_AUTH_URL: http://localhost:3002/api/auth
+      BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:3000,http://localhost:3001
+      APP_PLATFORM_URL: http://localhost:3001/platform
+
+      # `log` records metadata and sends nothing. The e2e harness substitutes
+      # the transport anyway; this only has to satisfy validation at boot.
+      MAIL_DRIVER: log
+      MAIL_FROM_ADDRESS: no-reply@example.test
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # Before setup-node, so its pnpm store cache has a package manager to
+      # locate. The version comes from `packageManager` in the root manifest.
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # `--frozen-lockfile` is the point of this step: it fails when the
+      # lockfile and the manifests disagree, which is the one dependency
+      # problem that a passing local install will happily hide.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The backend imports `@repo/i18n-core` through its build output, so the
+      # workspace packages have to exist before anything type-checks. The root
+      # `prepare` script already does this on install; repeated here so the
+      # ordering is a stated requirement rather than a side effect.
+      - name: Build workspace packages
+        run: pnpm run build:packages
+
+      # Validate before generate: an invalid schema should be reported as a
+      # schema error, not as whatever the generator happens to do with it.
+      - name: Validate Prisma schema
+        run: pnpm --filter backend run prisma:validate
+
+      # `src/generated/prisma` is not committed, so every later step depends on
+      # this one.
+      - name: Generate Prisma client
+        run: pnpm --filter backend run prisma:generate
+
+      - name: Typecheck
+        run: pnpm --filter backend run typecheck
+
+      - name: Lint
+        run: pnpm --filter backend run lint
+
+      - name: Unit tests
+        run: pnpm --filter backend run test
+
+      # `migrate deploy` applies committed migrations and never generates one,
+      # which is what makes it the right command here: a schema change pushed
+      # without its migration fails the e2e step below instead of being
+      # silently papered over by `migrate dev`.
+      - name: Apply migrations
+        run: pnpm --filter backend run db:deploy
+
+      - name: E2E tests
+        run: pnpm --filter backend run test:e2e
+
+      # Last, and not redundant with the typecheck: `nest build` runs a
+      # different tsconfig and also copies the i18n assets, so it can fail on a
+      # translation file that `tsc --noEmit` never looks at.
+      - name: Build
+        run: pnpm --filter backend run build
