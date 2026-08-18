@@ -242,4 +242,14 @@ reproduce:
   injected part is the producer, since a real Redis cannot be made to hang on
   demand.
 
+The e2e config pins `maxWorkers: 1`, and that is a correctness setting rather
+than a performance one. Every suite shares one PostgreSQL database and one
+Redis, and Redis is only survivable because each suite writes its own key
+namespace. PostgreSQL has no equivalent: `outbox_event` is one table, the
+dispatcher claims by event *type*, and a routable type is the same string in
+every suite. Two suites running concurrently therefore claim each other's rows
+and delete each other's fixtures — as a parallel run does, intermittently and in
+whichever suite happens to lose. Serially the whole e2e run costs about a
+second more, so there is nothing to trade away here.
+
 CI runs all of it against service containers; see `.github/workflows/ci.yml`.
