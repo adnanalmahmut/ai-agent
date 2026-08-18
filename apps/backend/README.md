@@ -127,6 +127,46 @@ again. **Every consumer must therefore be safe to run twice.** That is the price
 of not needing a distributed transaction, and it is the cheaper side of the
 trade.
 
+### A claim is versioned, so a stale dispatcher cannot overwrite a newer outcome
+
+`(claimedBy, attempts)` identifies one claim of one row — `attempts` increments
+atomically inside the claim statement, so a reclaim after a lapsed lease always
+produces a different pair. `reschedule` and `markFailed` match on it and return
+whether they changed anything; zero rows means "somebody else owns this now",
+which is a normal outcome and not an error.
+
+Without it: A claims, stalls, its lease expires, B reclaims and delivers — and
+then A's late failure drags the delivered row back to `PENDING`, or down to
+`FAILED`. Both silently.
+
+`markDelivered` is deliberately exempt. A successful publish is a fact about
+Redis rather than a judgement, and refusing it would leave a genuinely delivered
+row `PROCESSING` and schedule a pointless re-delivery.
+
+### Transport outages are retried forever; only impossible publishes are parked
+
+| Failure | Example | Outcome |
+|---|---|---|
+| transient | `ECONNREFUSED`, `Command timed out`, `OOM`, `LOADING`, anything unrecognised | retried indefinitely, capped exponential backoff |
+| permanent | circular JSON, `BigInt`, job over `sizeLimit` | parked as `FAILED` |
+
+Unknown means transient, on purpose. The two mistakes are not equally
+expensive: calling poison data transient costs one retry per backoff interval
+and leaves a visibly stuck row, while calling an outage permanent destroys work
+the API already told a caller it had accepted.
+
+This is also why there is no terminal attempt budget.
+`OUTBOX_WARN_AFTER_ATTEMPTS` only decides when the retries start being logged
+loudly.
+
+### A worker never claims an event type it cannot route
+
+`ROUTABLE_EVENT_TYPES` — derived from `OUTBOX_EVENT_ROUTES`, not restated — goes
+into the `WHERE type IN (...)` of every claim, for pending rows *and* for
+expired leases. During a rollout the new API writes types the old worker has
+never heard of; a worker that claimed one could only park it, destroying the
+work before the new worker started.
+
 ## Shutdown
 
 Both processes drain on `SIGTERM`, in orders that are their own:
@@ -136,13 +176,27 @@ Both processes drain on `SIGTERM`, in orders that are their own:
 requests, disconnect Redis and Prisma.
 
 **Worker** — stop the outbox dispatcher → mark not ready → stop claiming jobs
-and drain the active ones (`QUEUE_SHUTDOWN_GRACE_MS`) → close `QueueEvents` →
-close the producer → disconnect Redis and Prisma.
+and drain the active ones → close `QueueEvents` → close the producer →
+disconnect Redis and Prisma. The step list lives in `src/worker.shutdown.ts`, so
+the test can exercise the real sequence rather than a copy of it.
 
-The whole sequence is bounded by `APP_SHUTDOWN_TIMEOUT_MS`, which must stay
-below the orchestrator's own termination grace period: a process that gives up
-first exits having released what it could, one that overruns is `SIGKILL`ed
-mid-write.
+There is **one** deadline, `APP_SHUTDOWN_TIMEOUT_MS`, and every bounded wait
+inside it derives from what is left:
+
+```
+allowed = min(componentMaximum, remaining − reserve)
+```
+
+`QUEUE_SHUTDOWN_GRACE_MS` is a *ceiling* on each drain, not an entitlement to
+it. Giving each component its own full grace promises more time than the process
+has — a 25 s dispatcher grace plus a 25 s worker drain inside a 30 s deadline
+cannot both be honoured — and the discovery comes as a `SIGKILL` part-way
+through closing a connection. A reserve is withheld from the draining steps so
+closing the producer, Redis and Prisma always has some deadline left.
+
+It must stay below the orchestrator's own termination grace period: a process
+that gives up first exits having released what it could, one that overruns is
+`SIGKILL`ed mid-write.
 
 **A deployment is not a cancellation.** Nothing in either sequence writes
 business state. A job abandoned when the grace period expires keeps its durable
@@ -175,9 +229,17 @@ pnpm lint
 pnpm typecheck
 ```
 
-The e2e suites boot the real modules. `test/queue-drain.e2e-spec.ts` and
-`test/outbox.e2e-spec.ts` run against real Redis and PostgreSQL with per-run key
-namespaces — the behaviour they assert (`FOR UPDATE SKIP LOCKED`, BullMQ's fetch
-loop and lock handling) is precisely what a mock would not reproduce.
+The e2e suites run against real Redis and PostgreSQL with per-run key
+namespaces, because the behaviour they assert is precisely what a mock would not
+reproduce:
+
+- `test/outbox.e2e-spec.ts` — `FOR UPDATE SKIP LOCKED`, database-clock leases,
+  conditional claim-version updates, and a crash window that performs a real
+  `queue.add` before losing the acknowledgement.
+- `test/queue-drain.e2e-spec.ts` — BullMQ's fetch loop and lock handling.
+- `test/worker-shutdown.e2e-spec.ts` — the global deadline with a real active
+  BullMQ job *and* a stuck outbox publication at the same time. The only
+  injected part is the producer, since a real Redis cannot be made to hang on
+  demand.
 
 CI runs all of it against service containers; see `.github/workflows/ci.yml`.
