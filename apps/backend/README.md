@@ -159,6 +159,20 @@ This is also why there is no terminal attempt budget.
 `OUTBOX_WARN_AFTER_ATTEMPTS` only decides when the retries start being logged
 loudly.
 
+### Not built yet
+
+Two gaps are known and deliberately outside this foundation, because neither is
+a delivery guarantee and nothing here depends on them for correctness:
+
+- **Retention.** `outbox_event` grows without bound. `DELIVERED` rows are never
+  pruned, and `FAILED` rows are kept on purpose — a parked row is the only
+  record that accepted work went unperformed. A bounded, batched, age-based
+  prune belongs here, keeping `FAILED` far longer than `DELIVERED`.
+- **Backlog metrics.** The two numbers that actually indicate outbox health —
+  how many rows are claimable, and how old the oldest one is — are not exported.
+  The dispatcher already computes per-pass counters and escalates its log level
+  past `OUTBOX_WARN_AFTER_ATTEMPTS`; what is missing is somewhere to send them.
+
 ### A worker never claims an event type it cannot route
 
 `ROUTABLE_EVENT_TYPES` — derived from `OUTBOX_EVENT_ROUTES`, not restated — goes
