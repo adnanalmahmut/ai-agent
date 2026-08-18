@@ -9,7 +9,11 @@
 * 🟢 You can import this file directly.
 */
 
+export const OutboxEventStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  DELIVERED: 'DELIVERED',
+  FAILED: 'FAILED'
+} as const
 
-
-// This file is empty because there are no enums in the schema.
-export {}
+export type OutboxEventStatus = (typeof OutboxEventStatus)[keyof typeof OutboxEventStatus]

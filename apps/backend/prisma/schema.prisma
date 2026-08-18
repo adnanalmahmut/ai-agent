@@ -218,3 +218,100 @@ model Invitation {
   @@index([inviterId])
   @@map("invitation")
 }
+
+// ---------------------------------------------------------------------------
+// Transactional outbox
+// ---------------------------------------------------------------------------
+// The seam between "the request succeeded" and "the work was queued".
+//
+// Without it those two are one distributed write with no way to make them
+// atomic: enqueue before committing and a rolled-back transaction leaves a job
+// referencing a row that never existed; commit before enqueuing and a crash in
+// between accepts work that nothing will ever perform. Both are silent.
+//
+// So the API writes the business row and a row here in one transaction, and a
+// dispatcher in the worker process turns rows here into queue jobs. The result
+// is at-least-once delivery — never at-most-once — which is why every consumer
+// has to be safe to run twice.
+//
+// Deliberately generic. `type` and `payload` carry the event, so a new kind of
+// asynchronous work needs no migration; the mapping from `type` to a queue and
+// a job name lives in code, where it can be exhaustively checked.
+
+/// Delivery lifecycle, entirely separate from any business lifecycle.
+///
+/// `DELIVERED` says a job reached the queue. It says nothing about whether the
+/// work succeeded — that belongs to the business row the event refers to.
+/// Conflating the two is how a failed agent run comes to look like an
+/// undelivered event and gets published a second time.
+enum OutboxEventStatus {
+  /// Committed and waiting to be claimed.
+  PENDING
+
+  /// Claimed by a dispatcher, under a lease. Reclaimable once the lease expires
+  /// — which is exactly what recovers an event whose dispatcher died mid-publish.
+  PROCESSING
+
+  /// Handed to the queue.
+  DELIVERED
+
+  /// Gave up after `OUTBOX_MAX_ATTEMPTS`. Parked rather than retried forever: an
+  /// event that has failed ten times is rarely a transient fault, and a poison
+  /// event retried in perpetuity starves everything behind it.
+  FAILED
+
+  @@map("outbox_event_status")
+}
+
+model OutboxEvent {
+  id String @id @default(uuid())
+
+  /// Event type. Resolved to a queue and a job name in code, never here.
+  type String
+
+  /// The job payload, verbatim.
+  payload Json
+
+  /// Passed to BullMQ as the job id, when present.
+  ///
+  /// Collapses the duplicates that at-least-once delivery produces, and only
+  /// those: BullMQ rejects a repeated id while the job still exists in Redis, so
+  /// the guarantee expires with retention. Durable idempotency is a PostgreSQL
+  /// UNIQUE constraint on the business row, not this column.
+  dedupeKey String?
+
+  status   OutboxEventStatus @default(PENDING)
+  attempts Int               @default(0)
+
+  /// Earliest time this event may be claimed. Moved forward on each failed
+  /// publish, so a queue that is refusing writes is retried with backoff rather
+  /// than hammered every poll.
+  availableAt DateTime @default(now())
+
+  /// When the current claim lapses. The crash-recovery window: a dispatcher that
+  /// dies between `queue.add()` and the `DELIVERED` write leaves the row claimed,
+  /// and nothing re-delivers it until this passes.
+  leaseExpiresAt DateTime?
+
+  /// Which dispatcher holds the claim. An audit field, never read to make a
+  /// decision — ownership is decided by the lease, which does not depend on a
+  /// process being able to identify itself honestly.
+  claimedBy String?
+
+  /// Last publish failure, for diagnosis. Truncated by the dispatcher: a
+  /// provider error can carry an entire request, and this column is read by
+  /// people rather than by code.
+  lastError String?
+
+  deliveredAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  /// The claim query's index, in its exact order: candidates are selected by
+  /// status and then by availability.
+  @@index([status, availableAt])
+  /// Supports the reclaim half of the same query, which looks for `PROCESSING`
+  /// rows whose lease has lapsed.
+  @@index([status, leaseExpiresAt])
+  @@map("outbox_event")
+}
