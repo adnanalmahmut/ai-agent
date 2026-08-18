@@ -636,9 +636,15 @@ export type $OutboxEventPayload<ExtArgs extends runtime.Types.Extensions.Interna
      */
     leaseExpiresAt: Date | null
     /**
-     * Which dispatcher holds the claim. An audit field, never read to make a
-     * decision — ownership is decided by the lease, which does not depend on a
-     * process being able to identify itself honestly.
+     * Which dispatcher holds the claim.
+     * 
+     * Read as half of the claim version, not merely for audit. `reschedule` and
+     * `markFailed` match on `(claimedBy, attempts)`, so a dispatcher whose lease
+     * lapsed while a newer one reclaimed and delivered the row updates zero rows
+     * instead of dragging `DELIVERED` back to `PENDING` or down to `FAILED`.
+     * 
+     * `markDelivered` is deliberately exempt: a successful publish is a fact, and
+     * leaving a delivered row `PROCESSING` would schedule a pointless re-delivery.
      */
     claimedBy: string | null
     /**

@@ -58,7 +58,7 @@ const queueConfigWith = (overrides: { shutdownGraceMs: number }) => ({
     pollIntervalMs: 50,
     batchSize: 10,
     leaseMs: 5_000,
-    maxAttempts: 3,
+    warnAfterAttempts: 3,
   },
 });
 

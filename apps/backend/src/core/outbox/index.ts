@@ -4,6 +4,7 @@ export {
 } from './outbox-dispatcher.service';
 export {
   OUTBOX_EVENT_ROUTES,
+  ROUTABLE_EVENT_TYPES,
   isRoutableEventType,
   type OutboxEventType,
 } from './outbox-event.routes';

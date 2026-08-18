@@ -5,7 +5,11 @@ export {
   type PublishOptions,
   type PublishResult,
 } from './queue-producer.service';
-export { QueuePublishError } from './queue-publish.error';
+export {
+  QueuePublishError,
+  classifyPublishError,
+  type PublishFailureKind,
+} from './queue-publish.error';
 export { QueueWorkerRunner } from './queue-worker.runner';
 export {
   ALL_QUEUE_NAMES,

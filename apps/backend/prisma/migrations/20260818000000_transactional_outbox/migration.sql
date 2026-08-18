@@ -21,8 +21,8 @@ CREATE TABLE "outbox_event" (
 );
 
 -- CreateIndex
-CREATE INDEX "outbox_event_status_availableAt_idx" ON "outbox_event"("status", "availableAt");
+CREATE INDEX "outbox_event_type_status_availableAt_idx" ON "outbox_event"("type", "status", "availableAt");
 
 -- CreateIndex
-CREATE INDEX "outbox_event_status_leaseExpiresAt_idx" ON "outbox_event"("status", "leaseExpiresAt");
+CREATE INDEX "outbox_event_type_status_leaseExpiresAt_idx" ON "outbox_event"("type", "status", "leaseExpiresAt");
 

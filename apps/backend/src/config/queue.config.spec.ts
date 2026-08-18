@@ -15,7 +15,7 @@ const KEYS = [
   'OUTBOX_POLL_INTERVAL_MS',
   'OUTBOX_BATCH_SIZE',
   'OUTBOX_LEASE_MS',
-  'OUTBOX_MAX_ATTEMPTS',
+  'OUTBOX_WARN_AFTER_ATTEMPTS',
 ];
 
 describe('queueConfig', () => {
@@ -44,7 +44,7 @@ describe('queueConfig', () => {
         pollIntervalMs: 1_000,
         batchSize: 50,
         leaseMs: 30_000,
-        maxAttempts: 10,
+        warnAfterAttempts: 10,
       },
     });
   });
@@ -80,13 +80,13 @@ describe('queueConfig', () => {
     process.env.OUTBOX_POLL_INTERVAL_MS = '250';
     process.env.OUTBOX_BATCH_SIZE = '10';
     process.env.OUTBOX_LEASE_MS = '5000';
-    process.env.OUTBOX_MAX_ATTEMPTS = '3';
+    process.env.OUTBOX_WARN_AFTER_ATTEMPTS = '3';
 
     expect(queueConfig().outbox).toEqual({
       pollIntervalMs: 250,
       batchSize: 10,
       leaseMs: 5_000,
-      maxAttempts: 3,
+      warnAfterAttempts: 3,
     });
   });
 
@@ -157,6 +157,35 @@ describe('queueConfig', () => {
       process.env.OUTBOX_BATCH_SIZE = 'all';
 
       expect(() => queueConfig()).toThrow();
+    });
+  });
+
+  /**
+   * `OUTBOX_WARN_AFTER_ATTEMPTS` replaced `OUTBOX_MAX_ATTEMPTS`, and the rename
+   * is the behaviour change rather than a tidy-up.
+   *
+   * As a terminal budget it contradicted the readiness contract: the API stays
+   * ready while Redis is down *because* accepted work is durable in PostgreSQL,
+   * so an outage lasting more than ten poll intervals would have parked every
+   * event the API had promised to deliver. A transport outage is not poison
+   * data, and no counter should be able to turn one into the other.
+   */
+  describe('the retry budget is an observability threshold, not a limit', () => {
+    it('exposes no terminal attempt limit at all', () => {
+      expect(queueConfig().outbox).not.toHaveProperty('maxAttempts');
+      expect(Object.keys(queueConfig().outbox)).toEqual([
+        'pollIntervalMs',
+        'batchSize',
+        'leaseMs',
+        'warnAfterAttempts',
+      ]);
+    });
+
+    it('no longer answers to the old variable name', () => {
+      process.env.OUTBOX_MAX_ATTEMPTS = '2';
+
+      // Silently ignored rather than quietly re-imposing a delivery limit.
+      expect(queueConfig().outbox.warnAfterAttempts).toBe(10);
     });
   });
 });

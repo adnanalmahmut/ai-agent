@@ -131,13 +131,26 @@ const schema = z.object({
     .default(30_000),
 
   /**
-   * Publish attempts before an event is parked as `FAILED`.
+   * Attempts after which a still-undelivered event is logged as a problem.
    *
-   * Parking rather than retrying forever: an event that has failed ten times
-   * is almost never a transient Redis problem, and a poison event retried in
-   * perpetuity starves every event behind it.
+   * Purely observational. It was `OUTBOX_MAX_ATTEMPTS`, a terminal delivery
+   * budget, and that was wrong in a way the readiness contract makes obvious:
+   * the API stays ready while Redis is down precisely because accepted work is
+   * durable in PostgreSQL, so an outage lasting longer than ten poll intervals
+   * would have parked every event it had promised to deliver. A transport outage
+   * is not poison data, and no counter should turn one into the other.
+   *
+   * Transient publish failures are now retried indefinitely with capped backoff.
+   * This threshold only decides when the retries start being reported loudly,
+   * so an outage that has stopped being brief is visible in the logs rather than
+   * inferred from a queue that is quietly not moving.
    */
-  OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(10),
+  OUTBOX_WARN_AFTER_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1_000)
+    .default(10),
 });
 
 export default registerAs('queue', () => {
@@ -172,7 +185,7 @@ export default registerAs('queue', () => {
       pollIntervalMs: env.OUTBOX_POLL_INTERVAL_MS,
       batchSize: env.OUTBOX_BATCH_SIZE,
       leaseMs: env.OUTBOX_LEASE_MS,
-      maxAttempts: env.OUTBOX_MAX_ATTEMPTS,
+      warnAfterAttempts: env.OUTBOX_WARN_AFTER_ATTEMPTS,
     },
   };
 });

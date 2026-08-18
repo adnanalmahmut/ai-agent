@@ -3,21 +3,25 @@ import type { PinoLogger } from 'nestjs-pino';
 
 import { QueuePublishError, type QueueProducer } from '../queue';
 import { OutboxDispatcher } from './outbox-dispatcher.service';
-import type { ClaimedOutboxEvent, OutboxRepository } from './outbox.repository';
+import type {
+  ClaimedOutboxEvent,
+  ClaimOptions,
+  OutboxClaim,
+  OutboxRepository,
+} from './outbox.repository';
 
 /**
  * The delivery decisions, tested without a database or a Redis.
  *
- * Everything asserted here is a branch the dispatcher takes on its own —
- * whether a failed publish is retried or parked, how long it waits, what the
- * attempt counter means. Those are the parts that go wrong quietly: an event
- * retried forever, or one parked on its first hiccup, both look like a queue
- * that is merely slow.
+ * Everything asserted here is a branch the dispatcher takes on its own — whether
+ * a failed publish is retried or parked, how long it waits, what it does when it
+ * discovers it no longer owns a claim. Those are the parts that go wrong
+ * quietly: an event parked during an outage, or a stale writer overwriting a
+ * delivered row, both look like a queue that is merely slow.
  *
- * The SQL that makes the claim safe under concurrency is a different question
- * and cannot be answered here — `FOR UPDATE SKIP LOCKED` needs a real
- * PostgreSQL and two real dispatchers, which is what `test/outbox.e2e-spec.ts`
- * provides.
+ * What cannot be answered here is whether the *SQL* enforces ownership. That
+ * needs a real PostgreSQL and two real claims, and lives in
+ * `test/outbox.e2e-spec.ts`.
  */
 describe('OutboxDispatcher', () => {
   const config = {
@@ -33,22 +37,19 @@ describe('OutboxDispatcher', () => {
       pollIntervalMs: 50,
       batchSize: 10,
       leaseMs: 30_000,
-      maxAttempts: 3,
+      warnAfterAttempts: 3,
     },
   };
 
   const claim =
-    jest.fn<
-      (
-        limit: number,
-        leaseMs: number,
-        claimedBy: string,
-      ) => Promise<ClaimedOutboxEvent[]>
-    >();
+    jest.fn<(options: ClaimOptions) => Promise<ClaimedOutboxEvent[]>>();
   const markDelivered = jest.fn<(ids: string[]) => Promise<void>>();
   const reschedule =
-    jest.fn<(id: string, delayMs: number, error: string) => Promise<void>>();
-  const markFailed = jest.fn<(id: string, error: string) => Promise<void>>();
+    jest.fn<
+      (claim: OutboxClaim, delayMs: number, error: string) => Promise<boolean>
+    >();
+  const markFailed =
+    jest.fn<(claim: OutboxClaim, error: string) => Promise<boolean>>();
   const publish =
     jest.fn<
       (
@@ -68,12 +69,14 @@ describe('OutboxDispatcher', () => {
 
   const producer = { publish } as unknown as QueueProducer;
 
-  const logger = {
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-    debug: jest.fn(),
-  } as unknown as PinoLogger;
+  // Held as standalone spies so the assertions never pass an unbound method
+  // around, and so they can be cleared between tests — several tests below
+  // assert on the *absence* of a log line.
+  const info = jest.fn();
+  const warn = jest.fn();
+  const error = jest.fn();
+  const debug = jest.fn();
+  const logger = { info, warn, error, debug } as unknown as PinoLogger;
 
   const event = (
     overrides: Partial<ClaimedOutboxEvent> = {},
@@ -83,17 +86,26 @@ describe('OutboxDispatcher', () => {
     payload: { agentRunId: 'run-1' },
     dedupeKey: 'run-1',
     attempts: 1,
+    claimedBy: 'host:1',
     ...overrides,
   });
+
+  const transportFailure = () =>
+    new QueuePublishError(
+      'agent-execution',
+      'timeout',
+      'Publishing to "agent-execution" exceeded 2000ms',
+    );
 
   let dispatcher: OutboxDispatcher;
 
   beforeEach(() => {
     claim.mockReset();
     markDelivered.mockReset().mockResolvedValue(undefined);
-    reschedule.mockReset().mockResolvedValue(undefined);
-    markFailed.mockReset().mockResolvedValue(undefined);
+    reschedule.mockReset().mockResolvedValue(true);
+    markFailed.mockReset().mockResolvedValue(true);
     publish.mockReset().mockResolvedValue({ jobId: 'run-1' });
+    for (const spy of [info, warn, error, debug]) spy.mockClear();
 
     dispatcher = new OutboxDispatcher(repository, producer, config, logger);
   });
@@ -101,7 +113,7 @@ describe('OutboxDispatcher', () => {
   it('claims nothing and does nothing on an empty outbox', async () => {
     claim.mockResolvedValue([]);
 
-    await expect(dispatcher.dispatchOnce()).resolves.toEqual({
+    await expect(dispatcher.dispatchOnce()).resolves.toMatchObject({
       claimed: 0,
       delivered: 0,
       deferred: 0,
@@ -166,15 +178,24 @@ describe('OutboxDispatcher', () => {
     );
   });
 
-  describe('a publish that fails', () => {
+  /**
+   * The rolling-deployment safeguard, at its source. A worker that asked for
+   * every pending row would claim event types written by a newer API and could
+   * then only park them.
+   */
+  it('claims only the event types this build can route', async () => {
+    claim.mockResolvedValue([]);
+
+    await dispatcher.dispatchOnce();
+
+    expect(claim).toHaveBeenCalledWith(
+      expect.objectContaining({ types: ['agent-run.queued'] }),
+    );
+  });
+
+  describe('a transient publish failure', () => {
     beforeEach(() => {
-      publish.mockRejectedValue(
-        new QueuePublishError(
-          'agent-execution',
-          'timeout',
-          'Publishing exceeded 2000ms',
-        ),
-      );
+      publish.mockRejectedValue(transportFailure());
     });
 
     /**
@@ -191,9 +212,9 @@ describe('OutboxDispatcher', () => {
       expect(pass).toMatchObject({ claimed: 1, delivered: 0, deferred: 1 });
       expect(markDelivered).toHaveBeenCalledWith([]);
       expect(reschedule).toHaveBeenCalledWith(
-        'evt-1',
+        expect.objectContaining({ id: 'evt-1', attempts: 1 }),
         expect.any(Number),
-        'Publishing exceeded 2000ms',
+        'Publishing to "agent-execution" exceeded 2000ms',
       );
     });
 
@@ -208,7 +229,7 @@ describe('OutboxDispatcher', () => {
       await dispatcher.dispatchOnce();
 
       expect(reschedule).toHaveBeenCalledWith(
-        'evt-1',
+        expect.anything(),
         1_000,
         expect.any(String),
       );
@@ -219,51 +240,68 @@ describe('OutboxDispatcher', () => {
       await dispatcher.dispatchOnce();
 
       expect(reschedule).toHaveBeenLastCalledWith(
-        'evt-1',
+        expect.anything(),
         2_000,
         expect.any(String),
       );
     });
 
     /**
-     * Capped, so a long outage cannot push the next attempt hours out and leave
-     * the queue idle after Redis comes back.
+     * The cap matters more now that retries are unbounded: without it a long
+     * outage would push the next attempt hours out, and the backlog would sit
+     * still for hours after Redis came back.
      */
     it('caps the delay instead of growing without bound', async () => {
-      claim.mockResolvedValue([event({ attempts: 2, id: 'evt-huge' })]);
-      // Base delay large enough that doubling would exceed the ceiling.
-      const wide = new OutboxDispatcher(
-        repository,
-        producer,
-        { ...config, job: { attempts: 3, backoffMs: 50_000 } },
-        logger,
-      );
+      claim.mockResolvedValue([event({ attempts: 40 })]);
 
-      await wide.dispatchOnce();
+      await dispatcher.dispatchOnce();
 
       expect(reschedule).toHaveBeenLastCalledWith(
-        'evt-huge',
+        expect.anything(),
         60_000,
         expect.any(String),
       );
     });
 
     /**
-     * Parked rather than retried in perpetuity. An event that has failed its
-     * whole budget is rarely a transient fault, and a poison event retried
-     * forever starves every event behind it.
+     * The behaviour this iteration exists to fix.
+     *
+     * The API reports ready during a Redis outage precisely because accepted
+     * work is durable in PostgreSQL. An attempt budget that parked events would
+     * make that promise false the moment an outage outlasted it — and it is the
+     * long outages, not the brief ones, where the promise matters.
      */
-    it('parks the event once its attempt budget is spent', async () => {
-      claim.mockResolvedValue([event({ attempts: 3 })]);
+    it('never parks the event, however many attempts it has taken', async () => {
+      for (const attempts of [3, 10, 11, 500, 10_000]) {
+        reschedule.mockClear();
+        markFailed.mockClear();
+        claim.mockResolvedValue([event({ attempts })]);
 
+        const pass = await dispatcher.dispatchOnce();
+
+        expect(pass).toMatchObject({ deferred: 1, failed: 0 });
+        expect(markFailed).not.toHaveBeenCalled();
+        expect(reschedule).toHaveBeenCalled();
+      }
+    });
+
+    /**
+     * The renamed threshold changes the log level and nothing else. An operator
+     * needs to see that an outage has stopped being momentary; the event needs
+     * to keep being retried regardless.
+     */
+    it('escalates the log level past the warning threshold without changing the outcome', async () => {
+      warn.mockClear();
+      claim.mockResolvedValue([event({ attempts: 2 })]);
+      await dispatcher.dispatchOnce();
+      expect(warn).not.toHaveBeenCalled();
+
+      warn.mockClear();
+      claim.mockResolvedValue([event({ attempts: 3 })]);
       const pass = await dispatcher.dispatchOnce();
 
-      expect(pass).toMatchObject({ deferred: 0, failed: 1 });
-      expect(markFailed).toHaveBeenCalledWith(
-        'evt-1',
-        'Publishing exceeded 2000ms',
-      );
-      expect(reschedule).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalled();
+      expect(pass).toMatchObject({ deferred: 1, failed: 0 });
     });
 
     /**
@@ -277,39 +315,143 @@ describe('OutboxDispatcher', () => {
       ]);
       publish
         .mockResolvedValueOnce({ jobId: 'ok' })
-        .mockRejectedValueOnce(
-          new QueuePublishError('agent-execution', 'timeout', 'nope'),
-        );
+        .mockRejectedValueOnce(transportFailure());
 
       const pass = await dispatcher.dispatchOnce();
 
       expect(pass).toMatchObject({ claimed: 2, delivered: 1, deferred: 1 });
       expect(markDelivered).toHaveBeenCalledWith(['evt-ok']);
       expect(reschedule).toHaveBeenCalledWith(
-        'evt-bad',
+        expect.objectContaining({ id: 'evt-bad' }),
         expect.any(Number),
-        'nope',
+        expect.any(String),
       );
     });
   });
 
   /**
-   * An unrecognised type will not become recognised on the next pass, so
-   * retrying it only delays the diagnosis. In practice this is an event written
-   * by an API newer than the worker running beside it — a deployment ordering
-   * mistake that belongs in the table where somebody can see it.
+   * The other half of the classification. A payload that cannot be serialised
+   * fails identically on the thousandth attempt, so retrying it only hides it.
    */
-  it('parks an event whose type has no route, without publishing', async () => {
+  describe('a permanent publish failure', () => {
+    it('parks an unserialisable payload immediately', async () => {
+      claim.mockResolvedValue([event({ attempts: 1 })]);
+      publish.mockRejectedValue(
+        new QueuePublishError(
+          'agent-execution',
+          'rejected',
+          'Converting circular structure to JSON',
+        ),
+      );
+
+      const pass = await dispatcher.dispatchOnce();
+
+      expect(pass).toMatchObject({ failed: 1, deferred: 0 });
+      expect(markFailed).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'evt-1' }),
+        'Converting circular structure to JSON',
+      );
+      expect(reschedule).not.toHaveBeenCalled();
+    });
+
+    it('parks a job that exceeds the configured size limit', async () => {
+      claim.mockResolvedValue([event()]);
+      publish.mockRejectedValue(
+        new QueuePublishError(
+          'agent-execution',
+          'rejected',
+          'The size of job execute exceeds the limit 1024 bytes',
+        ),
+      );
+
+      await expect(dispatcher.dispatchOnce()).resolves.toMatchObject({
+        failed: 1,
+      });
+    });
+
+    /**
+     * An unrecognised error is transient by default. Getting this backwards
+     * destroys accepted work during an outage, so the ambiguous case has to fall
+     * on the side that only costs a retry.
+     */
+    it('treats an unrecognised error as transient', async () => {
+      claim.mockResolvedValue([event({ attempts: 99 })]);
+      publish.mockRejectedValue(new Error('EPROTO something novel'));
+
+      const pass = await dispatcher.dispatchOnce();
+
+      expect(pass).toMatchObject({ deferred: 1, failed: 0 });
+    });
+  });
+
+  /**
+   * The stale-writer race, from the dispatcher's side: the repository reports
+   * that the conditional update matched nothing, and the correct response is to
+   * drop the event rather than retry or raise.
+   */
+  describe('when the claim has already been taken over', () => {
+    it('treats a rejected reschedule as a harmless stale claim', async () => {
+      claim.mockResolvedValue([event()]);
+      publish.mockRejectedValue(transportFailure());
+      reschedule.mockResolvedValue(false);
+
+      const pass = await dispatcher.dispatchOnce();
+
+      expect(pass).toMatchObject({ stale: 1, deferred: 0, failed: 0 });
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it('treats a rejected park as a harmless stale claim', async () => {
+      claim.mockResolvedValue([event()]);
+      publish.mockRejectedValue(
+        new QueuePublishError(
+          'agent-execution',
+          'rejected',
+          'Converting circular structure to JSON',
+        ),
+      );
+      markFailed.mockResolvedValue(false);
+
+      const pass = await dispatcher.dispatchOnce();
+
+      expect(pass).toMatchObject({ stale: 1, failed: 0 });
+    });
+
+    it('passes the whole claim, not just the id, so the write can be conditional', async () => {
+      claim.mockResolvedValue([
+        event({ id: 'evt-9', attempts: 4, claimedBy: 'host-b:22' }),
+      ]);
+      publish.mockRejectedValue(transportFailure());
+
+      await dispatcher.dispatchOnce();
+
+      expect(reschedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'evt-9',
+          attempts: 4,
+          claimedBy: 'host-b:22',
+        }),
+        expect.any(Number),
+        expect.any(String),
+      );
+    });
+  });
+
+  /**
+   * Unreachable while the claim filter and the route table agree, which is why
+   * it is an error-level log. What matters is that it does not park the row:
+   * this is the one branch where being wrong destroys work irreversibly.
+   */
+  it('releases rather than parks an event it cannot route', async () => {
     claim.mockResolvedValue([event({ type: 'agent-run.teleported' })]);
 
     const pass = await dispatcher.dispatchOnce();
 
-    expect(pass).toMatchObject({ claimed: 1, failed: 1 });
+    expect(pass).toMatchObject({ claimed: 1, deferred: 1, failed: 0 });
     expect(publish).not.toHaveBeenCalled();
-    expect(markFailed).toHaveBeenCalledWith(
-      'evt-1',
-      'No route registered for event type "agent-run.teleported"',
-    );
+    expect(markFailed).not.toHaveBeenCalled();
+    expect(reschedule).toHaveBeenCalled();
+    expect(error).toHaveBeenCalled();
   });
 
   /**
@@ -329,13 +471,13 @@ describe('OutboxDispatcher', () => {
 
   describe('lifecycle', () => {
     it('stops cleanly when it was never started', async () => {
-      await expect(dispatcher.stop()).resolves.toBeUndefined();
+      await expect(dispatcher.stop(1_000)).resolves.toBeUndefined();
     });
 
     it('refuses to restart after stopping', async () => {
       claim.mockResolvedValue([]);
 
-      await dispatcher.stop();
+      await dispatcher.stop(1_000);
       dispatcher.start();
 
       // Nothing scheduled, so nothing is ever claimed. A dispatcher restarted
@@ -349,7 +491,7 @@ describe('OutboxDispatcher', () => {
 
       dispatcher.start();
       await new Promise((resolve) => setTimeout(resolve, 200));
-      await dispatcher.stop();
+      await dispatcher.stop(1_000);
 
       const passesWhileRunning = claim.mock.calls.length;
       expect(passesWhileRunning).toBeGreaterThan(0);
@@ -379,13 +521,12 @@ describe('OutboxDispatcher', () => {
 
       dispatcher.start();
 
-      // Wait until the publish is actually in flight.
       const deadline = Date.now() + 2_000;
       while (!releasePublish && Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
-      const stopping = dispatcher.stop();
+      const stopping = dispatcher.stop(5_000);
       expect(finished).toBe(false);
 
       releasePublish?.();
@@ -393,6 +534,74 @@ describe('OutboxDispatcher', () => {
 
       expect(finished).toBe(true);
       expect(markDelivered).toHaveBeenCalledWith(['evt-1']);
+    });
+
+    /**
+     * The wait is bounded by what the caller passes, not by this component's own
+     * grace period. A publish that never settles must not be able to consume the
+     * whole process deadline and leave the BullMQ drain with none.
+     */
+    it('gives up on a publish that never settles, within the budget it was given', async () => {
+      claim.mockResolvedValue([event()]);
+      publish.mockImplementation(() => new Promise(() => undefined));
+
+      dispatcher.start();
+      await new Promise((resolve) => setTimeout(resolve, 120));
+
+      const startedAt = Date.now();
+      await dispatcher.stop(200);
+      const waited = Date.now() - startedAt;
+
+      expect(waited).toBeLessThan(1_500);
+      expect(warn).toHaveBeenCalled();
+    });
+
+    /**
+     * Protects the rest of the drain. Once shutdown has begun there is no reason
+     * to keep publishing a batch claimed a moment ago — those rows are leased,
+     * so leaving them is exactly what a crash would have done, and the time is
+     * better spent letting the BullMQ workers finish.
+     */
+    it('abandons the rest of the batch once shutdown begins', async () => {
+      claim.mockResolvedValue([
+        event({ id: 'evt-1', dedupeKey: 'a' }),
+        event({ id: 'evt-2', dedupeKey: 'b' }),
+        event({ id: 'evt-3', dedupeKey: 'c' }),
+      ]);
+
+      let releaseFirst: (() => void) | undefined;
+      publish.mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          releaseFirst = resolve;
+        });
+        return { jobId: 'a' };
+      });
+
+      const pass = dispatcher.dispatchOnce();
+
+      const deadline = Date.now() + 2_000;
+      while (!releaseFirst && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+
+      // Shutdown starts while the first publish is still in flight.
+      const stopping = dispatcher.stop(2_000);
+      releaseFirst?.();
+
+      const result = await pass;
+      await stopping;
+
+      expect(result).toMatchObject({
+        claimed: 3,
+        delivered: 1,
+        abandoned: 2,
+      });
+      // The two abandoned events were never published and never mutated: they
+      // stay PROCESSING under their lease.
+      expect(publish).toHaveBeenCalledTimes(1);
+      expect(markDelivered).toHaveBeenCalledWith(['evt-1']);
+      expect(reschedule).not.toHaveBeenCalled();
+      expect(markFailed).not.toHaveBeenCalled();
     });
   });
 });

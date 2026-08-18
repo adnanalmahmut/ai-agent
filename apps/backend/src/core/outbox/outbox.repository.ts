@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../database';
 
 /** An event about to be written, in the same transaction as its business row. */
@@ -27,8 +28,68 @@ export type ClaimedOutboxEvent = {
   type: string;
   payload: unknown;
   dedupeKey: string | null;
+  /**
+   * How many times this row has been claimed, this claim included.
+   *
+   * Doubles as the claim's version. See `OutboxClaim`.
+   */
   attempts: number;
+  /** Which dispatcher holds this claim. The other half of the version. */
+  claimedBy: string;
 };
+
+/**
+ * Proof that the caller is still the owner of a claim.
+ *
+ * There is no separate version column because there does not need to be one:
+ * `attempts` already increments atomically inside the claim statement, so
+ * `(claimedBy, attempts)` names exactly one claim of exactly one row, and a
+ * reclaim after a lapsed lease necessarily produces a different pair.
+ *
+ * The race this exists to stop is not hypothetical:
+ *
+ *   A claims the event            attempts = 1, claimedBy = A
+ *   A stalls; its lease expires
+ *   B reclaims the same event     attempts = 2, claimedBy = B
+ *   B publishes and records DELIVERED
+ *   A's publish finally fails
+ *   A reschedules by id ----------> the row goes back to PENDING
+ *
+ * The event is then published a second time for no reason, and — worse — the
+ * same shape with `markFailed` downgrades a delivered event to `FAILED`. Both
+ * are silent. Conditioning the write on the claim makes A's update affect zero
+ * rows instead.
+ */
+export type OutboxClaim = Pick<
+  ClaimedOutboxEvent,
+  'id' | 'attempts' | 'claimedBy'
+>;
+
+export type ClaimOptions = {
+  limit: number;
+  leaseMs: number;
+  claimedBy: string;
+  /**
+   * The event types this process knows how to route.
+   *
+   * Not a filter for tidiness — it is the rolling-deployment safeguard. During a
+   * rollout an API on the new version writes event types the old worker beside
+   * it has never heard of, and a worker that claimed one could only park it. The
+   * work would be destroyed before the new worker ever started. Not claiming it
+   * leaves it untouched for a process that understands it.
+   */
+  types: readonly string[];
+};
+
+/**
+ * How long a `lastError` may be.
+ *
+ * Provider and driver errors routinely embed the entire failed request —
+ * headers, query strings, occasionally the credential that signed it. This
+ * column is read by people during an incident, so it is deliberately too small
+ * to become an accidental log of secrets.
+ */
+const MAX_ERROR_LENGTH = 500;
 
 /**
  * The claim's raw row, with `payload` still text.
@@ -40,16 +101,6 @@ export type ClaimedOutboxEvent = {
  * consumer. A cast makes the answer the same everywhere.
  */
 type ClaimedRow = Omit<ClaimedOutboxEvent, 'payload'> & { payload: string };
-
-/**
- * How long a `lastError` may be.
- *
- * Provider and driver errors routinely embed the entire failed request —
- * headers, query strings, occasionally the credential that signed it. This
- * column is read by people during an incident, so it is deliberately too small
- * to become an accidental log of secrets.
- */
-const MAX_ERROR_LENGTH = 500;
 
 /**
  * Reads and writes `outbox_event`.
@@ -86,7 +137,7 @@ export class OutboxRepository {
   }
 
   /**
-   * Claims up to `limit` deliverable events and leases them.
+   * Claims up to `limit` deliverable events of known types, and leases them.
    *
    * One statement, not a transaction block. `UPDATE ... WHERE id IN (SELECT ...
    * FOR UPDATE SKIP LOCKED)` is atomic on its own, so the claim commits with the
@@ -106,38 +157,52 @@ export class OutboxRepository {
    *                                             is at-least-once and consumers
    *                                             must tolerate a repeat.
    *
-   * `attempts` increments on claim rather than on failure. Counting attempted
-   * claims is what bounds a poison event: a dispatcher that dies mid-publish
-   * every time would never reach a failure it could record, and an attempt
-   * counter that only advanced on clean failures would let it be retried
-   * forever.
+   * The type filter applies to *both*, and the second is the one that is easy to
+   * get wrong: an old worker that skipped a new event type when it was `PENDING`
+   * but reclaimed it once some other process's lease lapsed would destroy it just
+   * the same, only less often and therefore less reproducibly.
+   *
+   * `attempts` increments on claim rather than on failure, for two reasons. It
+   * makes `(claimedBy, attempts)` a claim version that a stale writer cannot
+   * forge, and it counts the crashes: a dispatcher that dies mid-publish every
+   * time never reaches a failure it could record, so a counter that only advanced
+   * on clean failures would show nothing at all.
    */
-  async claim(
-    limit: number,
-    leaseMs: number,
-    claimedBy: string,
-  ): Promise<ClaimedOutboxEvent[]> {
+  async claim(options: ClaimOptions): Promise<ClaimedOutboxEvent[]> {
+    /**
+     * A worker with no routes claims nothing, and asks nothing. `IN ()` is a
+     * syntax error rather than an empty result, so this is a correctness guard
+     * and not an optimisation.
+     */
+    if (options.types.length === 0) return [];
+
+    const types = Prisma.join(options.types.map((type) => Prisma.sql`${type}`));
+
     const rows = await this.prisma.$queryRaw<ClaimedRow[]>`
       UPDATE "outbox_event" AS e
       SET "status" = 'PROCESSING',
           "attempts" = e."attempts" + 1,
-          "leaseExpiresAt" = NOW() + INTERVAL '1 millisecond' * ${leaseMs},
-          "claimedBy" = ${claimedBy},
+          "leaseExpiresAt" = NOW() + INTERVAL '1 millisecond' * ${options.leaseMs},
+          "claimedBy" = ${options.claimedBy},
           "updatedAt" = NOW()
       WHERE e."id" IN (
         SELECT c."id"
         FROM "outbox_event" AS c
-        WHERE (c."status" = 'PENDING' AND c."availableAt" <= NOW())
-           OR (c."status" = 'PROCESSING' AND c."leaseExpiresAt" <= NOW())
+        WHERE c."type" IN (${types})
+          AND (
+            (c."status" = 'PENDING' AND c."availableAt" <= NOW())
+            OR (c."status" = 'PROCESSING' AND c."leaseExpiresAt" <= NOW())
+          )
         ORDER BY c."availableAt" ASC
         FOR UPDATE SKIP LOCKED
-        LIMIT ${limit}
+        LIMIT ${options.limit}
       )
       RETURNING e."id",
                 e."type",
                 e."payload"::text AS "payload",
                 e."dedupeKey",
-                e."attempts"
+                e."attempts",
+                e."claimedBy"
     `;
 
     return rows.map((row) => ({
@@ -149,12 +214,16 @@ export class OutboxRepository {
   /**
    * Records that the events reached the queue.
    *
-   * Not conditional on still holding the lease. If a lease lapsed and another
-   * dispatcher reclaimed the row, `DELIVERED` is still the truth — this process
-   * did publish it — and the reclaiming dispatcher publishing a second time is
-   * the at-least-once contract working as specified, not a race to be arbitrated
-   * here. Making this conditional would leave the row `PROCESSING` after a
-   * successful publish, which is the one outcome that is actually wrong.
+   * The one mutation that is deliberately *not* conditional on still holding the
+   * claim, because a successful publish is not an opinion. The job is in Redis;
+   * `DELIVERED` is true whatever has happened to the lease in the meantime, and
+   * a conditional write would leave a genuinely delivered row `PROCESSING` — the
+   * one outcome here that is actually wrong, since it schedules a re-delivery of
+   * work that was already delivered.
+   *
+   * Delivery truth beats stale ownership. Ownership only arbitrates the outcomes
+   * that are *judgements* — retry this later, give up on this — and those are
+   * exactly the two that are conditional below.
    */
   async markDelivered(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
@@ -174,9 +243,14 @@ export class OutboxRepository {
   /**
    * Returns an event to `PENDING`, claimable again after `delayMs`.
    *
-   * The lease is cleared rather than left to expire, so a deliberate retry is
-   * distinguishable from a crash: a row waiting on `availableAt` was handed back,
-   * a row waiting on `leaseExpiresAt` was dropped.
+   * Conditional on the claim: `status = 'PROCESSING'` and the exact
+   * `(claimedBy, attempts)` pair this caller was given. A stale dispatcher whose
+   * lease lapsed affects zero rows and is told so, rather than dragging a
+   * delivered event back to `PENDING`.
+   *
+   * Returns whether the row was actually updated. `false` means "somebody else
+   * owns this now", which is a normal outcome and not an error — the caller's
+   * only correct response is to stop touching the row.
    *
    * Raw, for the same reason `claim` computes its lease from `NOW()`: every
    * timestamp this table compares has to come from the database clock. Written
@@ -185,8 +259,12 @@ export class OutboxRepository {
    * running ahead would hold work back — neither visible as anything but
    * intermittent duplicate or delayed delivery.
    */
-  async reschedule(id: string, delayMs: number, error: string): Promise<void> {
-    await this.prisma.$executeRaw`
+  async reschedule(
+    claim: OutboxClaim,
+    delayMs: number,
+    error: string,
+  ): Promise<boolean> {
+    const updated = await this.prisma.$executeRaw`
       UPDATE "outbox_event"
       SET "status" = 'PENDING',
           "availableAt" = NOW() + INTERVAL '1 millisecond' * ${delayMs},
@@ -194,25 +272,38 @@ export class OutboxRepository {
           "claimedBy" = NULL,
           "lastError" = ${error.slice(0, MAX_ERROR_LENGTH)},
           "updatedAt" = NOW()
-      WHERE "id" = ${id}
+      WHERE "id" = ${claim.id}
+        AND "status" = 'PROCESSING'
+        AND "claimedBy" = ${claim.claimedBy}
+        AND "attempts" = ${claim.attempts}
     `;
+
+    return updated > 0;
   }
 
   /**
    * Parks an event permanently.
    *
-   * For the two cases where retrying cannot help: the attempt budget is spent,
-   * or the event's `type` has no route and never will. Parked rather than
-   * deleted — the row is the only record that the work was accepted and not
-   * performed, and somebody has to be able to find it.
+   * Only for failures that retrying cannot fix — a payload that can never be
+   * serialised, a local routing error that is deterministic. A transport outage
+   * is not one of those and must never arrive here; see `classifyPublishError`.
    *
-   * `updateMany`, so a row that has since been removed is a no-op rather than a
-   * thrown `P2025`. A dispatcher pass must not fail over an event that no longer
-   * exists; the rest of its batch still has to be recorded.
+   * Parked rather than deleted: the row is the only record that the work was
+   * accepted and not performed, and somebody has to be able to find it.
+   *
+   * Conditional on the same claim as `reschedule`, and for the sharper version
+   * of the same reason. `DELIVERED -> FAILED` is not a wasted re-delivery, it is
+   * a lie in the audit trail — and one written by a process that had already
+   * lost the right to speak for this row.
    */
-  async markFailed(id: string, error: string): Promise<void> {
-    await this.prisma.outboxEvent.updateMany({
-      where: { id },
+  async markFailed(claim: OutboxClaim, error: string): Promise<boolean> {
+    const { count } = await this.prisma.outboxEvent.updateMany({
+      where: {
+        id: claim.id,
+        status: 'PROCESSING',
+        claimedBy: claim.claimedBy,
+        attempts: claim.attempts,
+      },
       data: {
         status: 'FAILED',
         leaseExpiresAt: null,
@@ -220,5 +311,7 @@ export class OutboxRepository {
         lastError: error.slice(0, MAX_ERROR_LENGTH),
       },
     });
+
+    return count > 0;
   }
 }

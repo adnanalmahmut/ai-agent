@@ -23,7 +23,7 @@ const queue = {
     pollIntervalMs: 1_000,
     batchSize: 50,
     leaseMs: 30_000,
-    maxAttempts: 10,
+    warnAfterAttempts: 10,
   },
 };
 

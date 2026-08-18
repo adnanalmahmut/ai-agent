@@ -255,9 +255,11 @@ enum OutboxEventStatus {
   /// Handed to the queue.
   DELIVERED
 
-  /// Gave up after `OUTBOX_MAX_ATTEMPTS`. Parked rather than retried forever: an
-  /// event that has failed ten times is rarely a transient fault, and a poison
-  /// event retried in perpetuity starves everything behind it.
+  /// Deterministically undeliverable: a payload that cannot be serialised, a
+  /// job over the size limit. Never reached because the queue transport was
+  /// down — an outage is retried for as long as it lasts, since the API already
+  /// promised the caller this work was accepted. Parked rather than deleted:
+  /// the row is the only record that accepted work was not performed.
   FAILED
 
   @@map("outbox_event_status")
@@ -293,9 +295,15 @@ model OutboxEvent {
   /// and nothing re-delivers it until this passes.
   leaseExpiresAt DateTime?
 
-  /// Which dispatcher holds the claim. An audit field, never read to make a
-  /// decision — ownership is decided by the lease, which does not depend on a
-  /// process being able to identify itself honestly.
+  /// Which dispatcher holds the claim.
+  ///
+  /// Read as half of the claim version, not merely for audit. `reschedule` and
+  /// `markFailed` match on `(claimedBy, attempts)`, so a dispatcher whose lease
+  /// lapsed while a newer one reclaimed and delivered the row updates zero rows
+  /// instead of dragging `DELIVERED` back to `PENDING` or down to `FAILED`.
+  ///
+  /// `markDelivered` is deliberately exempt: a successful publish is a fact, and
+  /// leaving a delivered row `PROCESSING` would schedule a pointless re-delivery.
   claimedBy String?
 
   /// Last publish failure, for diagnosis. Truncated by the dispatcher: a
@@ -307,11 +315,12 @@ model OutboxEvent {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  /// The claim query's index, in its exact order: candidates are selected by
-  /// status and then by availability.
-  @@index([status, availableAt])
-  /// Supports the reclaim half of the same query, which looks for `PROCESSING`
-  /// rows whose lease has lapsed.
-  @@index([status, leaseExpiresAt])
+  /// The claim query's indexes. `type` leads both, because every claim filters
+  /// on the types this worker build can route before it looks at anything else —
+  /// that filter is what stops an old worker destroying an event written by a
+  /// newer API during a rollout.
+  @@index([type, status, availableAt])
+  /// The reclaim half of the same query: `PROCESSING` rows whose lease lapsed.
+  @@index([type, status, leaseExpiresAt])
   @@map("outbox_event")
 }
