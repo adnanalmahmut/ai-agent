@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import type { PrismaService } from '../../database';
-import type { RedisProbe, RedisService } from '../../infrastructure/redis';
 import { ProcessReadiness } from '../lifecycle';
+import type { RedisProbe, RedisService } from '../redis';
 import { HealthService } from './health.service';
 
 /**

@@ -50,6 +50,29 @@ an `outbox_event` together — after which the API returns. The request path hol
 no queue connection, so a Redis outage cannot turn a valid request into a 5xx,
 and no job can exist for a row that does not.
 
+## Where the code lives
+
+`src/core` is the one place for shared backend platform and cross-cutting
+runtime concerns. There is deliberately no second technical layer beside it:
+
+```
+src/core/
+  auth/       authentication and authorization
+  errors/     the application exception and its codes
+  health/     liveness and readiness probes
+  http/       the HTTP boundary: pipes, filters, response envelope
+  i18n/       translation loading and locale resolution
+  lifecycle/  process readiness and the shutdown helper
+  mail/       rendering and delivery
+  outbox/     the PostgreSQL → BullMQ handoff
+  providers/  logger options, request id
+  queue/      BullMQ transport: producer, worker runner, options
+  redis/      connection provisioning per role
+```
+
+`src/database` holds the Prisma client; `src/config` holds the validated
+environment. Feature modules live outside `core`.
+
 ## Where state lives
 
 **PostgreSQL is authoritative.** Agent runs, steps, tool executions and LLM call

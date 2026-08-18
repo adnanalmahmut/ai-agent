@@ -11,11 +11,8 @@ import { Queue } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 
 import { PrismaService } from '../src/database';
-import {
-  OutboxDispatcher,
-  OutboxRepository,
-} from '../src/infrastructure/outbox';
-import { QueueProducer, QUEUE_NAMES } from '../src/infrastructure/queue';
+import { OutboxDispatcher, OutboxRepository } from '../src/core/outbox';
+import { QueueProducer, QUEUE_NAMES } from '../src/core/queue';
 
 /**
  * The claim, against a real PostgreSQL.

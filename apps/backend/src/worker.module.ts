@@ -4,11 +4,11 @@ import { LoggerModule } from 'nestjs-pino';
 
 import { appConfig, configurations, observabilityConfig } from './config';
 import { LifecycleModule } from './core/lifecycle';
+import { OutboxModule } from './core/outbox';
 import { createLoggerOptions } from './core/providers/logger.options';
+import { QueueModule } from './core/queue';
+import { RedisModule } from './core/redis';
 import { DatabaseModule } from './database';
-import { OutboxModule } from './infrastructure/outbox';
-import { QueueModule } from './infrastructure/queue';
-import { RedisModule } from './infrastructure/redis';
 
 /**
  * The worker process's composition root.

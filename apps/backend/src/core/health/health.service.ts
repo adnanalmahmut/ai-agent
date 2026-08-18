@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../database';
-import { RedisService } from '../../infrastructure/redis';
 import { ProcessReadiness } from '../lifecycle';
+import { RedisService } from '../redis';
 
 export type DependencyStatus = {
   status: 'up' | 'down' | 'degraded' | 'draining';

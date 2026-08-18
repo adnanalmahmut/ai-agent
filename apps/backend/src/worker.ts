@@ -8,8 +8,8 @@ import {
   onTerminationSignal,
   runShutdownSequence,
 } from './core/lifecycle';
-import { OutboxDispatcher } from './infrastructure/outbox';
-import { QueueProducer, QueueWorkerRunner } from './infrastructure/queue';
+import { OutboxDispatcher } from './core/outbox';
+import { QueueProducer, QueueWorkerRunner } from './core/queue';
 import { WorkerModule } from './worker.module';
 
 /**

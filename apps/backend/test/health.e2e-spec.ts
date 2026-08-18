@@ -3,7 +3,7 @@ import request from 'supertest';
 
 import { PrismaService } from '../src/database';
 import { ProcessReadiness } from '../src/core/lifecycle';
-import { RedisService } from '../src/infrastructure/redis';
+import { RedisService } from '../src/core/redis';
 import { createHarness, type Harness } from './support/auth-harness';
 
 describe('Health checks (e2e)', () => {

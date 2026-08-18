@@ -10,7 +10,7 @@ import { RedisService } from './redis.service';
  * worker's connection must retry forever and must never have a command timeout,
  * while this one must do the opposite. Exporting a single "the Redis client"
  * provider would make the wrong client one injection away, so
- * `src/infrastructure/queue` derives its own from the shared role table in
+ * `src/core/queue` derives its own from the shared role table in
  * `redis-connection.options.ts`.
  *
  * Imported by both process entrypoints. The API needs it to answer readiness

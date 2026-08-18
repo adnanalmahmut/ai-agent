@@ -15,7 +15,7 @@ import {
   QueueWorkerRunner,
   QUEUE_NAMES,
   type QueueJobHandler,
-} from '../src/infrastructure/queue';
+} from '../src/core/queue';
 
 /**
  * The shutdown policy, exercised against a real Redis.

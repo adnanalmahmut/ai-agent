@@ -5,7 +5,7 @@ import { z } from 'zod';
  * Queue transport and delivery policy.
  *
  * Values only. The mapping onto BullMQ's option shapes lives in
- * `src/infrastructure/queue`, for the same reason `mail.config.ts` holds
+ * `src/core/queue`, for the same reason `mail.config.ts` holds
  * driver settings while `mail.module.ts` decides which class they construct:
  * configuration that imports a library's types starts making the library's
  * decisions, and the retention invariant below has to be enforced in code that
