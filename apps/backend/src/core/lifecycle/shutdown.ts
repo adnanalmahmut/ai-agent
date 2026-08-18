@@ -11,10 +11,34 @@ export type ShutdownLogger = {
   error: (context: object, message: string) => void;
 };
 
+/**
+ * What is left of the process's single shutdown allowance.
+ *
+ * There is one deadline for the whole sequence, and every bounded wait inside it
+ * derives from this. The alternative — each component holding its own full grace
+ * period — quietly promises more time than the process has: a worker with a
+ * 25-second dispatcher grace and a 25-second drain grace inside a 30-second
+ * deadline cannot honour both, and discovers that only when an orchestrator
+ * `SIGKILL`s it part-way through closing a connection.
+ */
+export type ShutdownBudget = {
+  /** Milliseconds until the absolute deadline. Never negative. */
+  remaining: () => number;
+  /**
+   * What a component may actually wait for: its own maximum, capped by what is
+   * left, minus whatever must survive for the steps still to come.
+   *
+   * `reserveMs` is how a draining step is stopped from consuming the allowance
+   * that closing connections needs. A step that has nothing after it passes
+   * zero.
+   */
+  allow: (componentMaxMs: number, reserveMs?: number) => number;
+};
+
 /** One named step of a shutdown sequence. */
 export type ShutdownStep = {
   name: string;
-  run: () => Promise<void> | void;
+  run: (budget: ShutdownBudget) => Promise<void> | void;
 };
 
 export type ShutdownOutcome = {
@@ -72,10 +96,22 @@ export async function runShutdownSequence(
   const expire = () => {
     outcome.timedOut = true;
     logger.error(
-      { timeoutMs, completed: outcome.completed },
+      { timeoutMs, completed: outcome.completed, failed: outcome.failed },
       'Shutdown exceeded its deadline; exiting without finishing',
     );
     (onTimeout ?? (() => process.exit(1)))();
+  };
+
+  const deadlineAt = Date.now() + timeoutMs;
+
+  /**
+   * Computed from the clock rather than decremented as steps run, so a step that
+   * overruns its own allowance still shrinks what everyone after it may take.
+   */
+  const budget: ShutdownBudget = {
+    remaining: () => Math.max(deadlineAt - Date.now(), 0),
+    allow: (componentMaxMs, reserveMs = 0) =>
+      Math.max(Math.min(componentMaxMs, budget.remaining() - reserveMs), 0),
   };
 
   const deadline = setTimeout(expire, timeoutMs);
@@ -89,9 +125,12 @@ export async function runShutdownSequence(
   try {
     for (const step of steps) {
       try {
-        await step.run();
+        await step.run(budget);
         outcome.completed.push(step.name);
-        logger.info({ step: step.name }, 'Shutdown step complete');
+        logger.info(
+          { step: step.name, remainingMs: budget.remaining() },
+          'Shutdown step complete',
+        );
       } catch (error) {
         outcome.failed.push(step.name);
         logger.error(

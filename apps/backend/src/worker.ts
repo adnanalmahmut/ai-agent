@@ -2,7 +2,7 @@ import type { ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger, PinoLogger } from 'nestjs-pino';
 
-import { appConfig } from './config';
+import { appConfig, queueConfig } from './config';
 import {
   ProcessReadiness,
   onTerminationSignal,
@@ -11,6 +11,7 @@ import {
 import { OutboxDispatcher } from './core/outbox';
 import { QueueProducer, QueueWorkerRunner } from './core/queue';
 import { WorkerModule } from './worker.module';
+import { workerShutdownSteps } from './worker.shutdown';
 
 /**
  * The worker process.
@@ -37,6 +38,7 @@ async function bootstrap() {
   app.useLogger(logger);
 
   const config = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
+  const queue = app.get<ConfigType<typeof queueConfig>>(queueConfig.KEY);
   const readiness = app.get(ProcessReadiness);
   const producer = app.get(QueueProducer);
   const runner = app.get(QueueWorkerRunner);
@@ -61,56 +63,14 @@ async function bootstrap() {
     logger.log(`Received ${signal}; draining worker`, 'Shutdown');
 
     const outcome = await runShutdownSequence(
-      [
-        {
-          /**
-           * First. The dispatcher is the only thing still *creating* work for
-           * this process, and it waits for the pass in flight — so by the time
-           * this returns, no publish is outstanding and the queue can be closed
-           * without failing one.
-           */
-          name: 'stop-outbox-dispatcher',
-          run: () => dispatcher.stop(),
-        },
-        {
-          /**
-           * No probe reads this yet — the worker serves no HTTP. It is set here
-           * anyway, at the point the sequence says it should be, so that adding
-           * a probe later is a matter of exposing state that has been maintained
-           * correctly all along rather than retrofitting it onto a shutdown path
-           * that never considered it.
-           */
-          name: 'mark-not-ready',
-          run: () => readiness.markDraining(),
-        },
-        {
-          /**
-           * Stops claiming immediately, then lets the jobs already running
-           * finish within `QUEUE_SHUTDOWN_GRACE_MS`, then closes — forcibly if
-           * the grace period expired. Also closes `QueueEvents`, after the
-           * workers, so the last failures are still recorded.
-           *
-           * No `QueueScheduler`: BullMQ folded it into `Worker` in v2, and
-           * delayed and stalled jobs are handled by the worker itself.
-           */
-          name: 'close-queue-workers',
-          run: () => runner.stop(),
-        },
-        {
-          name: 'close-queue-producers',
-          run: () => producer.close(),
-        },
-        {
-          /**
-           * Runs the module lifecycle hooks, which is what closes the general
-           * Redis client and disconnects Prisma — each next to the resource it
-           * owns rather than restated here. Last, because everything above still
-           * needed one or the other.
-           */
-          name: 'close-application',
-          run: () => app.close(),
-        },
-      ],
+      workerShutdownSteps({
+        dispatcher,
+        readiness,
+        runner,
+        producer,
+        closeApplication: () => app.close(),
+        drainGraceMs: queue.shutdownGraceMs,
+      }),
       { logger: shutdownLogger, timeoutMs: config.shutdown.timeoutMs },
     );
 

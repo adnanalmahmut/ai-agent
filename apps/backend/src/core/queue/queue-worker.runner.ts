@@ -202,7 +202,7 @@ export class QueueWorkerRunner {
   }
 
   /**
-   * Stops consuming, draining what is already in flight.
+   * Stops consuming, draining what is already in flight within `maxDrainMs`.
    *
    * Nothing here touches business state, and that is the point. A job abandoned
    * at the end of the grace period keeps its durable record and is recovered as
@@ -214,8 +214,15 @@ export class QueueWorkerRunner {
    * `QueueEvents` closes after the workers, so the events stream is still being
    * read while the last jobs finish and their failures are still recorded.
    */
-  async stop(): Promise<void> {
-    const grace = this.queue.shutdownGraceMs;
+  async stop(maxDrainMs = this.queue.shutdownGraceMs): Promise<void> {
+    /**
+     * The caller's bound wins when it is tighter. `QUEUE_SHUTDOWN_GRACE_MS` is
+     * this component's *maximum*, not its entitlement — the worker entrypoint
+     * passes what is left of the one process-wide deadline, so the drain cannot
+     * consume time the closing steps still need. The default keeps the method
+     * usable on its own, which the tests rely on.
+     */
+    const grace = Math.max(Math.min(maxDrainMs, this.queue.shutdownGraceMs), 0);
 
     await Promise.all(
       [...this.workers.entries()].map(([name, worker]) =>

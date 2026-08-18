@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import {
   onTerminationSignal,
   runShutdownSequence,
+  type ShutdownBudget,
   type ShutdownLogger,
 } from './shutdown';
 
@@ -136,6 +137,149 @@ describe('runShutdownSequence', () => {
     await expect(
       runShutdownSequence([], { logger: silent, timeoutMs: 1_000 }),
     ).resolves.toEqual({ completed: [], failed: [], timedOut: false });
+  });
+});
+
+/**
+ * One deadline for the process, shared by every bounded wait inside it.
+ *
+ * The alternative — each component holding its own full grace period — promises
+ * more time than the process has. A worker with a 25-second dispatcher grace and
+ * a 25-second drain grace inside a 30-second deadline cannot honour both, and
+ * finds out only when the orchestrator kills it part-way through closing a
+ * connection.
+ */
+describe('the shutdown budget', () => {
+  const budgetOf = async (
+    timeoutMs: number,
+    use: (budget: ShutdownBudget) => Promise<void> | void,
+  ) => {
+    let captured: ShutdownBudget | undefined;
+
+    await runShutdownSequence(
+      [
+        {
+          name: 'capture',
+          run: async (budget) => {
+            captured = budget;
+            await use(budget);
+          },
+        },
+      ],
+      { logger: silent, timeoutMs, onTimeout: () => undefined },
+    );
+
+    return captured as ShutdownBudget;
+  };
+
+  it('hands every step the same budget', async () => {
+    const seen: ShutdownBudget[] = [];
+
+    await runShutdownSequence(
+      [
+        { name: 'a', run: (budget) => void seen.push(budget) },
+        { name: 'b', run: (budget) => void seen.push(budget) },
+      ],
+      { logger: silent, timeoutMs: 1_000 },
+    );
+
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).toBe(seen[1]);
+  });
+
+  it('counts down from the deadline as steps consume time', async () => {
+    const budget = await budgetOf(1_000, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+
+    expect(budget.remaining()).toBeLessThan(1_000);
+    expect(budget.remaining()).toBeGreaterThan(0);
+  });
+
+  it('never reports a negative remainder', async () => {
+    const budget = await budgetOf(60, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    });
+
+    expect(budget.remaining()).toBe(0);
+  });
+
+  /**
+   * `min(componentMax, remaining - reserve)`. The component's configured grace
+   * is a ceiling, not an entitlement.
+   */
+  it('caps a component by its own maximum when the budget is ample', async () => {
+    const budget = await budgetOf(60_000, () => undefined);
+
+    expect(budget.allow(5_000)).toBe(5_000);
+  });
+
+  it('caps a component by the remaining budget when that is tighter', async () => {
+    const budget = await budgetOf(300, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+
+    expect(budget.allow(25_000)).toBeLessThanOrEqual(300);
+    expect(budget.allow(25_000)).toBeGreaterThan(0);
+  });
+
+  /**
+   * The reserve is what stops a draining step from spending the allowance that
+   * closing connections needs. Without it, a dispatcher and a worker that each
+   * used their full grace would reach the closing steps with an expired deadline.
+   */
+  it('withholds the reserve from what a component may wait for', async () => {
+    const budget = await budgetOf(10_000, () => undefined);
+
+    const withoutReserve = budget.allow(30_000);
+    const withReserve = budget.allow(30_000, 5_000);
+
+    expect(withoutReserve - withReserve).toBe(5_000);
+  });
+
+  it('allows nothing rather than a negative wait once the reserve exceeds the remainder', async () => {
+    const budget = await budgetOf(200, async () => {
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    });
+
+    // The reserve is larger than anything that can be left: the component is
+    // told to wait for nothing, which forces an immediate forced close rather
+    // than a wait the process cannot afford.
+    expect(budget.allow(25_000, 60_000)).toBe(0);
+  });
+
+  /**
+   * The invariant the whole mechanism exists for, asserted end to end: two
+   * components that each *want* the full deadline cannot between them exceed it.
+   */
+  it('keeps two greedy sequential waits inside the one deadline', async () => {
+    const TOTAL = 400;
+    const RESERVE = 100;
+    const startedAt = Date.now();
+    const waited: number[] = [];
+
+    const greedy = (budget: ShutdownBudget) => {
+      const allowed = budget.allow(TOTAL, RESERVE);
+      waited.push(allowed);
+      return new Promise<void>((resolve) => setTimeout(resolve, allowed));
+    };
+
+    await runShutdownSequence(
+      [
+        { name: 'first', run: greedy },
+        { name: 'second', run: greedy },
+        { name: 'cleanup', run: () => undefined },
+      ],
+      { logger: silent, timeoutMs: TOTAL, onTimeout: () => undefined },
+    );
+
+    const elapsed = Date.now() - startedAt;
+
+    // The first takes TOTAL - RESERVE; the second gets only what is left.
+    expect(waited[0]).toBeLessThanOrEqual(TOTAL - RESERVE);
+    expect(waited[1]).toBeLessThan(waited[0]);
+    // Generous scheduling tolerance; the assertion is "bounded", not "exact".
+    expect(elapsed).toBeLessThan(TOTAL + 200);
   });
 });
 

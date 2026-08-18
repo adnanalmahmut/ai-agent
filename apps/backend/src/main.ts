@@ -14,6 +14,12 @@ import {
 } from './core/lifecycle';
 
 /**
+ * Held back from the load-balancer pause, so draining in-flight requests and
+ * closing the database pool always have some of the deadline left.
+ */
+const DRAIN_RESERVE_MS = 5_000;
+
+/**
  * The API process.
  *
  * Serves HTTP and writes to PostgreSQL. It holds no BullMQ connection and needs
@@ -78,9 +84,16 @@ async function bootstrap() {
            * its next readiness probe is still routing here — so without this
            * pause the previous step is advisory. Zero outside a real
            * deployment, where there is no load balancer to inform.
+           *
+           * Drawn from the one process-wide budget and holding a reserve back,
+           * so a generous `APP_SHUTDOWN_READINESS_DELAY_MS` can never leave the
+           * actual request drain with no time at all.
            */
           name: 'await-load-balancer',
-          run: () => delay(config.shutdown.readinessDelayMs),
+          run: (budget) =>
+            delay(
+              budget.allow(config.shutdown.readinessDelayMs, DRAIN_RESERVE_MS),
+            ),
         },
         {
           /**

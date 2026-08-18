@@ -4,6 +4,7 @@ export {
   onTerminationSignal,
   runShutdownSequence,
   type RunShutdownOptions,
+  type ShutdownBudget,
   type ShutdownLogger,
   type ShutdownOutcome,
   type ShutdownStep,
