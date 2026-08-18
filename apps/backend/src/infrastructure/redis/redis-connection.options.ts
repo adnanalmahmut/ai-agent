@@ -1,5 +1,4 @@
 import type { ConfigType } from '@nestjs/config';
-import type { RedisOptions } from 'ioredis';
 
 import type { redisConfig } from '../../config';
 
@@ -34,7 +33,32 @@ const reconnectAfter = (attempt: number): number =>
   Math.min(50 * 2 ** Math.min(attempt, 7), 5_000);
 
 /**
- * Turns a role into ioredis options.
+ * The connection options this application produces, spelled out.
+ *
+ * Declared here rather than imported from either library on purpose. ioredis and
+ * BullMQ each publish a `RedisOptions` describing the same underlying object,
+ * and the two are not mutually assignable — ioredis permits `retryStrategy:
+ * null`, BullMQ does not — so borrowing one type forces a cast at the other
+ * boundary. Naming exactly the fields this project sets satisfies both, and it
+ * makes the surface a reader has to understand finite.
+ */
+export type RedisConnectionOptions = {
+  url: string;
+  connectTimeout: number;
+  retryStrategy: (attempt: number) => number;
+  enableReadyCheck: boolean;
+  disconnectTimeout: number;
+  enableOfflineQueue: boolean;
+  /** Present for `general` only; BullMQ roles must not carry one. */
+  keyPrefix?: string;
+  /** Absent for `queue-worker`, whose blocking reads must not be timed out. */
+  commandTimeout?: number;
+  /** `null` for `queue-worker` only: retry forever, as BullMQ requires. */
+  maxRetriesPerRequest?: number | null;
+};
+
+/**
+ * Turns a role into connection options.
  *
  * A pure function, deliberately: the decisions below are the ones most likely
  * to be quietly undone by a later edit, and this way each of them is a unit
@@ -43,8 +67,8 @@ const reconnectAfter = (attempt: number): number =>
 export function buildRedisConnectionOptions(
   role: RedisRole,
   config: ConfigType<typeof redisConfig>,
-): RedisOptions & { url: string } {
-  const base: RedisOptions & { url: string } = {
+): RedisConnectionOptions {
+  const base: Omit<RedisConnectionOptions, 'enableOfflineQueue'> = {
     url: config.url,
     connectTimeout: config.connectTimeoutMs,
     retryStrategy: reconnectAfter,

@@ -63,12 +63,12 @@ describe('buildRedisConnectionOptions', () => {
       // A number for every attempt: reconnection is never abandoned. Returning
       // null or undefined would stop ioredis retrying, leaving a client that
       // needs a process restart to recover from a long outage.
-      expect(typeof retryStrategy?.(1)).toBe('number');
-      expect(typeof retryStrategy?.(1_000)).toBe('number');
+      expect(typeof retryStrategy(1)).toBe('number');
+      expect(typeof retryStrategy(1_000)).toBe('number');
 
       // Backs off, then holds a ceiling rather than growing without bound.
-      expect(retryStrategy?.(1)).toBeLessThan(retryStrategy?.(5) as number);
-      expect(retryStrategy?.(1_000)).toBe(5_000);
+      expect(retryStrategy(1)).toBeLessThan(retryStrategy(5));
+      expect(retryStrategy(1_000)).toBe(5_000);
     }
   });
 
