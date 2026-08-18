@@ -267,13 +267,16 @@ describe('authorization invariants', () => {
    * authentication as well as authorization, so a revoked session, a
    * deactivated account, a role change and a membership removal all take
    * effect on the very next request.
+   *
+   * Both names are Better Auth configuration keys, and neither has any other
+   * meaning in this codebase, so a repository-wide scan is exact.
    */
-  it('configures no session cookie cache, Redis or secondary storage', () => {
+  it('configures no session cookie cache or secondary storage', () => {
     const offenders: string[] = [];
 
     for (const file of allSources) {
       const code = codeOf(file);
-      for (const forbidden of ['cookieCache', 'secondaryStorage', 'ioredis']) {
+      for (const forbidden of ['cookieCache', 'secondaryStorage']) {
         if (code.includes(forbidden)) {
           offenders.push(`${relative(file)} mentions ${forbidden}`);
         }
@@ -281,6 +284,31 @@ describe('authorization invariants', () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * The same rule, aimed at the mechanism rather than at a word.
+   *
+   * This used to be a repository-wide grep for `ioredis`, which held only for
+   * as long as the service had no Redis at all. It now does — as queue
+   * transport and ephemeral coordination state — so the grep would forbid the
+   * infrastructure instead of the misuse.
+   *
+   * What actually has to stay true is narrower and stronger: authentication
+   * state never leaves PostgreSQL. Enforced on the auth layer's imports,
+   * because handing Better Auth a cache is not something that can be done
+   * without reaching for one from here.
+   */
+  it.each(eachAuthFile)('%s does not reach for Redis or a queue', (file) => {
+    const offending = importsOf(file).filter(
+      (specifier) =>
+        specifier === 'ioredis' ||
+        specifier === 'bullmq' ||
+        specifier.includes('infrastructure/redis') ||
+        specifier.includes('infrastructure/queue'),
+    );
+
+    expect(offending).toEqual([]);
   });
 
   /**
