@@ -1,5 +1,4 @@
 export type { QueueJobHandler } from './queue-job-handler';
-export { buildQueueOptions, buildWorkerOptions } from './queue-options.factory';
 export {
   QueueProducer,
   type PublishOptions,
@@ -13,8 +12,10 @@ export {
 export { QueueWorkerRunner } from './queue-worker.runner';
 export {
   ALL_QUEUE_NAMES,
+  buildQueueOptions,
+  buildWorkerOptions,
   QUEUE_JOB_HANDLERS,
   QUEUE_NAMES,
   type QueueName,
-} from './queue.constants';
+} from './queue.config';
 export { QueueModule } from './queue.module';

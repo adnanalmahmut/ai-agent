@@ -1,7 +1,7 @@
 import { HttpStatus } from '@nestjs/common';
 
 import type { AppErrorCode } from '../errors';
-import type { ValidationIssueCode } from '../http/validation/validation-issue';
+import type { ValidationIssueCode } from '../http/validation';
 import type { I18nPath } from '../../generated/i18n.generated';
 
 /**

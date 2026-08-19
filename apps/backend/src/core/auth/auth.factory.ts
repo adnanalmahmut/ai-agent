@@ -10,12 +10,6 @@ import type { appConfig, authConfig } from '../../config';
 import type { PrismaService } from '../../database';
 import type { MailService } from '../mail';
 import {
-  DEFAULT_GLOBAL_ROLE,
-  GLOBAL_ADMIN_ROLES,
-  globalAccessControl,
-  globalRoles,
-} from './auth-access';
-import {
   createArchivedOrganizationHook,
   createArchivedOrganizationListFilter,
   createPreferredLanguageValidationHook,
@@ -23,10 +17,14 @@ import {
 } from './auth-hooks';
 import { createAuthMailCallbacks } from './auth-mail';
 import {
+  DEFAULT_GLOBAL_ROLE,
+  GLOBAL_ADMIN_ROLES,
+  globalAccessControl,
+  globalRoles,
   ORGANIZATION_CREATOR_ROLE,
   organizationAccessControl,
   organizationRoles,
-} from './organization-access';
+} from './permissions';
 
 // Shared with email copy so advertised and enforced expiry cannot drift.
 const RESET_PASSWORD_EXPIRES_IN_SECONDS = 3600;

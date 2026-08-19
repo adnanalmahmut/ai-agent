@@ -4,7 +4,7 @@ import { Redis } from 'ioredis';
 import { PinoLogger } from 'nestjs-pino';
 
 import { redisConfig } from '../../config';
-import { buildRedisConnectionOptions } from './redis-connection.options';
+import { buildRedisConnectionOptions } from './redis.options';
 
 /** What a probe can say about Redis without guessing. */
 export type RedisProbe = {

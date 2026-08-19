@@ -1,6 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 
-import { ProcessReadiness } from './process-readiness';
+import { ProcessReadiness } from './readiness';
 
 /**
  * Process-level lifecycle state.

@@ -5,8 +5,11 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { queueConfig, redisConfig } from '../../config';
 import type { QueueJobHandler } from './queue-job-handler';
-import { buildWorkerOptions } from './queue-options.factory';
-import { QUEUE_JOB_HANDLERS, type QueueName } from './queue.constants';
+import {
+  buildWorkerOptions,
+  QUEUE_JOB_HANDLERS,
+  type QueueName,
+} from './queue.config';
 
 /**
  * Runs the registered job handlers, and stops them on demand.

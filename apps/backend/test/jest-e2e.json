@@ -3,7 +3,7 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "maxWorkers": 1,
-  "setupFiles": ["<rootDir>/setup-env.ts"],
+  "setupFiles": ["<rootDir>/support/setup-env.ts"],
   "testRegex": ".e2e-spec.ts$",
   "transform": {
     "^.+\\.ts$": [
