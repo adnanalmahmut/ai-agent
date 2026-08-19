@@ -21,6 +21,16 @@ export class PrismaService
   ) {
     const adapter = new PrismaPg({
       connectionString: config.url,
+      /**
+       * Bounded on purpose; `node-postgres` would otherwise wait forever.
+       *
+       * An unreachable database must produce failing queries, not hanging ones.
+       * Hanging is strictly worse than failing here: the readiness probe meant
+       * to report the outage never answers, and a shutdown sequence waiting on
+       * an in-flight query never completes — so the process is `SIGKILL`ed
+       * rather than stopping.
+       */
+      connectionTimeoutMillis: config.connectTimeoutMs,
     });
 
     super({ adapter });

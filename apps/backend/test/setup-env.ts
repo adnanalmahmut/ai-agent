@@ -6,6 +6,22 @@ import { config } from 'dotenv';
 // duplicating a connection string into the test setup.
 config();
 
+// Redis is required configuration, so every suite that boots `AppModule` needs
+// it present even when the suite touches no queue at all.
+//
+// Precedence matches `DATABASE_URL`: whatever `.env` and the surrounding
+// environment provide wins, and these are only the fallback for a developer who
+// has set neither. The fallback is the `redis-test` compose service on 6378
+// rather than the development instance on 6379.
+//
+// The prefixes are the reason a run against 6379 is survivable rather than
+// merely unlikely. Both namespaces are distinct from the development ones, and
+// no suite issues FLUSHDB — cleanup is scoped to keys the suite itself wrote,
+// so a misdirected run cannot take a developer's queues with it.
+process.env.REDIS_URL ??= 'redis://localhost:6378';
+process.env.REDIS_KEY_PREFIX ??= 'test';
+process.env.QUEUE_PREFIX ??= 'test-bmq';
+
 process.env.LOG_LEVEL = 'silent';
 process.env.LOG_PRETTY = 'false';
 process.env.NODE_ENV = 'test';

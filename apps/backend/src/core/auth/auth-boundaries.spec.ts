@@ -267,13 +267,16 @@ describe('authorization invariants', () => {
    * authentication as well as authorization, so a revoked session, a
    * deactivated account, a role change and a membership removal all take
    * effect on the very next request.
+   *
+   * Both names are Better Auth configuration keys, and neither has any other
+   * meaning in this codebase, so a repository-wide scan is exact.
    */
-  it('configures no session cookie cache, Redis or secondary storage', () => {
+  it('configures no session cookie cache or secondary storage', () => {
     const offenders: string[] = [];
 
     for (const file of allSources) {
       const code = codeOf(file);
-      for (const forbidden of ['cookieCache', 'secondaryStorage', 'ioredis']) {
+      for (const forbidden of ['cookieCache', 'secondaryStorage']) {
         if (code.includes(forbidden)) {
           offenders.push(`${relative(file)} mentions ${forbidden}`);
         }
@@ -281,6 +284,40 @@ describe('authorization invariants', () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * The same rule, aimed at the mechanism rather than at a word.
+   *
+   * This used to be a repository-wide grep for `ioredis`, which held only for
+   * as long as the service had no Redis at all. It now does — as queue
+   * transport and ephemeral coordination state — so the grep would forbid the
+   * platform module instead of the misuse.
+   *
+   * What actually has to stay true is narrower and stronger: authentication
+   * state never leaves PostgreSQL, and no authentication path enqueues work.
+   * Enforced on the auth layer's imports, because handing Better Auth a cache
+   * is not something that can be done without reaching for one from here.
+   *
+   * Matched on *path segments* rather than on a substring of the specifier.
+   * The previous form looked for `infrastructure/redis`, which stopped matching
+   * the moment those modules moved under `core/` and the sibling import became
+   * `../redis` — a check that silently passes after a directory move is worse
+   * than no check, because nobody looks at it again.
+   */
+  const PLATFORM_MODULES_AUTH_MAY_NOT_USE = ['redis', 'queue', 'outbox'];
+
+  it.each(eachAuthFile)('%s does not reach for Redis or a queue', (file) => {
+    const offending = importsOf(file).filter((specifier) => {
+      if (specifier === 'ioredis' || specifier === 'bullmq') return true;
+
+      const segments = specifier.split('/');
+      return PLATFORM_MODULES_AUTH_MAY_NOT_USE.some((name) =>
+        segments.includes(name),
+      );
+    });
+
+    expect(offending).toEqual([]);
   });
 
   /**
