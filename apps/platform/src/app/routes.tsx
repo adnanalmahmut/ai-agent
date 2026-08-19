@@ -262,6 +262,26 @@ export function createRoutes(): RouteObject[] {
                         },
 
                         {
+                          path: rel(PLATFORM_ROUTES.userSettings),
+                          lazy: {
+                            Component: async () =>
+                              (
+                                await import('@/routes/settings/user-settings-route')
+                              ).UserSettingsRoute,
+                          },
+                        },
+
+                        {
+                          path: rel(PLATFORM_ROUTES.adminUsers),
+                          lazy: {
+                            Component: async () =>
+                              (
+                                await import('@/routes/admin/admin-users-route')
+                              ).AdminUsersRoute,
+                          },
+                        },
+
+                        {
                           // The heaviest page in the application and the least
                           // visited, so it is the one that earns its own chunk.
                           path: rel(PLATFORM_ROUTES.designSystem),

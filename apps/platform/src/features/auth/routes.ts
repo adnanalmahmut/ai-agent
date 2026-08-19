@@ -22,6 +22,8 @@ export const PLATFORM_ROUTES = {
   dashboard: '/',
   organizations: '/organizations',
   newOrganization: '/organizations/new',
+  userSettings: '/settings',
+  adminUsers: '/admin/users',
   designSystem: '/design-system',
 } as const;
 

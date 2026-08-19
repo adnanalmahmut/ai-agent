@@ -79,26 +79,26 @@ export function OrganizationInvitationsBlock() {
 
       {canInvite ? <InviteForm organizationId={organization.id} /> : null}
 
-      <Card className="overflow-hidden">
-        <CardHeader>
-          <CardTitle>{t('invitations.listTitle')}</CardTitle>
-          <CardDescription>
+      <Card className="border border-border/60 rounded-lg shadow-2xs overflow-hidden bg-card">
+        <CardHeader className="p-4 pb-2 space-y-1">
+          <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('invitations.listTitle')}</CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
             {t('invitations.pendingCount', { count: pending.length })}
           </CardDescription>
         </CardHeader>
 
-        <CardContent className="px-0">
+        <CardContent className="p-0">
           {invitations.length === 0 ? (
-            <div className="px-6">
+            <div className="p-4">
               <EmptyState
                 title={t('invitations.emptyTitle')}
                 description={t('invitations.emptyDescription')}
               />
             </div>
           ) : (
-            <ul className="divide-y border-t">
+            <ul className="divide-y divide-border/40 border-t border-border/40">
               {invitations.map((invitation) => (
-                <li key={invitation.id}>
+                <li key={invitation.id} className="hover:bg-sidebar-accent/50 transition-colors">
                   <InvitationRow
                     invitation={invitation}
                     canCancel={canCancel}
@@ -115,15 +115,6 @@ export function OrganizationInvitationsBlock() {
 
 /**
  * Sends an invitation, or sends one again.
- *
- * There is one form for both. Better Auth has no resend endpoint: re-inviting
- * an address that already has a pending invitation *is* the resend, and the
- * backend cancels the previous one in the process. So the form does not
- * pretend to offer two operations that the API does not have.
- *
- * The confirmation names the address and says nothing else. Whether that
- * address belongs to an account, a deactivated account, or nobody at all is
- * not something this screen may reveal.
  */
 function InviteForm({ organizationId }: { organizationId: string }) {
   const t = useTranslations('Organization');
@@ -133,10 +124,10 @@ function InviteForm({ organizationId }: { organizationId: string }) {
   const [role, setRole] = useState<OrganizationRoleName>(DEFAULT_INVITE_ROLE);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('invitations.inviteTitle')}</CardTitle>
-        <CardDescription>{t('invitations.inviteDescription')}</CardDescription>
+    <Card className="border border-border/60 rounded-lg shadow-2xs bg-card">
+      <CardHeader className="p-4 pb-2 space-y-1">
+        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('invitations.inviteTitle')}</CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">{t('invitations.inviteDescription')}</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-5">

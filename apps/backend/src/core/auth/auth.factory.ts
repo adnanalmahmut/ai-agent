@@ -1,6 +1,7 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import type { ConfigType } from '@nestjs/config';
 import { betterAuth, type Auth, type BetterAuthOptions } from 'better-auth';
+import { createAuthMiddleware } from 'better-auth/api';
 import { openAPI } from 'better-auth/plugins';
 import { admin } from 'better-auth/plugins/admin';
 import { organization } from 'better-auth/plugins/organization';
@@ -17,6 +18,7 @@ import {
 import {
   createArchivedOrganizationHook,
   createArchivedOrganizationListFilter,
+  createPreferredLanguageValidationHook,
   createSoftDeleteDatabaseHooks,
 } from './auth-hooks';
 import { createAuthMailCallbacks } from './auth-mail';
@@ -66,6 +68,9 @@ export function createAuth(dependencies: {
   const archivedOrganizationListFilter =
     createArchivedOrganizationListFilter(prisma);
 
+  const preferredLanguageValidationHook =
+    createPreferredLanguageValidationHook();
+
   const options: BetterAuthOptions = {
     database: prismaAdapter(prisma, { provider: 'postgresql' }),
 
@@ -111,11 +116,11 @@ export function createAuth(dependencies: {
 
     user: {
       additionalFields: {
-        // Server-managed; not accepted from sign-up payloads.
+        // User's preferred language for emails and UI; updatable by user.
         preferredLanguage: {
           type: 'string',
           required: false,
-          input: false,
+          input: true,
         },
         // Administrative lifecycle state: never client-writable or exposed in auth responses.
         deletedAt: {
@@ -142,7 +147,10 @@ export function createAuth(dependencies: {
     databaseHooks: createSoftDeleteDatabaseHooks(prisma),
 
     hooks: {
-      before: archivedOrganizationHook,
+      before: createAuthMiddleware(async (ctx) => {
+        await preferredLanguageValidationHook(ctx);
+        await archivedOrganizationHook(ctx);
+      }),
       after: archivedOrganizationListFilter,
     },
 

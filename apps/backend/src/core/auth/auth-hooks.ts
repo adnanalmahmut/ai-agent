@@ -4,6 +4,7 @@ import {
   getSessionFromCtx,
 } from 'better-auth/api';
 
+import { isAppLocale } from '@repo/i18n-core';
 import type { PrismaService } from '../../database';
 
 /**
@@ -59,6 +60,39 @@ export function createSoftDeleteDatabaseHooks(prisma: PrismaService) {
       },
     },
   };
+}
+
+/**
+ * Validates that preferredLanguage contains a supported locale on every
+ * client-writable path (sign-up, update-user, etc.).
+ *
+ * Path-agnostic by design: `input: true` on the field schema makes it
+ * writable on any endpoint Better Auth exposes, so validation must not
+ * depend on which path the request hit.
+ */
+export function createPreferredLanguageValidationHook() {
+  return createAuthMiddleware(async (ctx) => {
+    await Promise.resolve();
+    const hook = ctx as unknown as HookContext;
+    const body = hook.body as Record<string, unknown> | undefined;
+    if (
+      body &&
+      'preferredLanguage' in body &&
+      body.preferredLanguage !== undefined &&
+      body.preferredLanguage !== null
+    ) {
+      const lang =
+        typeof body.preferredLanguage === 'string'
+          ? body.preferredLanguage
+          : '';
+      if (!isAppLocale(lang)) {
+        throw new APIError('BAD_REQUEST', {
+          message: 'Unsupported preferred language',
+          code: 'INVALID_PREFERRED_LANGUAGE',
+        });
+      }
+    }
+  });
 }
 
 /**

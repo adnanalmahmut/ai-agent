@@ -75,16 +75,16 @@ export function OrganizationMembersBlock() {
 
       <OrganizationErrorAlert error={actions.error} />
 
-      <Card className="overflow-hidden py-0">
+      <Card className="ds-card overflow-hidden py-0">
         {/* Wide screens: a real table, with headers a screen reader can use. */}
         <div className="hidden lg:block">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('members.columnMember')}</TableHead>
-                <TableHead>{t('members.columnRole')}</TableHead>
-                <TableHead>{t('members.columnJoined')}</TableHead>
-                <TableHead>
+            <TableHeader className="ds-table-header">
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="ds-table-head">{t('members.columnMember')}</TableHead>
+                <TableHead className="ds-table-head">{t('members.columnRole')}</TableHead>
+                <TableHead className="ds-table-head">{t('members.columnJoined')}</TableHead>
+                <TableHead className="py-2.5 px-3">
                   <span className="sr-only">{t('members.columnActions')}</span>
                 </TableHead>
               </TableRow>
@@ -92,8 +92,8 @@ export function OrganizationMembersBlock() {
 
             <TableBody>
               {members.map((member) => (
-                <TableRow key={member.id}>
-                  <TableCell>
+                <TableRow key={member.id} className="border-b border-border/30 hover:bg-sidebar-accent/50 transition-colors">
+                  <TableCell className="py-2.5 px-3">
                     <PersonIdentity
                       name={member.user.name}
                       email={member.user.email}
@@ -101,7 +101,7 @@ export function OrganizationMembersBlock() {
                     />
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell className="py-2.5 px-3">
                     <RoleControl
                       member={member}
                       canUpdate={canUpdateRole}
@@ -112,11 +112,11 @@ export function OrganizationMembersBlock() {
                     />
                   </TableCell>
 
-                  <TableCell className="text-muted-foreground">
+                  <TableCell className="text-xs text-muted-foreground py-2.5 px-3">
                     <JoinedAt value={member.createdAt} />
                   </TableCell>
 
-                  <TableCell className="text-end">
+                  <TableCell className="text-end py-2.5 px-3">
                     {canRemove ? (
                       <RemoveButton
                         isPending={actions.pendingMemberId === member.id}

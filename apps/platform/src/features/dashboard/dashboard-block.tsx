@@ -21,16 +21,6 @@ import { Link } from '@/i18n/navigation';
 
 /**
  * The authenticated landing page.
- *
- * Restrained on purpose. It shows what the session and the memberships
- * actually establish — who you are, whether your address is confirmed, which
- * organizations you belong to — and links onward. There are no KPI cards and
- * no charts, because there is no data behind them: a revenue graph on this
- * page would be a drawing, not a report.
- *
- * The interesting case is a reader with no organizations. That is the normal
- * state of a brand-new account, and since anyone verified may create one, this
- * page's empty state is where that starts rather than a dead end.
  */
 export function DashboardBlock({ data }: { data: OrganizationsListData }) {
   const t = useTranslations('Platform');
@@ -39,7 +29,7 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
   const hasOrganizations = data.organizations.length > 0;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title={t('dashboard.greeting', {
           name: session.user.name ?? session.user.email,
@@ -47,21 +37,23 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
         description={t('dashboard.description')}
       />
 
-      <div className="grid gap-5 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('dashboard.account.title')}</CardTitle>
-            <CardDescription>
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="ds-card">
+          <CardHeader className="p-4 pb-2 space-y-1">
+            <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+              {t('dashboard.account.title')}
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
               {t('dashboard.account.description')}
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="p-4 pt-2 space-y-3 text-xs">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="text-muted-foreground">
                 {t('dashboard.account.email')}
               </span>
-              <bdi className="font-medium">{session.user.email}</bdi>
+              <bdi className="font-semibold text-foreground">{session.user.email}</bdi>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -70,13 +62,13 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
               </span>
 
               {session.user.emailVerified ? (
-                <Badge variant="secondary">
-                  <MailCheck />
+                <Badge variant="secondary" className="gap-1.5 rounded px-2 py-0.5 text-xs font-medium border border-border/40">
+                  <MailCheck className="size-3.5 text-primary" />
                   {t('dashboard.account.verified')}
                 </Badge>
               ) : (
-                <Badge variant="outline">
-                  <MailWarning />
+                <Badge variant="outline" className="gap-1.5 rounded px-2 py-0.5 text-xs font-medium border border-border/40">
+                  <MailWarning className="size-3.5 text-destructive" />
                   {t('dashboard.account.unverified')}
                 </Badge>
               )}
@@ -84,34 +76,36 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('dashboard.organization.title')}</CardTitle>
-            <CardDescription>
+        <Card className="ds-card">
+          <CardHeader className="p-4 pb-2 space-y-1">
+            <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+              {t('dashboard.organization.title')}
+            </CardTitle>
+            <CardDescription className="text-xs text-muted-foreground">
               {t('dashboard.organization.description')}
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-3">
+          <CardContent className="p-4 pt-2 space-y-3">
             <ActiveOrganization />
 
-            <p className="text-sm leading-6 text-muted-foreground">
+            <p className="text-xs leading-5 text-muted-foreground">
               {t('dashboard.organization.hint')}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold tracking-tight">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             {t('dashboard.organizations.title')}
           </h2>
 
           {hasOrganizations ? (
             <Link
               href={PLATFORM_ROUTES.organizations}
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              className={buttonVariants({ variant: 'outline', size: 'sm', className: 'h-7 text-xs border border-border/50 hover:bg-sidebar-accent' })}
             >
               {t('dashboard.organizations.viewAll')}
               <ArrowRight className={MIRRORED_ICON} />
@@ -125,12 +119,12 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
               <li key={organization.id}>
                 <Link
                   href={`${PLATFORM_ROUTES.organizations}/${organization.id}`}
-                  className="block rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  className="block rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
-                  <Card className="h-full py-4 transition-colors hover:border-ring/40">
-                    <CardContent className="flex items-center gap-3 px-4">
+                  <Card className="h-full border border-border/60 py-3 rounded-lg shadow-2xs transition-colors hover:border-border hover:bg-sidebar-accent/50">
+                    <CardContent className="flex items-center gap-3 px-4 py-1">
                       <Building2 className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="truncate text-sm font-medium">
+                      <span className="truncate text-xs font-semibold text-foreground">
                         {organization.name}
                       </span>
                     </CardContent>
@@ -141,15 +135,15 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
           </ul>
         ) : (
           <EmptyState
-            icon={<Building2 className="size-5" />}
+            icon={<Building2 className="size-5 text-muted-foreground" />}
             title={t('dashboard.organizations.emptyTitle')}
             description={t('dashboard.organizations.emptyDescription')}
             action={
               <Link
                 href={PLATFORM_ROUTES.newOrganization}
-                className={buttonVariants({ className: 'gap-2' })}
+                className={buttonVariants({ className: 'gap-2 h-8 text-xs' })}
               >
-                <Plus />
+                <Plus className="size-3.5" />
                 {t('dashboard.organizations.create')}
               </Link>
             }

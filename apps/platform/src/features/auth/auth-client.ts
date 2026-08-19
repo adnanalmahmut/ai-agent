@@ -1,4 +1,8 @@
-import { adminClient, organizationClient } from 'better-auth/client/plugins';
+import {
+  adminClient,
+  inferAdditionalFields,
+  organizationClient,
+} from 'better-auth/client/plugins';
 import { createAuthClient } from 'better-auth/react';
 
 import { AUTH_BASE_PATH } from '@/config/paths';
@@ -38,6 +42,11 @@ import {
 export const authClient = createAuthClient({
   baseURL: new URL(AUTH_BASE_PATH, window.location.origin).toString(),
   plugins: [
+    inferAdditionalFields({
+      user: {
+        preferredLanguage: { type: 'string', required: false },
+      },
+    }),
     adminClient({ ac: globalAccessControl, roles: globalRoles }),
     organizationClient({
       ac: organizationAccessControl,

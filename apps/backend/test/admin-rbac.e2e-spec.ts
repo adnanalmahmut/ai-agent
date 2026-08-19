@@ -303,6 +303,40 @@ describe('Global RBAC and account lifecycle (e2e)', () => {
       expect(errorBody(response).errorCode).toBe('ACCOUNT_ALREADY_DEACTIVATED');
     });
 
+    it('allows a regular user to deactivate their own account via /user/account/deactivate', async () => {
+      const userToDeactivate = await createUser(harness);
+
+      await as(harness, userToDeactivate)
+        .post('/user/account/deactivate', { reason: 'self request' })
+        .expect(201);
+
+      const row = await harness.prisma.user.findUnique({
+        where: { id: userToDeactivate.id },
+        select: {
+          deletedAt: true,
+          deletedByUserId: true,
+          deletionReason: true,
+        },
+      });
+
+      expect(row?.deletedAt).toBeInstanceOf(Date);
+      expect(row?.deletedByUserId).toBe(userToDeactivate.id);
+      expect(row?.deletionReason).toBe('self request');
+
+      const sessions = await harness.prisma.session.count({
+        where: { userId: userToDeactivate.id },
+      });
+      expect(sessions).toBe(0);
+    });
+
+    it('refuses admin from calling /admin/users/:userId/deactivate', async () => {
+      const victim = await createUser(harness);
+
+      await as(harness, admin)
+        .post(`/admin/users/${victim.id}/deactivate`)
+        .expect(403);
+    });
+
     it('reports an unknown account with a stable code', async () => {
       const response = await as(harness, superAdmin).post(
         '/admin/users/00000000-0000-0000-0000-000000000000/deactivate',

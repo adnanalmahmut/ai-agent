@@ -12,6 +12,7 @@ import { createAuth } from './auth.factory';
 import {
   AccountLifecycleController,
   OrganizationLifecycleController,
+  SelfAccountLifecycleController,
 } from './lifecycle.controller';
 import { OrganizationLifecycleService } from './organization-lifecycle.service';
 
@@ -80,7 +81,11 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
       }),
     }),
   ],
-  controllers: [AccountLifecycleController, OrganizationLifecycleController],
+  controllers: [
+    AccountLifecycleController,
+    SelfAccountLifecycleController,
+    OrganizationLifecycleController,
+  ],
   providers: [AccountLifecycleService, OrganizationLifecycleService],
   exports: [AuthModule, AccountLifecycleService, OrganizationLifecycleService],
 })
