@@ -58,6 +58,7 @@ runtime concerns. There is deliberately no second technical layer beside it:
 ```
 src/core/
   auth/       authentication and authorization
+  docs/       the OpenAPI document and its reference UI
   errors/     the application exception and its codes
   health/     liveness and readiness probes
   http/       the HTTP boundary: pipes, filters, response envelope
@@ -72,6 +73,13 @@ src/core/
 
 `src/database` holds the Prisma client; `src/config` holds the validated
 environment. Feature modules live outside `core`.
+
+Each folder is flat: implementation files sit directly in it, `index.ts` is its
+public surface, and every `*.spec.ts` lives in a `__tests__/` subfolder beside
+them. A module is read by scanning its folder, so nothing that is not
+production code is allowed to appear in that scan. Whole-application tests are
+not part of a module and live in `test/e2e/`, with their shared harness in
+`test/support/`.
 
 ## Where state lives
 
@@ -247,11 +255,11 @@ The e2e suites run against real Redis and PostgreSQL with per-run key
 namespaces, because the behaviour they assert is precisely what a mock would not
 reproduce:
 
-- `test/outbox.e2e-spec.ts` — `FOR UPDATE SKIP LOCKED`, database-clock leases,
+- `test/e2e/outbox.e2e-spec.ts` — `FOR UPDATE SKIP LOCKED`, database-clock leases,
   conditional claim-version updates, and a crash window that performs a real
   `queue.add` before losing the acknowledgement.
-- `test/queue-drain.e2e-spec.ts` — BullMQ's fetch loop and lock handling.
-- `test/worker-shutdown.e2e-spec.ts` — the global deadline with a real active
+- `test/e2e/queue-drain.e2e-spec.ts` — BullMQ's fetch loop and lock handling.
+- `test/e2e/worker-shutdown.e2e-spec.ts` — the global deadline with a real active
   BullMQ job *and* a stuck outbox publication at the same time. The only
   injected part is the producer, since a real Redis cannot be made to hang on
   demand.

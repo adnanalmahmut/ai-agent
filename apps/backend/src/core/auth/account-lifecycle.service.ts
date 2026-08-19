@@ -18,7 +18,7 @@ export type AccountLifecycleResult = {
  * provider accounts, its organization memberships, the invitations it sent,
  * and any business resource it created — is left exactly where it was. That
  * is what makes the operation reversible, and it is why `user:delete` is
- * granted to no role in `auth-access.ts`.
+ * granted to no role in `permissions.ts`.
  *
  * Deactivation is orthogonal to Better Auth's `banned` flag. A ban is a
  * moderation decision with its own expiry; a deactivation is a lifecycle

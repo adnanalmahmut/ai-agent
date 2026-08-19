@@ -4,10 +4,10 @@ import { PrismaService } from '../../database';
 import { AppException } from '../errors';
 import {
   globalRoles,
+  memberRoleHasPermission,
   type GlobalPermissionRequest,
   type GlobalRoleName,
-} from './auth-access';
-import { memberRoleHasPermission } from './organization-access';
+} from './permissions';
 
 /** One archived organization, as the Platform's list needs it. */
 export type ArchivedOrganizationSummary = {

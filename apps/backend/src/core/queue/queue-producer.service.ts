@@ -4,9 +4,12 @@ import { Queue } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
 import { queueConfig, redisConfig } from '../../config';
-import { buildQueueOptions } from './queue-options.factory';
 import { QueuePublishError } from './queue-publish.error';
-import { ALL_QUEUE_NAMES, type QueueName } from './queue.constants';
+import {
+  ALL_QUEUE_NAMES,
+  buildQueueOptions,
+  type QueueName,
+} from './queue.config';
 
 export type PublishOptions = {
   /**

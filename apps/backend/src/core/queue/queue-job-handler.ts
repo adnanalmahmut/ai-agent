@@ -1,6 +1,6 @@
 import type { Job } from 'bullmq';
 
-import type { QueueName } from './queue.constants';
+import type { QueueName } from './queue.config';
 
 /**
  * Everything a queue consumer has to do, and nothing else.

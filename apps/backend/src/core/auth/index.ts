@@ -5,7 +5,7 @@
  * the dynamic module and reached through the library's `AuthService`, so
  * nothing here needs — or should have — a second way to get at it.
  *
- * The two access-control definitions *are* exported, so tests can evaluate the
+ * Both access-control definitions *are* exported, so tests can evaluate the
  * real role objects rather than a copy, and so the separation between the two
  * authorization domains is assertable from outside this folder.
  */
@@ -19,17 +19,13 @@ export {
   GLOBAL_PERMISSION_STATEMENTS,
   globalAccessControl,
   globalRoles,
-} from './auth-access';
-export type { GlobalRoleName } from './auth-access';
-
-export {
   ORGANIZATION_CREATOR_ROLE,
   ORGANIZATION_PERMISSION_STATEMENTS,
   memberRoleHasPermission,
   organizationAccessControl,
   organizationRoles,
-} from './organization-access';
-export type { OrganizationRoleName } from './organization-access';
+} from './permissions';
+export type { GlobalRoleName, OrganizationRoleName } from './permissions';
 
 export {
   ACCOUNT_DEACTIVATED_CODE,

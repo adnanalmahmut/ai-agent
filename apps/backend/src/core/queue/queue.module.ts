@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { QueueProducer } from './queue-producer.service';
 import { QueueWorkerRunner } from './queue-worker.runner';
-import { QUEUE_JOB_HANDLERS } from './queue.constants';
+import { QUEUE_JOB_HANDLERS } from './queue.config';
 
 /**
  * The queue transport, for processes that actually use one.

@@ -1,5 +1,5 @@
 export { LifecycleModule } from './lifecycle.module';
-export { ProcessReadiness } from './process-readiness';
+export { ProcessReadiness } from './readiness';
 export {
   onTerminationSignal,
   runShutdownSequence,

@@ -126,7 +126,7 @@ const PASSWORD = 'harness-password-01';
  * admin plugin assigns `defaultRole` in `user.create.before`, and asserting on
  * that is one of the things these suites exist to do. Verification is applied
  * directly, because clicking the emailed link is covered by the pre-existing
- * `auth.e2e-spec.ts` and repeating it here would only slow the suite down.
+ * `e2e/auth.e2e-spec.ts` and repeating it here would only slow the suite down.
  */
 export async function createUser(
   harness: Harness,
