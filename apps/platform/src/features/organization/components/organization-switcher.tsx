@@ -1,4 +1,6 @@
 import {
+  Avatar,
+  AvatarFallback,
   Button,
   DropdownMenu,
   DropdownMenuContent,
@@ -8,23 +10,14 @@ import {
   DropdownMenuTrigger,
   Skeleton,
 } from '@repo/ui';
-import { Building2, Check, ChevronsUpDown, Loader2 } from 'lucide-react';
+import { Building2, Check, ChevronDown, Loader2 } from 'lucide-react';
 import { useTranslations } from 'use-intl';
 
+import { userInitials } from '@/lib/user-initials';
 import { useOrganizationSwitcher } from '../hooks/use-organization-switcher';
 
 /**
- * Picks which organization the platform is currently about.
- *
- * Three states, and the middle one is the one usually forgotten: loading,
- * *no memberships at all*, and a list. A user with no organization is normal
- * here — membership arrives by invitation — so that state gets a sentence
- * explaining what will happen rather than an empty dropdown.
- *
- * Selecting an organization is context, not permission. It decides what the
- * platform is looking at; what the user may do to it is decided per action by
- * the organization permission gates, and ultimately by the server. This
- * component grants nothing.
+ * Workspace / Organization Switcher Component.
  */
 export function OrganizationSwitcher() {
   const t = useTranslations('Organization');
@@ -33,64 +26,80 @@ export function OrganizationSwitcher() {
 
   if (isLoading) {
     return (
-      <Skeleton className="h-9 w-full" aria-label={t('switcher.loading')} />
+      <Skeleton className="h-8 w-full rounded-md" aria-label={t('switcher.loading')} />
     );
   }
 
   if (organizations.length === 0) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-1.5 text-sm text-muted-foreground">
-        <Building2 className="size-4 shrink-0" />
+      <div className="flex h-8 items-center gap-2 rounded-md border border-border/50 bg-background/50 px-2.5 text-xs text-muted-foreground">
+        <Building2 className="size-3.5 shrink-0 text-muted-foreground" />
         <span className="truncate">{t('switcher.none')}</span>
       </div>
     );
   }
 
+  const activeName = activeOrganization?.name ?? t('switcher.placeholder');
+  const initials = userInitials(activeName, activeName);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className=" justify-between gap-2">
-          <Building2 className="size-4 shrink-0 text-muted-foreground" />
+        <Button
+          variant="ghost"
+          className="group flex h-8 w-full items-center justify-between gap-2 rounded-md border border-transparent px-2 text-start text-sm font-medium transition-colors hover:border-border hover:bg-sidebar-accent focus-visible:ring-1 focus-visible:ring-ring group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none">
+            <Avatar aria-hidden="true" className="size-5 rounded border border-border/60 bg-muted/60 text-xs font-semibold text-foreground">
+              <AvatarFallback className="rounded bg-primary/10 text-primary">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
 
-          {/*
-            A prefix rather than an `aria-label`: a label would *replace* the
-            accessible name, leaving a screen-reader user with "Organization"
-            and no idea which one is selected.
-          */}
-          <span className="sr-only">{t('switcher.label')}</span>
+            <span className="sr-only">{t('switcher.label')}</span>
 
-          <span className="truncate">
-            {activeOrganization?.name ?? t('switcher.placeholder')}
-          </span>
+            <span className="truncate text-xs font-semibold text-foreground group-data-[collapsible=icon]:hidden">
+              {activeName}
+            </span>
+          </div>
 
-          {/* Neutral glyph: it points at the menu, not along the text. */}
-          <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+          <ChevronDown className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 group-data-[collapsible=icon]:hidden" />
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="w-60">
-        <DropdownMenuLabel>{t('switcher.label')}</DropdownMenuLabel>
+      <DropdownMenuContent align="start" className="w-64 rounded-md border border-border shadow-md">
+        <DropdownMenuLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {t('switcher.label')}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
 
         {organizations.map((organization) => {
           const isActive = organization.id === activeOrganization?.id;
           const isPending = organization.id === pendingId;
+          const orgInitials = userInitials(organization.name, organization.name);
 
           return (
             <DropdownMenuItem
               key={organization.id}
               disabled={isPending || isActive}
+              className="flex items-center gap-2 rounded px-2 py-1.5 text-xs font-medium focus:bg-sidebar-active"
               onSelect={(event) => {
                 event.preventDefault();
                 void switchTo(organization.id);
               }}
             >
+              <Avatar aria-hidden="true" className="size-5 rounded border border-border/40 text-xs font-medium">
+                <AvatarFallback className="rounded bg-muted text-muted-foreground">
+                  {orgInitials}
+                </AvatarFallback>
+              </Avatar>
+
               <span className="truncate">{organization.name}</span>
 
               {isPending ? (
-                <Loader2 className="ms-auto size-4 animate-spin" />
+                <Loader2 className="ms-auto size-3.5 animate-spin" />
               ) : isActive ? (
-                <Check className="ms-auto size-4" />
+                <Check className="ms-auto size-3.5 text-primary" />
               ) : null}
             </DropdownMenuItem>
           );

@@ -59,6 +59,11 @@ export const authClientStub = {
 
   admin: {
     checkRolePermission: vi.fn((_request: PermissionRequest) => false),
+    listUsers: vi.fn(async () => ok({ users: [] as unknown[], total: 0 })),
+    setRole: vi.fn(async () => ok({ status: true })),
+    banUser: vi.fn(async () => ok({ status: true })),
+    unbanUser: vi.fn(async () => ok({ status: true })),
+    impersonateUser: vi.fn(async () => ok({ status: true })),
   },
   organization: {
     checkRolePermission: vi.fn((_request: PermissionRequest) => false),
@@ -106,6 +111,12 @@ export function resetAuthClientStub() {
   });
 
   authClientStub.admin.checkRolePermission.mockReturnValue(false);
+  authClientStub.admin.listUsers.mockResolvedValue(ok({ users: [], total: 0 }));
+  authClientStub.admin.setRole.mockResolvedValue(ok({ status: true }));
+  authClientStub.admin.banUser.mockResolvedValue(ok({ status: true }));
+  authClientStub.admin.unbanUser.mockResolvedValue(ok({ status: true }));
+  authClientStub.admin.impersonateUser.mockResolvedValue(ok({ status: true }));
+
   authClientStub.organization.checkRolePermission.mockReturnValue(false);
   authClientStub.organization.setActive.mockResolvedValue(ok({ id: 'org_1' }));
   authClientStub.organization.acceptInvitation.mockResolvedValue(
@@ -130,6 +141,22 @@ export function resetAuthClientStub() {
   );
   authClientStub.organization.removeMember.mockResolvedValue(
     ok({ member: { id: 'member_1' } }),
+  );
+}
+
+/**
+ * States what the reader is allowed to do globally, as a list of `resource:action`.
+ */
+export function allowGlobalPermissions(...granted: string[]): void {
+  authClientStub.useSession.mockReturnValue({
+    data: { user: { role: 'admin' } },
+    isPending: false,
+  } as never);
+  authClientStub.admin.checkRolePermission.mockImplementation(
+    (request) =>
+      Object.entries(request.permissions).some(([resource, actions]) =>
+        actions.some((action) => granted.includes(`${resource}:${action}`)),
+      ),
   );
 }
 

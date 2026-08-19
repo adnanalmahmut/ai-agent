@@ -114,3 +114,31 @@ async function readErrorCode(response: Response): Promise<string | undefined> {
     return undefined;
   }
 }
+
+/**
+ * Deactivates a user account via the NestJS application API.
+ */
+export async function deactivateUserAccount(userId: string): Promise<void> {
+  await apiRequest(`/admin/users/${encodeURIComponent(userId)}/deactivate`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Restores a deactivated user account via the NestJS application API.
+ */
+export async function restoreUserAccount(userId: string): Promise<void> {
+  await apiRequest(`/admin/users/${encodeURIComponent(userId)}/restore`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Deactivates the caller's own user account via the self-service application API.
+ */
+export async function deactivateSelfAccount(): Promise<void> {
+  await apiRequest('/user/account/deactivate', {
+    method: 'POST',
+  });
+}
+

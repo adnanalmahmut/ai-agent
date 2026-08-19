@@ -21,15 +21,6 @@ import { OrganizationErrorAlert } from '../components/organization-error-alert';
 
 /**
  * Every organization the reader belongs to.
- *
- * The empty state is the one that matters most here and it is no longer a dead
- * end: creating an organization is something any verified user may do, so the
- * screen that says "you are in none" is also the screen that offers to fix
- * that. Before organization creation existed this state could only apologise.
- *
- * The archived section appears only when there is something in it, and every
- * row in it is one the *server* said this caller may restore — there is no
- * role check here, and none is possible: the list arrives pre-filtered.
  */
 export function OrganizationsBlock({ data }: { data: OrganizationsListData }) {
   const t = useTranslations('Organization');
@@ -37,15 +28,15 @@ export function OrganizationsBlock({ data }: { data: OrganizationsListData }) {
   const createAction = (
     <Link
       href={PLATFORM_ROUTES.newOrganization}
-      className={buttonVariants({ className: 'gap-2' })}
+      className={buttonVariants({ className: 'gap-2 h-8 text-xs font-semibold' })}
     >
-      <Plus />
+      <Plus className="size-3.5" />
       {t('list.create')}
     </Link>
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title={t('list.title')}
         description={t('list.description')}
@@ -56,28 +47,28 @@ export function OrganizationsBlock({ data }: { data: OrganizationsListData }) {
 
       {data.organizations.length === 0 && !data.error ? (
         <EmptyState
-          icon={<Building2 className="size-5" />}
+          icon={<Building2 className="size-5 text-muted-foreground" />}
           title={t('list.emptyTitle')}
           description={t('list.emptyDescription')}
           action={createAction}
         />
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {data.organizations.map((organization) => (
             <li key={organization.id}>
               <Link
                 href={ORGANIZATION_ROUTES.overview(organization.id)}
-                className="block rounded-xl outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="block rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
-                <Card className="h-full transition-colors hover:border-ring/40">
-                  <CardContent className="flex items-center gap-3">
+                <Card className="h-full ds-card transition-colors hover:border-border hover:bg-sidebar-accent/50">
+                  <CardContent className="flex items-center gap-3 p-4">
                     <OrganizationAvatar logo={organization.logo} size="lg" />
 
                     <div className="min-w-0">
-                      <div className="truncate font-medium">
+                      <div className="truncate text-xs font-semibold text-foreground">
                         {organization.name}
                       </div>
-                      <bdi className="block truncate text-sm text-muted-foreground">
+                      <bdi className="block truncate text-xs text-muted-foreground">
                         {organization.slug}
                       </bdi>
                     </div>
@@ -98,10 +89,6 @@ export function OrganizationsBlock({ data }: { data: OrganizationsListData }) {
 
 /**
  * Organizations that are offline but recoverable.
- *
- * Kept visually quiet and behind its own heading: these are not places the
- * reader can work in, and mixing them into the grid above would invite a click
- * that leads to a page where nothing functions.
  */
 function ArchivedSection({
   organizations,
@@ -111,17 +98,17 @@ function ArchivedSection({
   const t = useTranslations('Organization');
 
   return (
-    <section className="space-y-4">
-      <div className="space-y-1.5">
-        <h2 className="text-lg font-semibold tracking-tight">
+    <section className="space-y-3 pt-4 border-t border-border/40">
+      <div className="space-y-1">
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
           {t('list.archivedTitle')}
         </h2>
-        <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
+        <p className="max-w-2xl text-xs text-muted-foreground">
           {t('list.archivedDescription')}
         </p>
       </div>
 
-      <ul className="space-y-3">
+      <ul className="space-y-2">
         {organizations.map((organization) => (
           <li key={organization.id}>
             <ArchivedRow organization={organization} />
@@ -137,19 +124,19 @@ function ArchivedRow({ organization }: { organization: ArchivedOrganization }) {
   const restore = useRestoreOrganization(organization.id);
 
   return (
-    <Card className="bg-muted/40 shadow-none">
-      <CardContent className="flex flex-wrap items-center gap-3">
+    <Card className="border border-border/50 bg-muted/40 shadow-none rounded-lg">
+      <CardContent className="flex flex-wrap items-center gap-3 p-3">
         <OrganizationAvatar logo={null} />
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{organization.name}</span>
-            <Badge variant="outline" className="shrink-0 gap-1">
-              <Archive />
+            <span className="truncate text-xs font-semibold text-foreground">{organization.name}</span>
+            <Badge variant="outline" className="shrink-0 gap-1 text-xs border-border/40">
+              <Archive className="size-3" />
               {t('list.archivedBadge')}
             </Badge>
           </div>
-          <bdi className="block truncate text-sm text-muted-foreground">
+          <bdi className="block truncate text-xs text-muted-foreground">
             {organization.slug}
           </bdi>
         </div>
@@ -158,15 +145,15 @@ function ArchivedRow({ organization }: { organization: ArchivedOrganization }) {
           <Button
             variant="outline"
             size="sm"
-            className="shrink-0 gap-2"
+            className="shrink-0 gap-1.5 h-7 text-xs border border-border/50 hover:bg-sidebar-accent"
             onClick={() => void restore.submit()}
             disabled={restore.isPending}
             aria-busy={restore.isPending}
           >
             {restore.isPending ? (
-              <Loader2 className="animate-spin" />
+              <Loader2 className="size-3.5 animate-spin" />
             ) : (
-              <RotateCcw />
+              <RotateCcw className="size-3.5" />
             )}
             {t('settings.restoreAction')}
           </Button>
@@ -174,7 +161,7 @@ function ArchivedRow({ organization }: { organization: ArchivedOrganization }) {
       </CardContent>
 
       {restore.error ? (
-        <CardContent className="pt-0">
+        <CardContent className="p-3 pt-0">
           <OrganizationErrorAlert error={restore.error} />
         </CardContent>
       ) : null}

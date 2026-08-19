@@ -137,7 +137,7 @@ jobs:
         run: git diff --exit-code -- apps/backend/src/generated/prisma
 
       - name: Typecheck
-        run: pnpm --filter backend run typecheck
+        run: pnpm typecheck
 
       - name: Lint
         run: pnpm --filter backend run lint
@@ -160,3 +160,40 @@ jobs:
       # translation file that `tsc --noEmit` never looks at.
       - name: Build
         run: pnpm --filter backend run build
+
+  platform:
+    name: platform
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm run build:packages
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm --filter platform run lint
+
+      - name: Unit and component tests
+        run: pnpm --filter platform test -- --run
+
+      - name: Build
+        run: pnpm --filter platform run build
+

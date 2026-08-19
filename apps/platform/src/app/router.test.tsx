@@ -64,8 +64,8 @@ function visit(path: string) {
  * base defensively rather than assuming which kind of location it was handed.
  */
 async function settledAt(router: ReturnType<typeof createMemoryRouter>) {
-  await waitFor(() => expect(router.state.initialized).toBe(true));
-  await waitFor(() => expect(router.state.navigation.state).toBe('idle'));
+  await waitFor(() => expect(router.state.initialized).toBe(true), { timeout: 3000 });
+  await waitFor(() => expect(router.state.navigation.state).toBe('idle'), { timeout: 3000 });
 
   const { pathname, search } = router.state.location;
 

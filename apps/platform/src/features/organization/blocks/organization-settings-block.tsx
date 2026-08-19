@@ -100,22 +100,22 @@ function ProfileForm({
   const [slug, setSlug] = useState(initialSlug);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{t('settings.profileTitle')}</CardTitle>
-        <CardDescription>{t('settings.profileDescription')}</CardDescription>
+    <Card className="border border-border/60 rounded-lg shadow-2xs bg-card">
+      <CardHeader className="p-4 pb-2 space-y-1">
+        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('settings.profileTitle')}</CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">{t('settings.profileDescription')}</CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-5">
+      <CardContent className="p-4 space-y-4">
         <OrganizationErrorAlert error={update.error} />
 
         {update.isSaved ? (
           <div
-            className="flex items-start gap-3 rounded-lg bg-muted p-4"
+            className="flex items-start gap-2.5 rounded-md bg-muted/60 border border-border/40 p-3 text-xs"
             aria-live="polite"
           >
-            <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <p className="text-sm leading-6 text-muted-foreground">
+            <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
+            <p className="leading-5 text-muted-foreground">
               {t('settings.saved')}
             </p>
           </div>
@@ -159,8 +159,8 @@ function ProfileForm({
 
           <SubmitButton
             isPending={update.isPending}
-            icon={<Save />}
-            className="w-full sm:w-auto"
+            icon={<Save className="size-3.5" />}
+            className="w-full sm:w-auto h-8 text-xs font-semibold"
           >
             {t('settings.save')}
           </SubmitButton>
@@ -172,12 +172,6 @@ function ProfileForm({
 
 /**
  * Archiving.
- *
- * The confirmation spells out what actually happens, item by item, because the
- * honest description is reassuring and the vague one is not: members stay,
- * resources stay, pending invitations are withdrawn, and the whole thing can
- * be undone. A generic "are you sure? this cannot be undone" would be both
- * scarier and false.
  */
 function DangerZone({
   organizationId,
@@ -191,31 +185,32 @@ function DangerZone({
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <Card className="border-destructive/40">
-      <CardHeader>
-        <CardTitle className="text-destructive">
+    <Card className="border border-destructive/40 rounded-lg shadow-2xs bg-card">
+      <CardHeader className="p-4 pb-2 space-y-1">
+        <CardTitle className="text-sm font-semibold tracking-tight text-destructive">
           {t('settings.dangerTitle')}
         </CardTitle>
-        <CardDescription>{t('settings.dangerDescription')}</CardDescription>
+        <CardDescription className="text-xs text-muted-foreground">{t('settings.dangerDescription')}</CardDescription>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="p-4 space-y-4">
         <OrganizationErrorAlert error={archive.error} />
 
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-          <div className="min-w-0 space-y-1">
-            <p className="font-medium">{t('settings.archiveTitle')}</p>
-            <p className="text-sm leading-6 text-muted-foreground text-pretty">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/40 bg-muted/30 p-3">
+          <div className="min-w-0 space-y-0.5">
+            <p className="text-xs font-semibold text-foreground">{t('settings.archiveTitle')}</p>
+            <p className="text-xs text-muted-foreground text-pretty">
               {t('settings.archiveExplanation')}
             </p>
           </div>
 
           <Button
             variant="destructive"
-            className="shrink-0 gap-2"
+            size="sm"
+            className="shrink-0 gap-1.5 h-8 text-xs font-semibold"
             onClick={() => setIsOpen(true)}
           >
-            <Archive />
+            <Archive className="size-3.5" />
             {t('settings.archiveAction')}
           </Button>
         </div>
@@ -234,7 +229,7 @@ function DangerZone({
         cancelLabel={t('settings.cancel')}
         onConfirm={() => void archive.submit()}
       >
-        <ul className="space-y-2 rounded-lg bg-muted p-4 text-sm leading-6 text-muted-foreground">
+        <ul className="space-y-1.5 rounded-md bg-muted/60 p-3 text-xs text-muted-foreground">
           <li>{t('archived.preservedMembers')}</li>
           <li>{t('archived.preservedResources')}</li>
           <li>{t('archived.canceledInvitations')}</li>

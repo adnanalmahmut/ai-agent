@@ -126,13 +126,24 @@ export function normalizeAuthError(input: unknown): AuthErrorCode {
  * anything the server could have said.
  */
 function readFailure(input: unknown): AuthFailure | null {
-  if (typeof input !== 'object') return null;
+  if (typeof input !== 'object' || input === null) return null;
 
   const value = input as Record<string, unknown>;
   const source = isRecord(value.error) ? value.error : value;
 
-  const code = typeof source.code === 'string' ? source.code : undefined;
+  let code = typeof source.code === 'string' ? source.code : undefined;
   const status = typeof source.status === 'number' ? source.status : undefined;
+  const message = typeof source.message === 'string' ? source.message : undefined;
+
+  if (!code && message) {
+    if (/invalid password/i.test(message)) code = 'INVALID_PASSWORD';
+    else if (/invalid email or password/i.test(message)) code = 'INVALID_EMAIL_OR_PASSWORD';
+    else if (/user not found/i.test(message)) code = 'USER_NOT_FOUND';
+    else if (/email not verified/i.test(message)) code = 'EMAIL_NOT_VERIFIED';
+    else if (/account deactivated/i.test(message)) code = 'ACCOUNT_DEACTIVATED';
+    else if (/banned/i.test(message)) code = 'BANNED_USER';
+    else if (/already registered|already exists/i.test(message)) code = 'USER_ALREADY_EXISTS';
+  }
 
   if (code === undefined && status === undefined) return null;
 

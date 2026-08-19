@@ -478,6 +478,101 @@ describe('Better Auth (e2e)', () => {
     });
   });
 
+  describe('preferredLanguage validation', () => {
+    it('accepts valid supported locales on update', async () => {
+      const email = 'pref-valid@example.com';
+      await request(server).post('/api/auth/sign-up/email').send({
+        email,
+        password: PASSWORD,
+        name: 'Pref Valid',
+      });
+
+      await prisma.user.update({
+        where: { email },
+        data: { emailVerified: true },
+      });
+
+      const signInRes = await request(server)
+        .post('/api/auth/sign-in/email')
+        .send({ email, password: PASSWORD });
+
+      const cookie = signInRes.headers['set-cookie'] as unknown as string[];
+
+      const updateRes = await request(server)
+        .post('/api/auth/update-user')
+        .set('Cookie', cookie ?? [])
+        .send({ preferredLanguage: 'ar' });
+
+      expect(updateRes.status).toBe(200);
+
+      const dbUser = await prisma.user.findUnique({
+        where: { email },
+        select: { preferredLanguage: true },
+      });
+      expect(dbUser?.preferredLanguage).toBe('ar');
+    });
+
+    it('rejects unsupported preferred language on update', async () => {
+      const email = 'pref-invalid@example.com';
+      await request(server).post('/api/auth/sign-up/email').send({
+        email,
+        password: PASSWORD,
+        name: 'Pref Invalid',
+      });
+
+      await prisma.user.update({
+        where: { email },
+        data: { emailVerified: true },
+      });
+
+      const signInRes = await request(server)
+        .post('/api/auth/sign-in/email')
+        .send({ email, password: PASSWORD });
+
+      const cookie = signInRes.headers['set-cookie'] as unknown as string[];
+
+      const updateRes = await request(server)
+        .post('/api/auth/update-user')
+        .set('Cookie', cookie ?? [])
+        .send({ preferredLanguage: 'klingon' });
+
+      expect(updateRes.status).toBe(400);
+    });
+
+    it('accepts preferredLanguage=ar during sign-up', async () => {
+      const res = await request(server).post('/api/auth/sign-up/email').send({
+        email: 'signup-lang-ar@example.com',
+        password: PASSWORD,
+        name: 'Signup AR',
+        preferredLanguage: 'ar',
+      });
+
+      expect(res.status).toBe(200);
+
+      const dbUser = await prisma.user.findUnique({
+        where: { email: 'signup-lang-ar@example.com' },
+        select: { preferredLanguage: true },
+      });
+      expect(dbUser?.preferredLanguage).toBe('ar');
+    });
+
+    it('rejects preferredLanguage=klingon during sign-up', async () => {
+      const res = await request(server).post('/api/auth/sign-up/email').send({
+        email: 'signup-lang-klingon@example.com',
+        password: PASSWORD,
+        name: 'Signup Klingon',
+        preferredLanguage: 'klingon',
+      });
+
+      expect(res.status).toBe(400);
+
+      const dbUser = await prisma.user.findUnique({
+        where: { email: 'signup-lang-klingon@example.com' },
+      });
+      expect(dbUser).toBeNull();
+    });
+  });
+
   describe('log safety', () => {
     it('never writes an auth token or action URL to the logs', () => {
       const output = logged.join('');

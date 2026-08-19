@@ -87,10 +87,39 @@ export const globalRoles = {
 } as const;
 
 export type GlobalRoleName = keyof typeof globalRoles;
+export const GLOBAL_ROLE_NAMES = Object.keys(globalRoles) as GlobalRoleName[];
+
+/**
+ * Roles that may be assigned through the ordinary admin role selector.
+ *
+ * `super_admin` is excluded so that escalation to the highest privilege
+ * level requires an explicit, deliberate action rather than a single
+ * accidental dropdown change. Backend authorization remains the real
+ * enforcement; this is a UI safeguard.
+ */
+export const ASSIGNABLE_GLOBAL_ROLE_NAMES = GLOBAL_ROLE_NAMES.filter(
+  (r): r is Exclude<GlobalRoleName, 'super_admin'> => r !== 'super_admin',
+);
+
+export type AssignableGlobalRoleName = (typeof ASSIGNABLE_GLOBAL_ROLE_NAMES)[number];
+
+export function isAssignableGlobalRoleName(value: unknown): value is AssignableGlobalRoleName {
+  return typeof value === 'string' && (ASSIGNABLE_GLOBAL_ROLE_NAMES as readonly string[]).includes(value);
+}
 
 /** Membership test against the role map — never a comparison to a literal. */
 export function isGlobalRoleName(value: unknown): value is GlobalRoleName {
   return typeof value === 'string' && value in globalRoles;
+}
+
+export function isSuperAdminRole(role?: string | null): boolean {
+  if (typeof role !== 'string') return false;
+  return role in { super_admin: true };
+}
+
+export function isElevatedRole(role?: string | null): boolean {
+  if (typeof role !== 'string') return false;
+  return role in globalRoles && !(role in { user: true });
 }
 
 /* ------------------------------------------------------------------ */

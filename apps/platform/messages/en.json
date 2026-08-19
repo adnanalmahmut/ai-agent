@@ -568,6 +568,7 @@
       "mobileDescription": "Move between the platform sections.",
       "accountLabel": "Account and settings",
       "toggle": "Show or hide the navigation",
+      "search": "Search",
       "platformGroup": "Platform",
       "dashboard": "Dashboard",
       "organizations": "Organizations",
@@ -575,12 +576,16 @@
       "overview": "Overview",
       "members": "Members",
       "invitations": "Invitations",
-      "settings": "Settings"
+      "settings": "Settings",
+      "userSettings": "Account settings",
+      "adminUsers": "User administration"
     },
     "account": {
       "label": "Open the account menu",
       "unnamed": "Your account",
       "administration": "Administration",
+      "userSettings": "Account settings",
+      "adminUsers": "User administration",
       "signOut": "Sign out"
     },
     "dashboard": {
@@ -606,6 +611,144 @@
         "emptyDescription": "Create one to get started, or wait for somebody to invite you to theirs.",
         "create": "Create an organization"
       }
+    },
+    "impersonating": {
+      "banner": "You are currently impersonating {name} ({email}).",
+      "stop": "Stop impersonating"
+    }
+  },
+  "UserSettings": {
+    "title": "Account Settings",
+    "description": "Manage your profile preferences, credentials, active device sessions, and account status.",
+    "tabs": {
+      "label": "Account Settings Sections",
+      "profile": "Profile & Preferences",
+      "security": "Security & Password",
+      "sessions": "Active Sessions",
+      "danger": "Account Lifecycle"
+    },
+    "profile": {
+      "title": "Personal Profile",
+      "description": "Update your public display name, avatar picture URL, and system language.",
+      "name": "Full Name",
+      "image": "Avatar Image URL",
+      "language": "Preferred Language",
+      "languages": {
+        "en": "English",
+        "ar": "Arabic"
+      },
+      "save": "Save Changes",
+      "saved": "Your profile settings have been updated.",
+      "error": "Failed to update profile settings. Please try again.",
+      "emailTitle": "Email Address & Verification",
+      "emailDescription": "Change your email address or resend your verification link.",
+      "currentEmail": "Current Email",
+      "newEmail": "New Email Address",
+      "changeEmailSubmit": "Change Email Address",
+      "emailChangeSent": "A confirmation link has been sent to your new email address.",
+      "resendVerification": "Resend Verification Link",
+      "verificationSent": "Verification link sent to your email.",
+      "unverifiedBadge": "Unverified Email",
+      "verifiedBadge": "Verified Email"
+    },
+    "security": {
+      "title": "Security Credentials",
+      "description": "Change your password and secure your account.",
+      "currentPassword": "Current Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm New Password",
+      "revokeOtherSessions": "Log out all other devices when password changes",
+      "submit": "Update Password",
+      "updated": "Your password has been changed successfully.",
+      "mismatch": "New password and confirmation password do not match.",
+      "error": "Could not update password. Please check your current password."
+    },
+    "sessions": {
+      "title": "Active Devices & Sessions",
+      "description": "Every browser and device currently logged into your account.",
+      "current": "Current Device",
+      "ipAddress": "IP Address",
+      "userAgent": "Browser / OS",
+      "createdAt": "Signed In",
+      "revoke": "Log out device",
+      "revokeOther": "Log out all other devices",
+      "loading": "Loading sessions...",
+      "empty": "No other active sessions found.",
+      "actions": "Actions",
+      "loadingError": "Failed to load active sessions.",
+      "revokeError": "Failed to revoke session.",
+      "revokeOtherError": "Failed to revoke other sessions.",
+      "unknownDevice": "Unknown Device"
+    },
+    "lifecycle": {
+      "title": "Deactivate Account",
+      "description": "Temporarily deactivate your account access.",
+      "deactivateTitle": "Deactivate Your Account",
+      "deactivateExplanation": "Deactivating your account puts your access on hold. You can contact support or an administrator to restore it.",
+      "deactivateAction": "Deactivate Account",
+      "confirmTitle": "Deactivate your account?",
+      "confirmDescription": "Your active session will end immediately and your account will be taken offline.",
+      "confirmButton": "Deactivate My Account",
+      "cancel": "Cancel",
+      "deactivateError": "Failed to deactivate account."
+    }
+  },
+  "AdminUsers": {
+    "title": "User Administration",
+    "description": "Manage system accounts, assign roles, ban suspicious users, and handle account lifecycles.",
+    "search": "Search users by name or email...",
+    "loading": "Loading users...",
+    "empty": "No users found matching your search.",
+    "accessDenied": "Access Denied",
+    "accessDeniedDescription": "You do not have permission to view or manage system users.",
+    "retry": "Retry",
+    "roles": {
+      "user": "User",
+      "admin": "Administrator",
+      "super_admin": "Super Administrator"
+    },
+    "columns": {
+      "user": "User",
+      "role": "Role",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "active": "Active",
+      "verified": "Verified",
+      "unverified": "Unverified",
+      "banned": "Banned",
+      "deactivated": "Deactivated"
+    },
+    "actions": {
+      "setRole": "Change Role",
+      "ban": "Ban User",
+      "unban": "Unban User",
+      "deactivate": "Deactivate Account",
+      "restore": "Restore Account",
+      "impersonate": "Impersonate"
+    },
+    "errors": {
+      "load": "Failed to load users list.",
+      "role": "Failed to update user role.",
+      "ban": "Failed to ban user account.",
+      "unban": "Failed to unban user account.",
+      "deactivate": "Failed to deactivate user account.",
+      "restore": "Failed to restore user account.",
+      "impersonate": "Failed to impersonate user."
+    },
+    "dialogs": {
+      "banTitle": "Ban User Account",
+      "banDescription": "Specify the reason for suspending {name}'s access.",
+      "banReason": "Ban Reason",
+      "banSubmit": "Confirm Ban",
+      "cancel": "Cancel",
+      "deactivateTitle": "Deactivate User",
+      "deactivateDescription": "Are you sure you want to deactivate {name}'s account?",
+      "deactivateSubmit": "Deactivate Account",
+      "restoreTitle": "Restore User",
+      "restoreDescription": "Are you sure you want to restore {name}'s account?",
+      "restoreSubmit": "Restore Account"
     }
   }
 }

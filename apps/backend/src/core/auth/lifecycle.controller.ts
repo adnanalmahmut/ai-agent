@@ -77,6 +77,35 @@ export class AccountLifecycleController {
   }
 }
 
+@ApiTags('Account lifecycle')
+@Controller('user/account')
+export class SelfAccountLifecycleController {
+  constructor(private readonly accounts: AccountLifecycleService) {}
+
+  /**
+   * Deactivate own user account (reversible soft delete).
+   *
+   * Available to any authenticated user. Operates strictly on the caller's
+   * session identity without accepting a user ID parameter from the client.
+   */
+  @Post('deactivate')
+  @ApiOperation({
+    operationId: 'deactivateSelfAccount',
+    summary: 'Deactivate own user account',
+  })
+  @ApiBody({ required: false, schema: { type: 'object' } })
+  deactivateSelf(
+    @Body() body: LifecycleReasonDto,
+    @Session() session: UserSession,
+  ) {
+    return this.accounts.deactivate({
+      userId: session.user.id,
+      actorUserId: session.user.id,
+      reason: body?.reason,
+    });
+  }
+}
+
 @ApiTags('Organization lifecycle')
 @Controller('organizations')
 export class OrganizationLifecycleController {

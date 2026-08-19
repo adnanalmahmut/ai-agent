@@ -1,3 +1,5 @@
+import type { AppLocale } from '@repo/i18n-core';
+
 import type { authClient } from './auth-client';
 
 /**
@@ -18,6 +20,7 @@ export type PlatformUser = InferredSession['user'] & {
   /** Global RBAC role. Never compared in a component — see the gates. */
   role?: string | null;
   banned?: boolean | null;
+  preferredLanguage?: AppLocale | null;
 };
 
 export type PlatformSessionRecord = InferredSession['session'] & {

@@ -22,7 +22,18 @@ vi.mock('react-router', async () => {
     'react-router',
   );
 
-  return { ...actual, useRouteLoaderData: () => routeData() };
+  return {
+    ...actual,
+    useRouteLoaderData: (id: string) => {
+      if (id === 'protected') {
+        return {
+          user: { name: 'Sara Haddad', email: 'sara@example.com', image: null },
+          session: {},
+        };
+      }
+      return routeData();
+    },
+  };
 });
 
 const { PlatformSidebar } = await import('./platform-sidebar');

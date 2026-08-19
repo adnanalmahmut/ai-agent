@@ -10,24 +10,11 @@ type Tab = {
   href: string;
   label: string;
   Icon: ComponentType<{ className?: string }>;
-  /** Overview matches its path exactly; the rest also match their children. */
   exact: boolean;
 };
 
 /**
- * Navigation between the four faces of one organization.
- *
- * Real links rather than a tab widget, because these are four URLs: each is
- * bookmarkable, openable in a new tab and reachable with the Back button, none
- * of which a `role="tablist"` would give. So the markup is a `<nav>` of links
- * and the active one is marked with `aria-current`, which is what a screen
- * reader announces as "current page".
- *
- * The row scrolls rather than wraps on a narrow screen — four Arabic labels do
- * not fit across 390px, and a wrapped second line would push the content of
- * every organization page down.
- *
- * All four icons are direction-neutral, so none is mirrored.
+ * Segmented Tab Control navigation between organization views.
  */
 export function OrganizationTabs({
   organizationId,
@@ -65,33 +52,35 @@ export function OrganizationTabs({
   ];
 
   return (
-    <nav aria-label={t('tabs.label')} className="overflow-x-auto">
-      <ul className="flex min-w-max items-center gap-1 border-b">
+    <nav aria-label={t('tabs.label')} className="overflow-x-auto py-1">
+      <div className="inline-flex items-center gap-1 rounded-lg bg-secondary/70 p-1 border border-border/40 shadow-2xs">
         {tabs.map(({ href, label, Icon, exact }) => {
           const isActive = exact
             ? pathname === href
             : pathname === href || pathname.startsWith(`${href}/`);
 
           return (
-            <li key={href}>
-              <Link
-                href={href}
-                aria-current={isActive ? 'page' : undefined}
-                className={cn(
-                  'flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm whitespace-nowrap outline-none',
-                  'focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                  isActive
-                    ? 'border-primary font-medium text-foreground'
-                    : 'border-transparent text-muted-foreground hover:text-foreground',
-                )}
-              >
-                <Icon className="size-4" aria-hidden />
-                {label}
-              </Link>
-            </li>
+            <Link
+              key={href}
+              href={href}
+              aria-current={isActive ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all outline-none',
+                'focus-visible:ring-1 focus-visible:ring-ring',
+                isActive
+                  ? 'bg-background text-foreground shadow-2xs border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/40',
+              )}
+            >
+              <Icon
+                className={cn('size-3.5', isActive ? 'text-primary' : 'text-muted-foreground')}
+                aria-hidden
+              />
+              {label}
+            </Link>
           );
         })}
-      </ul>
+      </div>
     </nav>
   );
 }
