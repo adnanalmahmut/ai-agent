@@ -22,7 +22,8 @@ The test stack runs on its own ports so a test run can never reach into
 development data:
 
 ```bash
-docker compose --profile test up -d   # PostgreSQL 5433, Redis 6378
+docker compose -f ../../docker-compose.yml --profile test up -d postgres-test redis-test
+# PostgreSQL 5433, Redis 6378; both bind to loopback only.
 ```
 
 Configuration is validated by Zod at boot — see `src/config/*.config.ts`, and

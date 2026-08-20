@@ -1,0 +1,254 @@
+name: ai-agent
+
+x-runtime-env: &runtime-env
+  env_file:
+    - path: ${RUNTIME_ENV_FILE:-./ops/environments/runtime.env}
+      required: false
+
+x-app-security: &app-security
+  restart: unless-stopped
+  init: true
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+
+services:
+  postgres:
+    profiles: [development, staging, production]
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    ports:
+      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  postgres-test:
+    profiles: [test]
+    image: postgres:16-alpine
+    restart: "no"
+    environment:
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-backend_test_user}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-backend_test_password}
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-backend_test}
+    ports:
+      - 127.0.0.1:${POSTGRES_TEST_PORT:-5433}:5432
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    profiles: [development, staging, production]
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "yes"
+    ports:
+      - 127.0.0.1:${REDIS_PORT:-6379}:6379
+    volumes:
+      - redis_data:/data
+    networks:
+      - data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis-test:
+    profiles: [test]
+    image: redis:7-alpine
+    restart: "no"
+    command:
+      - redis-server
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "no"
+      - --save
+      - ""
+    ports:
+      - 127.0.0.1:${REDIS_TEST_PORT:-6378}:6379
+    networks:
+      - data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    <<: [*runtime-env, *app-security]
+    profiles: [staging, production]
+    image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: runtime
+    command: [node, dist/src/main]
+    environment:
+      PORT: 3002
+      GEOIP_DATABASE_PATH: /usr/share/GeoIP/GeoLite2-City.mmdb
+    ports:
+      - 127.0.0.1:${BACKEND_HOST_PORT:-3002}:3002
+    volumes:
+      - type: volume
+        source: geoip_data
+        target: /usr/share/GeoIP
+        read_only: true
+    networks:
+      - edge
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3002/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    <<: [*runtime-env, *app-security]
+    profiles: [staging, production]
+    image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: runtime
+    command: [node, dist/src/worker]
+    networks:
+      - edge
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "process.kill(1, 0)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  migrate:
+    <<: [*runtime-env, *app-security]
+    profiles: [migration]
+    image: ${BACKEND_MIGRATION_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend-migration:${IMAGE_TAG:-development}}
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+      target: migration
+    command: [pnpm, --filter, backend, prisma, migrate, deploy]
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    <<: [*runtime-env, *app-security]
+    profiles: [staging, production]
+    image: ${WEB_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/web:${IMAGE_TAG:-development}}
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - 127.0.0.1:${WEB_HOST_PORT:-3000}:3000
+    networks:
+      - edge
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/').then(r=>{if(r.status>=500)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  platform:
+    <<: *app-security
+    profiles: [staging, production]
+    image: ${PLATFORM_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/platform:${IMAGE_TAG:-development}}
+    build:
+      context: .
+      dockerfile: apps/platform/Dockerfile
+    ports:
+      - 127.0.0.1:${PLATFORM_HOST_PORT:-3001}:8080
+    networks:
+      - edge
+    healthcheck:
+      test: [CMD, wget, -q, --spider, http://127.0.0.1:8080/platform/]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  geoipupdate:
+    <<: *runtime-env
+    profiles: [staging, production]
+    image: ghcr.io/maxmind/geoipupdate:v7.1
+    restart: unless-stopped
+    environment:
+      GEOIPUPDATE_EDITION_IDS: GeoLite2-City
+      GEOIPUPDATE_FREQUENCY: "24"
+    volumes:
+      - geoip_data:/usr/share/GeoIP
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  postgres_data:
+  redis_data:
+  geoip_data:
+
+networks:
+  edge:
+    driver: bridge
+  data:
+    driver: bridge
+    internal: true

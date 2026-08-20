@@ -37,9 +37,9 @@ jobs:
     timeout-minutes: 20
 
     services:
-      # Mirrors the `postgres-test` service in apps/backend/docker-compose.yml,
+      # Mirrors the `postgres-test` service in the root docker-compose.yml,
       # including its credentials, so a failure reproduces locally with
-      # `pnpm --filter backend db:up --profile test` and nothing else.
+      # `docker compose --profile test up -d postgres-test redis-test`.
       postgres:
         image: postgres:16-alpine
         env:
@@ -92,6 +92,13 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+
+      - name: Validate container topology
+        run: |
+          docker compose --profile development config >/dev/null
+          docker compose --profile test config >/dev/null
+          docker compose --profile staging --profile migration config >/dev/null
+          ops/tests/container-foundation.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.
@@ -196,4 +203,3 @@ jobs:
 
       - name: Build
         run: pnpm --filter platform run build
-
