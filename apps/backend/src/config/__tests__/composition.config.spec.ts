@@ -2,6 +2,8 @@ import {
   appConfig,
   authConfig,
   databaseConfig,
+  geoIpConfig,
+  httpConfig,
   mailConfig,
   observabilityConfig,
   openapiConfig,
@@ -20,7 +22,13 @@ describe('process configuration composition', () => {
       queueConfig,
     ]);
     expect(workerConfigurations).not.toEqual(
-      expect.arrayContaining([authConfig, mailConfig, openapiConfig]),
+      expect.arrayContaining([
+        authConfig,
+        geoIpConfig,
+        httpConfig,
+        mailConfig,
+        openapiConfig,
+      ]),
     );
   });
 });
