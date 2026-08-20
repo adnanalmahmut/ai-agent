@@ -1,0 +1,66 @@
+#!/bin/sh
+set -eu
+
+readonly_root=/opt/ai-agent
+runtime_env=/etc/ai-agent/runtime.env
+environment_file=/etc/ai-agent/environment
+state_dir=/var/lib/ai-agent
+compose_file=$readonly_root/docker-compose.yml
+
+die() { echo "deployment rejected: $*" >&2; exit 64; }
+
+[ -r "$environment_file" ] || die 'host environment is not configured'
+environment=$(sed -n '1p' "$environment_file")
+[ "$environment" = staging ] || [ "$environment" = production ] || die 'invalid host environment'
+[ "${2:-}" = "$environment" ] || die 'requested environment does not match this host'
+[ -f "$compose_file" ] || die 'compose file is not installed'
+[ -f "$runtime_env" ] || die 'runtime.env is not installed'
+
+compose() {
+  docker compose --file "$compose_file" --env-file "$runtime_env" --profile "$environment" "$@"
+}
+
+health() {
+  compose ps --status running backend worker web platform
+  curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:${BACKEND_PORT:-3002}/api/health/ready" >/dev/null
+}
+
+case "${1:-}" in
+  deploy)
+    [ "$#" -eq 3 ] || die 'deploy requires environment and SHA'
+    sha=$3
+    printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$' || die 'SHA must be 40 lowercase hex characters'
+
+    mkdir -p "$state_dir"
+    exec 9>"$state_dir/deploy.lock"
+    flock -n 9 || die 'another deployment is active'
+
+    previous=$(sed -n '1p' "$state_dir/CURRENT_SHA" 2>/dev/null || true)
+    export BACKEND_IMAGE="ghcr.io/adnanalmahmut/ai-agent/backend:$sha"
+    export WEB_IMAGE="ghcr.io/adnanalmahmut/ai-agent/web:$sha"
+    export PLATFORM_IMAGE="ghcr.io/adnanalmahmut/ai-agent/platform:$sha"
+
+    compose pull backend worker web platform migrate
+    compose run --rm migrate
+    compose up -d --no-deps backend
+    health
+    compose up -d --no-deps worker
+    compose ps --status running worker >/dev/null
+    compose up -d --no-deps web platform
+    health
+
+    [ -z "$previous" ] || printf '%s\n' "$previous" >"$state_dir/PREVIOUS_SHA"
+    printf '%s\n' "$sha" >"$state_dir/CURRENT_SHA"
+    ;;
+  status)
+    [ "$#" -eq 2 ] || die 'status requires environment'
+    compose ps
+    printf 'CURRENT_SHA='; sed -n '1p' "$state_dir/CURRENT_SHA" 2>/dev/null || true
+    printf 'PREVIOUS_SHA='; sed -n '1p' "$state_dir/PREVIOUS_SHA" 2>/dev/null || true
+    ;;
+  health)
+    [ "$#" -eq 2 ] || die 'health requires environment'
+    health
+    ;;
+  *) die 'unsupported operation' ;;
+esac

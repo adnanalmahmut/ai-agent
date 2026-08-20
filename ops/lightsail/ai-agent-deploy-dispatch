@@ -1,0 +1,25 @@
+#!/bin/sh
+set -eu
+
+# ForcedCommand entrypoint. SSH_ORIGINAL_COMMAND is data, never evaluated.
+command=${SSH_ORIGINAL_COMMAND:-}
+printf '%s\n' "$command" | grep -Eq '^(deploy (staging|production) [0-9a-f]{40}|(status|health) (staging|production))$' || {
+  echo 'command rejected' >&2
+  exit 64
+}
+set -- $command
+
+case "${1:-}" in
+  deploy)
+    [ "$#" -eq 3 ] || exit 64
+    exec sudo -n /usr/local/sbin/ai-agent-deploy deploy "$2" "$3"
+    ;;
+  status|health)
+    [ "$#" -eq 2 ] || exit 64
+    exec sudo -n /usr/local/sbin/ai-agent-deploy "$1" "$2"
+    ;;
+  *)
+    echo 'allowed commands: deploy <environment> <sha>, status <environment>, health <environment>' >&2
+    exit 64
+    ;;
+esac
