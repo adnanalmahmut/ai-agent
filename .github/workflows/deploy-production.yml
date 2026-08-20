@@ -1,0 +1,126 @@
+name: Promote production
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Promote staged evidence or roll back to PREVIOUS_RELEASE
+        required: true
+        default: promote
+        type: choice
+        options: [promote, rollback]
+      release_sha:
+        description: Staged 40-character source SHA (required for promote)
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: ${{ vars.DEPLOYMENT_URL }}
+    env:
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_USER: ${{ vars.VPS_USER }}
+      DEPLOYMENT_URL: ${{ vars.DEPLOYMENT_URL }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Validate production controls
+        run: |
+          test "$VPS_USER" = deploy
+          test -n "$VPS_HOST"
+          printf '%s\n' "$DEPLOYMENT_URL" | grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?$'
+          if [ "${{ inputs.action }}" = promote ]; then
+            printf '%s\n' "$RELEASE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+          else
+            test -z "$RELEASE_SHA"
+          fi
+
+      - name: Locate trusted staging evidence for this release
+        if: inputs.action == 'promote'
+        run: |
+          evidence_root="$RUNNER_TEMP/staging-evidence"
+          mkdir -p "$evidence_root"
+          found=
+          run_ids=$(gh api --paginate "repos/$GH_REPO/actions/workflows/deploy-staging.yml/runs?branch=main&status=success&per_page=100" --jq '.workflow_runs[] | select(.name == "Deploy staging" and .event == "workflow_run" and .conclusion == "success") | .id')
+          for run_id in $run_ids; do
+            candidate="$evidence_root/$run_id"
+            mkdir -p "$candidate"
+            if gh run download "$run_id" --repo "$GH_REPO" --name "staging-success-$RELEASE_SHA" --dir "$candidate" >/dev/null 2>&1; then
+              found=$candidate/staging-success.json
+              staging_run_id=$run_id
+              break
+            fi
+          done
+          test -n "$found"
+          test -f "$found"
+          cp "$found" "$RUNNER_TEMP/staging-success.json"
+          printf 'STAGING_RUN_ID=%s\n' "$staging_run_id" >>"$GITHUB_ENV"
+
+      - name: Validate and select exact staged digests
+        if: inputs.action == 'promote'
+        run: |
+          manifest="$RUNNER_TEMP/staging-success.json"
+          jq -e \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --arg sha "$RELEASE_SHA" \
+            --argjson stagingRunId "$STAGING_RUN_ID" \
+            '.schemaVersion == 1 and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and (.publishRunId | type == "number") and .sha == $sha and .stagingWorkflow == "Deploy staging" and .stagingRunId == $stagingRunId' \
+            "$manifest" >/dev/null
+
+          for entry in backend:backend migration:backend-migration web:web platform:platform; do
+            field=${entry%%:*}
+            image=${entry#*:}
+            reference=$(jq -r --arg field "$field" '.[$field]' "$manifest")
+            prefix="ghcr.io/$GITHUB_REPOSITORY/$image@sha256:"
+            case "$reference" in
+              "$prefix"*) digest=${reference#"$prefix"} ;;
+              *) echo "unexpected repository for $field" >&2; exit 1 ;;
+            esac
+            printf '%s\n' "$digest" | grep -Eq '^[0-9a-f]{64}$'
+            upper=$(printf '%s' "$field" | tr '[:lower:]' '[:upper:]')
+            printf '%s_DIGEST=%s\n' "$upper" "$digest" >>"$GITHUB_ENV"
+          done
+
+      - name: Install restricted SSH identity
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ vars.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 0700 "$RUNNER_TEMP/ssh"
+          install -m 0600 /dev/null "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" >"$RUNNER_TEMP/ssh/known_hosts"
+
+      - name: Promote exact staged release
+        if: inputs.action == 'promote'
+        run: |
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy production $RELEASE_SHA $BACKEND_DIGEST $MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST"
+
+      - name: Roll back exact previous release manifest
+        if: inputs.action == 'rollback'
+        run: |
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "rollback production"
+
+      - name: Verify restricted host health
+        run: |
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "health production"
+
+      - name: External production smoke tests
+        run: |
+          curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/" >/dev/null
+          curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/platform/" >/dev/null
+          curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/api/health/ready" >/dev/null
