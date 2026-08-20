@@ -104,6 +104,7 @@ jobs:
           ops/tests/nginx-real-ip.sh
           ops/tests/lightsail-boundary.sh
           ops/tests/deploy-service-health.sh
+          ops/tests/image-publishing.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.
@@ -215,7 +216,6 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -261,3 +261,35 @@ jobs:
         run: |
           runtime_file="$RUNNER_TEMP/container-runtime.env"
           test ! -f "$runtime_file" || docker compose --env-file "$runtime_file" --profile staging stop backend postgres
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm run build:packages
+
+      - name: Lint
+        run: pnpm --filter web run lint
+
+      - name: Tests
+        run: pnpm --filter web run test
+
+      - name: Build
+        run: pnpm --filter web run build

@@ -1,0 +1,64 @@
+name: Publish immutable images
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      REGISTRY: ghcr.io/${{ github.repository }}
+      IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push one release set
+        run: docker buildx bake --file docker-bake.hcl --push release
+
+      - name: Record immutable image digests
+        run: |
+          mkdir -p release
+          backend=$(docker buildx imagetools inspect "$REGISTRY/backend:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
+          migration=$(docker buildx imagetools inspect "$REGISTRY/backend-migration:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
+          web=$(docker buildx imagetools inspect "$REGISTRY/web:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
+          platform=$(docker buildx imagetools inspect "$REGISTRY/platform:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
+          jq -n \
+            --arg sha "$IMAGE_TAG" \
+            --arg backend "$REGISTRY/backend@$backend" \
+            --arg migration "$REGISTRY/backend-migration@$migration" \
+            --arg web "$REGISTRY/web@$web" \
+            --arg platform "$REGISTRY/platform@$platform" \
+            '{sha:$sha,backend:$backend,migration:$migration,web:$web,platform:$platform}' \
+            >release/image-digests.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-digests-${{ github.event.workflow_run.head_sha }}
+          path: release/image-digests.json
+          if-no-files-found: error
+          retention-days: 90

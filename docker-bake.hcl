@@ -13,6 +13,7 @@ group "release" {
 target "common" {
   context = "."
   platforms = ["linux/amd64"]
+  attest = ["type=provenance,mode=max", "type=sbom"]
 }
 
 target "backend" {
