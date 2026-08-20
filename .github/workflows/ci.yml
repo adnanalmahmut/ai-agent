@@ -106,6 +106,8 @@ jobs:
           ops/tests/deploy-service-health.sh
           ops/tests/image-publishing.sh
           ops/tests/staging-cd.sh
+          ops/tests/production-cd.sh
+          ops/tests/release-manifest.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.

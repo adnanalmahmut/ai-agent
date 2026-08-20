@@ -80,6 +80,7 @@ deploy_release() {
   migration_digest=$3
   web_digest=$4
   platform_digest=$5
+  migration_mode=$6
 
   validate_sha "$sha"
   for digest in "$backend_digest" "$migration_digest" "$web_digest" "$platform_digest"; do
@@ -88,10 +89,6 @@ deploy_release() {
 
   "$preflight" "$environment" "$runtime_env"
 
-  mkdir -p "$state_dir"
-  exec 9>"$state_dir/deploy.lock"
-  flock -n 9 || die 'another deployment is active'
-
   export BACKEND_IMAGE="$registry/backend@sha256:$backend_digest"
   export BACKEND_MIGRATION_IMAGE="$registry/backend-migration@sha256:$migration_digest"
   export WEB_IMAGE="$registry/web@sha256:$web_digest"
@@ -99,7 +96,9 @@ deploy_release() {
 
   pull_release_images
   compose up -d --wait postgres redis geoipupdate
-  compose run --rm migrate
+  if [ "$migration_mode" = migrate ]; then
+    compose run --rm migrate
+  fi
   compose up -d --wait --no-deps backend
   require_running backend
   api_health
@@ -118,10 +117,48 @@ deploy_release() {
     "$migration_digest" "$web_digest" "$platform_digest"
 }
 
+lock_deployment() {
+  mkdir -p "$state_dir"
+  exec 9>"$state_dir/deploy.lock"
+  flock -n 9 || die 'another deployment is active'
+}
+
+manifest_value() {
+  manifest=$1
+  key=$2
+  [ -r "$manifest" ] || die 'release manifest is not available'
+  value=$(sed -n "s/.*\"${key}\":\"\([^\"]*\)\".*/\1/p" "$manifest")
+  [ -n "$value" ] || die "release manifest field is missing: $key"
+  printf '%s' "$value"
+}
+
+digest_from_manifest() {
+  value=$(manifest_value "$1" "$2")
+  case "$value" in
+    sha256:*) digest=${value#sha256:} ;;
+    *) die "release manifest digest is malformed: $2" ;;
+  esac
+  validate_digest "$digest"
+  printf '%s' "$digest"
+}
+
 case "${1:-}" in
   deploy)
     [ "$#" -eq 7 ] || die 'deploy requires environment, SHA and four digests'
-    deploy_release "$3" "$4" "$5" "$6" "$7"
+    lock_deployment
+    deploy_release "$3" "$4" "$5" "$6" "$7" migrate
+    ;;
+  rollback)
+    [ "$#" -eq 2 ] || die 'rollback requires environment'
+    lock_deployment
+    rollback_sha=$(manifest_value "$previous_release" sha)
+    validate_sha "$rollback_sha"
+    rollback_backend=$(digest_from_manifest "$previous_release" backend)
+    rollback_migration=$(digest_from_manifest "$previous_release" migration)
+    rollback_web=$(digest_from_manifest "$previous_release" web)
+    rollback_platform=$(digest_from_manifest "$previous_release" platform)
+    deploy_release "$rollback_sha" "$rollback_backend" "$rollback_migration" \
+      "$rollback_web" "$rollback_platform" no-migrate
     ;;
   status)
     [ "$#" -eq 2 ] || die 'status requires environment'
