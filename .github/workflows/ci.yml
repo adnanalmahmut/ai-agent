@@ -224,7 +224,12 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build exact production image targets without pushing
-        run: docker buildx bake --file docker-bake.hcl --load release
+        run: docker buildx bake --file docker-bake.hcl release
+
+      - name: Load backend targets used by the degraded-startup test
+        run: |
+          docker buildx build --load --file apps/backend/Dockerfile --target runtime --tag ghcr.io/adnanalmahmut/ai-agent/backend:development .
+          docker buildx build --load --file apps/backend/Dockerfile --target migration --tag ghcr.io/adnanalmahmut/ai-agent/backend-migration:development .
 
       - name: Prove the API starts while Redis is unavailable
         run: |
