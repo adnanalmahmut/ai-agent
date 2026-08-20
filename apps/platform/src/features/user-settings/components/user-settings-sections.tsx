@@ -30,7 +30,10 @@ import { useLocale, useTranslations } from 'use-intl';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { authClient } from '@/features/auth/auth-client';
-import { authErrorMessageKey, normalizeAuthError } from '@/features/auth/auth-errors';
+import {
+  authErrorMessageKey,
+  normalizeAuthError,
+} from '@/features/auth/auth-errors';
 import { FormField } from '@/features/auth/components/form-field';
 import { PasswordField } from '@/features/auth/components/password-field';
 import { SubmitButton } from '@/features/auth/components/submit-button';
@@ -42,7 +45,10 @@ import { deactivateSelfAccount } from '@/lib/application-api';
 
 type ActiveSession = NonNullable<
   Awaited<ReturnType<typeof authClient.listSessions>>['data']
->[number];
+>[number] & {
+  country?: string | null;
+  city?: string | null;
+};
 
 export function ProfileSection() {
   const t = useTranslations('UserSettings.profile');
@@ -102,13 +108,20 @@ export function ProfileSection() {
   return (
     <Card className="ds-card">
       <CardHeader className="p-4 pb-2 space-y-1">
-        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('title')}</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">{t('description')}</CardDescription>
+        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+          {t('title')}
+        </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">
+          {t('description')}
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="p-4 space-y-4">
         {isSaved ? (
-          <div className="flex items-start gap-2.5 rounded-md bg-muted/60 border border-border/40 p-3 text-xs" aria-live="polite">
+          <div
+            className="flex items-start gap-2.5 rounded-md bg-muted/60 border border-border/40 p-3 text-xs"
+            aria-live="polite"
+          >
             <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <p className="leading-5 text-muted-foreground">{t('saved')}</p>
           </div>
@@ -137,7 +150,9 @@ export function ProfileSection() {
           />
 
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-foreground">{t('language')}</Label>
+            <Label className="text-xs font-semibold text-foreground">
+              {t('language')}
+            </Label>
             <div className="flex items-center gap-2">
               <Globe className="size-4 text-muted-foreground" />
               <select
@@ -151,7 +166,11 @@ export function ProfileSection() {
             </div>
           </div>
 
-          <SubmitButton isPending={isPending} icon={<Save className="size-3.5" />} className="w-full sm:w-auto h-8 text-xs font-semibold">
+          <SubmitButton
+            isPending={isPending}
+            icon={<Save className="size-3.5" />}
+            className="w-full sm:w-auto h-8 text-xs font-semibold"
+          >
             {t('save')}
           </SubmitButton>
         </form>
@@ -236,7 +255,10 @@ export function EmailSection() {
 
       <CardContent className="p-4 space-y-4">
         {message ? (
-          <div className="flex items-start gap-2.5 rounded-md bg-muted/60 border border-border/40 p-3 text-xs" aria-live="polite">
+          <div
+            className="flex items-start gap-2.5 rounded-md bg-muted/60 border border-border/40 p-3 text-xs"
+            aria-live="polite"
+          >
             <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
             <p className="leading-5 text-muted-foreground">{message}</p>
           </div>
@@ -251,18 +273,28 @@ export function EmailSection() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border/40 bg-muted/30 p-3">
           <div className="space-y-0.5 min-w-0">
-            <div className="text-xs font-medium text-muted-foreground">{t('currentEmail')}</div>
-            <div className="text-xs font-semibold text-foreground truncate">{session.user.email}</div>
+            <div className="text-xs font-medium text-muted-foreground">
+              {t('currentEmail')}
+            </div>
+            <div className="text-xs font-semibold text-foreground truncate">
+              {session.user.email}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
             {session.user.emailVerified ? (
-              <Badge variant="outline" className="text-xs border-border/40 text-foreground bg-background">
+              <Badge
+                variant="outline"
+                className="text-xs border-border/40 text-foreground bg-background"
+              >
                 {t('verifiedBadge')}
               </Badge>
             ) : (
               <>
-                <Badge variant="secondary" className="text-xs text-destructive bg-destructive/10">
+                <Badge
+                  variant="secondary"
+                  className="text-xs text-destructive bg-destructive/10"
+                >
                   {t('unverifiedBadge')}
                 </Badge>
                 <Button
@@ -272,7 +304,9 @@ export function EmailSection() {
                   disabled={isResending}
                   className="h-7 text-xs border-border/60"
                 >
-                  {isResending ? <Loader2 className="size-3 animate-spin" /> : null}
+                  {isResending ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : null}
                   {t('resendVerification')}
                 </Button>
               </>
@@ -352,8 +386,12 @@ export function SecuritySection() {
   return (
     <Card className="ds-card">
       <CardHeader className="p-4 pb-2 space-y-1">
-        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('title')}</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">{t('description')}</CardDescription>
+        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+          {t('title')}
+        </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">
+          {t('description')}
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="p-4 space-y-4">
@@ -401,12 +439,19 @@ export function SecuritySection() {
               onChange={(e) => setRevokeOtherSessions(e.target.checked)}
               className="size-4 rounded border-border/60 text-primary focus:ring-1 focus:ring-ring"
             />
-            <Label htmlFor="revokeOtherSessions" className="text-xs text-muted-foreground cursor-pointer">
+            <Label
+              htmlFor="revokeOtherSessions"
+              className="text-xs text-muted-foreground cursor-pointer"
+            >
               {t('revokeOtherSessions')}
             </Label>
           </div>
 
-          <SubmitButton isPending={isPending} icon={<KeyRound className="size-3.5" />} className="w-full sm:w-auto h-8 text-xs font-semibold">
+          <SubmitButton
+            isPending={isPending}
+            icon={<KeyRound className="size-3.5" />}
+            className="w-full sm:w-auto h-8 text-xs font-semibold"
+          >
             {t('submit')}
           </SubmitButton>
         </form>
@@ -481,8 +526,12 @@ export function SessionsSection() {
     <Card className="ds-card">
       <CardHeader className="flex flex-row items-center justify-between p-4 pb-2">
         <div className="space-y-1">
-          <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('title')}</CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">{t('description')}</CardDescription>
+          <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+            {t('title')}
+          </CardTitle>
+          <CardDescription className="text-xs text-muted-foreground">
+            {t('description')}
+          </CardDescription>
         </div>
 
         {sessions.length > 1 ? (
@@ -493,7 +542,11 @@ export function SessionsSection() {
             disabled={isRevokingAll}
             className="h-7 text-xs border border-border/50 gap-1.5"
           >
-            {isRevokingAll ? <Loader2 className="size-3.5 animate-spin" /> : <LogOut className="size-3.5" />}
+            {isRevokingAll ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <LogOut className="size-3.5" />
+            )}
             {t('revokeOther')}
           </Button>
         ) : null}
@@ -517,21 +570,38 @@ export function SessionsSection() {
           <Table>
             <TableHeader className="ds-table-header">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="ds-table-head">{t('userAgent')}</TableHead>
-                <TableHead className="ds-table-head">{t('ipAddress')}</TableHead>
-                <TableHead className="ds-table-head">{t('createdAt')}</TableHead>
-                <TableHead className="py-2.5 px-3"><span className="sr-only">{t('actions')}</span></TableHead>
+                <TableHead className="ds-table-head">
+                  {t('userAgent')}
+                </TableHead>
+                <TableHead className="ds-table-head">
+                  {t('ipAddress')}
+                </TableHead>
+                <TableHead className="ds-table-head">{t('location')}</TableHead>
+                <TableHead className="ds-table-head">
+                  {t('createdAt')}
+                </TableHead>
+                <TableHead className="py-2.5 px-3">
+                  <span className="sr-only">{t('actions')}</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sessions.map((sess) => (
-                <TableRow key={sess.id} className="border-b border-border/30 hover:bg-sidebar-accent/50 transition-colors">
+                <TableRow
+                  key={sess.id}
+                  className="border-b border-border/30 hover:bg-sidebar-accent/50 transition-colors"
+                >
                   <TableCell className="py-2.5 px-3 text-xs font-medium text-foreground">
                     <div className="flex items-center gap-2">
                       <Laptop className="size-4 text-muted-foreground shrink-0" />
-                      <span className="truncate max-w-xs">{sess.userAgent || t('unknownDevice')}</span>
+                      <span className="truncate max-w-xs">
+                        {sess.userAgent || t('unknownDevice')}
+                      </span>
                       {sess.isCurrent ? (
-                        <Badge variant="secondary" className="text-2xs rounded px-1.5 py-0.2">
+                        <Badge
+                          variant="secondary"
+                          className="text-2xs rounded px-1.5 py-0.2"
+                        >
                           {t('current')}
                         </Badge>
                       ) : null}
@@ -539,6 +609,10 @@ export function SessionsSection() {
                   </TableCell>
                   <TableCell className="py-2.5 px-3 text-xs text-muted-foreground font-mono">
                     {sess.ipAddress || '—'}
+                  </TableCell>
+                  <TableCell className="py-2.5 px-3 text-xs text-muted-foreground">
+                    {[sess.city, sess.country].filter(Boolean).join(', ') ||
+                      '—'}
                   </TableCell>
                   <TableCell className="py-2.5 px-3 text-xs text-muted-foreground">
                     {new Date(sess.createdAt).toLocaleDateString(activeLocale)}
@@ -587,8 +661,12 @@ export function LifecycleSection() {
   return (
     <Card className="border border-destructive/40 rounded-lg shadow-2xs bg-card">
       <CardHeader className="p-4 pb-2 space-y-1">
-        <CardTitle className="text-sm font-semibold tracking-tight text-destructive">{t('deactivateTitle')}</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">{t('deactivateExplanation')}</CardDescription>
+        <CardTitle className="text-sm font-semibold tracking-tight text-destructive">
+          {t('deactivateTitle')}
+        </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">
+          {t('deactivateExplanation')}
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="p-4 space-y-4">

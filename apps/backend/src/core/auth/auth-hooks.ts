@@ -6,6 +6,7 @@ import {
 
 import { isAppLocale } from '@repo/i18n-core';
 import type { PrismaService } from '../../database';
+import type { GeoIpService } from '../geoip';
 
 /**
  * The two lifecycle invariants Better Auth cannot enforce on its own.
@@ -40,11 +41,18 @@ const ORGANIZATION_ARCHIVED_MESSAGE =
  * deactivated user is refused by whichever fires first, and neither state
  * masks the other.
  */
-export function createSoftDeleteDatabaseHooks(prisma: PrismaService) {
+export function createSessionDatabaseHooks(
+  prisma: PrismaService,
+  geoIp: Pick<GeoIpService, 'lookup'>,
+) {
   return {
     session: {
       create: {
-        before: async (session: { userId: string }) => {
+        before: async (session: {
+          userId: string;
+          ipAddress?: string | null;
+          [field: string]: unknown;
+        }) => {
           const user = await prisma.user.findUnique({
             where: { id: session.userId },
             select: { deletedAt: true },
@@ -56,6 +64,15 @@ export function createSoftDeleteDatabaseHooks(prisma: PrismaService) {
               code: ACCOUNT_DEACTIVATED_CODE,
             });
           }
+
+          const location = await geoIp.lookup(session.ipAddress);
+          return {
+            data: {
+              ...session,
+              country: location.country,
+              city: location.city,
+            },
+          };
         },
       },
     },
