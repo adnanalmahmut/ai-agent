@@ -101,6 +101,7 @@ jobs:
           ops/tests/container-foundation.sh
           ops/tests/container-environment.sh
           ops/tests/runtime-preflight.sh
+          ops/tests/nginx-real-ip.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.

@@ -5,8 +5,9 @@ import { Logger, PinoLogger } from 'nestjs-pino';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { AppModule } from './app.module';
-import { appConfig } from './config';
+import { appConfig, httpConfig } from './config';
 import { setupOpenApi } from './core/docs';
+import { configureTrustedProxy } from './core/http';
 import {
   ProcessReadiness,
   onTerminationSignal,
@@ -43,6 +44,8 @@ async function bootstrap() {
   app.useLogger(logger);
 
   const config = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
+  const http = app.get<ConfigType<typeof httpConfig>>(httpConfig.KEY);
+  configureTrustedProxy(app, http);
   const readiness = app.get(ProcessReadiness);
 
   // No-op when OpenAPI is disabled.

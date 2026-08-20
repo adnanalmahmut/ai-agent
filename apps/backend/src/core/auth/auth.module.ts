@@ -3,8 +3,9 @@ import { Module } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { AuthModule } from '@thallesp/nestjs-better-auth';
 
-import { appConfig, authConfig, openapiConfig } from '../../config';
+import { appConfig, authConfig, httpConfig, openapiConfig } from '../../config';
 import { DatabaseModule, PrismaService } from '../../database';
+import { overwriteDirectClientIpHeaders } from '../http';
 import { MailModule, MailService } from '../mail';
 import { assignRequestId } from '../providers/request-id';
 import { AccountLifecycleService } from './account-lifecycle.service';
@@ -46,6 +47,7 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
         MailService,
         authConfig.KEY,
         appConfig.KEY,
+        httpConfig.KEY,
         openapiConfig.KEY,
       ],
       useFactory: (
@@ -53,6 +55,7 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
         mail: MailService,
         config: ConfigType<typeof authConfig>,
         app: ConfigType<typeof appConfig>,
+        http: ConfigType<typeof httpConfig>,
         openapi: ConfigType<typeof openapiConfig>,
       ) => ({
         auth: createAuth({
@@ -75,6 +78,7 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
           res: ServerResponse,
           next: () => void,
         ) => {
+          overwriteDirectClientIpHeaders(req, http.overwriteDirectIpHeaders);
           assignRequestId(req, res);
           next();
         },
