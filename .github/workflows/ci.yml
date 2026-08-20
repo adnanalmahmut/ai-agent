@@ -110,6 +110,7 @@ jobs:
           ops/tests/release-manifest.sh
           ops/tests/backup-recovery.sh
           ops/tests/restore-drill-safety.sh
+          ops/tests/documentation.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.
