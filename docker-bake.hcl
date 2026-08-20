@@ -41,5 +41,8 @@ target "platform" {
   inherits = ["common"]
   dockerfile = "apps/platform/Dockerfile"
   target = "runtime"
+  args = {
+    VITE_APP_NAME = "Feedogo"
+  }
   tags = ["${REGISTRY}/platform:${IMAGE_TAG}"]
 }

@@ -17,7 +17,12 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter platform...
 
 COPY apps/platform apps/platform
-RUN pnpm --filter @repo/i18n-core build && pnpm --filter platform build
+
+ARG VITE_APP_NAME
+RUN test -n "$VITE_APP_NAME"
+RUN VITE_APP_NAME="$VITE_APP_NAME" pnpm --filter @repo/i18n-core build && \
+    VITE_APP_NAME="$VITE_APP_NAME" pnpm --filter platform build && \
+    ! grep -R "%VITE_" /workspace/apps/platform/dist
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
 
