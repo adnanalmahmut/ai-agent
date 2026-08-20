@@ -16,14 +16,16 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.event.workflow_run.conclusion == 'success'
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.name == 'Publish immutable images'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment:
       name: staging
       url: ${{ vars.DEPLOYMENT_URL }}
     env:
-      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      PUBLISH_RUN_ID: ${{ github.event.workflow_run.id }}
       VPS_HOST: ${{ vars.VPS_HOST }}
       VPS_USER: ${{ vars.VPS_USER }}
       DEPLOYMENT_URL: ${{ vars.DEPLOYMENT_URL }}
@@ -31,7 +33,8 @@ jobs:
       - name: Download publish digest manifest
         uses: actions/download-artifact@v4
         with:
-          name: image-digests-${{ github.event.workflow_run.head_sha }}
+          pattern: image-digests-*
+          merge-multiple: true
           path: release
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
@@ -41,8 +44,31 @@ jobs:
           test "$VPS_USER" = deploy
           test -n "$VPS_HOST"
           printf '%s\n' "$DEPLOYMENT_URL" | grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?$'
-          test "$(jq -r .sha release/image-digests.json)" = "$RELEASE_SHA"
-          jq -e '.backend,.migration,.web,.platform | test("^ghcr\\.io/.+@sha256:[0-9a-f]{64}$")' release/image-digests.json >/dev/null
+          test "$(find release -type f -name image-digests.json | wc -l)" -eq 1
+          manifest=release/image-digests.json
+          jq -e \
+            --arg repository "$GITHUB_REPOSITORY" \
+            --argjson publishRunId "$PUBLISH_RUN_ID" \
+            '.schemaVersion == 1 and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId' \
+            "$manifest" >/dev/null
+
+          release_sha=$(jq -r .sha "$manifest")
+          printf '%s\n' "$release_sha" | grep -Eq '^[0-9a-f]{40}$'
+          printf 'RELEASE_SHA=%s\n' "$release_sha" >>"$GITHUB_ENV"
+
+          for entry in backend:backend migration:backend-migration web:web platform:platform; do
+            field=${entry%%:*}
+            image=${entry#*:}
+            reference=$(jq -r --arg field "$field" '.[$field]' "$manifest")
+            prefix="ghcr.io/$GITHUB_REPOSITORY/$image@sha256:"
+            case "$reference" in
+              "$prefix"*) digest=${reference#"$prefix"} ;;
+              *) echo "unexpected repository for $field" >&2; exit 1 ;;
+            esac
+            printf '%s\n' "$digest" | grep -Eq '^[0-9a-f]{64}$'
+            upper=$(printf '%s' "$field" | tr '[:lower:]' '[:upper:]')
+            printf '%s_DIGEST=%s\n' "$upper" "$digest" >>"$GITHUB_ENV"
+          done
 
       - name: Install restricted SSH identity
         env:
@@ -56,7 +82,7 @@ jobs:
 
       - name: Deploy migration-gated release
         run: |
-          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy staging $RELEASE_SHA"
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy staging $RELEASE_SHA $BACKEND_DIGEST $MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST"
 
       - name: Verify restricted host health
         run: |
@@ -67,3 +93,24 @@ jobs:
           curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/" >/dev/null
           curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/platform/" >/dev/null
           curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/api/health/ready" >/dev/null
+
+      - name: Record successful staging evidence
+        run: |
+          jq \
+            --arg workflow 'Deploy staging' \
+            --argjson stagingRunId "$GITHUB_RUN_ID" \
+            '. + {stagingWorkflow:$workflow,stagingRunId:$stagingRunId}' \
+            release/image-digests.json >release/staging-success.json
+          jq -e \
+            --arg sha "$RELEASE_SHA" \
+            --argjson stagingRunId "$GITHUB_RUN_ID" \
+            '.sha == $sha and .stagingWorkflow == "Deploy staging" and .stagingRunId == $stagingRunId' \
+            release/staging-success.json >/dev/null
+
+      - name: Upload staging release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: staging-success-${{ env.RELEASE_SHA }}
+          path: release/staging-success.json
+          if-no-files-found: error
+          retention-days: 90
