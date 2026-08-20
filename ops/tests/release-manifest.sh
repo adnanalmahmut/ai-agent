@@ -24,9 +24,17 @@ exit 0
 SH
 cat >"$tmp_dir/bin/docker" <<'SH'
 #!/bin/sh
+set -eu
 printf '%s|%s|%s|%s|%s\n' \
   "${BACKEND_IMAGE:-}" "${BACKEND_MIGRATION_IMAGE:-}" \
   "${WEB_IMAGE:-}" "${PLATFORM_IMAGE:-}" "$*" >>"$TEST_LOG"
+case " $* " in
+  *' ps --status running --services '*)
+    service=
+    for argument in "$@"; do service=$argument; done
+    printf '%s\n' "$service"
+    ;;
+esac
 SH
 cat >"$tmp_dir/bin/curl" <<'SH'
 #!/bin/sh
