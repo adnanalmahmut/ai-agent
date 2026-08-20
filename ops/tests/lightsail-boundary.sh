@@ -19,9 +19,11 @@ grep -Fq 'SHA must be 40 lowercase hex characters' ops/lightsail/ai-agent-deploy
 grep -Fq 'runtime_env=/etc/ai-agent/runtime.env' ops/lightsail/ai-agent-deploy
 grep -Fq 'storage: '\''database'\''' apps/backend/src/core/auth/auth.factory.ts
 
-if grep -ER 'docker compose down -v|docker volume prune|docker system prune.*--volumes|eval .*SSH_ORIGINAL_COMMAND' ops/lightsail; then
-  echo 'destructive or evaluative deployment command found' >&2
-  exit 1
-fi
+for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune.*--volumes' 'eval .*SSH_ORIGINAL_COMMAND'; do
+  if grep -ER "$forbidden" ops/lightsail >/dev/null; then
+    echo 'destructive or evaluative deployment command found' >&2
+    exit 1
+  fi
+done
 
 echo 'Lightsail deployment boundary: ok'
