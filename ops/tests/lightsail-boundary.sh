@@ -21,6 +21,15 @@ grep -Fq 'runtime_env=/etc/ai-agent/runtime.env' ops/lightsail/ai-agent-deploy
 grep -Fq 'ai-agent-runtime-preflight' ops/lightsail/ai-agent-deploy
 grep -Fq 'BACKEND_MIGRATION_IMAGE="$registry/backend-migration@sha256:$migration_digest"' ops/lightsail/ai-agent-deploy
 grep -Fq 'compose up -d --wait postgres redis geoipupdate' ops/lightsail/ai-agent-deploy
+grep -Fq 'running=$(compose ps --status running --services "$service")' ops/lightsail/ai-agent-deploy
+grep -Fq '[ "$running" = "$service" ] || die "$service is not running"' ops/lightsail/ai-agent-deploy
+grep -Fq 'compose up -d --wait --no-deps backend' ops/lightsail/ai-agent-deploy
+grep -Fq 'compose up -d --wait --no-deps worker' ops/lightsail/ai-agent-deploy
+grep -Fq 'compose up -d --wait --no-deps web platform' ops/lightsail/ai-agent-deploy
+if grep -Fq 'compose ps --status running worker >/dev/null' ops/lightsail/ai-agent-deploy; then
+  echo 'deployment must compare the returned running service name' >&2
+  exit 1
+fi
 grep -Fq 'CURRENT_RELEASE.json' ops/lightsail/ai-agent-deploy
 grep -Fq 'PREVIOUS_RELEASE.json' ops/lightsail/ai-agent-deploy
 if grep -Eq 'ghcr\.io/.+:\$sha' ops/lightsail/ai-agent-deploy; then

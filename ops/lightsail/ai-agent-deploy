@@ -37,8 +37,16 @@ api_health() {
   curl --fail --silent --show-error --max-time 10 'http://127.0.0.1:3002/api/health/ready' >/dev/null
 }
 
+require_running() {
+  service=$1
+  running=$(compose ps --status running --services "$service")
+  [ "$running" = "$service" ] || die "$service is not running"
+}
+
 health() {
-  compose ps --status running backend worker web platform
+  for service in backend worker web platform; do
+    require_running "$service"
+  done
   api_health
 }
 
@@ -83,11 +91,14 @@ deploy_release() {
   compose pull backend worker web platform migrate
   compose up -d --wait postgres redis geoipupdate
   compose run --rm migrate
-  compose up -d --no-deps backend
+  compose up -d --wait --no-deps backend
+  require_running backend
   api_health
-  compose up -d --no-deps worker
-  compose ps --status running worker >/dev/null
-  compose up -d --no-deps web platform
+  compose up -d --wait --no-deps worker
+  require_running worker
+  compose up -d --wait --no-deps web platform
+  require_running web
+  require_running platform
   health
 
   if [ -f "$current_release" ]; then
