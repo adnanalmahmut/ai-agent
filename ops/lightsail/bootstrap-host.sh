@@ -16,7 +16,7 @@ printf '%s' "$domain" | grep -Eq '^[A-Za-z0-9.-]+$' || exit 64
 [ -s "$key_file" ] || exit 64
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl docker.io docker-compose-v2 nginx certbot python3-certbot-nginx ufw
+DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl docker.io docker-compose-v2 nginx certbot python3-certbot-nginx postgresql-client ufw
 
 id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/sh deploy
 gpasswd -d deploy docker >/dev/null 2>&1 || true
