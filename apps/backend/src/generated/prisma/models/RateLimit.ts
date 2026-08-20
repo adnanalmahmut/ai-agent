@@ -38,18 +38,21 @@ export type RateLimitSumAggregateOutputType = {
 }
 
 export type RateLimitMinAggregateOutputType = {
+  id: string | null
   key: string | null
   count: number | null
   lastRequest: bigint | null
 }
 
 export type RateLimitMaxAggregateOutputType = {
+  id: string | null
   key: string | null
   count: number | null
   lastRequest: bigint | null
 }
 
 export type RateLimitCountAggregateOutputType = {
+  id: number
   key: number
   count: number
   lastRequest: number
@@ -68,18 +71,21 @@ export type RateLimitSumAggregateInputType = {
 }
 
 export type RateLimitMinAggregateInputType = {
+  id?: true
   key?: true
   count?: true
   lastRequest?: true
 }
 
 export type RateLimitMaxAggregateInputType = {
+  id?: true
   key?: true
   count?: true
   lastRequest?: true
 }
 
 export type RateLimitCountAggregateInputType = {
+  id?: true
   key?: true
   count?: true
   lastRequest?: true
@@ -173,6 +179,7 @@ export type RateLimitGroupByArgs<ExtArgs extends runtime.Types.Extensions.Intern
 }
 
 export type RateLimitGroupByOutputType = {
+  id: string
   key: string
   count: number
   lastRequest: bigint
@@ -202,27 +209,31 @@ export type RateLimitWhereInput = {
   AND?: Prisma.RateLimitWhereInput | Prisma.RateLimitWhereInput[]
   OR?: Prisma.RateLimitWhereInput[]
   NOT?: Prisma.RateLimitWhereInput | Prisma.RateLimitWhereInput[]
+  id?: Prisma.StringFilter<"RateLimit"> | string
   key?: Prisma.StringFilter<"RateLimit"> | string
   count?: Prisma.IntFilter<"RateLimit"> | number
   lastRequest?: Prisma.BigIntFilter<"RateLimit"> | bigint | number
 }
 
 export type RateLimitOrderByWithRelationInput = {
+  id?: Prisma.SortOrder
   key?: Prisma.SortOrder
   count?: Prisma.SortOrder
   lastRequest?: Prisma.SortOrder
 }
 
 export type RateLimitWhereUniqueInput = Prisma.AtLeast<{
+  id?: string
   key?: string
   AND?: Prisma.RateLimitWhereInput | Prisma.RateLimitWhereInput[]
   OR?: Prisma.RateLimitWhereInput[]
   NOT?: Prisma.RateLimitWhereInput | Prisma.RateLimitWhereInput[]
   count?: Prisma.IntFilter<"RateLimit"> | number
   lastRequest?: Prisma.BigIntFilter<"RateLimit"> | bigint | number
-}, "key">
+}, "id" | "key">
 
 export type RateLimitOrderByWithAggregationInput = {
+  id?: Prisma.SortOrder
   key?: Prisma.SortOrder
   count?: Prisma.SortOrder
   lastRequest?: Prisma.SortOrder
@@ -237,54 +248,63 @@ export type RateLimitScalarWhereWithAggregatesInput = {
   AND?: Prisma.RateLimitScalarWhereWithAggregatesInput | Prisma.RateLimitScalarWhereWithAggregatesInput[]
   OR?: Prisma.RateLimitScalarWhereWithAggregatesInput[]
   NOT?: Prisma.RateLimitScalarWhereWithAggregatesInput | Prisma.RateLimitScalarWhereWithAggregatesInput[]
+  id?: Prisma.StringWithAggregatesFilter<"RateLimit"> | string
   key?: Prisma.StringWithAggregatesFilter<"RateLimit"> | string
   count?: Prisma.IntWithAggregatesFilter<"RateLimit"> | number
   lastRequest?: Prisma.BigIntWithAggregatesFilter<"RateLimit"> | bigint | number
 }
 
 export type RateLimitCreateInput = {
+  id: string
   key: string
   count: number
   lastRequest: bigint | number
 }
 
 export type RateLimitUncheckedCreateInput = {
+  id: string
   key: string
   count: number
   lastRequest: bigint | number
 }
 
 export type RateLimitUpdateInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
   key?: Prisma.StringFieldUpdateOperationsInput | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
   lastRequest?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
 }
 
 export type RateLimitUncheckedUpdateInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
   key?: Prisma.StringFieldUpdateOperationsInput | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
   lastRequest?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
 }
 
 export type RateLimitCreateManyInput = {
+  id: string
   key: string
   count: number
   lastRequest: bigint | number
 }
 
 export type RateLimitUpdateManyMutationInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
   key?: Prisma.StringFieldUpdateOperationsInput | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
   lastRequest?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
 }
 
 export type RateLimitUncheckedUpdateManyInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
   key?: Prisma.StringFieldUpdateOperationsInput | string
   count?: Prisma.IntFieldUpdateOperationsInput | number
   lastRequest?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
 }
 
 export type RateLimitCountOrderByAggregateInput = {
+  id?: Prisma.SortOrder
   key?: Prisma.SortOrder
   count?: Prisma.SortOrder
   lastRequest?: Prisma.SortOrder
@@ -296,12 +316,14 @@ export type RateLimitAvgOrderByAggregateInput = {
 }
 
 export type RateLimitMaxOrderByAggregateInput = {
+  id?: Prisma.SortOrder
   key?: Prisma.SortOrder
   count?: Prisma.SortOrder
   lastRequest?: Prisma.SortOrder
 }
 
 export type RateLimitMinOrderByAggregateInput = {
+  id?: Prisma.SortOrder
   key?: Prisma.SortOrder
   count?: Prisma.SortOrder
   lastRequest?: Prisma.SortOrder
@@ -331,35 +353,40 @@ export type BigIntFieldUpdateOperationsInput = {
 
 
 export type RateLimitSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
+  id?: boolean
   key?: boolean
   count?: boolean
   lastRequest?: boolean
 }, ExtArgs["result"]["rateLimit"]>
 
 export type RateLimitSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
+  id?: boolean
   key?: boolean
   count?: boolean
   lastRequest?: boolean
 }, ExtArgs["result"]["rateLimit"]>
 
 export type RateLimitSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
+  id?: boolean
   key?: boolean
   count?: boolean
   lastRequest?: boolean
 }, ExtArgs["result"]["rateLimit"]>
 
 export type RateLimitSelectScalar = {
+  id?: boolean
   key?: boolean
   count?: boolean
   lastRequest?: boolean
 }
 
-export type RateLimitOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"key" | "count" | "lastRequest", ExtArgs["result"]["rateLimit"]>
+export type RateLimitOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "key" | "count" | "lastRequest", ExtArgs["result"]["rateLimit"]>
 
 export type $RateLimitPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   name: "RateLimit"
   objects: {}
   scalars: runtime.Types.Extensions.GetPayloadResult<{
+    id: string
     key: string
     count: number
     lastRequest: bigint
@@ -446,8 +473,8 @@ export interface RateLimitDelegate<ExtArgs extends runtime.Types.Extensions.Inte
    * // Get first 10 RateLimits
    * const rateLimits = await prisma.rateLimit.findMany({ take: 10 })
    * 
-   * // Only select the `key`
-   * const rateLimitWithKeyOnly = await prisma.rateLimit.findMany({ select: { key: true } })
+   * // Only select the `id`
+   * const rateLimitWithIdOnly = await prisma.rateLimit.findMany({ select: { id: true } })
    * 
    */
   findMany<T extends RateLimitFindManyArgs>(args?: Prisma.SelectSubset<T, RateLimitFindManyArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RateLimitPayload<ExtArgs>, T, "findMany", GlobalOmitOptions>>
@@ -491,9 +518,9 @@ export interface RateLimitDelegate<ExtArgs extends runtime.Types.Extensions.Inte
    *   ]
    * })
    * 
-   * // Create many RateLimits and only return the `key`
-   * const rateLimitWithKeyOnly = await prisma.rateLimit.createManyAndReturn({
-   *   select: { key: true },
+   * // Create many RateLimits and only return the `id`
+   * const rateLimitWithIdOnly = await prisma.rateLimit.createManyAndReturn({
+   *   select: { id: true },
    *   data: [
    *     // ... provide data here
    *   ]
@@ -582,9 +609,9 @@ export interface RateLimitDelegate<ExtArgs extends runtime.Types.Extensions.Inte
    *   ]
    * })
    * 
-   * // Update zero or more RateLimits and only return the `key`
-   * const rateLimitWithKeyOnly = await prisma.rateLimit.updateManyAndReturn({
-   *   select: { key: true },
+   * // Update zero or more RateLimits and only return the `id`
+   * const rateLimitWithIdOnly = await prisma.rateLimit.updateManyAndReturn({
+   *   select: { id: true },
    *   where: {
    *     // ... provide filter here
    *   },
@@ -786,6 +813,7 @@ export interface Prisma__RateLimitClient<T, Null = never, ExtArgs extends runtim
  * Fields of the RateLimit model
  */
 export interface RateLimitFieldRefs {
+  readonly id: Prisma.FieldRef<"RateLimit", 'String'>
   readonly key: Prisma.FieldRef<"RateLimit", 'String'>
   readonly count: Prisma.FieldRef<"RateLimit", 'Int'>
   readonly lastRequest: Prisma.FieldRef<"RateLimit", 'BigInt'>

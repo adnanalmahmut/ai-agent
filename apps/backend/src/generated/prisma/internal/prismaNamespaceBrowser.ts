@@ -149,6 +149,7 @@ export type VerificationScalarFieldEnum = (typeof VerificationScalarFieldEnum)[k
 
 
 export const RateLimitScalarFieldEnum = {
+  id: 'id',
   key: 'key',
   count: 'count',
   lastRequest: 'lastRequest'

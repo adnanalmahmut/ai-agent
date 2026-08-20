@@ -12,7 +12,8 @@ contract uses `RateLimit-*` headers (or the validated configured prefix) plus
 
 Better Auth routes bypass Nest interception and therefore use Better Auth
 1.6.27's database limiter. The `RateLimit` Prisma model was derived from the
-installed package's `getAuthTables()` output. Sign-in and sign-up allow 5 per
+installed package's `getAuthTables()` output, including the adapter-wide `id`
+field added outside each model's field map. Sign-in and sign-up allow 5 per
 60 seconds; password-reset allows 3. Both limiters rely only on the canonical
 IP boundary established by host Nginx and `req.ip`; neither parses forwarded
 header chains.
