@@ -8,6 +8,11 @@ Lightsail firewall permits public 80/443 and restricts SSH 22 to the operator's
 trusted CIDR whenever possible. Ports 3000/3001/3002/5432/6379 are forbidden.
 The host bootstrap also configures UFW with the same policy.
 
+The host bootstrap provisions a persistent 2 GiB `/swapfile` with
+`vm.swappiness=10`. This is a bounded safety margin for Docker layer extraction
+and transient deployment spikes on small instances; it is not a substitute for
+sizing the VPS with enough RAM for the running application stack.
+
 The deployment user is absent from the Docker group, has no general sudo, and
 uses a key with `restrict`, `no-user-rc`, and a ForcedCommand dispatcher. The
 dispatcher accepts only deploy/status/health/rollback shapes; a root wrapper
