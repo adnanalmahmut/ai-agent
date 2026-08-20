@@ -15,6 +15,8 @@ done
 
 grep -Fq 'restrict,no-user-rc,command="/usr/local/sbin/ai-agent-deploy-dispatch"' ops/lightsail/bootstrap-host.sh
 grep -Fq 'gpasswd -d deploy docker' ops/lightsail/bootstrap-host.sh
+grep -Fq 'install_certbot_tls_asset options-ssl-nginx.conf /etc/letsencrypt/options-ssl-nginx.conf' ops/lightsail/issue-certificate.sh
+grep -Fq 'install_certbot_tls_asset ssl-dhparams.pem /etc/letsencrypt/ssl-dhparams.pem' ops/lightsail/issue-certificate.sh
 grep -Fq 'SHA must be 40 lowercase hex characters' ops/lightsail/ai-agent-deploy
 grep -Fq 'digest must be 64 lowercase hex characters' ops/lightsail/ai-agent-deploy
 grep -Fq 'runtime_env=/etc/ai-agent/runtime.env' ops/lightsail/ai-agent-deploy
