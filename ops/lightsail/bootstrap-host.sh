@@ -18,6 +18,21 @@ printf '%s' "$domain" | grep -Eq '^[A-Za-z0-9.-]+$' || exit 64
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl docker.io docker-compose-v2 nginx certbot python3-certbot-nginx ufw
 
+# The smallest Lightsail plans have little RAM and Docker image extraction can
+# briefly require more memory than the running application set. Provision a
+# bounded swap file so deploys fail on real errors rather than transient OOM.
+if ! swapon --show=NAME --noheadings | grep -Fxq '/swapfile'; then
+  if [ ! -f /swapfile ]; then
+    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+  fi
+  chmod 0600 /swapfile
+  mkswap /swapfile >/dev/null
+  swapon /swapfile
+fi
+grep -Fqx '/swapfile none swap sw 0 0' /etc/fstab || printf '%s\n' '/swapfile none swap sw 0 0' >>/etc/fstab
+printf '%s\n' 'vm.swappiness=10' >/etc/sysctl.d/99-ai-agent-swap.conf
+sysctl -p /etc/sysctl.d/99-ai-agent-swap.conf >/dev/null
+
 id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/sh deploy
 gpasswd -d deploy docker >/dev/null 2>&1 || true
 install -d -o root -g root -m 0755 /etc/ai-agent /opt/ai-agent /var/lib/ai-agent
