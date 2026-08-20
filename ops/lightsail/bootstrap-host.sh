@@ -25,6 +25,7 @@ printf '%s\n' "$environment" >/etc/ai-agent/environment
 chmod 0644 /etc/ai-agent/environment
 install -o root -g root -m 0755 ops/lightsail/ai-agent-deploy /usr/local/sbin/ai-agent-deploy
 install -o root -g root -m 0755 ops/lightsail/ai-agent-deploy-dispatch /usr/local/sbin/ai-agent-deploy-dispatch
+install -o root -g root -m 0755 ops/runtime-preflight.sh /usr/local/sbin/ai-agent-runtime-preflight
 install -o root -g root -m 0440 ops/lightsail/ai-agent-deploy.sudoers /etc/sudoers.d/ai-agent-deploy
 visudo -cf /etc/sudoers.d/ai-agent-deploy
 

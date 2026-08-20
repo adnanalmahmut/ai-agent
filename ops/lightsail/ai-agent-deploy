@@ -6,6 +6,10 @@ runtime_env=/etc/ai-agent/runtime.env
 environment_file=/etc/ai-agent/environment
 state_dir=/var/lib/ai-agent
 compose_file=$readonly_root/docker-compose.yml
+preflight=/usr/local/sbin/ai-agent-runtime-preflight
+current_release=$state_dir/CURRENT_RELEASE.json
+previous_release=$state_dir/PREVIOUS_RELEASE.json
+registry=ghcr.io/adnanalmahmut/ai-agent
 
 die() { echo "deployment rejected: $*" >&2; exit 64; }
 
@@ -15,48 +19,95 @@ environment=$(sed -n '1p' "$environment_file")
 [ "${2:-}" = "$environment" ] || die 'requested environment does not match this host'
 [ -f "$compose_file" ] || die 'compose file is not installed'
 [ -f "$runtime_env" ] || die 'runtime.env is not installed'
+[ -x "$preflight" ] || die 'runtime preflight is not installed'
 
 compose() {
   docker compose --file "$compose_file" --env-file "$runtime_env" --profile "$environment" "$@"
 }
 
+validate_sha() {
+  printf '%s' "$1" | grep -Eq '^[0-9a-f]{40}$' || die 'SHA must be 40 lowercase hex characters'
+}
+
+validate_digest() {
+  printf '%s' "$1" | grep -Eq '^[0-9a-f]{64}$' || die 'digest must be 64 lowercase hex characters'
+}
+
+api_health() {
+  curl --fail --silent --show-error --max-time 10 'http://127.0.0.1:3002/api/health/ready' >/dev/null
+}
+
 health() {
   compose ps --status running backend worker web platform
-  curl --fail --silent --show-error --max-time 10 "http://127.0.0.1:${BACKEND_PORT:-3002}/api/health/ready" >/dev/null
+  api_health
+}
+
+write_release_manifest() {
+  destination=$1
+  sha=$2
+  backend_digest=$3
+  migration_digest=$4
+  web_digest=$5
+  platform_digest=$6
+  temporary=$destination.tmp.$$
+
+  umask 077
+  printf '{"sha":"%s","backend":"sha256:%s","migration":"sha256:%s","web":"sha256:%s","platform":"sha256:%s"}\n' \
+    "$sha" "$backend_digest" "$migration_digest" "$web_digest" "$platform_digest" >"$temporary"
+  mv "$temporary" "$destination"
+}
+
+deploy_release() {
+  sha=$1
+  backend_digest=$2
+  migration_digest=$3
+  web_digest=$4
+  platform_digest=$5
+
+  validate_sha "$sha"
+  for digest in "$backend_digest" "$migration_digest" "$web_digest" "$platform_digest"; do
+    validate_digest "$digest"
+  done
+
+  "$preflight" "$environment" "$runtime_env"
+
+  mkdir -p "$state_dir"
+  exec 9>"$state_dir/deploy.lock"
+  flock -n 9 || die 'another deployment is active'
+
+  export BACKEND_IMAGE="$registry/backend@sha256:$backend_digest"
+  export BACKEND_MIGRATION_IMAGE="$registry/backend-migration@sha256:$migration_digest"
+  export WEB_IMAGE="$registry/web@sha256:$web_digest"
+  export PLATFORM_IMAGE="$registry/platform@sha256:$platform_digest"
+
+  compose pull backend worker web platform migrate
+  compose up -d --wait postgres redis geoipupdate
+  compose run --rm migrate
+  compose up -d --no-deps backend
+  api_health
+  compose up -d --no-deps worker
+  compose ps --status running worker >/dev/null
+  compose up -d --no-deps web platform
+  health
+
+  if [ -f "$current_release" ]; then
+    cp "$current_release" "$previous_release.tmp"
+    mv "$previous_release.tmp" "$previous_release"
+  fi
+  write_release_manifest "$current_release" "$sha" "$backend_digest" \
+    "$migration_digest" "$web_digest" "$platform_digest"
 }
 
 case "${1:-}" in
   deploy)
-    [ "$#" -eq 3 ] || die 'deploy requires environment and SHA'
-    sha=$3
-    printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$' || die 'SHA must be 40 lowercase hex characters'
-
-    mkdir -p "$state_dir"
-    exec 9>"$state_dir/deploy.lock"
-    flock -n 9 || die 'another deployment is active'
-
-    previous=$(sed -n '1p' "$state_dir/CURRENT_SHA" 2>/dev/null || true)
-    export BACKEND_IMAGE="ghcr.io/adnanalmahmut/ai-agent/backend:$sha"
-    export WEB_IMAGE="ghcr.io/adnanalmahmut/ai-agent/web:$sha"
-    export PLATFORM_IMAGE="ghcr.io/adnanalmahmut/ai-agent/platform:$sha"
-
-    compose pull backend worker web platform migrate
-    compose run --rm migrate
-    compose up -d --no-deps backend
-    health
-    compose up -d --no-deps worker
-    compose ps --status running worker >/dev/null
-    compose up -d --no-deps web platform
-    health
-
-    [ -z "$previous" ] || printf '%s\n' "$previous" >"$state_dir/PREVIOUS_SHA"
-    printf '%s\n' "$sha" >"$state_dir/CURRENT_SHA"
+    [ "$#" -eq 7 ] || die 'deploy requires environment, SHA and four digests'
+    deploy_release "$3" "$4" "$5" "$6" "$7"
     ;;
   status)
     [ "$#" -eq 2 ] || die 'status requires environment'
     compose ps
-    printf 'CURRENT_SHA='; sed -n '1p' "$state_dir/CURRENT_SHA" 2>/dev/null || true
-    printf 'PREVIOUS_SHA='; sed -n '1p' "$state_dir/PREVIOUS_SHA" 2>/dev/null || true
+    printf 'CURRENT_RELEASE='; sed -n '1p' "$current_release" 2>/dev/null || true
+    printf 'PREVIOUS_RELEASE='; sed -n '1p' "$previous_release" 2>/dev/null || true
     ;;
   health)
     [ "$#" -eq 2 ] || die 'health requires environment'

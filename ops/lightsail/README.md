@@ -6,7 +6,7 @@ runtime files, deploy keys, or instance snapshots between them.
 
 ```mermaid
 flowchart LR
-  GH[GitHub Environment] -->|forced SSH command: environment + SHA| D[deploy user]
+  GH[GitHub Environment] -->|environment + SHA + 4 validated digests| D[deploy user]
   D -->|only allowed sudo wrapper| W[root deployment wrapper]
   W --> C[Docker Compose]
   W --> E[/etc/ai-agent/runtime.env\nroot:root 0600]
@@ -58,3 +58,10 @@ deployment capabilities.
 
 Live DNS, Lightsail firewall, certificate issuance, and SSH boundary checks
 remain pending until the operator provisions the two instances.
+
+The deployment command accepts only a 40-character source SHA followed by four
+64-character digest hex values. Repository names are fixed inside the root
+wrapper. The wrapper runs runtime preflight, starts data services, runs the
+digest-pinned migration image, and then rolls out API, worker, web and platform
+in readiness order. Successful state is stored as root-only
+`CURRENT_RELEASE.json`/`PREVIOUS_RELEASE.json`; tags are never release state.
