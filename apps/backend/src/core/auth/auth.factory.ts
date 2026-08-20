@@ -210,6 +210,16 @@ export function createAuth(dependencies: {
         },
       },
     },
+
+    rateLimit: {
+      enabled: config.rateLimitEnabled,
+      storage: 'database',
+      customRules: {
+        '/sign-in/email': { window: 60, max: 5 },
+        '/sign-up/email': { window: 60, max: 5 },
+        '/request-password-reset': { window: 60, max: 3 },
+      },
+    },
   };
 
   return betterAuth(options);

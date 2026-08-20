@@ -34,6 +34,14 @@ const baseSchema = z.object({
       z.enum(['true', 'false']).default('false'),
     )
     .transform((value) => value === 'true'),
+  BETTER_AUTH_RATE_LIMIT_ENABLED: z
+    .preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.enum(['true', 'false']).optional(),
+    )
+    .transform((value) =>
+      value === undefined ? process.env.NODE_ENV !== 'test' : value === 'true',
+    ),
 });
 
 /**
@@ -66,6 +74,7 @@ export default registerAs('auth', () => {
     secret: env.BETTER_AUTH_SECRET,
     baseUrl: env.BETTER_AUTH_URL,
     trustedOrigins: env.BETTER_AUTH_TRUSTED_ORIGINS,
+    rateLimitEnabled: env.BETTER_AUTH_RATE_LIMIT_ENABLED,
     google,
   };
 });

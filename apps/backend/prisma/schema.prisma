@@ -108,9 +108,9 @@ model Session {
   ipAddress String?
   userAgent String?
   /// Server-derived from ipAddress through the local GeoLite2 City database.
-  country String?
+  country   String?
   /// Server-derived city label; never accepted from an auth request body.
-  city String?
+  city      String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -158,6 +158,16 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+/// Concurrency-safe storage required by Better Auth 1.6.x's native limiter.
+/// Fields are derived from getAuthTables() for the installed version.
+model RateLimit {
+  key         String @id
+  count       Int
+  lastRequest BigInt
+
+  @@map("rateLimit")
 }
 
 model Organization {
