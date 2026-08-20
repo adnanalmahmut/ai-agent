@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 
-import { appConfig, configurations, observabilityConfig } from './config';
+import { appConfig, observabilityConfig, workerConfigurations } from './config';
 import { LifecycleModule } from './core/lifecycle';
 import { OutboxModule } from './core/outbox';
 import { createLoggerOptions } from './core/providers/logger.options';
@@ -45,7 +45,7 @@ import { DatabaseModule } from './database';
     ConfigModule.forRoot({
       isGlobal: true,
       cache: true,
-      load: configurations,
+      load: workerConfigurations,
     }),
     LoggerModule.forRootAsync({
       inject: [appConfig.KEY, observabilityConfig.KEY],
