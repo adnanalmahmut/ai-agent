@@ -65,6 +65,15 @@ write_release_manifest() {
   mv "$temporary" "$destination"
 }
 
+pull_release_images() {
+  # Small Lightsail hosts can exhaust memory and I/O when Compose downloads and
+  # extracts every large image concurrently. Pull each distinct image in order;
+  # worker shares the backend image and therefore needs no separate pull.
+  for service in platform web backend migrate; do
+    compose pull "$service"
+  done
+}
+
 deploy_release() {
   sha=$1
   backend_digest=$2
@@ -88,7 +97,7 @@ deploy_release() {
   export WEB_IMAGE="$registry/web@sha256:$web_digest"
   export PLATFORM_IMAGE="$registry/platform@sha256:$platform_digest"
 
-  compose pull backend worker web platform migrate
+  pull_release_images
   compose up -d --wait postgres redis geoipupdate
   compose run --rm migrate
   compose up -d --wait --no-deps backend
