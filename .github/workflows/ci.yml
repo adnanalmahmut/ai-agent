@@ -104,6 +104,7 @@ jobs:
           ops/tests/nginx-real-ip.sh
           ops/tests/lightsail-boundary.sh
           ops/tests/deploy-service-health.sh
+          ops/tests/image-publishing.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.
@@ -215,7 +216,6 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
-
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -224,7 +224,12 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build exact production image targets without pushing
-        run: docker buildx bake --file docker-bake.hcl --load release
+        run: docker buildx bake --file docker-bake.hcl release
+
+      - name: Load backend targets used by the degraded-startup test
+        run: |
+          docker buildx build --load --file apps/backend/Dockerfile --target runtime --tag ghcr.io/adnanalmahmut/ai-agent/backend:development .
+          docker buildx build --load --file apps/backend/Dockerfile --target migration --tag ghcr.io/adnanalmahmut/ai-agent/backend-migration:development .
 
       - name: Prove the API starts while Redis is unavailable
         run: |
@@ -261,3 +266,35 @@ jobs:
         run: |
           runtime_file="$RUNNER_TEMP/container-runtime.env"
           test ! -f "$runtime_file" || docker compose --env-file "$runtime_file" --profile staging stop backend postgres
+
+  web:
+    name: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm run build:packages
+
+      - name: Lint
+        run: pnpm --filter web run lint
+
+      - name: Tests
+        run: pnpm --filter web run test
+
+      - name: Build
+        run: pnpm --filter web run build
