@@ -1,0 +1,12 @@
+[Unit]
+Description=AI Agent verified PostgreSQL backup
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ai-agent-backup-postgres
+User=root
+Group=root
+PrivateTmp=true
+NoNewPrivileges=true

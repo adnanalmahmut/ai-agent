@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily AI Agent PostgreSQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:15:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

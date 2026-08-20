@@ -1,0 +1,3 @@
+# Install as /etc/ai-agent/backup.conf, root:root 0600.
+BACKUP_DIRECTORY=/var/backups/ai-agent/postgres
+BACKUP_RETENTION_DAYS=14
