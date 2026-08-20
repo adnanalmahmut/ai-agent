@@ -61,6 +61,7 @@ src/core/
   auth/       authentication and authorization
   docs/       the OpenAPI document and its reference UI
   errors/     the application exception and its codes
+  geoip/      fail-open local MMDB session enrichment
   health/     liveness and readiness probes
   http/       the HTTP boundary: pipes, filters, response envelope
   i18n/       translation loading and locale resolution
@@ -69,6 +70,7 @@ src/core/
   outbox/     the PostgreSQL → BullMQ handoff
   providers/  logger options, request id
   queue/      BullMQ transport: producer, worker runner, options
+  rate-limit/ atomic Redis sliding-window policy and decorators
   redis/      connection provisioning per role
 ```
 
