@@ -36,7 +36,12 @@ own settings. Image repositories are fixed in the root wrapper and image
 references are constructed from validated digest hex values, never read from
 `runtime.env`.
 
-The order is pull → PostgreSQL/Redis/GeoIP bootstrap → migration → API → API
+Release images are pulled sequentially in the order platform → web → backend →
+migrate. Worker reuses the backend image. This bounds memory and disk-I/O
+pressure on small Lightsail hosts during layer download and extraction instead
+of asking Compose to pull every large image concurrently.
+
+The remaining order is PostgreSQL/Redis/GeoIP bootstrap → migration → API → API
 readiness → worker → worker status → web and platform → complete internal
 health → public HTTPS smoke. Only after success does the wrapper atomically
 rotate root-only `CURRENT_RELEASE.json` and `PREVIOUS_RELEASE.json`, each
