@@ -1,0 +1,2 @@
+Defaults:deploy !setenv,secure_path=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+deploy ALL=(root) NOPASSWD: /usr/local/sbin/ai-agent-deploy *

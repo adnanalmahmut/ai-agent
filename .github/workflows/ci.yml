@@ -102,6 +102,8 @@ jobs:
           ops/tests/container-environment.sh
           ops/tests/runtime-preflight.sh
           ops/tests/nginx-real-ip.sh
+          ops/tests/lightsail-boundary.sh
+          ops/tests/deploy-service-health.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.
