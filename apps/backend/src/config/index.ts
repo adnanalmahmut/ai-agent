@@ -1,6 +1,7 @@
 import appConfig from './app.config';
 import authConfig from './auth.config';
 import databaseConfig from './database.config';
+import geoIpConfig from '../core/geoip/geoip.config';
 import httpConfig from './http.config';
 import mailConfig from './mail.config';
 import observabilityConfig from './observability.config';
@@ -12,6 +13,7 @@ export {
   appConfig,
   authConfig,
   databaseConfig,
+  geoIpConfig,
   httpConfig,
   mailConfig,
   observabilityConfig,
@@ -25,6 +27,7 @@ export type { GoogleAuthConfig } from './auth.config';
 export const configurations = [
   appConfig,
   databaseConfig,
+  geoIpConfig,
   httpConfig,
   observabilityConfig,
   authConfig,

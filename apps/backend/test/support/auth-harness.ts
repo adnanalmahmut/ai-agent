@@ -7,6 +7,7 @@ import type { App } from 'supertest/types';
 
 import { AppModule } from '../../src/app.module';
 import { httpConfig } from '../../src/config';
+import { GeoIpService, type GeoIpLocation } from '../../src/core/geoip';
 import { configureTrustedProxy } from '../../src/core/http';
 import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
 import type { MailTransport } from '../../src/core/mail/mail-transport';
@@ -77,17 +78,25 @@ export async function createHarness(
      * Auth alone.
      */
     globalPrefix?: string;
+    geoIp?: {
+      lookup: (ipAddress: string | null | undefined) => Promise<GeoIpLocation>;
+    };
   } = {},
 ): Promise<Harness> {
   const transport = new CapturingTransport();
 
-  const moduleRef = await Test.createTestingModule({
+  let builder = Test.createTestingModule({
     imports: [AppModule],
     controllers: options.controllers ?? [],
   })
     .overrideProvider(MAIL_TRANSPORT)
-    .useValue(transport)
-    .compile();
+    .useValue(transport);
+
+  if (options.geoIp) {
+    builder = builder.overrideProvider(GeoIpService).useValue(options.geoIp);
+  }
+
+  const moduleRef = await builder.compile();
 
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     bodyParser: false,

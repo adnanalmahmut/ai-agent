@@ -107,6 +107,10 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
+  /// Server-derived from ipAddress through the local GeoLite2 City database.
+  country String?
+  /// Server-derived city label; never accepted from an auth request body.
+  city String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

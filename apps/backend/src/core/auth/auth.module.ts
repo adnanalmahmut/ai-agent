@@ -5,6 +5,7 @@ import { AuthModule } from '@thallesp/nestjs-better-auth';
 
 import { appConfig, authConfig, httpConfig, openapiConfig } from '../../config';
 import { DatabaseModule, PrismaService } from '../../database';
+import { GeoIpModule, GeoIpService } from '../geoip';
 import { overwriteDirectClientIpHeaders } from '../http';
 import { MailModule, MailService } from '../mail';
 import { assignRequestId } from '../providers/request-id';
@@ -41,10 +42,11 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
   imports: [
     DatabaseModule,
     AuthModule.forRootAsync({
-      imports: [DatabaseModule, MailModule],
+      imports: [DatabaseModule, MailModule, GeoIpModule],
       inject: [
         PrismaService,
         MailService,
+        GeoIpService,
         authConfig.KEY,
         appConfig.KEY,
         httpConfig.KEY,
@@ -53,6 +55,7 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
       useFactory: (
         prisma: PrismaService,
         mail: MailService,
+        geoIp: GeoIpService,
         config: ConfigType<typeof authConfig>,
         app: ConfigType<typeof appConfig>,
         http: ConfigType<typeof httpConfig>,
@@ -61,6 +64,7 @@ import { OrganizationLifecycleService } from './organization-lifecycle.service';
         auth: createAuth({
           prisma,
           mail,
+          geoIp,
           config,
           app,
           openApiEnabled: openapi.enabled,

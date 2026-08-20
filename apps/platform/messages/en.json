@@ -668,6 +668,7 @@
       "description": "Every browser and device currently logged into your account.",
       "current": "Current Device",
       "ipAddress": "IP Address",
+      "location": "Approximate Location",
       "userAgent": "Browser / OS",
       "createdAt": "Signed In",
       "revoke": "Log out device",

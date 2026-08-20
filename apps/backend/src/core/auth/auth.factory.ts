@@ -8,12 +8,13 @@ import { organization } from 'better-auth/plugins/organization';
 
 import type { appConfig, authConfig } from '../../config';
 import type { PrismaService } from '../../database';
+import type { GeoIpService } from '../geoip';
 import type { MailService } from '../mail';
 import {
   createArchivedOrganizationHook,
   createArchivedOrganizationListFilter,
   createPreferredLanguageValidationHook,
-  createSoftDeleteDatabaseHooks,
+  createSessionDatabaseHooks,
 } from './auth-hooks';
 import { createAuthMailCallbacks } from './auth-mail';
 import {
@@ -42,11 +43,12 @@ export type AppAuth = Auth;
 export function createAuth(dependencies: {
   prisma: PrismaService;
   mail: MailService;
+  geoIp: Pick<GeoIpService, 'lookup'>;
   config: ConfigType<typeof authConfig>;
   app: ConfigType<typeof appConfig>;
   openApiEnabled: boolean;
 }): Auth {
-  const { prisma, mail, config, app, openApiEnabled } = dependencies;
+  const { prisma, mail, geoIp, config, app, openApiEnabled } = dependencies;
 
   const { sendVerificationEmail, sendResetPassword, sendInvitationEmail } =
     createAuthMailCallbacks(mail, {
@@ -142,7 +144,22 @@ export function createAuth(dependencies: {
       },
     },
 
-    databaseHooks: createSoftDeleteDatabaseHooks(prisma),
+    session: {
+      additionalFields: {
+        country: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
+        city: {
+          type: 'string',
+          required: false,
+          input: false,
+        },
+      },
+    },
+
+    databaseHooks: createSessionDatabaseHooks(prisma, geoIp),
 
     hooks: {
       before: createAuthMiddleware(async (ctx) => {
