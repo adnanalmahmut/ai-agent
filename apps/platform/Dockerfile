@@ -9,14 +9,14 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/platform/package.json apps/platform/package.json
-COPY packages/i18n-core/package.json packages/i18n-core/package.json
-COPY packages/ui/package.json packages/ui/package.json
+# The root prepare lifecycle builds workspace packages during install, so their
+# build inputs must already exist in the dependency layer.
+COPY packages/i18n-core packages/i18n-core
+COPY packages/ui packages/ui
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter platform...
 
 COPY apps/platform apps/platform
-COPY packages/i18n-core packages/i18n-core
-COPY packages/ui packages/ui
 RUN pnpm --filter @repo/i18n-core build && pnpm --filter platform build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime

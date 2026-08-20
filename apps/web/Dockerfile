@@ -9,15 +9,15 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json apps/web/package.json
-COPY packages/i18n-core/package.json packages/i18n-core/package.json
-COPY packages/ui/package.json packages/ui/package.json
+# The root prepare lifecycle builds workspace packages during install, so their
+# build inputs must already exist in the dependency layer.
+COPY packages/i18n-core packages/i18n-core
+COPY packages/ui packages/ui
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter web...
 
 FROM dependencies AS build
 COPY apps/web apps/web
-COPY packages/i18n-core packages/i18n-core
-COPY packages/ui packages/ui
 RUN pnpm --filter @repo/i18n-core build && pnpm --filter web build
 
 FROM node:24-bookworm-slim AS runtime

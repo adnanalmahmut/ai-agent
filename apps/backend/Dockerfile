@@ -1,6 +1,12 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24-bookworm-slim AS dependencies
+FROM node:24-bookworm-slim AS base
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM base AS dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -9,19 +15,20 @@ WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/backend/package.json apps/backend/package.json
-COPY packages/i18n-core/package.json packages/i18n-core/package.json
+# The root prepare lifecycle builds workspace packages during install, so their
+# build inputs must already exist in the dependency layer.
+COPY packages/i18n-core packages/i18n-core
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter backend...
 
 FROM dependencies AS build
 COPY apps/backend apps/backend
-COPY packages/i18n-core packages/i18n-core
 RUN pnpm --filter @repo/i18n-core build \
-    && pnpm --filter backend prisma:generate \
+    && DATABASE_URL=postgresql://build:build@localhost:5432/build pnpm --filter backend prisma:generate \
     && pnpm --filter backend build \
     && pnpm --filter backend deploy --legacy --prod /out/backend
 
-FROM node:24-bookworm-slim AS runtime
+FROM base AS runtime
 
 ENV NODE_ENV=production
 WORKDIR /app
@@ -33,5 +40,6 @@ CMD ["node", "dist/src/main"]
 FROM build AS migration
 
 ENV NODE_ENV=production
+WORKDIR /workspace/apps/backend
 USER node
-CMD ["pnpm", "--filter", "backend", "prisma", "migrate", "deploy"]
+CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]

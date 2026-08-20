@@ -227,7 +227,7 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
       target: migration
-    command: [pnpm, --filter, backend, prisma, migrate, deploy]
+    command: [node, node_modules/prisma/build/index.js, migrate, deploy]
     environment:
       DATABASE_URL: ${DATABASE_URL:-}
     networks:

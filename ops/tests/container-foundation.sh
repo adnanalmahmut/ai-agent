@@ -34,6 +34,7 @@ grep -Eq '^  redis_data:$' docker-compose.yml
 grep -Eq '^  geoip_data:$' docker-compose.yml
 grep -Eq 'command: \[node, dist/src/main\]' docker-compose.yml
 grep -Eq 'command: \[node, dist/src/worker\]' docker-compose.yml
+grep -Eq 'command: \[node, node_modules/prisma/build/index.js, migrate, deploy\]' docker-compose.yml
 grep -Eq '^[[:space:]]+APP_PORT: 3002$' docker-compose.yml
 if grep -Eq '^[[:space:]]+PORT: 3002$' docker-compose.yml; then
   echo 'backend compose service must configure APP_PORT, not PORT' >&2
@@ -59,5 +60,16 @@ for dockerfile in \
     exit 1
   fi
 done
+
+grep -Fq 'COPY packages/i18n-core packages/i18n-core' apps/backend/Dockerfile
+grep -Fq 'COPY packages/i18n-core packages/i18n-core' apps/web/Dockerfile
+grep -Fq 'COPY packages/ui packages/ui' apps/web/Dockerfile
+grep -Fq 'COPY packages/i18n-core packages/i18n-core' apps/platform/Dockerfile
+grep -Fq 'COPY packages/ui packages/ui' apps/platform/Dockerfile
+grep -Fq 'CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]' apps/backend/Dockerfile
+if grep -Fq 'CMD ["pnpm",' apps/backend/Dockerfile; then
+  echo 'migration runtime must not depend on a mutable Corepack cache' >&2
+  exit 1
+fi
 
 echo 'container foundation invariants: ok'
