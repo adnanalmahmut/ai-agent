@@ -105,6 +105,7 @@ jobs:
           ops/tests/lightsail-boundary.sh
           ops/tests/deploy-service-health.sh
           ops/tests/image-publishing.sh
+          ops/tests/staging-cd.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.

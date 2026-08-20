@@ -1,0 +1,69 @@
+name: Deploy staging
+
+on:
+  workflow_run:
+    workflows: [Publish immutable images]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: staging
+      url: ${{ vars.DEPLOYMENT_URL }}
+    env:
+      RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+      VPS_HOST: ${{ vars.VPS_HOST }}
+      VPS_USER: ${{ vars.VPS_USER }}
+      DEPLOYMENT_URL: ${{ vars.DEPLOYMENT_URL }}
+    steps:
+      - name: Download publish digest manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: image-digests-${{ github.event.workflow_run.head_sha }}
+          path: release
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Validate immutable release metadata
+        run: |
+          test "$VPS_USER" = deploy
+          test -n "$VPS_HOST"
+          printf '%s\n' "$DEPLOYMENT_URL" | grep -Eq '^https://[A-Za-z0-9.-]+(:[0-9]+)?$'
+          test "$(jq -r .sha release/image-digests.json)" = "$RELEASE_SHA"
+          jq -e '.backend,.migration,.web,.platform | test("^ghcr\\.io/.+@sha256:[0-9a-f]{64}$")' release/image-digests.json >/dev/null
+
+      - name: Install restricted SSH identity
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_SSH_KNOWN_HOSTS: ${{ vars.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          install -d -m 0700 "$RUNNER_TEMP/ssh"
+          install -m 0600 /dev/null "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" >"$RUNNER_TEMP/ssh/known_hosts"
+
+      - name: Deploy migration-gated release
+        run: |
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy staging $RELEASE_SHA"
+
+      - name: Verify restricted host health
+        run: |
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "health staging"
+
+      - name: External HTTPS smoke tests
+        run: |
+          curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/" >/dev/null
+          curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/platform/" >/dev/null
+          curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/api/health/ready" >/dev/null
