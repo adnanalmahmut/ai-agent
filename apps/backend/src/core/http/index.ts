@@ -3,6 +3,10 @@
  * and the single exception filter.
  */
 export { HttpInfrastructureModule } from './http.module';
+export {
+  configureTrustedProxy,
+  overwriteDirectClientIpHeaders,
+} from './client-ip';
 
 export { createZodDto, isZodDto, toValidationIssues } from './validation';
 export {

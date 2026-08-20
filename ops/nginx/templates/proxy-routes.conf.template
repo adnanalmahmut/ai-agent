@@ -1,0 +1,14 @@
+location ^~ /api/ {
+    proxy_pass http://127.0.0.1:__BACKEND_PORT__;
+    include /etc/nginx/snippets/ai-agent-proxy-common.conf;
+}
+
+location ^~ /platform/ {
+    proxy_pass http://127.0.0.1:__PLATFORM_PORT__;
+    include /etc/nginx/snippets/ai-agent-proxy-common.conf;
+}
+
+location / {
+    proxy_pass http://127.0.0.1:__WEB_PORT__;
+    include /etc/nginx/snippets/ai-agent-proxy-common.conf;
+}

@@ -182,6 +182,11 @@ export function createAuth(dependencies: {
     ],
 
     advanced: {
+      ipAddress: {
+        // Host Nginx overwrites this header from `$remote_addr`; Better Auth
+        // uses it for both session attribution and its independent limiter.
+        ipAddressHeaders: ['x-real-ip'],
+      },
       cookies: {
         session_token: {
           name: '__Host-session',

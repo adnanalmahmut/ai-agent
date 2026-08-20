@@ -1,10 +1,13 @@
 import type { INestApplication, Type } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import request, { type Response } from 'supertest';
 import type { App } from 'supertest/types';
 
 import { AppModule } from '../../src/app.module';
+import { httpConfig } from '../../src/config';
+import { configureTrustedProxy } from '../../src/core/http';
 import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
 import type { MailTransport } from '../../src/core/mail/mail-transport';
 import type {
@@ -89,6 +92,11 @@ export async function createHarness(
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     bodyParser: false,
   });
+
+  configureTrustedProxy(
+    app,
+    app.get<ConfigType<typeof httpConfig>>(httpConfig.KEY),
+  );
 
   if (options.globalPrefix) app.setGlobalPrefix(options.globalPrefix);
 
