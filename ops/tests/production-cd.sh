@@ -16,6 +16,7 @@ grep -Fq 'rollback production' "$workflow"
 grep -Fq 'PREVIOUS_RELEASE.json' ops/lightsail/ai-agent-deploy
 grep -Fq 'CURRENT_RELEASE.json' ops/lightsail/ai-agent-deploy
 grep -Fq 'digest_from_manifest "$previous_release" backend' ops/lightsail/ai-agent-deploy
+grep -Fq 'ops/tests/release-manifest.sh' .github/workflows/ci.yml
 
 if grep -Eq 'headSha|head_sha|image-digests-' "$workflow"; then
   echo 'production evidence must come from the trusted staging manifest' >&2
