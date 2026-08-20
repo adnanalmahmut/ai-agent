@@ -1,10 +1,5 @@
 name: ai-agent
 
-x-runtime-env: &runtime-env
-  env_file:
-    - path: ${RUNTIME_ENV_FILE:-./ops/environments/runtime.env}
-      required: false
-
 x-app-security: &app-security
   restart: unless-stopped
   init: true
@@ -104,7 +99,7 @@ services:
       retries: 10
 
   backend:
-    <<: [*runtime-env, *app-security]
+    <<: *app-security
     profiles: [staging, production]
     image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
     build:
@@ -113,8 +108,44 @@ services:
       target: runtime
     command: [node, dist/src/main]
     environment:
-      PORT: 3002
-      GEOIP_DATABASE_PATH: /usr/share/GeoIP/GeoLite2-City.mmdb
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_PORT: 3002
+      APP_NAME: ${APP_NAME:-API Service}
+      APP_PLATFORM_URL: ${APP_PLATFORM_URL:-}
+      APP_SHUTDOWN_READINESS_DELAY_MS: ${APP_SHUTDOWN_READINESS_DELAY_MS:-5000}
+      APP_SHUTDOWN_TIMEOUT_MS: ${APP_SHUTDOWN_TIMEOUT_MS:-30000}
+      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_CONNECT_TIMEOUT_MS: ${DATABASE_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-app}
+      REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_COMMAND_TIMEOUT_MS: ${REDIS_COMMAND_TIMEOUT_MS:-2000}
+      REDIS_MAX_RETRIES_PER_REQUEST: ${REDIS_MAX_RETRIES_PER_REQUEST:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_PRETTY: ${LOG_PRETTY:-false}
+      OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
+      OPENAPI_PATH: ${OPENAPI_PATH:-/docs}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
+      GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MAIL_DRIVER: ${MAIL_DRIVER:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-API Service}
+      MAIL_LOG_WRITE_HTML: ${MAIL_LOG_WRITE_HTML:-false}
+      MAIL_TIMEOUT_MS: ${MAIL_TIMEOUT_MS:-10000}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
     ports:
       - 127.0.0.1:${BACKEND_HOST_PORT:-3002}:3002
     volumes:
@@ -128,8 +159,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -142,7 +171,7 @@ services:
       start_period: 30s
 
   worker:
-    <<: [*runtime-env, *app-security]
+    <<: *app-security
     profiles: [staging, production]
     image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
     build:
@@ -150,6 +179,31 @@ services:
       dockerfile: apps/backend/Dockerfile
       target: runtime
     command: [node, dist/src/worker]
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_SHUTDOWN_TIMEOUT_MS: ${APP_SHUTDOWN_TIMEOUT_MS:-30000}
+      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_CONNECT_TIMEOUT_MS: ${DATABASE_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-app}
+      REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_COMMAND_TIMEOUT_MS: ${REDIS_COMMAND_TIMEOUT_MS:-2000}
+      REDIS_MAX_RETRIES_PER_REQUEST: ${REDIS_MAX_RETRIES_PER_REQUEST:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_PRETTY: ${LOG_PRETTY:-false}
+      QUEUE_PREFIX: ${QUEUE_PREFIX:-bmq}
+      QUEUE_WORKER_CONCURRENCY: ${QUEUE_WORKER_CONCURRENCY:-4}
+      QUEUE_JOB_ATTEMPTS: ${QUEUE_JOB_ATTEMPTS:-3}
+      QUEUE_JOB_BACKOFF_MS: ${QUEUE_JOB_BACKOFF_MS:-2000}
+      QUEUE_COMPLETED_AGE_SECONDS: ${QUEUE_COMPLETED_AGE_SECONDS:-3600}
+      QUEUE_COMPLETED_COUNT: ${QUEUE_COMPLETED_COUNT:-1000}
+      QUEUE_FAILED_AGE_SECONDS: ${QUEUE_FAILED_AGE_SECONDS:-604800}
+      QUEUE_FAILED_COUNT: ${QUEUE_FAILED_COUNT:-5000}
+      QUEUE_SHUTDOWN_GRACE_MS: ${QUEUE_SHUTDOWN_GRACE_MS:-25000}
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-50}
+      OUTBOX_LEASE_MS: ${OUTBOX_LEASE_MS:-30000}
+      OUTBOX_WARN_AFTER_ATTEMPTS: ${OUTBOX_WARN_AFTER_ATTEMPTS:-10}
     networks:
       - edge
       - data
@@ -166,7 +220,7 @@ services:
       start_period: 20s
 
   migrate:
-    <<: [*runtime-env, *app-security]
+    <<: *app-security
     profiles: [migration]
     image: ${BACKEND_MIGRATION_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend-migration:${IMAGE_TAG:-development}}
     build:
@@ -174,6 +228,8 @@ services:
       dockerfile: apps/backend/Dockerfile
       target: migration
     command: [pnpm, --filter, backend, prisma, migrate, deploy]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-}
     networks:
       - data
     depends_on:
@@ -182,7 +238,7 @@ services:
     restart: "no"
 
   web:
-    <<: [*runtime-env, *app-security]
+    <<: *app-security
     profiles: [staging, production]
     image: ${WEB_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/web:${IMAGE_TAG:-development}}
     build:
@@ -225,11 +281,12 @@ services:
       start_period: 10s
 
   geoipupdate:
-    <<: *runtime-env
     profiles: [staging, production]
     image: ghcr.io/maxmind/geoipupdate:v7.1
     restart: unless-stopped
     environment:
+      GEOIPUPDATE_ACCOUNT_ID: ${GEOIPUPDATE_ACCOUNT_ID:-}
+      GEOIPUPDATE_LICENSE_KEY: ${GEOIPUPDATE_LICENSE_KEY:-}
       GEOIPUPDATE_EDITION_IDS: GeoLite2-City
       GEOIPUPDATE_FREQUENCY: "24"
     volumes:

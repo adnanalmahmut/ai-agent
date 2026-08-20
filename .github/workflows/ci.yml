@@ -99,6 +99,8 @@ jobs:
           docker compose --profile test config >/dev/null
           docker compose --profile staging --profile migration config >/dev/null
           ops/tests/container-foundation.sh
+          ops/tests/container-environment.sh
+          ops/tests/runtime-preflight.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.
@@ -203,3 +205,56 @@ jobs:
 
       - name: Build
         run: pnpm --filter platform run build
+
+  containers:
+    name: containers
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build exact production image targets without pushing
+        run: docker buildx bake --file docker-bake.hcl --load release
+
+      - name: Prove the API starts while Redis is unavailable
+        run: |
+          runtime_file="$RUNNER_TEMP/container-runtime.env"
+          {
+            echo 'NODE_ENV=staging'
+            echo 'POSTGRES_USER=app'
+            echo 'POSTGRES_PASSWORD=test-only-container-password'
+            echo 'POSTGRES_DB=app'
+            echo 'DATABASE_URL=postgresql://app:test-only-container-password@postgres:5432/app'
+            echo 'REDIS_URL=redis://redis:6379'
+            echo 'BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000'
+            echo 'BETTER_AUTH_URL=http://localhost:3002/api/auth'
+            echo 'BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000'
+            echo 'APP_PLATFORM_URL=http://localhost:3001/platform'
+            echo 'MAIL_DRIVER=log'
+            echo 'MAIL_FROM_ADDRESS=no-reply@example.test'
+            echo 'GOOGLE_AUTH_ENABLED=false'
+          } >"$runtime_file"
+          docker compose --env-file "$runtime_file" --profile staging --profile migration up -d --wait postgres
+          docker compose --env-file "$runtime_file" --profile staging --profile migration run --rm migrate
+          docker compose --env-file "$runtime_file" --profile staging up -d --no-deps backend
+          attempts=0
+          until curl --fail --silent --show-error http://127.0.0.1:3002/api/health/live >/dev/null; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -lt 30 ] || exit 1
+            sleep 2
+          done
+          test -n "$(docker compose --env-file "$runtime_file" --profile staging ps -q backend)"
+          test -z "$(docker compose --env-file "$runtime_file" --profile staging ps -q redis)"
+
+      - name: Stop verification containers
+        if: always()
+        run: |
+          runtime_file="$RUNNER_TEMP/container-runtime.env"
+          test ! -f "$runtime_file" || docker compose --env-file "$runtime_file" --profile staging stop backend postgres

@@ -29,7 +29,9 @@ docker compose build backend web platform migrate
 ```
 
 The staging/production runtime file is server-local. Start Compose with an
-explicit path; deployment automation will enforce this convention:
+explicit path; deployment automation will enforce this convention. Compose
+uses the file only for interpolation, and each service receives an explicit
+allowlist rather than the complete file:
 
 ```bash
 docker compose \
@@ -37,6 +39,10 @@ docker compose \
   --profile staging \
   up -d
 ```
+
+Before any staging or production startup, run
+`ops/runtime-preflight.sh <environment> /etc/ai-agent/runtime.env`. It validates
+required values without sourcing the file or printing their contents.
 
 Never use `docker compose down -v`, `docker volume prune`, or
 `docker system prune --volumes`; those commands can destroy persistent state.

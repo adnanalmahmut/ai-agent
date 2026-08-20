@@ -34,6 +34,20 @@ grep -Eq '^  redis_data:$' docker-compose.yml
 grep -Eq '^  geoip_data:$' docker-compose.yml
 grep -Eq 'command: \[node, dist/src/main\]' docker-compose.yml
 grep -Eq 'command: \[node, dist/src/worker\]' docker-compose.yml
+grep -Eq '^[[:space:]]+APP_PORT: 3002$' docker-compose.yml
+if grep -Eq '^[[:space:]]+PORT: 3002$' docker-compose.yml; then
+  echo 'backend compose service must configure APP_PORT, not PORT' >&2
+  exit 1
+fi
+backend_block=$(sed -n '/^  backend:/,/^  worker:/p' docker-compose.yml)
+if printf '%s\n' "$backend_block" | grep -Fq 'redis:'; then
+  echo 'backend must not hard-depend on Redis health' >&2
+  exit 1
+fi
+if grep -Fq 'env_file:' docker-compose.yml; then
+  echo 'containers must receive explicit environment allowlists' >&2
+  exit 1
+fi
 
 for dockerfile in \
   apps/backend/Dockerfile \

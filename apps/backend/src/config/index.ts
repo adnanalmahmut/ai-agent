@@ -30,3 +30,12 @@ export const configurations = [
   redisConfig,
   queueConfig,
 ];
+
+/** Configuration namespaces used by the non-HTTP worker composition root. */
+export const workerConfigurations = [
+  appConfig,
+  databaseConfig,
+  observabilityConfig,
+  redisConfig,
+  queueConfig,
+];
