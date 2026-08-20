@@ -43,6 +43,7 @@ jq -e '.services.backend.depends_on.redis == null' "$rendered" >/dev/null
 jq -e '.services.worker.environment.BETTER_AUTH_SECRET == null' "$rendered" >/dev/null
 jq -e '.services.worker.environment.GOOGLE_CLIENT_SECRET == null' "$rendered" >/dev/null
 jq -e '.services.worker.environment.SMTP_PASSWORD == null' "$rendered" >/dev/null
+jq -e '.services.worker.environment.RATE_LIMIT_ENABLED == null' "$rendered" >/dev/null
 jq -e '.services.migrate.environment | keys == ["DATABASE_URL"]' "$rendered" >/dev/null
 jq -e '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]' "$rendered" >/dev/null
 jq -e '.services.platform.environment == null' "$rendered" >/dev/null

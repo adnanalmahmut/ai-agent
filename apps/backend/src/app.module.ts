@@ -10,6 +10,7 @@ import { AppI18nModule } from './core/i18n';
 import { LifecycleModule } from './core/lifecycle';
 import { MailModule } from './core/mail';
 import { createLoggerOptions } from './core/providers/logger.options';
+import { RateLimitModule } from './core/rate-limit';
 import { DatabaseModule } from './database';
 
 @Module({
@@ -26,6 +27,7 @@ import { DatabaseModule } from './database';
     LifecycleModule,
     AppI18nModule,
     HttpInfrastructureModule,
+    RateLimitModule,
     DatabaseModule,
     MailModule,
     AppAuthModule,

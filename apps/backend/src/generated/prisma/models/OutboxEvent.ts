@@ -523,14 +523,6 @@ export type EnumOutboxEventStatusFieldUpdateOperationsInput = {
   set?: $Enums.OutboxEventStatus
 }
 
-export type IntFieldUpdateOperationsInput = {
-  set?: number
-  increment?: number
-  decrement?: number
-  multiply?: number
-  divide?: number
-}
-
 
 
 export type OutboxEventSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{

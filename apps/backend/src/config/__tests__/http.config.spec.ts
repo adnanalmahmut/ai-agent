@@ -2,6 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
 import httpConfig from '../http.config';
 
+const DEFAULT_RATE_LIMIT = {
+  enabled: true,
+  points: 60,
+  durationSec: 60,
+  headerPrefix: 'RateLimit',
+  redisFailurePolicy: 'open',
+};
+
 describe('httpConfig', () => {
   const original = process.env;
 
@@ -22,6 +30,7 @@ describe('httpConfig', () => {
       expect(httpConfig()).toEqual({
         trustProxyHops: 0,
         overwriteDirectIpHeaders: true,
+        rateLimit: DEFAULT_RATE_LIMIT,
       });
     },
   );
@@ -34,6 +43,7 @@ describe('httpConfig', () => {
       expect(httpConfig()).toEqual({
         trustProxyHops: 1,
         overwriteDirectIpHeaders: false,
+        rateLimit: DEFAULT_RATE_LIMIT,
       });
     },
   );
@@ -42,5 +52,20 @@ describe('httpConfig', () => {
     process.env.NODE_ENV = 'preview';
 
     expect(() => httpConfig()).toThrow();
+  });
+
+  it('parses explicit rate-limit values without treating false as truthy', () => {
+    process.env.RATE_LIMIT_ENABLED = 'false';
+    process.env.RATE_LIMIT_POINTS = '12';
+    process.env.RATE_LIMIT_DURATION_SEC = '30';
+    process.env.RATE_LIMIT_HEADER_PREFIX = 'Quota';
+
+    expect(httpConfig().rateLimit).toEqual({
+      enabled: false,
+      points: 12,
+      durationSec: 30,
+      headerPrefix: 'Quota',
+      redisFailurePolicy: 'open',
+    });
   });
 });

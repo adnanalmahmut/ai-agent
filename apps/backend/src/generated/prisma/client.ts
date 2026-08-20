@@ -60,6 +60,12 @@ export type Account = Prisma.AccountModel
  */
 export type Verification = Prisma.VerificationModel
 /**
+ * Model RateLimit
+ * Concurrency-safe storage required by Better Auth 1.6.x's native limiter.
+ * Fields are derived from getAuthTables() for the installed version.
+ */
+export type RateLimit = Prisma.RateLimitModel
+/**
  * Model Organization
  * 
  */
