@@ -6,22 +6,22 @@ const rules = [
   },
   {
     id: 'git-direct-main-push',
-    pattern: /\bgit\s+push(?:\s+\S+)?\s+(?:HEAD:)?(?:refs\/heads\/)?(?:main|master)(?:\s|$)/i,
+    pattern: /\bgit\s+push\b[^\n]*\s(?:HEAD:)?(?:refs\/heads\/)?(?:main|master)(?=\s|$)/i,
     reason: 'Direct pushes to the default branch are forbidden; publish a review branch instead.',
   },
   {
     id: 'git-destructive-reset',
-    pattern: /\bgit\s+(?:reset\s+--hard|clean\s+-[^\s]*f)/i,
+    pattern: /\bgit(?:\s+-C\s+\S+)?\s+(?:reset\s+--hard|clean\s+-[^\s]*f)/i,
     reason: 'Destructive Git cleanup requires explicit human approval.',
   },
   {
     id: 'recursive-delete',
-    pattern: /(?:^|[;&|]\s*)rm\s+-(?:[^\s]*r[^\s]*f|[^\s]*f[^\s]*r)\b/i,
+    pattern: /(?:^|[;&|]\s*)(?:(?:sudo|command)\s+)?rm\s+(?=[^\n]*(?:-[^\s]*r|--recursive))(?=[^\n]*(?:-[^\s]*f|--force))/i,
     reason: 'Recursive forced deletion requires explicit human approval.',
   },
   {
     id: 'docker-volume-delete',
-    pattern: /\bdocker(?:\s+compose)?\s+(?:down\b[^\n]*\s-v\b|(?:volume|system)\s+prune\b)/i,
+    pattern: /\bdocker(?:\s+compose)?\b[^\n]*\bdown\b[^\n]*(?:\s-v\b|--volumes\b)|\bdocker\s+(?:volume|system)\s+prune\b/i,
     reason: 'Deleting container volumes or pruning Docker state is destructive.',
   },
   {
@@ -41,7 +41,7 @@ const rules = [
   },
   {
     id: 'manual-remote-access',
-    pattern: /(?:^|[;&|]\s*)(?:ssh|scp|sftp)\b/i,
+    pattern: /(?:^|[;&|]\s*)(?:sudo\s+)?(?:ssh|scp|sftp)\b/i,
     reason: 'Manual remote-host access is outside the repository automation boundary.',
   },
 ];

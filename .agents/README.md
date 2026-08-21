@@ -30,3 +30,9 @@ skills load only when relevant; source/runtime evidence resolves the remainder.
 - Hook configs call Node scripts in `.agents/hooks/`; no executable hook logic
   lives under a tool directory.
 - Cursor commands are omitted when a portable skill is the correct abstraction.
+
+## Validation
+
+Run `pnpm agents:check` after changing canonical guidance, roles, workflows,
+skills, hook policy, or any tool adapter. The same command is a dedicated CI
+job and includes the portable hook-policy regression tests.
