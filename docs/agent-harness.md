@@ -57,7 +57,7 @@ knowledge base or every policy into each tool prompt.
 ## Maintenance
 
 Change canonical semantics first, update only adapters affected by schema, run
-the harness validation command once introduced by the validation layer, and
+`pnpm agents:check`, and
 update this document when ownership or discovery changes. Official tool
 documentation must be rechecked before adopting a new adapter field or
 lifecycle event.

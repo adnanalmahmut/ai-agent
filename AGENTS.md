@@ -82,6 +82,8 @@ repository evidence; ask only when a choice materially changes the outcome.
 Run the narrowest relevant check while iterating, then the required aggregate
 checks before handoff. Common commands:
 
+- `pnpm agents:check` for canonical roles, adapters, skills, workflows, hooks,
+  local links, secret literals, and deployment-state consistency
 - `pnpm typecheck`
 - `pnpm lint`
 - `pnpm test`

@@ -45,3 +45,9 @@ containing only the target path. That is not a supported adapter: do not copy
 skill bodies or accept the path-text file. Fix the checkout; the stack's
 `pnpm agents:check` validation layer reports this condition explicitly once
 that layer is present.
+
+## Validation
+
+Run `pnpm agents:check` after changing canonical guidance, roles, workflows,
+skills, hook policy, or any tool adapter. The same command is a dedicated CI
+job and includes the portable hook-policy regression tests.
