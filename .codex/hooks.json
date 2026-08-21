@@ -6,7 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/pre-tool.mjs codex"
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/pre-tool.mjs\" codex",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$root = git rev-parse --show-toplevel; & node (Join-Path $root '.agents/hooks/pre-tool.mjs') codex\""
           }
         ]
       }
@@ -16,7 +17,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/stop-check.mjs codex",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/stop-check.mjs\" codex",
+            "commandWindows": "powershell.exe -NoProfile -NonInteractive -Command \"$root = git rev-parse --show-toplevel; & node (Join-Path $root '.agents/hooks/stop-check.mjs') codex\"",
             "timeout": 180
           }
         ]

@@ -6,7 +6,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/pre-tool.mjs claude"
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.agents/hooks/pre-tool.mjs",
+              "claude"
+            ]
           }
         ]
       }
@@ -16,7 +20,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node .agents/hooks/stop-check.mjs claude",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.agents/hooks/stop-check.mjs",
+              "claude"
+            ],
             "timeout": 180
           }
         ]
