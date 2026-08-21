@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": "Shell",
+        "command": "node .agents/hooks/pre-tool.mjs cursor",
+        "failClosed": true
+      }
+    ],
+    "stop": [
+      {
+        "command": "node .agents/hooks/stop-check.mjs cursor",
+        "loop_limit": 2
+      }
+    ]
+  }
+}
