@@ -42,6 +42,12 @@ links, unsafe hook definitions, and contradictory deployment-state claims.
 | Hooks | `.codex/hooks.json` | `.claude/settings.json` | `.cursor/hooks.json` |
 | Reusable commands | Portable skills | Portable skills | Portable skills; no parallel command tree |
 
+Claude's skill adapters are symlinks, not generated copies. WSL/Linux
+checkouts normally preserve them. Native Windows contributors must enable Git
+symlink checkout on a symlink-capable filesystem before checkout; a regular
+file containing the link target is invalid and is rejected by harness
+validation. See [the adapter contract](../.agents/README.md#symlink-checkout-contract).
+
 ## Context discipline
 
 Load context in this order: small router, focused docs, selected role/workflow,

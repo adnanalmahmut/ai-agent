@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { stopDecision } from './policy.mjs';
+
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 async function readInput() {
   let data = '';
@@ -16,7 +20,7 @@ async function readInput() {
 
 function run(command, args) {
   return spawnSync(command, args, {
-    cwd: process.cwd(),
+    cwd: repositoryRoot,
     encoding: 'utf8',
     timeout: 120_000,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -30,9 +34,10 @@ const whitespace = run('git', ['diff', '--check']);
 if (whitespace.status !== 0) failures.push('git diff --check');
 
 try {
-  const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
+  const packageJson = JSON.parse(readFileSync(resolve(repositoryRoot, 'package.json'), 'utf8'));
   if (packageJson.scripts?.['agents:check']) {
-    const check = run('pnpm', ['agents:check']);
+    const packageManager = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+    const check = run(packageManager, ['agents:check']);
     if (check.status !== 0) failures.push('pnpm agents:check');
   }
 } catch {

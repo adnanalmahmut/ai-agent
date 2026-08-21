@@ -36,7 +36,7 @@ const rules = [
   },
   {
     id: 'runtime-env',
-    pattern: /\/etc\/ai-agent\/runtime\.env\b/i,
+    pattern: /(?:^|[;&|]\s*)(?:sudo\s+)?(?:cat|less|more|head|tail|sed|awk|nano|vi|vim|emacs|cp|mv|install|chmod|chown|rm|shred|source|tee|stat|file|strings|wc|tar)\b[^\n]*\/etc\/ai-agent\/runtime\.env\b|(?:^|[;&|]\s*)(?:sudo\s+)?\.\s+["']?\/etc\/ai-agent\/runtime\.env\b|(?:^|[;&|]\s*)(?:sudo\s+)?(?:grep|rg)\b(?:\s+--?\S+)*\s+(?:"[^"]*"|'[^']*'|\S+)\s+["']?\/etc\/ai-agent\/runtime\.env\b|(?:^|[^<])(?:<|>>?)\s*["']?\/etc\/ai-agent\/runtime\.env\b/i,
     reason: 'The staged runtime environment file must not be read or changed by repository agents.',
   },
   {
@@ -91,25 +91,14 @@ export function preToolDecision(harness, violation) {
 export function stopDecision(harness, failures, input = {}) {
   if (failures.length === 0) return {};
 
-  const repeated = input.stop_hook_active === true || Number(input.loop_count ?? 0) >= 2;
   const reason = `Repository completion checks failed: ${failures.join('; ')}`;
-  if (repeated) {
-    return harness === 'cursor'
-      ? { system_message: `${reason}. The bounded retry limit is reached; report the failure.` }
-      : { systemMessage: `${reason}. The bounded retry limit is reached; report the failure.` };
-  }
 
   if (harness === 'cursor') {
+    if (Number(input.loop_count ?? 0) >= 2) return {};
     return { followup_message: `${reason}. Repair the evidenced issue, re-run validation, and stop after at most two retries.` };
   }
 
-  if (harness === 'claude') return { decision: 'block', reason };
+  if (input.stop_hook_active === true) return {};
 
-  return {
-    hookSpecificOutput: {
-      hookEventName: 'Stop',
-      decision: 'block',
-      reason,
-    },
-  };
+  return { decision: 'block', reason };
 }
