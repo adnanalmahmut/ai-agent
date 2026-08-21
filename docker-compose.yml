@@ -25,6 +25,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
+      - edge
       - data
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
@@ -46,6 +47,7 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
     networks:
+      - edge
       - data
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
@@ -68,6 +70,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
+      - edge
       - data
     healthcheck:
       test: [CMD, redis-cli, ping]
@@ -91,6 +94,7 @@ services:
     ports:
       - 127.0.0.1:${REDIS_TEST_PORT:-6378}:6379
     networks:
+      - edge
       - data
     healthcheck:
       test: [CMD, redis-cli, ping]

@@ -32,10 +32,7 @@ import { useTranslations } from 'use-intl';
 
 import { BrandMark } from '@/components/brand-mark';
 import { publicConfig } from '@/config/public';
-import {
-  ORGANIZATION_ROUTES,
-  PLATFORM_ROUTES,
-} from '@/features/auth/routes';
+import { ORGANIZATION_ROUTES, PLATFORM_ROUTES } from '@/features/auth/routes';
 import { useGlobalPermission } from '@/features/authorization/use-permissions';
 import { OrganizationSwitcher } from '@/features/organization/components/organization-switcher';
 import { UserAccountMenu } from '@/features/platform-shell/user-account-menu';
@@ -155,7 +152,10 @@ export function PlatformSidebar() {
             </span>
           </Link>
 
-          <SidebarTrigger label={t('nav.toggle')} className="size-7 shrink-0 text-muted-foreground hover:text-foreground" />
+          <SidebarTrigger
+            label={t('nav.toggle')}
+            className="size-7 shrink-0 text-muted-foreground hover:text-foreground"
+          />
         </div>
 
         {/* Workspace Switcher */}
@@ -167,13 +167,17 @@ export function PlatformSidebar() {
           aria-label={t('nav.search')}
           className="group flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border/40 bg-secondary px-2.5 text-xs text-muted-foreground transition-colors hover:border-border hover:bg-muted group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center"
           onClick={() => {
-            const searchInput = document.querySelector<HTMLInputElement>('input[type="search"]');
+            const searchInput = document.querySelector<HTMLInputElement>(
+              'input[type="search"]',
+            );
             if (searchInput) searchInput.focus();
           }}
         >
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center">
             <Search className="size-3.5 text-muted-foreground group-hover:text-foreground" />
-            <span className="truncate group-data-[collapsible=icon]:hidden">{t('nav.search')}</span>
+            <span className="truncate group-data-[collapsible=icon]:hidden">
+              {t('nav.search')}
+            </span>
           </div>
           <kbd className="inline-flex h-4 items-center gap-0.5 rounded border border-border/60 bg-background px-1 text-xs font-mono text-muted-foreground group-data-[collapsible=icon]:hidden">
             <Command className="size-2.5" />K
@@ -186,7 +190,7 @@ export function PlatformSidebar() {
       {/* Navigation Drawer Content */}
       <SidebarContent className="px-2 group-data-[collapsible=icon]:px-1">
         <SidebarGroup className="p-1 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:items-center">
-          <SidebarGroupLabel className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-sidebar-section-title group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="px-2 py-1 text-xs uppercase tracking-wider text-sidebar-section-title group-data-[collapsible=icon]:hidden">
             {t('nav.platformGroup')}
           </SidebarGroupLabel>
 
@@ -195,14 +199,17 @@ export function PlatformSidebar() {
               {primary.map((item) => {
                 const active = isCurrent(item);
                 return (
-                  <SidebarMenuItem key={item.href} className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                  <SidebarMenuItem
+                    key={item.href}
+                    className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
+                  >
                     <SidebarMenuButton
                       asChild
                       isActive={active}
                       tooltip={item.label}
-                      className={`group relative flex h-8 w-full items-center justify-between rounded-md px-2 py-1 text-xs font-medium transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 ${
+                      className={`group relative flex h-8 w-full items-center justify-between rounded-md px-2 py-1 text-xs transition-colors group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 ${
                         active
-                          ? 'bg-sidebar-active font-semibold text-foreground'
+                          ? 'bg-sidebar-active text-foreground'
                           : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground'
                       }`}
                     >
@@ -212,12 +219,19 @@ export function PlatformSidebar() {
                         className="flex w-full items-center justify-between group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center"
                       >
                         <div className="flex items-center gap-2 truncate group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center">
-                          <item.Icon className={`size-4 shrink-0 ${active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`} />
-                          <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
+                          <item.Icon
+                            className={`size-4 shrink-0 ${active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}
+                          />
+                          <span className="truncate group-data-[collapsible=icon]:hidden">
+                            {item.label}
+                          </span>
                         </div>
 
                         {item.shortcut && (
-                          <span aria-hidden="true" className="text-xs font-mono text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity group-data-[collapsible=icon]:hidden">
+                          <span
+                            aria-hidden="true"
+                            className="text-xs font-mono text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity group-data-[collapsible=icon]:hidden"
+                          >
                             {item.shortcut}
                           </span>
                         )}
@@ -232,7 +246,7 @@ export function PlatformSidebar() {
 
         {current ? (
           <SidebarGroup className="p-1 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:items-center">
-            <SidebarGroupLabel className="px-2 py-1 text-xs font-medium uppercase tracking-wider text-sidebar-section-title group-data-[collapsible=icon]:hidden">
+            <SidebarGroupLabel className="px-2 py-1 text-xs uppercase tracking-wider text-sidebar-section-title group-data-[collapsible=icon]:hidden">
               <span className="truncate">{current.name}</span>
             </SidebarGroupLabel>
 
@@ -241,13 +255,16 @@ export function PlatformSidebar() {
                 {organizationSections.map((item) => {
                   const active = isCurrent(item);
                   return (
-                    <SidebarMenuSubItem key={item.href} className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center">
+                    <SidebarMenuSubItem
+                      key={item.href}
+                      className="group-data-[collapsible=icon]:flex group-data-[collapsible=icon]:justify-center"
+                    >
                       <SidebarMenuSubButton
                         asChild
                         isActive={active}
-                        className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-xs font-medium transition-colors group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 ${
+                        className={`flex h-7 w-full items-center gap-2 rounded-md px-2 text-xs transition-colors group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0 ${
                           active
-                            ? 'bg-sidebar-active font-semibold text-foreground'
+                            ? 'bg-sidebar-active text-foreground font-medium'
                             : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-foreground'
                         }`}
                       >
@@ -256,8 +273,12 @@ export function PlatformSidebar() {
                           aria-current={active ? 'page' : undefined}
                           className="flex items-center gap-2 truncate group-data-[collapsible=icon]:gap-0 group-data-[collapsible=icon]:justify-center"
                         >
-                          <item.Icon className={`size-3.5 shrink-0 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
-                          <span className="truncate group-data-[collapsible=icon]:hidden">{item.label}</span>
+                          <item.Icon
+                            className={`size-3.5 shrink-0 ${active ? 'text-primary' : 'text-muted-foreground'}`}
+                          />
+                          <span className="truncate group-data-[collapsible=icon]:hidden">
+                            {item.label}
+                          </span>
                         </Link>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
