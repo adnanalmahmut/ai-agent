@@ -13,6 +13,7 @@ configuration win when a document disagrees with implementation.
   owning application and source.
 - [Runtime configuration](configuration.md) explains configuration and secret
   ownership without publishing values.
+- [Agent harness](agent-harness.md) describes the tool-neutral context model.
 
 ## Application and data
 
