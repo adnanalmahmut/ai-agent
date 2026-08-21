@@ -2,8 +2,9 @@
 import { lstatSync, readFileSync, readlinkSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, extname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const root = process.cwd();
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const errors = [];
 const expectedRoles = [
   'code-reviewer',
@@ -170,7 +171,7 @@ function validateSkills() {
   for (const name of exposed) {
     const adapter = join(claudeSkills, name);
     if (!lstatSync(adapter).isSymbolicLink()) {
-      fail(`${relative(root, adapter)} must be a symlink, not a copied skill`);
+      fail(`${relative(root, adapter)} must be a symlink; this checkout may have materialized Git link text (check core.symlinks and the Windows symlink prerequisite)`);
       continue;
     }
     const target = resolve(dirname(adapter), readlinkSync(adapter));
@@ -202,9 +203,10 @@ function validateWorkflows() {
 }
 
 function validateHooks() {
+  const configs = {};
   for (const config of ['.codex/hooks.json', '.claude/settings.json', '.cursor/hooks.json']) {
     try {
-      JSON.parse(read(join(root, config)));
+      configs[config] = JSON.parse(read(join(root, config)));
     } catch (error) {
       fail(`${config} is invalid JSON: ${error.message}`);
     }
@@ -215,12 +217,41 @@ function validateHooks() {
     if (result.status !== 0) fail(`${script} fails node --check: ${(result.stderr || result.stdout).trim()}`);
   }
 
-  for (const config of ['.codex/hooks.json', '.claude/settings.json', '.cursor/hooks.json']) {
-    const source = read(join(root, config));
-    for (const match of source.matchAll(/node\s+(\.agents\/hooks\/[\w./-]+\.mjs)/g)) {
-      if (!exists(join(root, match[1]))) fail(`${config} references missing hook ${match[1]}`);
+  const hookScripts = [
+    ['PreToolUse', 'pre-tool.mjs'],
+    ['Stop', 'stop-check.mjs'],
+  ];
+
+  const codex = configs['.codex/hooks.json'];
+  for (const [event, script] of hookScripts) {
+    const hook = codex?.hooks?.[event]?.[0]?.hooks?.[0];
+    const posix = `node \"$(git rev-parse --show-toplevel)/.agents/hooks/${script}\" codex`;
+    const windows = `powershell.exe -NoProfile -NonInteractive -Command \"$root = git rev-parse --show-toplevel; & node (Join-Path $root '.agents/hooks/${script}') codex\"`;
+    if (hook?.command !== posix) fail(`.codex/hooks.json ${event} must resolve ${script} from the POSIX Git root`);
+    if (hook?.commandWindows !== windows) fail(`.codex/hooks.json ${event} must resolve ${script} from the Windows Git root`);
+  }
+
+  const claude = configs['.claude/settings.json'];
+  for (const [event, script] of hookScripts) {
+    const hook = claude?.hooks?.[event]?.[0]?.hooks?.[0];
+    if (hook?.command !== 'node') fail(`.claude/settings.json ${event} must use command-hook exec form`);
+    if (JSON.stringify(hook?.args) !== JSON.stringify([`${'${CLAUDE_PROJECT_DIR}'}/.agents/hooks/${script}`, 'claude'])) {
+      fail(`.claude/settings.json ${event} must resolve ${script} from CLAUDE_PROJECT_DIR`);
     }
   }
+
+  const cursor = configs['.cursor/hooks.json'];
+  const cursorHooks = [
+    ['preToolUse', 'pre-tool.mjs'],
+    ['stop', 'stop-check.mjs'],
+  ];
+  for (const [event, script] of cursorHooks) {
+    const hook = cursor?.hooks?.[event]?.[0];
+    if (hook?.command !== `node .agents/hooks/${script} cursor`) {
+      fail(`.cursor/hooks.json ${event} must use the documented project-root cwd for ${script}`);
+    }
+  }
+  if (cursor?.hooks?.stop?.[0]?.loop_limit !== 2) fail('.cursor/hooks.json stop must keep the bounded loop_limit of 2');
 }
 
 function validateMarkdownLinks() {

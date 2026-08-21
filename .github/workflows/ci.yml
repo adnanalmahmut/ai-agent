@@ -230,6 +230,9 @@ jobs:
       - name: Lint
         run: pnpm --filter platform run lint
 
+      - name: Lint shared UI
+        run: pnpm --filter @repo/ui run lint
+
       - name: Unit and component tests
         run: pnpm --filter platform test -- --run
 
