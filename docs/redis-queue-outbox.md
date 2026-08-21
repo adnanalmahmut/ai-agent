@@ -28,3 +28,11 @@ BullMQ job IDs are only an optimization. Unknown publish failures retry with
 capped backoff, while deterministically invalid payloads are parked and kept.
 Known gaps in the current application are outbox retention and exported backlog
 metrics.
+
+The internal AgentRun acceptance boundary follows that existing path: one
+PostgreSQL transaction creates a `QUEUED` `agent_run` and an
+`agent-run.queued` outbox event whose payload is only `{ runId }` and whose
+dedupe key is that run id. The existing route publishes `execute` to
+`agent-execution`. There is intentionally no public AgentRun endpoint or
+production agent definition yet; the first real agent feature will supply the
+authorized caller and definition.

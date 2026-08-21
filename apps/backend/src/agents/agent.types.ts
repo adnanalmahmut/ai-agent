@@ -1,0 +1,44 @@
+export const AGENT_RUN_STATUSES = [
+  'QUEUED',
+  'RUNNING',
+  'SUCCEEDED',
+  'FAILED',
+] as const;
+
+export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
+
+/** JSON-compatible application data, independent of Prisma and runtime SDKs. */
+export type AgentValue =
+  | null
+  | boolean
+  | number
+  | string
+  | AgentValue[]
+  | { [key: string]: AgentValue };
+
+export type AgentRun = {
+  id: string;
+  agentId: string;
+  runtime: string;
+  status: AgentRunStatus;
+  organizationId: string;
+  createdByUserId: string;
+  input: AgentValue;
+  output: AgentValue | null;
+  lastError: string | null;
+  attemptCount: number;
+  idempotencyKey: string;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type CreateAgentRun = {
+  agentId: string;
+  runtime: string;
+  organizationId: string;
+  createdByUserId: string;
+  input: AgentValue;
+  idempotencyKey: string;
+};

@@ -1,0 +1,4 @@
+# Prisma 7.9.1 deterministically emits indentation on otherwise blank lines in
+# enum field-reference declarations. Keep generated output byte-for-byte current
+# while retaining Git's whitespace checks for handwritten source.
+apps/backend/src/generated/prisma/** whitespace=-blank-at-eol

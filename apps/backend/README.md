@@ -86,9 +86,11 @@ not part of a module and live in `test/e2e/`, with their shared harness in
 
 ## Where state lives
 
-**PostgreSQL is authoritative.** Agent runs, steps, tool executions and LLM call
-records live only here. The system is designed so that losing the entire Redis
-instance costs throughput and nothing else.
+**PostgreSQL is authoritative.** Accepted AgentRuns and their lifecycle live
+only here. Agent steps, tool-execution ledgers and separate LLM-call records do
+not exist yet; they must not be inferred from the AgentRun foundation. The
+system is designed so that losing the entire Redis instance costs throughput
+and nothing else.
 
 **Redis is coordination.** Stream buffers, partial state, rate-limit windows,
 short-lived locks and BullMQ's own queue structures. Everything in it is either

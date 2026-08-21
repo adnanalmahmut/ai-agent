@@ -93,6 +93,7 @@ model User {
   accounts    Account[]
   memberships Member[]
   invitations Invitation[] @relation("InvitationInviter")
+  agentRunsCreated AgentRun[]
 
   @@unique([email])
   @@index([deletedAt])
@@ -194,6 +195,7 @@ model Organization {
 
   members     Member[]
   invitations Invitation[]
+  agentRuns    AgentRun[]
 
   @@unique([slug])
   @@index([archivedAt])
@@ -232,6 +234,63 @@ model Invitation {
   @@index([email])
   @@index([inviterId])
   @@map("invitation")
+}
+
+// ---------------------------------------------------------------------------
+// Agent execution
+// ---------------------------------------------------------------------------
+
+/// Durable business lifecycle for one accepted agent run.
+/// Separate from both `OutboxEventStatus` (whether the queue publish happened)
+/// and BullMQ's transport state (whether Redis currently holds a job).
+enum AgentRunStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+
+  @@map("agent_run_status")
+}
+
+/// Durable authority for one background agent execution.
+/// The runtime stays a string so adding a second application-supported runtime
+/// is a code change, not inherently a database migration. `agentId` names an
+/// application-owned definition; definitions are code, so it is deliberately
+/// not a foreign key.
+model AgentRun {
+  id              String         @id @default(uuid())
+  agentId         String
+  runtime         String
+  status          AgentRunStatus @default(QUEUED)
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  createdByUserId String
+  createdByUser   User   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  /// Application-owned input and result values. They are JSON so the database
+  /// does not make a runtime SDK's request/result types canonical.
+  input  Json
+  output Json?
+
+  /// Bounded diagnostic prose from the latest failed attempt. Never a stack,
+  /// serialized provider response, or raw error cause.
+  lastError    String?
+  attemptCount Int     @default(0)
+
+  /// Caller-supplied durable request identity, scoped to the organization.
+  /// BullMQ's job id is a secondary optimization and cannot replace this.
+  idempotencyKey String
+
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([createdByUserId])
+  @@map("agent_run")
 }
 
 // ---------------------------------------------------------------------------

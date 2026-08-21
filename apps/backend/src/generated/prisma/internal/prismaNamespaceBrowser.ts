@@ -59,6 +59,7 @@ export const ModelName = {
   Organization: 'Organization',
   Member: 'Member',
   Invitation: 'Invitation',
+  AgentRun: 'AgentRun',
   OutboxEvent: 'OutboxEvent'
 } as const
 
@@ -198,6 +199,27 @@ export const InvitationScalarFieldEnum = {
 export type InvitationScalarFieldEnum = (typeof InvitationScalarFieldEnum)[keyof typeof InvitationScalarFieldEnum]
 
 
+export const AgentRunScalarFieldEnum = {
+  id: 'id',
+  agentId: 'agentId',
+  runtime: 'runtime',
+  status: 'status',
+  organizationId: 'organizationId',
+  createdByUserId: 'createdByUserId',
+  input: 'input',
+  output: 'output',
+  lastError: 'lastError',
+  attemptCount: 'attemptCount',
+  idempotencyKey: 'idempotencyKey',
+  startedAt: 'startedAt',
+  completedAt: 'completedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type AgentRunScalarFieldEnum = (typeof AgentRunScalarFieldEnum)[keyof typeof AgentRunScalarFieldEnum]
+
+
 export const OutboxEventScalarFieldEnum = {
   id: 'id',
   type: 'type',
@@ -230,6 +252,14 @@ export const JsonNullValueInput = {
 } as const
 
 export type JsonNullValueInput = (typeof JsonNullValueInput)[keyof typeof JsonNullValueInput]
+
+
+export const NullableJsonNullValueInput = {
+  DbNull: DbNull,
+  JsonNull: JsonNull
+} as const
+
+export type NullableJsonNullValueInput = (typeof NullableJsonNullValueInput)[keyof typeof NullableJsonNullValueInput]
 
 
 export const QueryMode = {

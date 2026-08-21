@@ -8,5 +8,5 @@ export {
   isRoutableEventType,
   type OutboxEventType,
 } from './outbox-event.routes';
-export { OutboxModule } from './outbox.module';
+export { OutboxModule, OutboxPersistenceModule } from './outbox.module';
 export { OutboxRepository, type ClaimedOutboxEvent } from './outbox.repository';

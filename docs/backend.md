@@ -19,5 +19,11 @@ Mail is provider-selected (`log`, SMTP, Resend, or SES) behind `MailService`.
 Provider credentials are validated only when active, and outbound locale is
 resolved from validated account/request state.
 
+The agent feature currently provides only an internal durable acceptance
+foundation. `AgentRunService` commits an application-owned AgentRun and its
+`agent-run.queued` outbox event atomically, with organization-scoped PostgreSQL
+idempotency. No public create route or production agent definition is exposed,
+so this does not yet let a user execute an agent.
+
 Canonical implementation detail and delivery guarantees remain in
 [`apps/backend/README.md`](../apps/backend/README.md).
