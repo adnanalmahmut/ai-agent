@@ -7,10 +7,9 @@ production secrets.
   build, Prisma validate/generate/current-client check, workspace typecheck,
   lint, unit tests, migrations into real PostgreSQL, E2E against real
   PostgreSQL/Redis, and production build.
-- Platform: install/packages, workspace typecheck, lint, 520 unit/component
-  tests at the current stack head, and Vite build.
-- Web: install/packages, lint, 26 tests at the current stack head, and Next
-  production build.
+- Platform: install/packages, workspace typecheck, lint, unit/component tests,
+  and Vite build.
+- Web: install/packages, lint, tests, and Next production build.
 - Containers: Buildx Bake builds every exact production target without a push,
   then loads the backend runtime and migration targets, applies migrations to a
   real PostgreSQL container, and proves API liveness while Redis is absent.

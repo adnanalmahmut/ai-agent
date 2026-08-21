@@ -1,8 +1,9 @@
 # Lightsail host foundation
 
-Create two independent Ubuntu LTS instances, one `staging` and one
-`production`, each with a static IP. Never share PostgreSQL, Redis, volumes,
-runtime files, deploy keys, or instance snapshots between them.
+Staging is provisioned. The target topology adds an independent Ubuntu LTS
+`production` instance with its own static IP. Production is not provisioned and
+must not be operated. When an operator provisions it, never share PostgreSQL,
+Redis, volumes, runtime files, deploy keys, or snapshots with Staging.
 
 ```mermaid
 flowchart LR
@@ -18,7 +19,8 @@ flowchart LR
 
 ## Operator prerequisites
 
-1. Reserve each static IP and create the staging/production DNS A/AAAA records.
+1. For the environment being provisioned, reserve its static IP and create its
+   DNS A/AAAA records.
 2. In the Lightsail firewall allow TCP 80 and 443 globally. Allow TCP 22 only
    from the operator's trusted CIDR. Do not add 3000, 3001, 3002, 5432, or 6379.
 3. Keep the personal administrator key separate. Create a dedicated deployment
@@ -56,8 +58,9 @@ is in sudoers, runtime.env is `root:root 600`, and public listeners are only
 port forwarding, agent forwarding, PTY, `docker exec`, and secret reads are not
 deployment capabilities.
 
-Live DNS, Lightsail firewall, certificate issuance, and SSH boundary checks
-remain pending until the operator provisions the two instances.
+Repository checks do not prove live host state. Staging evidence is
+operator-owned; all Production DNS, firewall, certificate, SSH, runtime, and
+backup evidence remains pending until Production is provisioned.
 
 The deployment command accepts only a 40-character source SHA followed by four
 64-character digest hex values. Repository names are fixed inside the root

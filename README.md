@@ -18,8 +18,10 @@ flowchart LR
 ```
 
 Only Nginx is public. Container ports bind to loopback, PostgreSQL/Redis stay on
-Docker networks, and the worker has no HTTP listener. Staging and production
-are separate AWS Lightsail instances with independent state.
+Docker networks, and the worker has no HTTP listener. Staging is the only
+currently provisioned environment. Production topology and promotion tooling
+exist in the repository as a future target, but Production is not provisioned
+and must not be operated.
 
 ## Local development
 
@@ -41,6 +43,8 @@ uses the isolated Compose test profile and real PostgreSQL/Redis.
 
 ## Documentation
 
+- [Knowledge-base index](docs/README.md) and [current deployment state](docs/deployment-state.md)
+- [Feature inventory](docs/feature-inventory.md) and [runtime configuration](docs/configuration.md)
 - [Architecture](docs/architecture.md)
 - [Backend](docs/backend.md) and [frontend](docs/frontend.md)
 - [Authentication and RBAC](docs/authentication-rbac.md)
@@ -51,7 +55,7 @@ uses the isolated Compose test profile and real PostgreSQL/Redis.
 - [Backup/restore](docs/backup-restore.md), [security](docs/security.md), [operations](docs/operations-runbook.md), and [troubleshooting](docs/troubleshooting.md)
 - [Project history](docs/project-history.md)
 
-Production provisioning is operator-owned. The repository contains scripts and
-runbooks, but live DNS, VPS secrets, TLS issuance, Environment configuration,
-offsite backup, and restore drills remain pending until real infrastructure is
-available.
+Merging to `main` triggers immutable publishing and automatic Staging
+deployment. Production provisioning and operation are operator-owned and are
+not authorized agent actions. See the deployment-state record before changing
+delivery or operations documentation.

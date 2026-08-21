@@ -29,6 +29,6 @@ data. Never add runtime secrets to GitHub merely because a workflow needs to
 trigger deployment. A new proxy hop, auth route, role capability, Redis failure
 policy, migration, or deploy operation requires tests at its boundary.
 
-Known operational gaps remain operator-owned: live host hardening evidence,
-DNS/TLS, Environment protection, GHCR package policy, monitoring/alerting,
-offsite backup, and a recorded restore/rollback drill.
+Known operational gaps remain operator-owned: monitoring/alerting, offsite
+backup, a recorded restore drill, and all Production provisioning and evidence.
+Prepared Production automation does not grant agents authority to operate it.

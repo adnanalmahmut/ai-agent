@@ -19,6 +19,7 @@ API/readiness, worker/process status, web, and platform. GitHub exercises all
 three public HTTPS routes and uploads `staging-success-<sha>` containing the
 same digests and its own workflow-run identity.
 
-Operator verification remains pending until the staging Environment, host,
-DNS, certificate, server-local GHCR pull credential (if required), and
-root-owned runtime.env exist.
+Staging is provisioned and is changed only by the automatic post-`main` CD
+path. Repository agents must not deploy manually, connect to the VPS, edit the
+root-owned runtime file, or modify GitHub Environment values. Live host and
+credential evidence remains operator-owned and must not be copied into Git.

@@ -1,5 +1,9 @@
 # Production promotion and rollback
 
+> Production is not provisioned. This is a future operator runbook, not an
+> executable current-state instruction. Coding agents must not dispatch the
+> workflow, provision the environment, or operate a host.
+
 Production is never deployed by a push. An operator dispatches `Promote
 production` from `main`, chooses `promote`, and supplies an already-built
 40-character source SHA. The workflow searches only successful `Deploy staging`

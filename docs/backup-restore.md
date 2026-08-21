@@ -1,7 +1,9 @@
 # Backup and restore
 
-The production foundation combines Lightsail snapshots, daily logical
-PostgreSQL dumps, local retention, and a prepared off-instance encrypted copy.
+The recovery foundation is implemented for Staging and the target Production
+topology. It combines Lightsail snapshots, daily logical PostgreSQL dumps,
+local retention, and a prepared off-instance encrypted copy. Production is not
+currently provisioned, so no Production backup or restore evidence exists.
 Each dump is custom format, non-empty, catalog-validated, atomically published,
 and checksummed before the optional root-owned offsite hook runs.
 

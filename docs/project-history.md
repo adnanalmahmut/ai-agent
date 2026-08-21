@@ -12,7 +12,7 @@ versioning, indefinite transient retries, and durable idempotency expectations.
 The backend layout was subsequently flattened into a solo-developer-oriented
 `core` structure without changing those guarantees.
 
-The production stack then evolved through ten stacked changes:
+The deployable platform foundation then evolved through ten stacked changes:
 
 1. Multi-stage images and one profiled Compose topology.
 2. Host Nginx templates and canonical one-hop real IP.
@@ -25,6 +25,7 @@ The production stack then evolved through ten stacked changes:
 9. Verified PostgreSQL backup and restore-drill tooling.
 10. This source-backed system documentation.
 
-These PRs remain intentionally unmerged while reviewed as a stack. The history
-records architectural decisions, not every commit; Git remains the detailed
-change ledger.
+Those changes are merged. Staging is now the only provisioned/deployed
+environment; Production remains prepared target architecture. This history
+records durable milestones, not every commit; Git remains the detailed change
+ledger.

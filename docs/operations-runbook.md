@@ -12,10 +12,11 @@
 
 ## Release
 
-Merge only after stacked PR review. Main CI publishes once; staging deploys
-automatically from the exact publisher-run manifest. Verify staging behavior
-and its `staging-success-<SHA>` evidence. Dispatch production from `main` with
-that staged SHA, approve its Environment, and retain the deployment record.
+Merge only after stacked PR review. Main CI publishes once; Staging deploys
+automatically from the exact publisher-run manifest. Verify Staging behavior
+and its `staging-success-<SHA>` evidence. Production is not provisioned: do not
+dispatch its workflow. After future operator provisioning, its promotion
+procedure requires the staged SHA, Environment approval, and retained evidence.
 Never run migrations manually after a failed migration gate without
 understanding the database state.
 
