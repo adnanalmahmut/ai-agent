@@ -50,6 +50,9 @@ export default defineConfig({
 
   server: {
     port: PORT,
+    fs: {
+      allow: ['..', '../../packages'],
+    },
     proxy: {
       [API_BASE_PATH]: {
         target: API_PROXY_TARGET,
