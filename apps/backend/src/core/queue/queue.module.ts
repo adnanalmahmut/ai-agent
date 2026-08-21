@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 
 import { QueueProducer } from './queue-producer.service';
-import { QueueWorkerRunner } from './queue-worker.runner';
-import { QUEUE_JOB_HANDLERS } from './queue.config';
 
 /**
  * The queue transport, for processes that actually use one.
@@ -13,17 +11,11 @@ import { QUEUE_JOB_HANDLERS } from './queue.config';
  * queue connection and a Redis outage cannot turn a valid `POST` into a 5xx.
  * Everything that talks to BullMQ lives in the worker process.
  *
- * `QUEUE_JOB_HANDLERS` defaults to empty here so this module is importable
- * without becoming a consumer. The worker module overrides it with the handlers
- * it wants to run; a process that does not override it is structurally
- * incapable of claiming a job.
+ * Worker consumption is composed explicitly in `WorkerModule`; this transport
+ * module exposes only publication and cannot create a BullMQ worker by itself.
  */
 @Module({
-  providers: [
-    QueueProducer,
-    QueueWorkerRunner,
-    { provide: QUEUE_JOB_HANDLERS, useValue: [] },
-  ],
-  exports: [QueueProducer, QueueWorkerRunner],
+  providers: [QueueProducer],
+  exports: [QueueProducer],
 })
 export class QueueModule {}

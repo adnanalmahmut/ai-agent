@@ -33,6 +33,27 @@ The internal AgentRun acceptance boundary follows that existing path: one
 PostgreSQL transaction creates a `QUEUED` `agent_run` and an
 `agent-run.queued` outbox event whose payload is only `{ runId }` and whose
 dedupe key is that run id. The existing route publishes `execute` to
-`agent-execution`. There is intentionally no public AgentRun endpoint or
-production agent definition yet; the first real agent feature will supply the
-authorized caller and definition.
+`agent-execution`. `WorkerModule` explicitly registers the single
+`AgentExecutionHandler`; `QueueModule` contains publication only, so the API
+composition root cannot consume jobs.
+
+The handler stores BullMQ's `attemptsStarted` active-start ordinal as the durable
+AgentRun `attemptCount` compare-and-set version. Unlike `attemptsMade`, that
+ordinal advances for stalled-job recovery as well as ordinary retries. Terminal
+and already-claimed deliveries are no-ops. Retryable failures stay `RUNNING` and
+reject for BullMQ retry; the configured final attempt records `FAILED` and also
+rejects so BullMQ job state remains truthful. Outbox delivery, BullMQ job, and
+AgentRun lifecycle states remain distinct.
+
+A process can call a model and die before recording `SUCCEEDED`; the later
+attempt may call the model again. This is accepted for the current
+model-only/read-only slice, not presented as exactly-once execution. Durable
+tool-side-effect idempotency must be revisited before adding tools. There is
+still no public AgentRun endpoint or production agent definition; the first
+real agent feature will supply the authorized caller, definition, and provider
+configuration.
+
+If a job exceeds BullMQ's stalled-job allowance, BullMQ can fail it before the
+handler runs again; the AgentRun can then remain `RUNNING`. Terminal transport
+reconciliation is intentionally deferred while production definitions are
+empty and must be resolved before enabling a real agent.

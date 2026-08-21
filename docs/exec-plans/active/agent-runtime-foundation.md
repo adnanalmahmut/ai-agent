@@ -129,24 +129,39 @@ recorded with the exact failed check and evidence.
 - 2026-08-22: No AgentRun RBAC permission is added because this slice exposes no
   route. Authorization for a concrete operation belongs with the first real
   agent endpoint.
-- 2026-08-22: Worker attempt claims will compare durable `attemptCount` with
-  BullMQ's prior `attemptsMade` value, then use the incremented count as a CAS
-  version for completion/failure writes. This addresses normal duplicate and
-  retry races without introducing the deferred execution-lease framework.
+- 2026-08-22: Worker attempt claims store BullMQ's `attemptsStarted`
+  active-start ordinal as the durable `attemptCount` CAS version. This handles
+  ordinary retries, duplicates, and stalled redelivery without introducing the
+  deferred execution-lease framework; `attemptsMade` remains the source for
+  BullMQ final-attempt classification.
 - 2026-08-22: Prisma 7.9.1 deterministically emits trailing indentation in new
   enum field-reference blank lines. A path-scoped `.gitattributes` rule disables
   only `blank-at-eol` checking for generated Prisma output so committed bytes
   remain generator-current while handwritten files retain normal checks.
+- 2026-08-22: Installed current `@mastra/core` 1.61.0 only. Production
+  definitions remain empty, and no provider configuration is required.
+- 2026-08-22: Worker consumption moved out of `QueueModule` and is composed in
+  `WorkerModule` with an explicit `QUEUE_JOB_HANDLERS` factory. This follows Nest
+  provider scope rules while preserving the existing queue runner and keeping
+  the API unable to consume jobs.
+- 2026-08-22: Runtime failures are converted to a constant diagnostic before
+  both PostgreSQL persistence and BullMQ rejection, preventing provider
+  messages, error names, or response bodies from entering durable/coordination
+  state.
+- 2026-08-22: Independent review found that `attemptsMade` does not advance for
+  BullMQ stalled recovery. Claims now use `attemptsStarted`, with regression
+  coverage for stalls before and after the first durable claim.
 
 ## Progress
 
 - [x] Intake, repository policy, harness, workflow, role, and owning-doc review.
 - [x] Evidence-backed source map and final design.
-- [ ] PR 1 publication and final-head CI. Implementation, focused/aggregate
-  validation, code review, and security review are complete.
-- [ ] PR 2 implementation, focused validation, aggregate validation, review,
-  publication, and final-head CI.
-- [ ] Final documentation consistency review and handoff report.
+- [x] PR 1 publication and final-head CI; draft PR #27 is green at its current
+  head.
+- [ ] PR 2 publication and final-head CI. Implementation, focused/aggregate
+  validation, independent review, remediation, and documentation sync are
+  complete.
+- [ ] Final handoff report.
 
 ## Blockers
 

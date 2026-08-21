@@ -42,3 +42,27 @@ export type CreateAgentRun = {
   input: AgentValue;
   idempotencyKey: string;
 };
+
+export const AGENT_RUNTIME_NAMES = {
+  mastra: 'mastra',
+} as const;
+
+export type AgentRuntimeName =
+  (typeof AGENT_RUNTIME_NAMES)[keyof typeof AGENT_RUNTIME_NAMES];
+
+/** The code-owned configuration required to construct one runtime agent. */
+export type AgentDefinition = {
+  id: string;
+  runtime: AgentRuntimeName;
+  instructions: string;
+  model: string;
+};
+
+export type AgentRuntimeRequest = {
+  definition: AgentDefinition;
+  input: AgentValue;
+};
+
+export type AgentRuntimeResult = {
+  output: AgentValue;
+};

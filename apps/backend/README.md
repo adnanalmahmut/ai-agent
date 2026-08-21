@@ -140,6 +140,46 @@ again. **Every consumer must therefore be safe to run twice.** That is the price
 of not needing a distributed transaction, and it is the cheaper side of the
 trade.
 
+### Background agent execution
+
+The worker composes one explicit `agent-execution` / `execute` handler. It loads
+the durable AgentRun by `{ runId }`, conditionally claims the BullMQ attempt,
+resolves a code-owned definition, and passes application-owned input through
+`AgentRunner` to an explicit runtime registry. Production definitions are empty
+until a real product agent is selected, so there is still no user-facing agent
+capability or provider-secret requirement.
+
+The runtime contract intentionally has only `name` and `run`. Mastra is the
+first adapter, and every Mastra import must stay within
+`src/agents/runtime/mastra/**` or tests under that directory. Application types,
+durable state, retry decisions, and definition ownership remain outside the SDK
+boundary. A future real agent is registered by adding its minimal definition to
+`src/agents/definitions/index.ts`, then adding the authorized API and provider
+configuration in that feature.
+
+Attempt claims use `(status, attemptCount)` as a PostgreSQL compare-and-set
+version. `attemptCount` records BullMQ's active-start ordinal, which advances
+for ordinary retries and stalled-job recovery. Terminal or already-claimed
+duplicate delivery is a no-op; an intermediate failure remains `RUNNING` and is
+rethrown for BullMQ retry; the configured final attempt records `FAILED` and
+still rejects the job. Persisted and BullMQ failure messages are generic
+diagnostics and do not include provider messages, error names, responses, or
+stacks.
+
+This does not make model execution exactly once. A worker can receive a model
+response and die before recording `SUCCEEDED`, so a later BullMQ attempt can
+call the model again. That limitation is accepted only for the current
+model-only/read-only slice. Before an agent gains tools with external side
+effects, durable ToolExecution/idempotency semantics must be designed from that
+real tool use case. Streaming, memory, storage, workflows, cancellation,
+checkpoints, provider abstraction, and tool abstraction are intentionally
+deferred.
+
+BullMQ can fail a job before invoking the handler when the job exceeds its
+stalled-job allowance. That exceptional transport failure can currently leave
+the durable AgentRun `RUNNING`; terminal transport reconciliation is deferred
+and must be addressed before production agent definitions are enabled.
+
 ### A claim is versioned, so a stale dispatcher cannot overwrite a newer outcome
 
 `(claimedBy, attempts)` identifies one claim of one row — `attempts` increments

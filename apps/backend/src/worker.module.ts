@@ -3,10 +3,17 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 
 import { appConfig, observabilityConfig, workerConfigurations } from './config';
+import { AgentExecutionHandler } from './agents/agent-execution.handler';
+import { AgentExecutionModule } from './agents/agent-execution.module';
 import { LifecycleModule } from './core/lifecycle';
 import { OutboxModule } from './core/outbox';
 import { createLoggerOptions } from './core/providers/logger.options';
-import { QueueModule } from './core/queue';
+import {
+  QUEUE_JOB_HANDLERS,
+  QueueModule,
+  QueueWorkerRunner,
+  type QueueJobHandler,
+} from './core/queue';
 import { RedisModule } from './core/redis';
 import { DatabaseModule } from './database';
 
@@ -56,6 +63,17 @@ import { DatabaseModule } from './database';
     RedisModule,
     QueueModule,
     OutboxModule,
+    AgentExecutionModule,
+  ],
+  providers: [
+    QueueWorkerRunner,
+    {
+      provide: QUEUE_JOB_HANDLERS,
+      inject: [AgentExecutionHandler],
+      useFactory: (
+        agentExecution: AgentExecutionHandler,
+      ): QueueJobHandler[] => [agentExecution],
+    },
   ],
 })
 export class WorkerModule {}

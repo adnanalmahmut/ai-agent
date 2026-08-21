@@ -67,6 +67,119 @@ export class AgentRunService {
     }
   }
 
+  /**
+   * Atomically claims exactly the BullMQ attempt currently being delivered.
+   *
+   * The attempt counter stores BullMQ's active-start ordinal as the claim
+   * version. A duplicate delivery can observe the same/newer version but cannot
+   * claim it or execute the runtime again. Unlike attemptsMade, that ordinal
+   * also advances when BullMQ recovers a stalled job after worker death.
+   */
+  async claimExecutionAttempt(
+    runId: string,
+    attemptsStarted: number,
+  ): Promise<AgentRun | null> {
+    if (!Number.isInteger(attemptsStarted) || attemptsStarted < 1) {
+      throw new Error(
+        'Agent execution attempt number must be a positive integer',
+      );
+    }
+
+    // A worker may stall before it reaches this transaction. Any active
+    // delivery can therefore be the first durable claim, and its BullMQ start
+    // ordinal becomes the CAS version without inventing a lease system here.
+    const queuedClaim = await this.prisma.agentRun.updateManyAndReturn({
+      where: {
+        id: runId,
+        status: 'QUEUED',
+        attemptCount: 0,
+      },
+      data: {
+        status: 'RUNNING',
+        attemptCount: attemptsStarted,
+        lastError: null,
+        startedAt: new Date(),
+      },
+    });
+
+    if (queuedClaim[0]) return toAgentRun(queuedClaim[0]);
+
+    const runningClaim = await this.prisma.agentRun.updateManyAndReturn({
+      where: {
+        id: runId,
+        status: 'RUNNING',
+        attemptCount: attemptsStarted - 1,
+      },
+      data: {
+        attemptCount: attemptsStarted,
+        lastError: null,
+      },
+    });
+
+    if (runningClaim[0]) return toAgentRun(runningClaim[0]);
+
+    const current = await this.prisma.agentRun.findUnique({
+      where: { id: runId },
+    });
+
+    if (!current) throw new Error(`AgentRun "${runId}" does not exist`);
+
+    if (current.status === 'SUCCEEDED' || current.status === 'FAILED') {
+      return null;
+    }
+
+    // Another delivery already claimed this attempt. It owns the model call.
+    if (
+      current.status === 'RUNNING' &&
+      current.attemptCount >= attemptsStarted
+    ) {
+      return null;
+    }
+
+    throw new Error(
+      `AgentRun "${runId}" cannot claim queue start ${attemptsStarted}`,
+    );
+  }
+
+  async markExecutionSucceeded(
+    runId: string,
+    attemptCount: number,
+    output: AgentValue,
+  ): Promise<boolean> {
+    const { count } = await this.prisma.agentRun.updateMany({
+      where: { id: runId, status: 'RUNNING', attemptCount },
+      data: {
+        status: 'SUCCEEDED',
+        output:
+          output === null ? Prisma.JsonNull : (output as Prisma.InputJsonValue),
+        lastError: null,
+        completedAt: new Date(),
+      },
+    });
+
+    return count === 1;
+  }
+
+  async recordExecutionFailure(
+    runId: string,
+    attemptCount: number,
+    lastError: string,
+    final: boolean,
+  ): Promise<boolean> {
+    const { count } = await this.prisma.agentRun.updateMany({
+      where: { id: runId, status: 'RUNNING', attemptCount },
+      data: final
+        ? {
+            status: 'FAILED',
+            lastError,
+            completedAt: new Date(),
+          }
+        : { lastError },
+    });
+
+    return count === 1;
+  }
+
   private findByIdempotencyKey(
     input: Pick<CreateAgentRun, 'organizationId' | 'idempotencyKey'>,
   ) {
