@@ -30,3 +30,18 @@ skills load only when relevant; source/runtime evidence resolves the remainder.
 - Hook configs call Node scripts in `.agents/hooks/`; no executable hook logic
   lives under a tool directory.
 - Cursor commands are omitted when a portable skill is the correct abstraction.
+
+## Symlink checkout contract
+
+`.claude/skills/<name>` must remain a symbolic link to the corresponding
+`.agents/skills/<name>` directory. WSL and Linux checkouts normally preserve
+that contract. Native Windows checkouts must run on a filesystem that supports
+symlinks and have Git symlink checkout enabled (for example, configure
+`core.symlinks=true` before cloning or re-checking out the repository, with the
+required Windows Developer Mode or privilege available).
+
+When `core.symlinks=false`, Git materializes a link as a small regular file
+containing only the target path. That is not a supported adapter: do not copy
+skill bodies or accept the path-text file. Fix the checkout; the stack's
+`pnpm agents:check` validation layer reports this condition explicitly once
+that layer is present.
