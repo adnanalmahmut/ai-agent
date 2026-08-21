@@ -6,9 +6,9 @@ or the transactional outbox.
 
 ## Layers
 
-- Schedule daily Lightsail instance snapshots for production and define their
-  retention in the operator account. Snapshots are a coarse host recovery
-  layer, not a substitute for logical database restores.
+- Schedule daily Lightsail instance snapshots for each provisioned environment
+  and define retention in the operator account. Snapshots are a coarse host
+  recovery layer, not a substitute for logical database restores.
 - Install the systemd timer with `ops/backup/install-backups.sh`. It creates a
   custom-format `pg_dump` under a root-only directory, validates the archive
   catalog before atomically publishing it, writes SHA-256 metadata, and deletes
@@ -37,12 +37,14 @@ not proof it is restorable.
 
 The tooling deliberately requires the literal confirmation token, the database
 naming marker, a database identity different from live, and zero objects in
-user schemas before restore. It never drops or cleans a database. Production disaster recovery
-is an operator incident: isolate traffic, snapshot the failed state, provision
+user schemas before restore. It never drops or cleans a database. Disaster
+recovery for any live environment is an operator incident: isolate traffic,
+snapshot the failed state, provision
 a replacement PostgreSQL target, restore the last verified dump, validate data,
 install the compatible `CURRENT_SHA`, then reopen traffic. Do not overwrite the
 only failed copy while investigating.
 
-Live snapshot scheduling, offsite upload, alerting, and a successful restore
-drill remain pending. Until the operator records a completed drill, this is an
-implemented backup plan—not a claim of proven recovery.
+Live snapshot scheduling, offsite upload, alerting, and successful restore
+drills require operator evidence. Production has no such evidence because it is
+not provisioned. Until an operator records a completed drill for an environment,
+this is implemented tooling—not a claim of proven recovery.

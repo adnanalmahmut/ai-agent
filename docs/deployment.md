@@ -1,8 +1,17 @@
 # Deployment
 
+## Current state
+
+Staging is provisioned and deploys automatically after a merge to `main`
+passes CI and immutable image publishing. Production is not provisioned. The
+Production workflow and host tooling below define a future contract and must
+not be dispatched or operated until an operator records provisioning evidence
+in [the deployment-state document](deployment-state.md).
+
 ## GitHub Environment names
 
-Create `staging` and `production` with independent values.
+Staging uses the values below. A future Production Environment must use the
+same names with independent values when it is provisioned.
 
 | Kind | Name | Purpose |
 |---|---|---|

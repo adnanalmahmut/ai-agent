@@ -42,8 +42,10 @@ flowchart LR
   delivery is at-least-once, so handlers require durable idempotency.
 - Nginx is the only trusted proxy. Exactly one proxy hop is trusted in staging
   and production; local/test trust zero.
-- Staging and production share artifacts, not databases, Redis, volumes,
-  runtime.env, deploy keys, or hosts.
+- Staging is live. The target Production environment will share artifacts with
+  Staging but not databases, Redis, volumes, runtime.env, deploy keys, or hosts.
+- Prepared Production workflows and scripts are architecture, not evidence of
+  a provisioned Production environment.
 - GitHub may know architecture and secret names. It never receives VPS runtime
   application secret values.
 - The deploy identity cannot read `runtime.env`, use Docker directly, or run an

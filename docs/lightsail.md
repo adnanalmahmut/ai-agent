@@ -1,8 +1,9 @@
 # AWS Lightsail
 
-Provision exactly two independent Ubuntu LTS instances: staging and production.
-Attach a static IP to each and separate their DNS, runtime.env, deploy key,
-database, Redis, Docker volumes, backups, and snapshots.
+Staging is the only provisioned Lightsail environment. The target topology adds
+one independent Ubuntu LTS Production instance. When that future environment is
+provisioned, its static IP, DNS, runtime.env, deploy key, database, Redis,
+Docker volumes, backups, and snapshots must remain separate from Staging.
 
 Lightsail firewall permits public 80/443 and restricts SSH 22 to the operator's
 trusted CIDR whenever possible. Ports 3000/3001/3002/5432/6379 are forbidden.

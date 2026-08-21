@@ -20,4 +20,5 @@ to alter an already-built Platform image.
 
 Both applications use the shared `@repo/ui` and `@repo/i18n-core` packages.
 English and Arabic messages are parity-tested. CI runs Web lint/test/build and
-Platform workspace typecheck/lint/tests/build independently.
+Platform workspace typecheck/lint/tests/build independently; documentation
+does not pin volatile test counts.
