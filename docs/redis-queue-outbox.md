@@ -95,9 +95,28 @@ interval, and each pass:
    ones whose job is in the failed set.
 
 The write is conditional on the run still being non-terminal, so duplicate,
-delayed, and reordered observations are no-ops, and a run a late worker managed
-to complete is never dragged back. It does not match on `attemptCount`: the
-sweep is not an attempt, and no ordinal it could forge would be right.
+delayed, and reordered observations are no-ops. It does not match on
+`attemptCount`: the sweep is not an attempt, and no ordinal it could forge would
+be right.
+
+That conditional protects a run that has already reached `SUCCEEDED`, and
+deliberately not one that is still in flight. A worker whose lock lapsed while
+its model call was running keeps running; BullMQ fails the job, the sweep
+records `FAILED`, and the worker's later `markExecutionSucceeded` then matches
+nothing and its result is discarded. That is a genuine lost result and it is the
+accepted trade: the transport has given up on the job, and a row left `RUNNING`
+forever is worse than one recorded as failed. It is also bounded by the
+staleness threshold, which is why that threshold should stay comfortably above
+the slowest expected model call.
+
+Candidates are read oldest-first through a keyset cursor on
+`(updatedAt, id)` rather than always from the beginning. A candidate the sweep
+cannot act on is left unwritten, so its `updatedAt` never moves; without the
+cursor those rows would be returned again on every pass, and once enough of them
+existed to fill a page no newer run would ever be examined again — the recovery
+mechanism would stop recovering with no signal but a repeated log line. The
+cursor resets when a page comes back short, so the scan is a cycle. Losing it to
+a restart costs a cycle, not correctness.
 
 **`QueueEvents` is deliberately not the mechanism.** Its consumer is a plain
 `XREAD` starting at `$` with no cursor persisted anywhere — BullMQ 6.1.2 has no
@@ -118,9 +137,18 @@ return normally, and BullMQ would record a completed job for work that never
 ran. Re-running a failed run is a separate operation with its own semantics. And
 it never fails a run for being slow — a run is finalized only on proof that the
 transport is finished with its job. A job the transport has no record of is
-logged and left alone, because absence proves nothing: retention removes a
+reported and left alone, because absence proves nothing: retention removes a
 failed job after a week, and a run accepted a moment ago has not been published
-yet.
+yet. Those runs are summarized once per pass rather than logged individually,
+since they are by definition a set nothing will change.
+
+Each pass issues at most `AGENT_RUN_RECONCILE_BATCH_SIZE` transport reads, and
+each is a single bounded command rather than a scan of the failed set. The reads
+are bounded in Redis round trips but not strictly in Redis work: BullMQ's job-
+state script uses `LPOS` against the `active` and `wait` lists, so a job absent
+from both costs a traversal proportional to their length. That is the case that
+co-occurs with a large backlog, and it is why the interval is minutes rather
+than seconds.
 
 ## Deterministic execution failures
 
@@ -141,6 +169,18 @@ forcing the failure final would trade a wasted budget for a stranded row.
 Classification uses the error's *identity* and nothing else. Only this
 repository can construct `AgentConfigurationError`, so a failing provider cannot
 talk the worker out of its retries by choosing an error name or message.
+
+One operational consequence: adding a definition means deploying the worker
+before, or together with, the API. A run accepted by a new API instance and
+delivered to a worker that does not yet carry the definition is now failed on
+its first attempt rather than retried. The previous behavior would not have
+bridged a real rollout either — three attempts at two-second backoff is a few
+seconds — and a durable `FAILED` beats a run wedged at `RUNNING`, but the
+ordering is no longer merely preferable.
+
+`AgentRun.lastError` is typed as a union of the two application-owned constants
+rather than `string`, so the compiler, not a comment, is what stops a future
+caller passing a provider message into the column.
 
 Failed attempts log a fixed reason code (`runtime_error`, `configuration_error`,
 `claim_lost`) with the run id, the definition pair, and the attempt ordinals.

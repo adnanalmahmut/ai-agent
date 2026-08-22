@@ -270,6 +270,57 @@ profile). CI on the final head must be green.
   bare agent does leak all three canaries through one `console.error`. Asserting
   on `console.*` rather than on the logger object also covers the raw
   `console.*` call sites in the SDK that no logger injection can reach.
+- 2026-08-22: Repair after review. Three independent reviews confirmed the same
+  highest-severity defect: a candidate whose job is `missing` is never written,
+  so its `updatedAt` never advances, so the oldest-first candidate query
+  returned it on every pass forever. Once `batchSize` such rows existed the
+  sweep would never examine a newer run again — the mechanism this slice exists
+  to add would silently stop working, signalled only by a repeated log line, and
+  reachable by a wiped Redis, parked outbox events, or a failure storm trimming
+  the failed set. Fixed with a keyset cursor on `(updatedAt, id)` advanced past
+  every candidate reached and reset on a short page. The cursor is progress, not
+  correctness: losing it to a restart replays a cycle, so the guarantee still
+  rests on PostgreSQL alone.
+- 2026-08-22: The per-candidate `transport_record_missing` warning became one
+  aggregated line per pass with a bounded id sample. The previous form emitted
+  roughly 72,000 lines a day describing a set that by definition never changes.
+- 2026-08-22: `jobTransportState` and `publish` now share one bounded helper.
+  BullMQ resolves every operation against a connection promise that waits for
+  `ready` and, by design, neither rejects nor times out while the client is
+  reconnecting — the command timeout never applies because the command is never
+  issued. An unbounded read therefore hung for the whole of a Redis outage, and
+  because the loop re-arms in `.finally()`, the reconciler stopped entirely
+  rather than costing one interval as its own comment claimed. `publish` already
+  carried this reasoning; the read had inherited none of it.
+- 2026-08-22: `QueueProducer` refuses to build a queue after `close()`. `close()`
+  empties the map and `queueFor` builds on demand, so a reader still in flight
+  when the producers closed would have opened a Redis connection during teardown
+  that nothing would close.
+- 2026-08-22: `AgentRun.lastError` is typed as a union of the two
+  application-owned constants instead of `string`. The containment design rested
+  on every call site choosing to pass a constant, with only a schema comment
+  saying so; one future `error.message` would have ended it silently.
+- 2026-08-22: `markExecutionSucceeded` is wrapped. It passes the model's output
+  as an argument, and Prisma renders a rejected invocation's arguments into its
+  message — so a value the adapter could not persist would carry that output
+  into BullMQ's `failedReason` and the queue failure log, outside every other
+  piece of containment. Unreachable while a runtime returns a string, which is
+  why it was worth closing before one returns anything else.
+- 2026-08-22: Worker startup moved to `worker.runtime.ts`, mirroring
+  `worker.shutdown.ts` and for the same stated reason. A mutation proved
+  `reconciler.start()` could be deleted with the entire suite green: a loop that
+  never starts produces no error, no log line and no failing test.
+- 2026-08-22: Recorded rather than fixed — the reconciler can finalize a run
+  whose lock-lapsed worker is still executing and subsequently succeeds, and
+  that worker's result is then discarded. The trade is accepted (the transport
+  has given up; `RUNNING` forever is worse) but the earlier documentation
+  asserted only the safe half of it, which was true for an already-`SUCCEEDED`
+  run and false for one in flight. Both owning documents now say so.
+- 2026-08-22: Recorded rather than fixed — a deterministic failure is now
+  terminal on first sight, so adding a definition requires deploying the worker
+  before or with the API. The previous three-attempt budget at two-second
+  backoff would not have bridged a rollout either, so this changes little in
+  practice, but it is now an ordering requirement rather than a preference.
 
 ## Progress
 
@@ -282,8 +333,10 @@ profile). CI on the final head must be green.
 - [x] Design and implementation.
 - [x] Focused tests, including a real-Redis reproduction of the stalled-allowance
   path in which the handler is provably not invoked.
-- [ ] Aggregate validation.
-- [ ] Code, security, and test reviews.
+- [x] Code, security, and test-engineer reviews of the complete diff.
+- [x] Repair cycle 1: every confirmed defect fixed, every accepted trade
+  recorded in the owning documentation.
+- [ ] Aggregate revalidation.
 - [ ] PR opened with green final-head CI.
 
 ## Blockers
