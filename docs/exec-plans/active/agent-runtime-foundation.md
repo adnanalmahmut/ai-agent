@@ -146,8 +146,17 @@ recorded with the exact failed check and evidence.
 - 2026-08-22: Both corrections edit the existing unmerged AgentRun migration
   rather than stacking corrective migrations. The migration has not landed on
   `main`, so there is no deployed state to preserve and no reason to publish
-  historical churn. `prisma migrate dev` re-applied it and reported the schema
-  in sync with no additional migration, which is the drift proof.
+  historical churn.
+- 2026-08-22: Correcting an earlier claim in this log: `prisma migrate dev`
+  reporting the schema in sync proves the migration matches the schema, but it
+  is not proof for the deployment path. Verified in Prisma 7.9.1 that a
+  database which already applied the pre-remediation file reports "Database
+  schema is up to date" and `migrate deploy` re-applies nothing, despite a
+  changed checksum — there is no drift signal. CI is unaffected (a fresh
+  Postgres service container each run) and Staging is unaffected (this
+  migration has never been applied there), but any local database that applied
+  commit `fc2ddac` keeps the old table and must be reset. This is the accepted
+  cost of editing in place instead of publishing corrective migration churn.
 - 2026-08-22: Prisma 7.9.1 deterministically emits trailing indentation in new
   enum field-reference blank lines. A path-scoped `.gitattributes` rule disables
   only `blank-at-eol` checking for generated Prisma output so committed bytes

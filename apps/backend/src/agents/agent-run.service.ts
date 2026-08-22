@@ -91,10 +91,28 @@ function isUniqueConstraintViolation(
   );
 }
 
+/**
+ * Mapped field by field rather than spread. A spread is not excess-property
+ * checked, so every column the Prisma model gains would silently become part
+ * of the application-owned contract this module exists to keep separate.
+ */
 function toAgentRun(run: PersistedAgentRun): AgentRun {
   return {
-    ...run,
+    id: run.id,
+    agentId: run.agentId,
+    agentVersion: run.agentVersion,
+    runtime: run.runtime,
+    status: run.status,
+    organizationId: run.organizationId,
+    createdByUserId: run.createdByUserId,
     input: run.input as AgentValue,
     output: run.output as AgentValue | null,
+    lastError: run.lastError,
+    attemptCount: run.attemptCount,
+    idempotencyKey: run.idempotencyKey,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
   };
 }

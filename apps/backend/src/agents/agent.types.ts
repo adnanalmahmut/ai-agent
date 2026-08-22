@@ -37,6 +37,14 @@ export type AgentRun = {
   updatedAt: Date;
 };
 
+/**
+ * `idempotencyKey` is whole-request identity, scoped to the organization. A
+ * key that has already been accepted returns the stored run as-is; the rest of
+ * this payload is not compared against it. Reusing one key for a materially
+ * different request therefore returns the original run rather than the one
+ * asked for, so the first HTTP boundary must either bind the key to the
+ * request body or reject a mismatched reuse.
+ */
 export type CreateAgentRun = {
   agentId: string;
   agentVersion: number;
