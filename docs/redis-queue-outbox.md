@@ -83,3 +83,23 @@ intentionally deferred while production definitions are empty.
 
 **Terminal BullMQ failure reconciliation is a hard prerequisite before enabling
 the first production AgentDefinition or public AgentRun API.**
+
+Two constraints belong to that reconciler's requirements, because the obvious
+implementation is silently wrong:
+
+- Re-publishing a run produces a *fresh* BullMQ job whose `attemptsStarted`
+  restarts at 1, while `attemptCount` still holds the old high ordinal. The
+  monotonic fence then rejects the claim, `handle` returns normally, and BullMQ
+  marks the job completed while the run stays wedged. A reconciler must reset
+  `attemptCount` in the same statement that writes `QUEUED`.
+- A deterministic configuration failure — an unregistered `(agentId,
+  agentVersion)` pair, or a persisted runtime that disagrees with the
+  definition — currently rethrows as an ordinary error, so BullMQ burns the
+  whole retry budget with backoff on something that cannot succeed. Making it
+  `UnrecoverableError` must be paired with forcing the durable failure to be
+  final, or the job stops retrying while the AgentRun stays `RUNNING`.
+
+Failed attempts log a fixed reason code (`runtime_error`, `claim_lost`) with
+the run id and attempt ordinals. The code is chosen at the throw site and never
+derived from the error object, so an untrusted provider error cannot steer what
+is logged.

@@ -178,6 +178,26 @@ recorded with the exact failed check and evidence.
   infrastructure PRs with empty production definitions, but it is recorded as a
   hard prerequisite before the first production AgentDefinition or public
   AgentRun API.
+- 2026-08-22: Review remediation. `MastraRuntime` injects a discarding logger
+  via `__setLogger` because `MastraBase` installs a `ConsoleLogger` by default
+  and the execution loop logs the raw provider error — request body, response
+  body, endpoint, model — through `console.error`, which bypasses the
+  application's Pino redaction entirely. Latent today (production definitions
+  are empty) but a real leak the moment a definition exists.
+- 2026-08-22: The handler logs a fixed reason code (`runtime_error`,
+  `claim_lost`) with the run id and attempt ordinals. Everything persisted and
+  rethrown is one constant, so without this an operator cannot distinguish a
+  missing definition from a provider timeout. The code is chosen at the throw
+  site and never read from the error object.
+- 2026-08-22: A lost claim no longer writes a durable failure. The write was a
+  guaranteed CAS no-op, and skipping it states the ownership rule directly:
+  the superseding delivery owns the outcome.
+- 2026-08-22: Deferred with the terminal-reconciliation work rather than fixed
+  here — resetting `attemptCount` when a reconciler writes `QUEUED` (the
+  monotonic fence otherwise rejects the replayed job and it completes green),
+  and classifying unresolvable definitions as `UnrecoverableError` (which must
+  be coupled with forcing a final durable failure, or the job stops retrying
+  while the run stays RUNNING).
 - 2026-08-22: Prisma 7.9.1 deterministically emits trailing indentation in new
   enum field-reference blank lines. A path-scoped `.gitattributes` rule disables
   only `blank-at-eol` checking for generated Prisma output so committed bytes

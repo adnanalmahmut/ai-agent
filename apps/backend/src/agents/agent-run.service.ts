@@ -152,8 +152,11 @@ export class AgentRunService {
       where: { id: runId, status: 'RUNNING', attemptCount },
       data: {
         status: 'SUCCEEDED',
+        // `== null` on purpose: Prisma treats an `undefined` field as "do not
+        // update", so an SDK returning no output would record SUCCEEDED with a
+        // silently missing result instead of an explicit JSON null.
         output:
-          output === null ? Prisma.JsonNull : (output as Prisma.InputJsonValue),
+          output == null ? Prisma.JsonNull : (output as Prisma.InputJsonValue),
         lastError: null,
         completedAt: new Date(),
       },

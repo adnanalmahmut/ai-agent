@@ -172,7 +172,10 @@ describe('AgentRun execution claim (e2e)', () => {
   it('lets the first durable claim start at any ordinal', async () => {
     const accepted = await service.create(request('late-first-claim-request'));
 
-    // Both earlier starts died before PostgreSQL, so the run is still QUEUED.
+    // An earlier start died before PostgreSQL, so the run is still QUEUED and
+    // the first durable claim arrives at an ordinal above 1. The 3 is an
+    // arbitrary bound on the predicate, not a claim about how many consecutive
+    // stalls BullMQ would actually allow — `maxStalledCount` defaults to 1.
     const claimed = await service.claimExecutionAttempt(accepted.id, 3);
 
     expect(claimed).toMatchObject({ status: 'RUNNING', attemptCount: 3 });
@@ -201,6 +204,8 @@ describe('AgentRun execution claim (e2e)', () => {
       true,
     );
 
+    // 9 is a synthetic far-future ordinal, chosen to show that no ordinal,
+    // however large, reopens a terminal run.
     await expect(
       service.claimExecutionAttempt(failed.id, 9),
     ).resolves.toBeNull();
@@ -238,6 +243,139 @@ describe('AgentRun execution claim (e2e)', () => {
     await expect(
       service.markExecutionSucceeded(accepted.id, 3, { answer: 'done' }),
     ).resolves.toBe(true);
+  });
+
+  it('refuses a finalizing write against a terminal run at the matching ordinal', async () => {
+    // Every other negative case here uses a superseded ordinal, so the CAS
+    // alone explains the rejection. These use the ordinal the terminal write
+    // was actually made under, which isolates the status guard: without it a
+    // SUCCEEDED run could be flipped to FAILED and back.
+    //
+    // That is reachable, not theoretical. In AgentExecutionHandler the success
+    // write sits inside the try block, so anything that throws after it lands
+    // in the catch and calls recordExecutionFailure with the same ordinal.
+    const succeeded = await service.create(request('terminal-guard-succeeded'));
+    await service.claimExecutionAttempt(succeeded.id, 1);
+    await service.markExecutionSucceeded(succeeded.id, 1, { answer: 'done' });
+
+    await expect(
+      service.recordExecutionFailure(
+        succeeded.id,
+        1,
+        'Agent execution failed',
+        true,
+      ),
+    ).resolves.toBe(false);
+    await expect(statusOf(succeeded.id)).resolves.toMatchObject({
+      status: 'SUCCEEDED',
+      output: { answer: 'done' },
+      lastError: null,
+    });
+
+    const failed = await service.create(request('terminal-guard-failed'));
+    await service.claimExecutionAttempt(failed.id, 1);
+    await service.recordExecutionFailure(
+      failed.id,
+      1,
+      'Agent execution failed',
+      true,
+    );
+
+    await expect(
+      service.markExecutionSucceeded(failed.id, 1, { answer: 'late' }),
+    ).resolves.toBe(false);
+    await expect(statusOf(failed.id)).resolves.toMatchObject({
+      status: 'FAILED',
+      output: null,
+    });
+  });
+
+  it('keeps lastError scoped to the attempt that produced it', async () => {
+    const accepted = await service.create(request('last-error-lifecycle'));
+    const first = await service.claimExecutionAttempt(accepted.id, 1);
+    const startedAt = first?.startedAt;
+
+    await service.recordExecutionFailure(
+      accepted.id,
+      1,
+      'Agent execution failed',
+      false,
+    );
+
+    // A retrying run must keep its diagnostic; it is the only operator-visible
+    // signal of why the run is churning.
+    await expect(statusOf(accepted.id)).resolves.toMatchObject({
+      status: 'RUNNING',
+      lastError: 'Agent execution failed',
+      completedAt: null,
+    });
+
+    const reclaimed = await service.claimExecutionAttempt(accepted.id, 3);
+
+    expect(reclaimed).toMatchObject({ attemptCount: 3, lastError: null });
+    // `startedAt` means when the run first began executing, so a re-claim must
+    // not restamp it.
+    expect(reclaimed?.startedAt).toEqual(startedAt);
+
+    // The superseded worker reports its own failure late. It must not stamp a
+    // stale diagnostic onto the attempt that now owns the run.
+    await expect(
+      service.recordExecutionFailure(
+        accepted.id,
+        1,
+        'Agent execution failed',
+        false,
+      ),
+    ).resolves.toBe(false);
+    await expect(statusOf(accepted.id)).resolves.toMatchObject({
+      attemptCount: 3,
+      lastError: null,
+      completedAt: null,
+    });
+  });
+
+  it('converges when two deliveries at different ordinals race', async () => {
+    const accepted = await service.create(request('concurrent-ordinals'));
+    await service.claimExecutionAttempt(accepted.id, 1);
+
+    // Both orderings are legitimate under READ COMMITTED, so assert the
+    // invariants rather than which call won: the durable ordinal ends at the
+    // highest delivered, and only one worker can finalize.
+    await Promise.all([
+      service.claimExecutionAttempt(accepted.id, 2),
+      service.claimExecutionAttempt(accepted.id, 3),
+    ]);
+
+    await expect(statusOf(accepted.id)).resolves.toMatchObject({
+      status: 'RUNNING',
+      attemptCount: 3,
+    });
+
+    const outcomes = await Promise.all([
+      service.markExecutionSucceeded(accepted.id, 2, { answer: 'from-2' }),
+      service.markExecutionSucceeded(accepted.id, 3, { answer: 'from-3' }),
+    ]);
+
+    expect(outcomes.filter(Boolean)).toHaveLength(1);
+    await expect(statusOf(accepted.id)).resolves.toMatchObject({
+      status: 'SUCCEEDED',
+      output: { answer: 'from-3' },
+    });
+  });
+
+  it('returns the existing run without re-queueing it once it has left QUEUED', async () => {
+    const accepted = await service.create(request('re-accept-terminal'));
+    await service.claimExecutionAttempt(accepted.id, 1);
+    await service.markExecutionSucceeded(accepted.id, 1, { answer: 'done' });
+
+    // A replayed acceptance must not resurrect finished work as a new job.
+    const replayed = await service.create(request('re-accept-terminal'));
+
+    expect(replayed.id).toBe(accepted.id);
+    expect(replayed.status).toBe('SUCCEEDED');
+    await expect(
+      prisma.outboxEvent.count({ where: { dedupeKey: accepted.id } }),
+    ).resolves.toBe(1);
   });
 
   it('rejects a non-positive or non-integer active start ordinal', async () => {
