@@ -4,10 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { agentsConfig } from '../config';
 import { QUEUE_NAMES, QueueProducer } from '../core/queue';
-import {
-  AgentRunService,
-  type StaleRunCursor,
-} from './agent-run.service';
+import { AgentRunService, type StaleRunCursor } from './agent-run.service';
 
 /** How many stranded run ids one summary line names before it stops. */
 const MISSING_SAMPLE_SIZE = 5;
@@ -223,13 +220,6 @@ export class AgentRunReconciler {
       this.cursor,
     );
 
-    /**
-     * A short page means the cycle is finished, so the next pass starts again
-     * from the oldest run. Anything that became stale behind the cursor during
-     * this cycle is picked up on the next one.
-     */
-    if (candidates.length < batchSize) this.cursor = undefined;
-
     const pass: ReconciliationPass = {
       examined: candidates.length,
       failed: 0,
@@ -238,8 +228,6 @@ export class AgentRunReconciler {
       reconciled: 0,
       abandoned: 0,
     };
-
-    if (candidates.length === 0) return pass;
 
     /**
      * Collected and reported once, rather than a line per candidate per pass.
@@ -310,6 +298,17 @@ export class AgentRunReconciler {
         'Agent run finalized as failed because its queue job failed terminally',
       );
     }
+
+    /**
+     * A short page is the end of the cycle, so the next pass starts again from
+     * the oldest run and anything that went stale behind the cursor meanwhile
+     * is picked up.
+     *
+     * After the loop, not before it: the loop advances the cursor per candidate
+     * reached, so resetting first would simply be overwritten and the wrap
+     * would cost an extra empty query every cycle.
+     */
+    if (candidates.length < batchSize) this.cursor = undefined;
 
     if (missing.length > 0) {
       this.logger.warn(

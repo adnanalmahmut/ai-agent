@@ -6,10 +6,7 @@ import { QUEUE_NAMES, type QueueJobHandler } from '../core/queue';
 import { isAgentConfigurationError } from './agent-configuration.error';
 import { AgentRunService } from './agent-run.service';
 import { AgentRunner } from './agent-runner.service';
-import {
-  AGENT_EXECUTION_FAILED,
-  type AgentRuntimeResult,
-} from './agent.types';
+import { AGENT_EXECUTION_FAILED, type AgentRuntimeResult } from './agent.types';
 
 export type AgentExecutionJob = { runId: string };
 

@@ -598,6 +598,62 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
   });
 
   /**
+   * The keyset predicate, against the real PostgreSQL.
+   *
+   * The unit tests assert the cursor the reconciler *passes*; only this asserts
+   * that the database honours it. The tie-break is the part worth proving:
+   * `updatedAt` is a millisecond timestamp and rows written together share one,
+   * so a cursor compared on the timestamp alone would skip every row in the
+   * last one's millisecond — silently, and only under load.
+   */
+  describe('candidate paging', () => {
+    it('pages through runs that share an updatedAt without skipping or repeating', async () => {
+      const created = [];
+      for (let index = 0; index < 5; index += 1) {
+        created.push(await runs.create(request(`paging-${index}`)));
+      }
+
+      // Forced equal, which is what makes this a test of the tie-break rather
+      // than of the timestamp comparison.
+      const sharedInstant = new Date('2026-08-22T00:00:00.000Z');
+      await prisma.$executeRaw`
+        UPDATE "agent_run" SET "updatedAt" = ${sharedInstant}
+        WHERE "organizationId" = ${organizationId}`;
+
+      const staleBefore = new Date('2026-08-22T00:01:00.000Z');
+      const seen: string[] = [];
+      let cursor: { updatedAt: Date; id: string } | undefined;
+
+      // Two at a time, so the walk crosses page boundaries inside one instant.
+      for (let pass = 0; pass < 4; pass += 1) {
+        const page = await runs.findStaleNonTerminal(staleBefore, 2, cursor);
+        if (page.length === 0) break;
+
+        seen.push(...page.map((row) => row.id));
+        const last = page[page.length - 1];
+        cursor = { updatedAt: last.updatedAt, id: last.id };
+      }
+
+      // Every row exactly once: no skip, no repeat.
+      expect(seen).toHaveLength(created.length);
+      expect(new Set(seen).size).toBe(created.length);
+      expect([...seen].sort()).toEqual(created.map((run) => run.id).sort());
+    }, 60_000);
+
+    it('excludes a run that is not yet stale', async () => {
+      const fresh = await runs.create(request('paging-fresh'));
+
+      // The cutoff is in the past, so a run written just now is behind it.
+      const candidates = await runs.findStaleNonTerminal(
+        new Date(Date.now() - 60_000),
+        50,
+      );
+
+      expect(candidates.map((row) => row.id)).not.toContain(fresh.id);
+    }, 60_000);
+  });
+
+  /**
    * Deterministic configuration failures, against the real database.
    *
    * The unit spec proves the handler's branching; this proves the durable

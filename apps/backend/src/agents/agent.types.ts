@@ -24,8 +24,7 @@ export const TERMINAL_TRANSPORT_FAILURE =
  * Widening this type is the one change that makes such a call compile.
  */
 export type AgentFailureDiagnostic =
-  | typeof AGENT_EXECUTION_FAILED
-  | typeof TERMINAL_TRANSPORT_FAILURE;
+  typeof AGENT_EXECUTION_FAILED | typeof TERMINAL_TRANSPORT_FAILURE;
 
 /** JSON-compatible application data, independent of Prisma and runtime SDKs. */
 export type AgentValue =

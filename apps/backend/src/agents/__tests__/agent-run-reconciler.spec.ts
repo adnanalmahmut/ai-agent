@@ -497,7 +497,8 @@ describe('AgentRunReconciler', () => {
 
       const missingWarns = warn.mock.calls.filter(
         ([payload]) =>
-          (payload as { reason?: string }).reason === 'transport_record_missing',
+          (payload as { reason?: string }).reason ===
+          'transport_record_missing',
       );
 
       // One, whatever the size of the set — the assertion the per-candidate
@@ -729,7 +730,15 @@ describe('AgentRunReconciler', () => {
      * that left the cursor set indefinitely here would reintroduce the one-way
      * walk.
      */
-    it('wraps back to the oldest run after a short page, at worst one pass later', async () => {
+    /**
+     * A short page ends the cycle immediately, not one pass later.
+     *
+     * The reset has to happen after the loop, because the loop advances the
+     * cursor for every candidate it reaches — reset first and the last row of a
+     * short page would overwrite it, costing an extra empty query every cycle
+     * before the wrap took effect.
+     */
+    it('wraps back to the oldest run immediately after a short page', async () => {
       reconciler = withBatchSize(3);
 
       const rows = page('run-a', 'run-b');
@@ -737,10 +746,8 @@ describe('AgentRunReconciler', () => {
 
       await reconciler.reconcileOnce();
       await reconciler.reconcileOnce();
-      await reconciler.reconcileOnce();
 
-      expect(cursorOnCall(1)).toEqual(cursorOf(rows[1]));
-      expect(cursorOnCall(2)).toBeUndefined();
+      expect(cursorOnCall(1)).toBeUndefined();
     });
 
     /**
