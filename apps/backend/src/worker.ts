@@ -2,6 +2,7 @@ import type { ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger, PinoLogger } from 'nestjs-pino';
 
+import { AgentRunReconciler } from './agents/agent-run-reconciler.service';
 import { appConfig, queueConfig } from './config';
 import {
   ProcessReadiness,
@@ -43,6 +44,7 @@ async function bootstrap() {
   const producer = app.get(QueueProducer);
   const runner = app.get(QueueWorkerRunner);
   const dispatcher = app.get(OutboxDispatcher);
+  const reconciler = app.get(AgentRunReconciler);
   const shutdownLogger = await app.resolve(PinoLogger);
 
   /**
@@ -57,6 +59,14 @@ async function bootstrap() {
   producer.init();
   runner.start();
   dispatcher.start();
+
+  /**
+   * Last of the loops, and the only one that is a recovery mechanism rather
+   * than a delivery path. It waits a full interval before its first pass, so a
+   * restarting fleet has settled before anything is declared abandoned.
+   */
+  reconciler.start();
+
   readiness.markReady();
 
   const shutdown = async (signal: NodeJS.Signals) => {
@@ -65,6 +75,7 @@ async function bootstrap() {
     const outcome = await runShutdownSequence(
       workerShutdownSteps({
         dispatcher,
+        reconciler,
         readiness,
         runner,
         producer,

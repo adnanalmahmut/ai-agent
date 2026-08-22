@@ -1,3 +1,4 @@
+import agentsConfig from './agents.config';
 import appConfig from './app.config';
 import authConfig from './auth.config';
 import databaseConfig from './database.config';
@@ -10,6 +11,7 @@ import queueConfig from './queue.config';
 import redisConfig from './redis.config';
 
 export {
+  agentsConfig,
   appConfig,
   authConfig,
   databaseConfig,
@@ -44,4 +46,7 @@ export const workerConfigurations = [
   observabilityConfig,
   redisConfig,
   queueConfig,
+  // Worker-only: the reconciler runs nowhere else, so the API process never
+  // parses or requires these variables.
+  agentsConfig,
 ];

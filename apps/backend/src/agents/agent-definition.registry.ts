@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
+import { AgentConfigurationError } from './agent-configuration.error';
 import type { AgentDefinition } from './agent.types';
 
 export const AGENT_DEFINITIONS = Symbol('AGENT_DEFINITIONS');
@@ -38,12 +39,18 @@ export class AgentDefinitionRegistry {
    * Resolves the exact pinned revision. There is deliberately no fallback to a
    * latest version: silently running newer code for a run accepted against an
    * older definition is the drift this pairing exists to prevent.
+   *
+   * An unregistered pair is an `AgentConfigurationError`, not a plain one. The
+   * registry is built from code at startup, so the answer cannot change between
+   * a first attempt and a third — retrying only postpones the report.
    */
   resolve(id: string, version: number): AgentDefinition {
     const identity = key(id, version);
     const definition = this.definitions.get(identity);
     if (!definition)
-      throw new Error(`Agent definition "${identity}" is not registered`);
+      throw new AgentConfigurationError(
+        `Agent definition "${identity}" is not registered`,
+      );
     return definition;
   }
 }

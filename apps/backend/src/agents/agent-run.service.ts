@@ -3,9 +3,27 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database';
 import { OutboxRepository } from '../core/outbox';
-import type { AgentRun, AgentValue, CreateAgentRun } from './agent.types';
+import type {
+  AgentRun,
+  AgentRunStatus,
+  AgentValue,
+  CreateAgentRun,
+} from './agent.types';
 
 const AGENT_RUN_QUEUED = 'agent-run.queued';
+
+/**
+ * The durable diagnostic written when the transport, not the application, ended
+ * a run.
+ *
+ * An application-owned constant rather than BullMQ's `failedReason`. The string
+ * BullMQ would supply ("job stalled more than allowable limit") is authored by
+ * the transport and free to change between versions, and a policy of copying
+ * transport-authored text into a business column is exactly how provider
+ * response bodies eventually end up there too.
+ */
+export const TERMINAL_TRANSPORT_FAILURE =
+  'Agent execution ended without a result';
 
 type PersistedAgentRun = Awaited<
   ReturnType<PrismaService['agentRun']['findUniqueOrThrow']>
@@ -180,6 +198,64 @@ export class AgentRunService {
             completedAt: new Date(),
           }
         : { lastError },
+    });
+
+    return count === 1;
+  }
+
+  /**
+   * A bounded page of runs that are not finished and have gone quiet.
+   *
+   * Ordered oldest-first so a backlog drains in the order it accumulated, and
+   * limited so one pass costs the same whatever the backlog is. `updatedAt`
+   * rather than `startedAt`, because a run that never left `QUEUED` has no
+   * `startedAt` and is precisely one of the cases that can be stranded.
+   *
+   * The staleness bound is a cost control and nothing more. Every candidate is
+   * still checked against the transport before anything is written, so
+   * including a run that turns out to be healthy is wasted work rather than a
+   * wrong outcome.
+   */
+  findStaleNonTerminal(
+    staleBefore: Date,
+    limit: number,
+  ): Promise<{ id: string; status: AgentRunStatus; attemptCount: number }[]> {
+    return this.prisma.agentRun.findMany({
+      where: {
+        status: { in: ['QUEUED', 'RUNNING'] },
+        updatedAt: { lt: staleBefore },
+      },
+      orderBy: { updatedAt: 'asc' },
+      take: limit,
+      select: { id: true, status: true, attemptCount: true },
+    });
+  }
+
+  /**
+   * Finalizes a run whose transport job has terminally failed.
+   *
+   * Deliberately not gated on `attemptCount`. The attempt fence exists so one
+   * delivery cannot overwrite another delivery's outcome, and this caller is not
+   * a delivery — it is the observation that the transport has stopped producing
+   * deliveries at all. Gating it on an ordinal would mean guessing which
+   * abandoned attempt to impersonate, and the guess would be wrong exactly in
+   * the skipped-ordinal case the fence was introduced for.
+   *
+   * The status filter is what keeps it safe. `SUCCEEDED` and `FAILED` are
+   * finished business truth and match nothing, so a duplicate, delayed, or
+   * reordered observation is a no-op, and a run that a late worker managed to
+   * complete is never dragged back to failed. A run that does not exist matches
+   * nothing either, which is the correct answer rather than an error: the
+   * transport can outlive the row it referred to.
+   */
+  async reconcileTerminalFailure(runId: string): Promise<boolean> {
+    const { count } = await this.prisma.agentRun.updateMany({
+      where: { id: runId, status: { in: ['QUEUED', 'RUNNING'] } },
+      data: {
+        status: 'FAILED',
+        lastError: TERMINAL_TRANSPORT_FAILURE,
+        completedAt: new Date(),
+      },
     });
 
     return count === 1;

@@ -30,6 +30,24 @@ export type PublishResult = {
 };
 
 /**
+ * What the transport can say about one job, reduced to the three answers an
+ * application needs.
+ *
+ * Deliberately not BullMQ's `JobState`. Every other state — `waiting`,
+ * `active`, `delayed`, `prioritized`, `waiting-children`, `completed` — means
+ * the same thing to a caller asking whether the transport has given up: it has
+ * not, so do nothing. Collapsing them here keeps BullMQ's state vocabulary,
+ * which changes between versions, out of application code.
+ */
+export type QueueJobTransportState =
+  /** In the failed set: the transport is finished with this job. */
+  | 'failed'
+  /** Redis no longer holds it — retention removed it, or it never existed. */
+  | 'missing'
+  /** Still somewhere in the transport's own lifecycle. */
+  | 'pending';
+
+/**
  * Owns the BullMQ `Queue` instances and publishes to them.
  *
  * Lives only in processes that produce work. The API process deliberately does
@@ -161,6 +179,39 @@ export class QueueProducer {
        */
       if (timer) clearTimeout(timer);
     }
+  }
+
+  /**
+   * Reports what the transport currently says about one job.
+   *
+   * A read on a producer, which is not a contradiction: this class owns the
+   * `Queue` handles for the process, and BullMQ answers this from the ordinary
+   * non-blocking connection those handles already hold. Giving the read its own
+   * `Queue` would open a second Redis connection per queue to ask a question the
+   * existing one can answer.
+   *
+   * Narrow on purpose. It returns no `failedReason`, no timestamps and no
+   * attempt counts, because the only caller must not copy transport-authored
+   * strings into durable business state, and because everything beyond these
+   * three cases is a distinction the application does not act on.
+   *
+   * Errors are not swallowed. A Redis outage must look like an outage to the
+   * caller, so it can retry on its next pass rather than mistake an unreachable
+   * transport for a job that has gone away.
+   */
+  async jobTransportState(
+    name: QueueName,
+    jobId: string,
+  ): Promise<QueueJobTransportState> {
+    const state = await this.queueFor(name).getJobState(jobId);
+
+    if (state === 'failed') return 'failed';
+
+    // BullMQ's own word for "no such job", which is also what retention leaves
+    // behind once it removes one.
+    if (state === 'unknown') return 'missing';
+
+    return 'pending';
   }
 
   /**
