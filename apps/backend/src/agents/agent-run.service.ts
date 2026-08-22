@@ -68,6 +68,123 @@ export class AgentRunService {
     }
   }
 
+  /**
+   * Atomically claims exactly the BullMQ attempt currently being delivered.
+   *
+   * The attempt counter stores BullMQ's active-start ordinal as the claim
+   * version. A duplicate delivery can observe the same/newer version but cannot
+   * claim it or execute the runtime again. Unlike attemptsMade, that ordinal
+   * also advances when BullMQ recovers a stalled job after worker death.
+   */
+  async claimExecutionAttempt(
+    runId: string,
+    attemptsStarted: number,
+  ): Promise<AgentRun | null> {
+    if (!Number.isInteger(attemptsStarted) || attemptsStarted < 1) {
+      throw new Error(
+        'Agent execution attempt number must be a positive integer',
+      );
+    }
+
+    // A worker may stall before it reaches this transaction. Any active
+    // delivery can therefore be the first durable claim, and its BullMQ start
+    // ordinal becomes the CAS version without inventing a lease system here.
+    const queuedClaim = await this.prisma.agentRun.updateManyAndReturn({
+      where: {
+        id: runId,
+        status: 'QUEUED',
+        attemptCount: { lt: attemptsStarted },
+      },
+      data: {
+        status: 'RUNNING',
+        attemptCount: attemptsStarted,
+        lastError: null,
+        startedAt: new Date(),
+      },
+    });
+
+    if (queuedClaim[0]) return toAgentRun(queuedClaim[0]);
+
+    // Monotonic, not exact-predecessor. BullMQ increments `attemptsStarted`
+    // inside Redis at move-to-active, before any of this process runs, so a
+    // worker that is killed between activation and this statement consumes an
+    // ordinal PostgreSQL never observes. The durable sequence is therefore
+    // strictly increasing but may have gaps: after a claim at 1, the next
+    // delivery to arrive here can legitimately be 3. Requiring
+    // `attemptCount === attemptsStarted - 1` wedges exactly that run.
+    //
+    // `attemptsStarted` is unique per delivery and never decreases, which is
+    // what makes it usable as a fencing token: a greater ordinal is a newer
+    // delivery and may take ownership, an equal or lesser one is stale or
+    // duplicate and must do nothing.
+    const runningClaim = await this.prisma.agentRun.updateManyAndReturn({
+      where: {
+        id: runId,
+        status: 'RUNNING',
+        attemptCount: { lt: attemptsStarted },
+      },
+      data: {
+        attemptCount: attemptsStarted,
+        lastError: null,
+      },
+    });
+
+    if (runningClaim[0]) return toAgentRun(runningClaim[0]);
+
+    const current = await this.prisma.agentRun.findUnique({
+      where: { id: runId },
+    });
+
+    if (!current) throw new Error(`AgentRun "${runId}" does not exist`);
+
+    // Terminal runs are finished business truth; a late delivery cannot
+    // reopen them. A stale or duplicate active start for a run already at or
+    // beyond this ordinal is a safe no-op: the newer delivery owns the work.
+    return null;
+  }
+
+  async markExecutionSucceeded(
+    runId: string,
+    attemptCount: number,
+    output: AgentValue,
+  ): Promise<boolean> {
+    const { count } = await this.prisma.agentRun.updateMany({
+      where: { id: runId, status: 'RUNNING', attemptCount },
+      data: {
+        status: 'SUCCEEDED',
+        // `== null` on purpose: Prisma treats an `undefined` field as "do not
+        // update", so an SDK returning no output would record SUCCEEDED with a
+        // silently missing result instead of an explicit JSON null.
+        output:
+          output == null ? Prisma.JsonNull : (output as Prisma.InputJsonValue),
+        lastError: null,
+        completedAt: new Date(),
+      },
+    });
+
+    return count === 1;
+  }
+
+  async recordExecutionFailure(
+    runId: string,
+    attemptCount: number,
+    lastError: string,
+    final: boolean,
+  ): Promise<boolean> {
+    const { count } = await this.prisma.agentRun.updateMany({
+      where: { id: runId, status: 'RUNNING', attemptCount },
+      data: final
+        ? {
+            status: 'FAILED',
+            lastError,
+            completedAt: new Date(),
+          }
+        : { lastError },
+    });
+
+    return count === 1;
+  }
+
   private findByIdempotencyKey(
     input: Pick<CreateAgentRun, 'organizationId' | 'idempotencyKey'>,
   ) {

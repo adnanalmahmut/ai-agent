@@ -129,10 +129,23 @@ recorded with the exact failed check and evidence.
 - 2026-08-22: No AgentRun RBAC permission is added because this slice exposes no
   route. Authorization for a concrete operation belongs with the first real
   agent endpoint.
-- 2026-08-22: Worker attempt claims will compare durable `attemptCount` with
-  BullMQ's prior `attemptsMade` value, then use the incremented count as a CAS
-  version for completion/failure writes. This addresses normal duplicate and
-  retry races without introducing the deferred execution-lease framework.
+- 2026-08-22: Worker attempt claims store BullMQ's `attemptsStarted`
+  active-start ordinal as the durable `attemptCount` CAS version. This handles
+  ordinary retries, duplicates, and stalled redelivery without introducing the
+  deferred execution-lease framework; `attemptsMade` remains the source for
+  BullMQ final-attempt classification.
+- 2026-08-22: The RUNNING claim predicate is monotonic
+  (`attemptCount < attemptsStarted`), not exact-predecessor
+  (`attemptCount == attemptsStarted - 1`). Verified against installed BullMQ
+  6.1.2: `attemptsStarted` is incremented by `HINCRBY` in
+  `prepareJobForProcessing.lua` at move-to-active, before any application code
+  runs, and stalled recovery does not reset it. A worker killed between
+  activation and its first PostgreSQL write therefore consumes an ordinal the
+  database never observes, so the durable sequence is strictly increasing with
+  gaps. The exact-predecessor form wedged such a run permanently; the monotonic
+  form treats the ordinal as a fencing token, which is sound because BullMQ
+  never reissues or decrements it. Completion/failure writes stay gated on the
+  exact claimed `attemptCount`, so a superseded worker cannot finalize.
 - 2026-08-22: `AgentRun.agentVersion` is a plain integer application revision
   persisted at acceptance. Asynchronous work outlives the deployment that
   accepted it, so `agentId` alone cannot identify the code a worker should run.
@@ -157,20 +170,75 @@ recorded with the exact failed check and evidence.
   migration has never been applied there), but any local database that applied
   commit `fc2ddac` keeps the old table and must be reset. This is the accepted
   cost of editing in place instead of publishing corrective migration churn.
+- 2026-08-22: `AgentDefinition` carries an explicit `version` and the registry
+  is keyed by the exact `(id, version)` pair. A duplicate pair is a composition
+  error, distinct versions of one id are valid, and resolution never falls back
+  to a latest version — silent drift onto newer code for a run accepted against
+  an older definition is precisely what the pairing prevents. Definitions are
+  immutable once published under a version; a version still referenced by a
+  QUEUED or RUNNING AgentRun must remain resolvable across a rolling
+  deployment. Automated retention of superseded versions is deliberately not
+  implemented.
+- 2026-08-22: Terminal BullMQ failure reconciliation remains deferred. Verified
+  in BullMQ 6.1.2 that exceeding `maxStalledCount` (default 1) sets a deferred
+  failure and fails the job on next pickup without invoking the processor, so
+  no application code gets a chance to reconcile and the AgentRun can stay
+  RUNNING. Building a transport reconciliation framework is out of scope for
+  infrastructure PRs with empty production definitions, but it is recorded as a
+  hard prerequisite before the first production AgentDefinition or public
+  AgentRun API.
+- 2026-08-22: Review remediation. `MastraRuntime` injects a discarding logger
+  via `__setLogger` because `MastraBase` installs a `ConsoleLogger` by default
+  and the execution loop logs the raw provider error — request body, response
+  body, endpoint, model — through `console.error`, which bypasses the
+  application's Pino redaction entirely. Latent today (production definitions
+  are empty) but a real leak the moment a definition exists.
+- 2026-08-22: The handler logs a fixed reason code (`runtime_error`,
+  `claim_lost`) with the run id and attempt ordinals. Everything persisted and
+  rethrown is one constant, so without this an operator cannot distinguish a
+  missing definition from a provider timeout. The code is chosen at the throw
+  site and never read from the error object.
+- 2026-08-22: A lost claim no longer writes a durable failure. The write was a
+  guaranteed CAS no-op, and skipping it states the ownership rule directly:
+  the superseding delivery owns the outcome.
+- 2026-08-22: Deferred with the terminal-reconciliation work rather than fixed
+  here — resetting `attemptCount` when a reconciler writes `QUEUED` (the
+  monotonic fence otherwise rejects the replayed job and it completes green),
+  and classifying unresolvable definitions as `UnrecoverableError` (which must
+  be coupled with forcing a final durable failure, or the job stops retrying
+  while the run stays RUNNING).
 - 2026-08-22: Prisma 7.9.1 deterministically emits trailing indentation in new
   enum field-reference blank lines. A path-scoped `.gitattributes` rule disables
   only `blank-at-eol` checking for generated Prisma output so committed bytes
   remain generator-current while handwritten files retain normal checks.
+- 2026-08-22: Installed current `@mastra/core` 1.61.0 only. Production
+  definitions remain empty, and no provider configuration is required.
+- 2026-08-22: Worker consumption moved out of `QueueModule` and is composed in
+  `WorkerModule` with an explicit `QUEUE_JOB_HANDLERS` factory. This follows Nest
+  provider scope rules while preserving the existing queue runner and keeping
+  the API unable to consume jobs.
+- 2026-08-22: Runtime failures are converted to a constant diagnostic before
+  both PostgreSQL persistence and BullMQ rejection, preventing provider
+  messages, error names, or response bodies from entering durable/coordination
+  state.
+- 2026-08-22: Independent review found that `attemptsMade` does not advance for
+  BullMQ stalled recovery. Claims now use `attemptsStarted`, with regression
+  coverage for stalls before and after the first durable claim.
 
 ## Progress
 
 - [x] Intake, repository policy, harness, workflow, role, and owning-doc review.
 - [x] Evidence-backed source map and final design.
-- [ ] PR 1 publication and final-head CI. Implementation, focused/aggregate
-  validation, code review, and security review are complete.
-- [ ] PR 2 implementation, focused validation, aggregate validation, review,
-  publication, and final-head CI.
-- [ ] Final documentation consistency review and handoff report.
+- [x] PR 1 published as draft #27; PR 2 published as draft #28 on top of it.
+- [x] Remediation: `agentVersion` pinning, nullable `createdByUserId`,
+  monotonic skipped-ordinal CAS, exact `(id, version)` definition resolution,
+  and the owning documentation updates. The updated base was merged forward
+  into PR 2 without rewriting either branch.
+- [ ] Final-head CI for both remediated draft heads. Earlier green runs
+  correspond to superseded heads and do not carry over.
+- [ ] Final handoff report.
+- [ ] Human review (PR 1 first, then PR 2) and merge. This plan stays under
+  `active/` until the work actually lands.
 
 ## Blockers
 

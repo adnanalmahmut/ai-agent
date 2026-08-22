@@ -319,4 +319,137 @@ describe('AgentRun foundation (e2e)', () => {
       }),
     ).resolves.toBe(2);
   });
+
+  it('allows only one delivery to claim the same execution attempt', async () => {
+    const accepted = await service.create(request('concurrent-claim'));
+
+    const claims = await Promise.all([
+      service.claimExecutionAttempt(accepted.id, 1),
+      service.claimExecutionAttempt(accepted.id, 1),
+    ]);
+
+    expect(claims.filter(Boolean)).toHaveLength(1);
+    await expect(
+      prisma.agentRun.findUniqueOrThrow({ where: { id: accepted.id } }),
+    ).resolves.toMatchObject({ status: 'RUNNING', attemptCount: 1 });
+  });
+
+  it('makes terminal duplicate delivery a durable no-op', async () => {
+    const accepted = await service.create(request('terminal-duplicate'));
+    await prisma.agentRun.update({
+      where: { id: accepted.id },
+      data: {
+        status: 'SUCCEEDED',
+        output: { answer: 'already recorded' },
+        completedAt: new Date(),
+      },
+    });
+
+    await expect(
+      service.claimExecutionAttempt(accepted.id, 1),
+    ).resolves.toBeNull();
+    await expect(
+      prisma.agentRun.findUniqueOrThrow({ where: { id: accepted.id } }),
+    ).resolves.toMatchObject({
+      status: 'SUCCEEDED',
+      attemptCount: 0,
+      output: { answer: 'already recorded' },
+    });
+  });
+
+  it('records successful output only for the active durable claim', async () => {
+    const accepted = await service.create(request('successful-attempt'));
+    const claimed = await service.claimExecutionAttempt(accepted.id, 1);
+
+    expect(claimed).toMatchObject({ status: 'RUNNING', attemptCount: 1 });
+    await expect(
+      service.markExecutionSucceeded(accepted.id, 1, { answer: 'done' }),
+    ).resolves.toBe(true);
+    await expect(
+      prisma.agentRun.findUniqueOrThrow({ where: { id: accepted.id } }),
+    ).resolves.toMatchObject({
+      status: 'SUCCEEDED',
+      attemptCount: 1,
+      output: { answer: 'done' },
+      lastError: null,
+      completedAt: expect.any(Date),
+    });
+  });
+
+  it('keeps an intermediate failure retryable and permits a successful retry', async () => {
+    const accepted = await service.create(request('successful-retry'));
+    await service.claimExecutionAttempt(accepted.id, 1);
+
+    await expect(
+      service.recordExecutionFailure(
+        accepted.id,
+        1,
+        'Agent execution failed',
+        false,
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      service.claimExecutionAttempt(accepted.id, 2),
+    ).resolves.toMatchObject({ status: 'RUNNING', attemptCount: 2 });
+    await expect(
+      service.markExecutionSucceeded(accepted.id, 2, 'retry output'),
+    ).resolves.toBe(true);
+
+    await expect(
+      prisma.agentRun.findUniqueOrThrow({ where: { id: accepted.id } }),
+    ).resolves.toMatchObject({
+      status: 'SUCCEEDED',
+      attemptCount: 2,
+      output: 'retry output',
+      lastError: null,
+    });
+  });
+
+  it('records FAILED only when the caller classifies the attempt as final', async () => {
+    const accepted = await service.create(request('final-failure'));
+    await service.claimExecutionAttempt(accepted.id, 1);
+
+    await expect(
+      service.recordExecutionFailure(
+        accepted.id,
+        1,
+        'Agent execution failed',
+        true,
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      prisma.agentRun.findUniqueOrThrow({ where: { id: accepted.id } }),
+    ).resolves.toMatchObject({
+      status: 'FAILED',
+      attemptCount: 1,
+      lastError: 'Agent execution failed',
+      completedAt: expect.any(Date),
+    });
+  });
+
+  it('reclaims a stalled delivery after the prior worker durably claimed it', async () => {
+    const accepted = await service.create(request('stall-after-claim'));
+    await service.claimExecutionAttempt(accepted.id, 1);
+
+    await expect(
+      service.claimExecutionAttempt(accepted.id, 2),
+    ).resolves.toMatchObject({ status: 'RUNNING', attemptCount: 2 });
+  });
+
+  it('claims a later active start when an earlier worker stalled before the database', async () => {
+    const accepted = await service.create(request('stall-before-claim'));
+
+    await expect(
+      service.claimExecutionAttempt(accepted.id, 2),
+    ).resolves.toMatchObject({ status: 'RUNNING', attemptCount: 2 });
+    await service.recordExecutionFailure(
+      accepted.id,
+      2,
+      'Agent execution failed',
+      false,
+    );
+    await expect(
+      service.claimExecutionAttempt(accepted.id, 3),
+    ).resolves.toMatchObject({ status: 'RUNNING', attemptCount: 3 });
+  });
 });
