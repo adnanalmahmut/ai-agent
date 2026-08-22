@@ -229,6 +229,19 @@ still being `QUEUED` or `RUNNING`, so it is idempotent and cannot overwrite a
 terminal outcome; it does not match on `attemptCount`, because the sweep is not
 an attempt.
 
+It reads through a keyset cursor on `(updatedAt, id)`, which is what makes the
+sweep progress rather than merely repeat. A candidate it cannot act on is left
+unwritten, so `updatedAt` never moves and always-from-the-beginning would return
+the same rows forever — and once enough of them filled a page, no newer run
+would be examined again. The cursor resets on a short page, so the scan cycles;
+losing it to a restart costs a cycle, not correctness.
+
+What the conditional does *not* protect is a run still in flight. A worker whose
+lock lapsed mid-model-call keeps running, and if the sweep finalizes the run
+first, that worker's success write matches nothing and its result is discarded.
+An accepted trade — the transport has given up, and `RUNNING` forever is worse —
+and a reason to keep the staleness threshold above the slowest expected call.
+
 `QueueEvents` would have been the smaller-looking answer and is not a correct
 one: it reads the stream from `$` with no persisted cursor, so an event
 published while the process is down is lost rather than delayed. Correctness
@@ -252,6 +265,10 @@ nothing, a newer delivery owns the run, and terminally failing the job on its
 behalf would end work that is still running — so a stale delivery rejects
 ordinarily. Classification is `instanceof` and nothing else, so a provider error
 cannot choose a name or message that talks the worker out of its retries.
+
+This makes deployment order matter when a definition is added: bring the worker
+up before, or with, the API, or a run accepted by a new API instance and
+delivered to an older worker is failed immediately rather than retried.
 
 ### A claim is versioned, so a stale dispatcher cannot overwrite a newer outcome
 
