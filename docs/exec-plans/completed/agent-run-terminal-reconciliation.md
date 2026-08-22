@@ -391,13 +391,32 @@ profile). CI on the final head must be green.
 - [x] Repair cycle 2: the blocking cursor/write ordering finding from human
   review of PR #29 fixed, regression-tested, mutation-verified, and corrected in
   every document that had stated the weaker guarantee.
-- [ ] Human review and merge. This plan stays under `active/` until the work
-  lands, and moves to `completed/` with its landing evidence in that same
-  change.
+- [x] Human review and merge.
+
+## Outcome
+
+Landed. Human review of PR #29 raised one blocking finding — the reconciler
+advanced its scan cursor on the transport verdict rather than after the terminal
+write, so a transient PostgreSQL rejection could carry the scan past a run
+already proven stranded — which was fixed, regression-tested and
+mutation-verified in repair cycle 2 before merge.
+
+| Item | Value |
+| --- | --- |
+| Pull request | [#29](https://github.com/adnanalmahmut/ai-agent/pull/29) |
+| Base | `f313f4bf97ba0b71fdfdd4eea98eaee84c6b62dc` |
+| Final head | `d0c301f5c5a15681c07b2ced586e9614756850e5` |
+| Merge commit | `4c0c8fd074b4ac966e931b39776015630211edc2` |
+| Final-head CI | [32589844492](https://github.com/adnanalmahmut/ai-agent/actions/runs/32589844492) — success |
+
+The move to `completed/` happened one change late: the plan stayed under
+`active/` through the merge and is relocated by the first change that followed
+it. Recorded rather than quietly corrected, because a plan left falsely active
+is exactly the state `docs/exec-plans/README.md` exists to prevent.
 
 ## Blockers
 
-None currently.
+None. Closed.
 
 ## Known unrelated observation
 

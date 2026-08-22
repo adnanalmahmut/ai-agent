@@ -39,6 +39,31 @@ export const configurations = [
   queueConfig,
 ];
 
+/**
+ * Configuration namespaces used by the operator CLI composition root.
+ *
+ * The CLI needs the authentication stack — it creates a credential account
+ * through the same Better Auth instance the API serves — so it parses the
+ * config that stack is built from. What it deliberately omits is the transport
+ * layer: no Redis and no queue, because an operator command neither accepts a
+ * request nor produces background work, and requiring those variables would
+ * make the one command that repairs a broken deployment depend on more of it.
+ *
+ * Observability is omitted for the same reason and one more: the CLI's logger
+ * is static and silent, so nothing reads those values, and parsing a variable
+ * nothing consumes is one more way for the command to fail on a host where the
+ * thing it is meant to repair is what is broken.
+ */
+export const cliConfigurations = [
+  appConfig,
+  databaseConfig,
+  geoIpConfig,
+  httpConfig,
+  authConfig,
+  mailConfig,
+  openapiConfig,
+];
+
 /** Configuration namespaces used by the non-HTTP worker composition root. */
 export const workerConfigurations = [
   appConfig,
