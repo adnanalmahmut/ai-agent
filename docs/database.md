@@ -38,8 +38,12 @@ fence exists for.
 
 `INDEX (status, updatedAt)` serves that sweep, which repeatedly asks for the
 oldest non-terminal runs. Terminal rows are never deleted, so without the index
-a bounded query would cost a full scan proportional to total history rather than
-to the backlog it is looking for. It carries no durable state and no semantics.
+a bounded query costs a scan proportional to total history rather than to the
+backlog it is looking for: measured on PostgreSQL 16 against 200,000 terminal
+rows and a 200-row live tail, the query plans as a bitmap index scan over three
+heap blocks at 0.5 ms, against 58 ms for the sequential scan the planner chooses
+without it. The index carries no durable state and no semantics, and
+correctness does not depend on it.
 
 Migration order:
 

@@ -222,10 +222,17 @@ profile). CI on the final head must be green.
 - 2026-08-22: `INDEX (status, updatedAt)` is the only schema change. It is not
   durable state and correctness does not depend on it, so it sits outside the
   "prefer no migration" rule on purpose: terminal rows are never deleted, so
-  without it the bounded candidate query costs a full scan proportional to total
-  history rather than to the backlog. The staleness threshold is likewise a cost
-  bound and not a timeout — every candidate is still checked against the
-  transport before anything is written.
+  without it the bounded candidate query costs a scan proportional to total
+  history rather than to the backlog. Measured on PostgreSQL 16 with 200,000
+  terminal rows and a 200-row live tail, the candidate query plans as a bitmap
+  index scan touching three heap blocks and runs in 0.5 ms; with the index
+  removed the same query is a sequential scan at 58 ms. Two honest caveats: the
+  planner reverts to a sequential scan when the non-terminal share is large
+  (half the table in a deliberately pathological probe), which is a regime with
+  worse problems than this query; and the `IN` over two statuses means a top-N
+  sort remains, which a partial index would remove but Prisma cannot express.
+  The staleness threshold is likewise a cost bound and not a timeout — every
+  candidate is still checked against the transport before anything is written.
 - 2026-08-22: Deterministic failures use one application-owned error class, not
   a taxonomy. Every case it covers is the same mismatch between a durable run
   and the deployed code, and all of them get the same treatment. Classification
