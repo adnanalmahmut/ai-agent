@@ -1,9 +1,40 @@
 # Database
 
 PostgreSQL stores identity, sessions, accounts, verification records,
-organizations, members, invitations, Better Auth rate-limit rows, and outbox
-events. Prisma schema and generated client are committed and CI verifies that
-generation is current.
+organizations, members, invitations, Better Auth rate-limit rows, agent runs,
+and outbox events. Prisma schema and generated client are committed and CI
+verifies that generation is current.
+
+`agent_run` is the durable business authority for accepted background agent
+work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,
+`FAILED`) and separate from outbox delivery and BullMQ job state. Runtime is a
+string because application code owns runtime support; adding a runtime does not
+inherently require a database enum migration. Request idempotency is enforced
+by `UNIQUE (organizationId, idempotencyKey)`, while the run id used as BullMQ's
+job id is only short-lived transport deduplication. The organization foreign key
+restricts deletion so execution history cannot be silently removed, and the
+creator foreign key does the same when a creator is present.
+
+`agentVersion` pins the run to one definition revision. Definitions are code,
+so `agentId` alone is ambiguous the moment a definition changes: a run accepted
+before a deployment must still execute the revision it was accepted against.
+The pair `(agentId, agentVersion)` is therefore what a worker resolves.
+
+`createdByUserId` is nullable. Null means only that no authenticated
+application User initiated the run, which is the honest representation for
+scheduled or system-initiated work. It is not an actor abstraction, a trigger
+hierarchy, or a placeholder for a synthetic system user.
+
+The AgentRun migration is still unmerged and was corrected in place rather than
+by a follow-up migration. In a repository-local reproduction using Prisma
+7.9.1, a database that had already applied the earlier form continued to report
+the schema as up to date and `migrate deploy` did not re-apply the edited file.
+That observed behavior is the reason for the local reset guidance here; it is
+not asserted as a general Prisma migration rule outside this tested path.
+Deployed environments are unaffected — this migration has never been applied
+to one, and CI builds a fresh database per run — but a local database that
+applied the earlier form must be reset with
+`pnpm --filter backend db:reset`.
 
 Migration order:
 
@@ -12,6 +43,7 @@ Migration order:
 3. Transactional outbox.
 4. Nullable session country/city.
 5. Better Auth database rate-limit storage.
+6. Durable agent-run foundation.
 
 Sessions/accounts cascade with their user because they have no independent
 historical meaning. Membership and invitation foreign keys restrict deletion

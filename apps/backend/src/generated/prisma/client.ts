@@ -81,6 +81,15 @@ export type Member = Prisma.MemberModel
  */
 export type Invitation = Prisma.InvitationModel
 /**
+ * Model AgentRun
+ * Durable authority for one background agent execution.
+ * The runtime stays a string so adding a second application-supported runtime
+ * is a code change, not inherently a database migration. `agentId` names an
+ * application-owned definition; definitions are code, so it is deliberately
+ * not a foreign key.
+ */
+export type AgentRun = Prisma.AgentRunModel
+/**
  * Model OutboxEvent
  * 
  */

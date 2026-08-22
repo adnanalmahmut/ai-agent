@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 
 import { appConfig, configurations, observabilityConfig } from './config';
+import { AgentsModule } from './agents';
 import { AppAuthModule } from './core/auth';
 import { HealthModule } from './core/health';
 import { HttpInfrastructureModule } from './core/http';
@@ -25,6 +26,7 @@ import { DatabaseModule } from './database';
       useFactory: createLoggerOptions,
     }),
     LifecycleModule,
+    AgentsModule,
     AppI18nModule,
     HttpInfrastructureModule,
     RateLimitModule,

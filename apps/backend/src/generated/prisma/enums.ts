@@ -9,6 +9,16 @@
 * 🟢 You can import this file directly.
 */
 
+export const AgentRunStatus = {
+  QUEUED: 'QUEUED',
+  RUNNING: 'RUNNING',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED'
+} as const
+
+export type AgentRunStatus = (typeof AgentRunStatus)[keyof typeof AgentRunStatus]
+
+
 export const OutboxEventStatus = {
   PENDING: 'PENDING',
   PROCESSING: 'PROCESSING',
