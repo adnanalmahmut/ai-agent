@@ -6,7 +6,10 @@ import { QUEUE_NAMES, type QueueJobHandler } from '../core/queue';
 import { isAgentConfigurationError } from './agent-configuration.error';
 import { AgentRunService } from './agent-run.service';
 import { AgentRunner } from './agent-runner.service';
-import type { AgentRuntimeResult } from './agent.types';
+import {
+  AGENT_EXECUTION_FAILED,
+  type AgentRuntimeResult,
+} from './agent.types';
 
 export type AgentExecutionJob = { runId: string };
 
@@ -33,7 +36,7 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
     );
     if (!run) return;
 
-    const diagnostic = safeFailureDiagnostic();
+    const diagnostic = AGENT_EXECUTION_FAILED;
     let result: AgentRuntimeResult;
 
     try {
@@ -110,11 +113,42 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
       throw new Error(diagnostic);
     }
 
-    const recorded = await this.runs.markExecutionSucceeded(
-      run.id,
-      run.attemptCount,
-      result.output,
-    );
+    /**
+     * Wrapped, even though it is the success path.
+     *
+     * This call carries the model's output as an argument, and Prisma renders a
+     * rejected invocation's arguments into its message — so a value the adapter
+     * cannot persist would put the model's output into the error, into BullMQ's
+     * `failedReason` in Redis, and into the queue's failure log, all outside
+     * every piece of containment above. Unreachable while a runtime returns a
+     * string, which is exactly why it is worth closing before one returns
+     * anything else.
+     *
+     * Rethrown rather than swallowed: the durable write did not happen, so
+     * BullMQ must see a failure and retry.
+     */
+    let recorded: boolean;
+
+    try {
+      recorded = await this.runs.markExecutionSucceeded(
+        run.id,
+        run.attemptCount,
+        result.output,
+      );
+    } catch {
+      this.logger.warn(
+        {
+          runId: run.id,
+          attemptCount: run.attemptCount,
+          attemptsStarted: job.attemptsStarted,
+          reason: 'result_write_failed',
+        },
+        'Agent execution result could not be recorded',
+      );
+
+      throw new Error(diagnostic);
+    }
+
     if (recorded) return;
 
     // A newer delivery claimed the run while this model call was in flight, so
@@ -148,9 +182,4 @@ function reasonFor(
 ): 'claim_lost' | 'configuration_error' | 'runtime_error' {
   if (!recorded) return 'claim_lost';
   return deterministic ? 'configuration_error' : 'runtime_error';
-}
-
-/** Never persist provider messages, response bodies, stacks, or causes. */
-function safeFailureDiagnostic(): string {
-  return 'Agent execution failed';
 }

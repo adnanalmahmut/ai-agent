@@ -61,6 +61,17 @@ export class QueueProducer {
   private readonly queues = new Map<QueueName, Queue>();
 
   /**
+   * Set by `close()`, so a caller that outlived the shutdown step cannot
+   * resurrect the transport.
+   *
+   * `close()` empties the queue map, and `queueFor` builds one on demand — so
+   * without this a slow reader still in flight when the producers close would
+   * open a fresh Redis connection during teardown that nothing would ever
+   * close.
+   */
+  private closed = false;
+
+  /**
    * How long a single publish may take.
    *
    * Not decoration. BullMQ resolves `add()` against a connection promise that
@@ -96,6 +107,14 @@ export class QueueProducer {
   }
 
   private queueFor(name: QueueName): Queue {
+    if (this.closed) {
+      throw new QueuePublishError(
+        name,
+        'rejected',
+        `Queue "${name}" is closed`,
+      );
+    }
+
     const existing = this.queues.get(name);
     if (existing) return existing;
 
@@ -132,25 +151,12 @@ export class QueueProducer {
   ): Promise<PublishResult> {
     const queue = this.queueFor(name);
 
-    let timer: NodeJS.Timeout | undefined;
-
     try {
-      const job = await Promise.race([
+      const job = await this.bounded(
+        name,
+        'Publishing',
         queue.add(jobName, data, { jobId: options.jobId }),
-        new Promise<never>((_, reject) => {
-          timer = setTimeout(
-            () =>
-              reject(
-                new QueuePublishError(
-                  name,
-                  'timeout',
-                  `Publishing to "${name}" exceeded ${this.publishTimeoutMs}ms`,
-                ),
-              ),
-            this.publishTimeoutMs,
-          );
-        }),
-      ]);
+      );
 
       /**
        * Deliberately reports nothing about whether the job was new.
@@ -172,6 +178,44 @@ export class QueueProducer {
         error instanceof Error ? error.message : String(error),
         error,
       );
+    }
+  }
+
+  /**
+   * Bounds one BullMQ call, because BullMQ does not bound it for us.
+   *
+   * Every operation resolves against a connection promise that waits for
+   * `ready` and — by design, so a queue is never permanently poisoned by one
+   * bad start — neither rejects nor times out while the client is still
+   * reconnecting. The command timeout never applies, because the command is
+   * never issued. Without this an operation attempted during a Redis outage
+   * simply never settles, and whatever loop is awaiting it stops advancing for
+   * the whole outage rather than for one interval.
+   */
+  private async bounded<T>(
+    name: QueueName,
+    operation: string,
+    work: Promise<T>,
+  ): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+
+    try {
+      return await Promise.race([
+        work,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                new QueuePublishError(
+                  name,
+                  'timeout',
+                  `${operation} on "${name}" exceeded ${this.publishTimeoutMs}ms`,
+                ),
+              ),
+            this.publishTimeoutMs,
+          );
+        }),
+      ]);
     } finally {
       /**
        * Cleared on every path. A leaked timer would keep the event loop alive
@@ -195,15 +239,20 @@ export class QueueProducer {
    * strings into durable business state, and because everything beyond these
    * three cases is a distinction the application does not act on.
    *
-   * Errors are not swallowed. A Redis outage must look like an outage to the
-   * caller, so it can retry on its next pass rather than mistake an unreachable
-   * transport for a job that has gone away.
+   * Errors are not swallowed, and the call is bounded. A Redis outage must look
+   * like an outage to the caller — promptly — so it retries on its next pass
+   * rather than mistaking an unreachable transport for a job that has gone
+   * away, or hanging until the outage ends.
    */
   async jobTransportState(
     name: QueueName,
     jobId: string,
   ): Promise<QueueJobTransportState> {
-    const state = await this.queueFor(name).getJobState(jobId);
+    const state = await this.bounded(
+      name,
+      'Reading job state',
+      this.queueFor(name).getJobState(jobId),
+    );
 
     if (state === 'failed') return 'failed';
 
@@ -240,5 +289,6 @@ export class QueueProducer {
 
     await Promise.all(closing);
     this.queues.clear();
+    this.closed = true;
   }
 }

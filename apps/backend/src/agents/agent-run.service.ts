@@ -3,31 +3,38 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database';
 import { OutboxRepository } from '../core/outbox';
-import type {
-  AgentRun,
-  AgentRunStatus,
-  AgentValue,
-  CreateAgentRun,
+import {
+  TERMINAL_TRANSPORT_FAILURE,
+  type AgentFailureDiagnostic,
+  type AgentRun,
+  type AgentRunStatus,
+  type AgentValue,
+  type CreateAgentRun,
 } from './agent.types';
 
 const AGENT_RUN_QUEUED = 'agent-run.queued';
 
-/**
- * The durable diagnostic written when the transport, not the application, ended
- * a run.
- *
- * An application-owned constant rather than BullMQ's `failedReason`. The string
- * BullMQ would supply ("job stalled more than allowable limit") is authored by
- * the transport and free to change between versions, and a policy of copying
- * transport-authored text into a business column is exactly how provider
- * response bodies eventually end up there too.
- */
-export const TERMINAL_TRANSPORT_FAILURE =
-  'Agent execution ended without a result';
-
 type PersistedAgentRun = Awaited<
   ReturnType<PrismaService['agentRun']['findUniqueOrThrow']>
 >;
+
+/** Where a reconciliation pass got to, so the next one resumes rather than restarts. */
+export type StaleRunCursor = { updatedAt: Date; id: string };
+
+/**
+ * Only what a reconciliation decision needs.
+ *
+ * Deliberately not the whole row: `input` and `output` hold prompts and model
+ * results, and `organizationId` and `createdByUserId` identify a tenant. None
+ * of it informs the decision, so none of it is loaded into a process whose job
+ * is to write log lines about these rows.
+ */
+export type StaleAgentRun = {
+  id: string;
+  status: AgentRunStatus;
+  attemptCount: number;
+  updatedAt: Date;
+};
 
 /** Internal acceptance boundary for durable background agent work. */
 @Injectable()
@@ -186,7 +193,7 @@ export class AgentRunService {
   async recordExecutionFailure(
     runId: string,
     attemptCount: number,
-    lastError: string,
+    lastError: AgentFailureDiagnostic,
     final: boolean,
   ): Promise<boolean> {
     const { count } = await this.prisma.agentRun.updateMany({
@@ -206,10 +213,20 @@ export class AgentRunService {
   /**
    * A bounded page of runs that are not finished and have gone quiet.
    *
-   * Ordered oldest-first so a backlog drains in the order it accumulated, and
-   * limited so one pass costs the same whatever the backlog is. `updatedAt`
+   * Ordered oldest-first so a backlog is examined in the order it accumulated,
+   * and limited so one pass returns a fixed number of rows however large the
+   * backlog is. (The number of rows is bounded; the cost of finding them is
+   * not strictly — see the index note in `docs/database.md`.) `updatedAt`
    * rather than `startedAt`, because a run that never left `QUEUED` has no
    * `startedAt` and is precisely one of the cases that can be stranded.
+   *
+   * `after` is a keyset cursor, and it is what makes the sweep make progress
+   * rather than merely make queries. A candidate the caller cannot act on is
+   * left unwritten, so its `updatedAt` never moves and oldest-first would hand
+   * back the same rows forever; once enough of them exist, no newer run is ever
+   * examined again and the recovery mechanism silently stops recovering.
+   * Paging past what has already been seen bounds each row's influence to one
+   * visit per cycle.
    *
    * The staleness bound is a cost control and nothing more. Every candidate is
    * still checked against the transport before anything is written, so
@@ -219,15 +236,27 @@ export class AgentRunService {
   findStaleNonTerminal(
     staleBefore: Date,
     limit: number,
-  ): Promise<{ id: string; status: AgentRunStatus; attemptCount: number }[]> {
+    after?: StaleRunCursor,
+  ): Promise<StaleAgentRun[]> {
     return this.prisma.agentRun.findMany({
       where: {
         status: { in: ['QUEUED', 'RUNNING'] },
         updatedAt: { lt: staleBefore },
+        // `updatedAt` is not unique, so the cursor is the pair. Comparing on
+        // the timestamp alone would skip every row sharing the last one's
+        // millisecond.
+        ...(after
+          ? {
+              OR: [
+                { updatedAt: { gt: after.updatedAt } },
+                { updatedAt: after.updatedAt, id: { gt: after.id } },
+              ],
+            }
+          : {}),
       },
-      orderBy: { updatedAt: 'asc' },
+      orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
       take: limit,
-      select: { id: true, status: true, attemptCount: true },
+      select: { id: true, status: true, attemptCount: true, updatedAt: true },
     });
   }
 

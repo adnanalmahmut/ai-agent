@@ -36,11 +36,11 @@ const redis = {
 let namespace = 0;
 
 /** A fresh BullMQ prefix per test, so `obliterate` can only reach its own keys. */
-const queueConfigWith = () => ({
+const queueConfigWith = (attempts = 1) => ({
   prefix: `agent-reconcile-test-${process.pid}-${(namespace += 1)}`,
   workerConcurrency: 1,
   shutdownGraceMs: 5_000,
-  job: { attempts: 1, backoffMs: 50 },
+  job: { attempts, backoffMs: 50 },
   retention: {
     completed: { ageSeconds: 60, count: 20 },
     failed: { ageSeconds: 60, count: 20 },
@@ -494,6 +494,15 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
 
       await reconciler.reconcileOnce();
 
+      /**
+       * Both layers, because they fail separately and this is the direction
+       * that destroys a real result. The candidate query excludes a terminal
+       * run; the write refuses one even when handed it directly, which is the
+       * guard that matters if a candidate succeeds between the query and the
+       * write.
+       */
+      await expect(runs.reconcileTerminalFailure(run.id)).resolves.toBe(false);
+
       const after = await rowOf(run.id);
       expect(after.status).toBe('SUCCEEDED');
       expect(after.output).toEqual({ answer: 'done' });
@@ -597,6 +606,83 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
    * succeed.
    */
   describe('deterministic execution failures', () => {
+    /**
+     * Three attempts configured, so "it stopped after one" means something.
+     * With the single-attempt default used elsewhere in this file, a test
+     * asserting one invocation would pass whatever the handler threw.
+     */
+    const RETRY_BUDGET = 3;
+
+    let queue: ReturnType<typeof queueConfigWith>;
+    let producer: QueueProducer;
+    let inspector: Queue;
+    let worker: Worker | undefined;
+
+    beforeAll(() => {
+      queue = queueConfigWith(RETRY_BUDGET);
+      producer = new QueueProducer(redis, queue, silent);
+      producer.init();
+      inspector = new Queue(QUEUE_NAMES.agentExecution, {
+        connection: { url: redis.url },
+        prefix: queue.prefix,
+      });
+      inspector.on('error', () => undefined);
+    });
+
+    afterAll(async () => {
+      await worker?.close(true).catch(() => undefined);
+      await producer.close();
+
+      try {
+        await inspector.obliterate({ force: true });
+      } catch {
+        // Nothing was ever published.
+      }
+      await inspector.close();
+    });
+
+    /** Runs one job to terminal state through the real worker loop. */
+    const drain = async (
+      runId: string,
+      runner: AgentRunner,
+    ): Promise<string[]> => {
+      const invocations: string[] = [];
+      const handler = new AgentExecutionHandler(runs, runner, silent);
+
+      await producer.publish(
+        QUEUE_NAMES.agentExecution,
+        'execute',
+        { runId },
+        { jobId: runId },
+      );
+
+      worker = new Worker(
+        QUEUE_NAMES.agentExecution,
+        async (delivered: Job<AgentExecutionJob>) => {
+          invocations.push(delivered.id ?? '');
+          await handler.handle(delivered);
+        },
+        {
+          connection: { url: redis.url },
+          prefix: queue.prefix,
+          concurrency: 1,
+          autorun: false,
+        },
+      );
+      worker.on('error', () => undefined);
+      void worker.run();
+
+      await until(
+        async () => (await inspector.getJobState(runId)) === 'failed',
+      );
+      expect(await inspector.getJobState(runId)).toBe('failed');
+
+      await worker.close(true);
+      worker = undefined;
+
+      return invocations;
+    };
+
     const configurationRunner = {
       run: () =>
         Promise.reject(
@@ -641,38 +727,96 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
 
     /**
      * A stale delivery must not terminally fail a job whose newer delivery is
-     * still working. Here the run has already moved on to a higher ordinal, so
-     * the finalizing write matches nothing — and the rejection must be an
-     * ordinary one, leaving BullMQ's own lock to arbitrate.
+     * still working.
+     *
+     * The claim has to be lost *while this delivery is executing*, which is the
+     * only way to reach the branch: a delivery whose claim is already stale is
+     * refused at `claimExecutionAttempt` and never reaches the runner at all.
+     * So the runner itself bumps the ordinal — standing in for a newer delivery
+     * arriving mid-flight — and only then fails deterministically. The
+     * finalizing write now matches nothing, and the rejection must be ordinary
+     * so BullMQ's own lock arbitrates instead of this worker terminally failing
+     * a job somebody else owns.
      */
     it('does not send UnrecoverableError from a delivery that lost its claim', async () => {
       const run = await runs.create(request('deterministic-stale-owner'));
-      await runs.claimExecutionAttempt(run.id, 1);
-      // A newer delivery takes ownership.
-      await runs.claimExecutionAttempt(run.id, 2);
 
-      const handler = new AgentExecutionHandler(
-        runs,
-        configurationRunner,
-        silent,
-      );
+      const supersededRunner = {
+        run: async () => {
+          // A newer delivery takes ownership while this one is executing.
+          await runs.claimExecutionAttempt(run.id, 2);
+          throw new AgentConfigurationError(
+            'Agent definition "test-only-agent@1" is not registered',
+          );
+        },
+      } as unknown as AgentRunner;
 
-      // This delivery still believes it holds ordinal 1.
-      const stale = {
-        id: run.id,
-        data: { runId: run.id },
-        attemptsMade: 0,
-        attemptsStarted: 1,
-        opts: { attempts: 3 },
-      } as Job<AgentExecutionJob>;
+      const handler = new AgentExecutionHandler(runs, supersededRunner, silent);
 
-      // The claim at ordinal 1 is refused outright, so nothing is written.
-      await expect(handler.handle(stale)).resolves.toBeUndefined();
+      const rejection = handler.handle(job(run.id));
+      await expect(rejection).rejects.toThrow('Agent execution failed');
+      await rejection.catch((error: Error) => {
+        // Ordinary, not unrecoverable: the deterministic classification is
+        // real, but this delivery no longer has the standing to act on it.
+        expect(error.name).toBe('Error');
+        expect(error.message).toBe('Agent execution failed');
+      });
 
+      // The newer owner's state is intact — no FAILED, no completedAt, and the
+      // ordinal it claimed is untouched.
       const untouched = await rowOf(run.id);
       expect(untouched.status).toBe('RUNNING');
       expect(untouched.attemptCount).toBe(2);
       expect(untouched.completedAt).toBeNull();
+      expect(untouched.lastError).toBeNull();
+    }, 60_000);
+
+    /**
+     * The transport half of the claim, which the unit tests cannot make.
+     *
+     * Everything else asserts the object the handler throws. This asserts what
+     * BullMQ then does with it: the processor runs once against a job
+     * configured for three attempts, and the job is terminal immediately. That
+     * is the whole point of classifying these failures — without it the run
+     * would sit `RUNNING` through two more attempts and their backoff.
+     */
+    it('makes BullMQ stop after one attempt instead of spending three', async () => {
+      const run = await runs.create(request('deterministic-no-retry'));
+
+      const invocations = await drain(run.id, configurationRunner);
+
+      // Three were configured; one was spent.
+      expect(invocations).toHaveLength(1);
+
+      const settled = await rowOf(run.id);
+      expect(settled.status).toBe('FAILED');
+      expect(settled.completedAt).not.toBeNull();
+      expect(settled.lastError).toBe('Agent execution failed');
+    }, 60_000);
+
+    /**
+     * The contrast that gives the previous test its meaning. Same queue, same
+     * budget, same handler — only the error class differs, and this one is
+     * delivered all three times before the run is finalized. Without this, "one
+     * invocation" could just as well be a queue that never retries anything.
+     */
+    it('still spends the whole budget on an ordinary runtime failure', async () => {
+      const run = await runs.create(request('transient-uses-budget'));
+
+      const transientRunner = {
+        run: () => Promise.reject(new Error('provider timed out')),
+      } as unknown as AgentRunner;
+
+      const invocations = await drain(run.id, transientRunner);
+
+      expect(invocations).toHaveLength(RETRY_BUDGET);
+
+      const settled = await rowOf(run.id);
+      expect(settled.status).toBe('FAILED');
+      // The provider's own words reached neither the column nor the queue.
+      expect(settled.lastError).toBe('Agent execution failed');
+      const failedJob = await inspector.getJob(run.id);
+      expect(failedJob?.failedReason).toBe('Agent execution failed');
     }, 60_000);
   });
 });

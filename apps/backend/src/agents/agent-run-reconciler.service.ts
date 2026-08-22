@@ -4,7 +4,13 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { agentsConfig } from '../config';
 import { QUEUE_NAMES, QueueProducer } from '../core/queue';
-import { AgentRunService } from './agent-run.service';
+import {
+  AgentRunService,
+  type StaleRunCursor,
+} from './agent-run.service';
+
+/** How many stranded run ids one summary line names before it stops. */
+const MISSING_SAMPLE_SIZE = 5;
 
 /** What one pass did, so a caller and a test can assert the same numbers. */
 export type ReconciliationPass = {
@@ -80,6 +86,21 @@ export class AgentRunReconciler {
 
   /** Held so `stop()` can wait for a pass rather than cut Redis out from it. */
   private inFlight: Promise<ReconciliationPass> | undefined;
+
+  /**
+   * Where the last pass stopped reading, so the next one resumes.
+   *
+   * Progress, not correctness. A candidate the pass cannot act on is left
+   * unwritten, so oldest-first would return it again forever and — once enough
+   * of them exist to fill a page — would never reach a newer stranded run at
+   * all. Resuming past what has been seen bounds each row to one visit per
+   * cycle.
+   *
+   * Losing it costs nothing but time. A restart resumes from the oldest run and
+   * walks the same cycle again, which is why correctness still rests on
+   * PostgreSQL alone and not on anything this process remembers.
+   */
+  private cursor: StaleRunCursor | undefined;
 
   constructor(
     private readonly runs: AgentRunService,
@@ -199,7 +220,15 @@ export class AgentRunReconciler {
     const candidates = await this.runs.findStaleNonTerminal(
       new Date(Date.now() - staleAfterMs),
       batchSize,
+      this.cursor,
     );
+
+    /**
+     * A short page means the cycle is finished, so the next pass starts again
+     * from the oldest run. Anything that became stale behind the cursor during
+     * this cycle is picked up on the next one.
+     */
+    if (candidates.length < batchSize) this.cursor = undefined;
 
     const pass: ReconciliationPass = {
       examined: candidates.length,
@@ -211,6 +240,13 @@ export class AgentRunReconciler {
     };
 
     if (candidates.length === 0) return pass;
+
+    /**
+     * Collected and reported once, rather than a line per candidate per pass.
+     * These runs are by definition ones nothing will change, so logging each of
+     * them every interval produces an unbounded stream describing a static set.
+     */
+    const missing: string[] = [];
 
     /**
      * Sequential rather than concurrent, following the outbox dispatcher: a
@@ -235,6 +271,10 @@ export class AgentRunReconciler {
         candidate.id,
       );
 
+      // Advanced for every candidate reached, whatever the answer was. A row
+      // the pass could not act on must still not be the next pass's first row.
+      this.cursor = { updatedAt: candidate.updatedAt, id: candidate.id };
+
       if (state === 'pending') {
         pass.pending += 1;
         continue;
@@ -244,19 +284,12 @@ export class AgentRunReconciler {
         pass.missing += 1;
 
         /**
-         * Logged, not failed. Redis dropped the job — retention removed it, or
-         * the outbox has not published it yet — and neither proves the work
+         * Recorded, not failed. Redis dropped the job — retention removed it,
+         * or the outbox has not published it yet — and neither proves the work
          * will not happen. Failing on absence would turn a queue backlog older
          * than the staleness threshold into destroyed work.
          */
-        this.logger.warn(
-          {
-            runId: candidate.id,
-            previousStatus: candidate.status,
-            reason: 'transport_record_missing',
-          },
-          'Agent run has no transport record; leaving its state unchanged',
-        );
+        missing.push(candidate.id);
         continue;
       }
 
@@ -275,6 +308,18 @@ export class AgentRunReconciler {
           reason: 'terminal_transport_failure',
         },
         'Agent run finalized as failed because its queue job failed terminally',
+      );
+    }
+
+    if (missing.length > 0) {
+      this.logger.warn(
+        {
+          reason: 'transport_record_missing',
+          count: missing.length,
+          // A sample, so one line stays one line however large the set grows.
+          runIds: missing.slice(0, MISSING_SAMPLE_SIZE),
+        },
+        'Agent runs have no transport record; leaving their state unchanged',
       );
     }
 

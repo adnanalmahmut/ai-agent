@@ -12,6 +12,7 @@ import {
 import { OutboxDispatcher } from './core/outbox';
 import { QueueProducer, QueueWorkerRunner } from './core/queue';
 import { WorkerModule } from './worker.module';
+import { startWorkerRuntime } from './worker.runtime';
 import { workerShutdownSteps } from './worker.shutdown';
 
 /**
@@ -47,25 +48,9 @@ async function bootstrap() {
   const reconciler = app.get(AgentRunReconciler);
   const shutdownLogger = await app.resolve(PinoLogger);
 
-  /**
-   * Startup has an order, and it is the reverse of shutdown's.
-   *
-   * The producer's queues are constructed first, so BullMQ's handshake and Lua
-   * script loading happen here — where a failure is a startup problem somebody
-   * will see — rather than inside the dispatcher's first publish, where it would
-   * look like a slow queue. The workers start next, and only then does the
-   * dispatcher begin producing work for them.
-   */
-  producer.init();
-  runner.start();
-  dispatcher.start();
-
-  /**
-   * Last of the loops, and the only one that is a recovery mechanism rather
-   * than a delivery path. It waits a full interval before its first pass, so a
-   * restarting fleet has settled before anything is declared abandoned.
-   */
-  reconciler.start();
+  // Startup has an order, and it is the reverse of shutdown's. It lives in its
+  // own module so a test can run the real sequence rather than a copy.
+  startWorkerRuntime({ producer, runner, dispatcher, reconciler });
 
   readiness.markReady();
 

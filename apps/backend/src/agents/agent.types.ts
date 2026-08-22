@@ -7,6 +7,26 @@ export const AGENT_RUN_STATUSES = [
 
 export type AgentRunStatus = (typeof AGENT_RUN_STATUSES)[number];
 
+/** An attempt ended badly. The only description an attempt is allowed to give. */
+export const AGENT_EXECUTION_FAILED = 'Agent execution failed';
+
+/** The transport gave up before any attempt could record an outcome. */
+export const TERMINAL_TRANSPORT_FAILURE =
+  'Agent execution ended without a result';
+
+/**
+ * Everything that may ever be written to `AgentRun.lastError`.
+ *
+ * A union of literals rather than `string`, so the compiler enforces what was
+ * previously only a comment on the column. The whole containment design rests
+ * on no provider message, response body, prompt or stack reaching that column,
+ * and a single future caller passing `error.message` would end it silently.
+ * Widening this type is the one change that makes such a call compile.
+ */
+export type AgentFailureDiagnostic =
+  | typeof AGENT_EXECUTION_FAILED
+  | typeof TERMINAL_TRANSPORT_FAILURE;
+
 /** JSON-compatible application data, independent of Prisma and runtime SDKs. */
 export type AgentValue =
   | null

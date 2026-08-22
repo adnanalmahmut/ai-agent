@@ -12,7 +12,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import type { agentsConfig } from '../../config';
 import type { QueueJobTransportState, QueueProducer } from '../../core/queue';
 import { AgentRunReconciler } from '../agent-run-reconciler.service';
-import type { AgentRunService } from '../agent-run.service';
+import type { AgentRunService, StaleRunCursor } from '../agent-run.service';
 import type { AgentRunStatus } from '../agent.types';
 
 /**
@@ -21,35 +21,76 @@ import type { AgentRunStatus } from '../agent.types';
  *
  * Everything asserted here is a judgement the reconciler makes on its own:
  * which transport answers justify writing a terminal outcome, which ones are
- * explicitly not evidence, and what an operator is told about either. Those go
- * wrong quietly — a run failed because Redis had merely forgotten its job looks
- * exactly like a run that genuinely failed, and only the absence of the write
- * distinguishes them.
+ * explicitly not evidence, what an operator is told about either, and how far
+ * the scan gets before it has to start over. Those go wrong quietly — a run
+ * failed because Redis had merely forgotten its job looks exactly like a run
+ * that genuinely failed, and only the absence of the write distinguishes them.
  *
  * The loop is exercised with real timers and short intervals, as the outbox
  * dispatcher's spec does, because the re-arming is the property under test and
  * a faked clock would assert the schedule this test itself wrote.
  */
 
-type Candidate = { id: string; status: AgentRunStatus; attemptCount: number };
+type Candidate = {
+  id: string;
+  status: AgentRunStatus;
+  attemptCount: number;
+  updatedAt: Date;
+};
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A fixed epoch, so `updatedAt` is a stable ordering key rather than a clock
+ * read: every cursor assertion below compares the exact value the fake row
+ * carried.
+ */
+const EPOCH = Date.parse('2026-01-01T00:00:00.000Z');
 
 const candidate = (overrides: Partial<Candidate> = {}): Candidate => ({
   id: 'run-1',
   status: 'RUNNING',
   attemptCount: 1,
+  updatedAt: new Date(EPOCH),
   ...overrides,
+});
+
+/** Oldest-first rows with distinct, ordered `updatedAt` values. */
+const page = (...ids: string[]): Candidate[] =>
+  ids.map((id, index) =>
+    candidate({ id, updatedAt: new Date(EPOCH + index * 1_000) }),
+  );
+
+const cursorOf = (row: Candidate): StaleRunCursor => ({
+  updatedAt: row.updatedAt,
+  id: row.id,
 });
 
 describe('AgentRunReconciler', () => {
   const findStaleNonTerminal =
-    jest.fn<(staleBefore: Date, limit: number) => Promise<Candidate[]>>();
+    jest.fn<
+      (
+        staleBefore: Date,
+        limit: number,
+        after?: StaleRunCursor,
+      ) => Promise<Candidate[]>
+    >();
   const reconcileTerminalFailure =
     jest.fn<(runId: string) => Promise<boolean>>();
   const jobTransportState =
     jest.fn<
       (queue: string, jobId: string) => Promise<QueueJobTransportState>
+    >();
+  // Present only so the "never publishes" test can assert on its absence; the
+  // reconciler must never reach for it.
+  const publish =
+    jest.fn<
+      (
+        queue: string,
+        jobName: string,
+        data: unknown,
+        options?: unknown,
+      ) => Promise<{ jobId: string }>
     >();
 
   const runs = {
@@ -57,7 +98,7 @@ describe('AgentRunReconciler', () => {
     reconcileTerminalFailure,
   } as unknown as AgentRunService;
 
-  const producer = { jobTransportState } as unknown as QueueProducer;
+  const producer = { jobTransportState, publish } as unknown as QueueProducer;
 
   // Standalone spies rather than bound methods, so several tests below can
   // assert on the *absence* of a log line after clearing them.
@@ -71,12 +112,30 @@ describe('AgentRunReconciler', () => {
     reconcile: { intervalMs: 40, staleAfterMs: 120_000, batchSize: 50 },
   };
 
+  /**
+   * A page small enough to write out by hand, so a test can hit the
+   * full-page/short-page boundary the cursor turns on without building fifty
+   * rows to do it.
+   */
+  const withBatchSize = (batchSize: number) =>
+    new AgentRunReconciler(
+      runs,
+      producer,
+      { reconcile: { ...config.reconcile, batchSize } },
+      logger,
+    );
+
+  /** The `after` argument the reconciler used on the nth (0-based) query. */
+  const cursorOnCall = (index: number): StaleRunCursor | undefined =>
+    findStaleNonTerminal.mock.calls[index][2];
+
   let reconciler: AgentRunReconciler;
 
   beforeEach(() => {
     findStaleNonTerminal.mockReset().mockResolvedValue([]);
     reconcileTerminalFailure.mockReset().mockResolvedValue(true);
     jobTransportState.mockReset().mockResolvedValue('pending');
+    publish.mockReset().mockResolvedValue({ jobId: 'unused' });
     info.mockClear();
     warn.mockClear();
 
@@ -155,8 +214,9 @@ describe('AgentRunReconciler', () => {
       });
       expect(warn).toHaveBeenCalledWith(
         expect.objectContaining({
-          runId: 'run-a',
           reason: 'transport_record_missing',
+          count: 1,
+          runIds: ['run-a'],
         }),
         expect.any(String),
       );
@@ -363,6 +423,7 @@ describe('AgentRunReconciler', () => {
       const allowedKeys = [
         'abandoned',
         'attemptCount',
+        'count',
         'examined',
         'failed',
         'missing',
@@ -371,6 +432,7 @@ describe('AgentRunReconciler', () => {
         'reason',
         'reconciled',
         'runId',
+        'runIds',
       ];
       const allowedStrings = [
         'QUEUED',
@@ -382,15 +444,27 @@ describe('AgentRunReconciler', () => {
       ];
       const reasons: unknown[] = [];
 
+      /**
+       * Recurses into arrays rather than skipping them. `runIds` carries a
+       * sample of ids, and a value that only escapes when it is the element of
+       * a list is exactly the leak an allowlist checked one level deep misses.
+       */
+      const assertNoUnknownString = (value: unknown): void => {
+        if (Array.isArray(value)) {
+          for (const item of value) assertNoUnknownString(item);
+          return;
+        }
+
+        if (typeof value === 'string') expect(allowedStrings).toContain(value);
+      };
+
       for (const [payload] of [...warn.mock.calls, ...info.mock.calls]) {
         expect(typeof payload).toBe('object');
         const fields = payload as Record<string, unknown>;
 
         for (const [key, value] of Object.entries(fields)) {
           expect(allowedKeys).toContain(key);
-          if (typeof value === 'string') {
-            expect(allowedStrings).toContain(value);
-          }
+          assertNoUnknownString(value);
         }
 
         if ('reason' in fields) reasons.push(fields.reason);
@@ -400,6 +474,320 @@ describe('AgentRunReconciler', () => {
         'terminal_transport_failure',
         'transport_record_missing',
       ]);
+    });
+
+    /**
+     * One line per pass, not one line per candidate per pass.
+     *
+     * These runs are by definition the ones the pass changes nothing about, so
+     * the previous per-candidate form produced an unbounded stream describing a
+     * static set: the same ids, every interval, forever. At a 40s interval and
+     * a page of fifty that is tens of thousands of identical lines a day, which
+     * is how the signal that a queue lost its jobs becomes the noise an
+     * operator filters out.
+     */
+    it('summarizes every stranded run in a single line per pass', async () => {
+      const missing = page(...Array.from({ length: 8 }, (_, i) => `run-${i}`));
+      findStaleNonTerminal.mockResolvedValue(missing);
+      jobTransportState.mockResolvedValue('missing');
+
+      const pass = await reconciler.reconcileOnce();
+
+      expect(pass.missing).toBe(8);
+
+      const missingWarns = warn.mock.calls.filter(
+        ([payload]) =>
+          (payload as { reason?: string }).reason === 'transport_record_missing',
+      );
+
+      // One, whatever the size of the set — the assertion the per-candidate
+      // form fails on with N = 8.
+      expect(missingWarns).toHaveLength(1);
+
+      const [payload] = missingWarns[0];
+      expect(payload).toEqual({
+        reason: 'transport_record_missing',
+        count: 8,
+        // A sample, so the line stays one line however large the set grows.
+        runIds: ['run-0', 'run-1', 'run-2', 'run-3', 'run-4'],
+      });
+    });
+
+    /**
+     * The reconciler observes; it never re-queues.
+     *
+     * A fresh job would restart `attemptsStarted` at 1 while the run already
+     * holds a higher `attemptCount`, so the monotonic fence would reject the
+     * claim, the handler would return normally, and BullMQ would record a
+     * completed job for work that never ran — a stranded run replaced by a
+     * silently lost one. Every transport verdict is covered here because the
+     * temptation to "just retry it" lives on the missing branch.
+     */
+    it('never publishes a job on any path', async () => {
+      findStaleNonTerminal.mockResolvedValue([
+        candidate({ id: 'failed-written' }),
+        candidate({ id: 'failed-unwritten' }),
+        candidate({ id: 'missing-1' }),
+        candidate({ id: 'pending-1' }),
+      ]);
+      jobTransportState.mockImplementation((_queue, jobId) =>
+        Promise.resolve(
+          jobId.startsWith('failed')
+            ? 'failed'
+            : jobId.startsWith('missing')
+              ? 'missing'
+              : 'pending',
+        ),
+      );
+      reconcileTerminalFailure.mockImplementation((runId) =>
+        Promise.resolve(runId === 'failed-written'),
+      );
+
+      const pass = await reconciler.reconcileOnce();
+
+      expect(pass).toEqual({
+        abandoned: 0,
+        examined: 4,
+        failed: 2,
+        missing: 1,
+        pending: 1,
+        reconciled: 1,
+      });
+      expect(publish).not.toHaveBeenCalled();
+
+      // And not from the loop either, where a re-queue would compound once per
+      // interval instead of once.
+      reconciler.start();
+      await sleep(150);
+
+      expect(findStaleNonTerminal.mock.calls.length).toBeGreaterThan(1);
+      expect(publish).not.toHaveBeenCalled();
+    });
+
+    /**
+     * Redis fails partway through the batch.
+     *
+     * The pass must surface the rejection rather than absorb it — the loop's
+     * catch logs it and re-arms — and it must not turn a transport that stopped
+     * answering into terminal writes for rows it never asked about. Writing the
+     * unexamined tail on an infrastructure error is the one way this component
+     * could destroy live work.
+     */
+    it('stops at a transport error and writes nothing for the rows it never examined', async () => {
+      findStaleNonTerminal.mockResolvedValue(
+        page('run-a', 'run-b', 'run-c', 'run-d'),
+      );
+      jobTransportState.mockImplementation((_queue, jobId) => {
+        if (jobId === 'run-b') {
+          return Promise.reject(new Error('connection reset'));
+        }
+
+        return Promise.resolve('failed');
+      });
+
+      await expect(reconciler.reconcileOnce()).rejects.toThrow(
+        'connection reset',
+      );
+
+      // Only the row whose verdict was actually observed was written.
+      expect(reconcileTerminalFailure.mock.calls).toEqual([['run-a']]);
+      // And the pass never reached run-c or run-d to ask about them.
+      expect(jobTransportState.mock.calls.map(([, jobId]) => jobId)).toEqual([
+        'run-a',
+        'run-b',
+      ]);
+    });
+  });
+
+  /**
+   * The scan cursor.
+   *
+   * Progress state, not correctness state. A candidate the pass cannot act on
+   * is left unwritten, so its `updatedAt` never advances and an oldest-first
+   * query returns it again on the next pass — and the pass after that, forever.
+   * Once `batchSize` such rows exist the sweep can never reach a newer run, and
+   * the one mechanism that finalizes stranded runs silently stops finalizing
+   * anything while logging that it is busy. Redis restored empty, `batchSize`
+   * outbox events parked, or a failure storm trimming the failed set past its
+   * retention all produce exactly that population.
+   */
+  describe('the scan cursor', () => {
+    /**
+     * THE HEADLINE TEST: no head-of-line starvation.
+     *
+     * A full page of runs the pass can do nothing about must not be the next
+     * pass's page. The transport double answers by cursor, so a reconciler that
+     * dropped the cursor would be handed the same three rows a second time and
+     * would never see the genuinely failed run waiting behind them — which is
+     * both assertions below.
+     */
+    it('resumes past a full page of unactionable runs instead of re-reading it forever', async () => {
+      reconciler = withBatchSize(3);
+
+      const stuck = page('stuck-a', 'stuck-b', 'stuck-c');
+      const behindThem = [
+        candidate({
+          id: 'genuinely-failed',
+          updatedAt: new Date(EPOCH + 60_000),
+        }),
+      ];
+
+      findStaleNonTerminal.mockImplementation((_staleBefore, _limit, after) =>
+        // Oldest-first with a cursor: without one, the query can only ever
+        // answer with the stuck page again.
+        Promise.resolve(after === undefined ? stuck : behindThem),
+      );
+      jobTransportState.mockImplementation((_queue, jobId) =>
+        Promise.resolve(jobId === 'genuinely-failed' ? 'failed' : 'missing'),
+      );
+
+      const first = await reconciler.reconcileOnce();
+      expect(first).toMatchObject({ examined: 3, missing: 3, reconciled: 0 });
+
+      const second = await reconciler.reconcileOnce();
+
+      // Pass 2 asked for the rows *after* the last row pass 1 reached.
+      expect(cursorOnCall(1)).toEqual(cursorOf(stuck[2]));
+      // And so it finally reached the run that actually needed finalizing.
+      expect(reconcileTerminalFailure).toHaveBeenCalledWith('genuinely-failed');
+      expect(second).toMatchObject({ examined: 1, failed: 1, reconciled: 1 });
+    });
+
+    /**
+     * The advance is per candidate reached, not per candidate acted on. A
+     * cursor that only moved for reconciled rows would stall on the first
+     * `missing` or `pending` row — the two answers that leave the row unwritten
+     * and therefore permanently at the head of the query.
+     */
+    it('advances past candidates it could not act on, not just the ones it wrote', async () => {
+      reconciler = withBatchSize(3);
+
+      const rows = page('written-1', 'missing-1', 'pending-1');
+      findStaleNonTerminal.mockResolvedValueOnce(rows).mockResolvedValue([]);
+      jobTransportState.mockImplementation((_queue, jobId) =>
+        Promise.resolve(
+          jobId === 'written-1'
+            ? 'failed'
+            : jobId === 'missing-1'
+              ? 'missing'
+              : 'pending',
+        ),
+      );
+
+      await reconciler.reconcileOnce();
+      await reconciler.reconcileOnce();
+
+      // The last row reached, which is the trailing `pending` one — not the
+      // reconciled row two places before it.
+      expect(cursorOnCall(1)).toEqual(cursorOf(rows[2]));
+    });
+
+    // Exactly `batchSize` rows means there is probably more behind them, so the
+    // cycle continues from where it stopped.
+    it('carries a cursor forward when a full page comes back', async () => {
+      reconciler = withBatchSize(3);
+
+      const rows = page('run-a', 'run-b', 'run-c');
+      findStaleNonTerminal.mockResolvedValueOnce(rows).mockResolvedValue([]);
+
+      await reconciler.reconcileOnce();
+      await reconciler.reconcileOnce();
+
+      expect(cursorOnCall(0)).toBeUndefined();
+      expect(cursorOnCall(1)).toEqual(cursorOf(rows[2]));
+    });
+
+    /**
+     * What makes the scan cyclic rather than one-way.
+     *
+     * A cursor that only ever moved forward would walk off the end of the table
+     * and stop examining anything; runs that became stale behind it would never
+     * be looked at again. Reaching the end of the rows resets it, so the next
+     * pass starts from the oldest run and the whole set is covered repeatedly.
+     */
+    it('starts again from the oldest run once a page comes back short', async () => {
+      reconciler = withBatchSize(3);
+
+      const rows = page('run-a', 'run-b', 'run-c');
+      findStaleNonTerminal.mockResolvedValueOnce(rows).mockResolvedValue([]);
+
+      await reconciler.reconcileOnce(); // Full page: cursor set.
+      await reconciler.reconcileOnce(); // Short page: cycle over.
+      await reconciler.reconcileOnce();
+
+      expect(cursorOnCall(1)).toEqual(cursorOf(rows[2]));
+      expect(cursorOnCall(2)).toBeUndefined();
+    });
+
+    /**
+     * A short page that still had rows in it.
+     *
+     * The reset happens on the query result and the advance happens per row, so
+     * a short non-empty page leaves the last row's cursor behind and the cycle
+     * restarts one pass later, after that cursor returns nothing. Locked in
+     * because the property that matters is that the scan *does* wrap: a change
+     * that left the cursor set indefinitely here would reintroduce the one-way
+     * walk.
+     */
+    it('wraps back to the oldest run after a short page, at worst one pass later', async () => {
+      reconciler = withBatchSize(3);
+
+      const rows = page('run-a', 'run-b');
+      findStaleNonTerminal.mockResolvedValueOnce(rows).mockResolvedValue([]);
+
+      await reconciler.reconcileOnce();
+      await reconciler.reconcileOnce();
+      await reconciler.reconcileOnce();
+
+      expect(cursorOnCall(1)).toEqual(cursorOf(rows[1]));
+      expect(cursorOnCall(2)).toBeUndefined();
+    });
+
+    /**
+     * A pass that fails must retry its page, not skip it. Advancing on an
+     * outage would let one unreachable Redis hide a page of stranded runs until
+     * the whole cycle came round again.
+     */
+    it('leaves the cursor where it was when a pass throws', async () => {
+      reconciler = withBatchSize(3);
+
+      const rows = page('run-a', 'run-b', 'run-c');
+      findStaleNonTerminal
+        .mockResolvedValueOnce(rows)
+        .mockRejectedValueOnce(new Error('connection refused'))
+        .mockResolvedValue([]);
+
+      await reconciler.reconcileOnce();
+      await expect(reconciler.reconcileOnce()).rejects.toThrow(
+        'connection refused',
+      );
+      await reconciler.reconcileOnce();
+
+      // The failed pass and the one after it asked for the same page.
+      expect(cursorOnCall(2)).toEqual(cursorOnCall(1));
+      expect(cursorOnCall(2)).toEqual(cursorOf(rows[2]));
+    });
+
+    /**
+     * Losing the cursor costs time, not coverage.
+     *
+     * It lives in memory on purpose: a restart, a second worker, or a crash
+     * mid-cycle simply resumes from the oldest run and walks the same cycle
+     * again. Correctness rests on PostgreSQL alone, and nothing here may grow
+     * into state that has to be persisted or shared.
+     */
+    it('starts from the oldest run again after a restart', async () => {
+      reconciler = withBatchSize(3);
+      findStaleNonTerminal.mockResolvedValue(page('run-a', 'run-b', 'run-c'));
+
+      await reconciler.reconcileOnce();
+      expect(cursorOnCall(0)).toBeUndefined();
+
+      // A fresh instance stands in for the restarted process.
+      const restarted = withBatchSize(3);
+      await restarted.reconcileOnce();
+
+      expect(cursorOnCall(1)).toBeUndefined();
     });
   });
 
@@ -447,6 +835,27 @@ describe('AgentRunReconciler', () => {
       );
     });
 
+    // The same guarantee for a failure raised halfway through a batch rather
+    // than by the candidate query: a partially completed pass re-arms too.
+    it('re-arms after the transport fails partway through a batch', async () => {
+      findStaleNonTerminal.mockResolvedValue(page('run-a', 'run-b'));
+      jobTransportState.mockImplementation((_queue, jobId) =>
+        jobId === 'run-a'
+          ? Promise.resolve('pending')
+          : Promise.reject(new Error('connection reset')),
+      );
+
+      reconciler.start();
+      await sleep(200);
+
+      expect(findStaleNonTerminal.mock.calls.length).toBeGreaterThan(1);
+      expect(warn).toHaveBeenCalledWith(
+        expect.anything(),
+        'Agent run reconciliation pass failed; retrying next interval',
+      );
+      expect(reconcileTerminalFailure).not.toHaveBeenCalled();
+    });
+
     it('sweeps until stopped, then leaves the loop idle', async () => {
       reconciler.start();
       await sleep(150);
@@ -492,6 +901,42 @@ describe('AgentRunReconciler', () => {
       expect(findStaleNonTerminal).toHaveBeenCalledTimes(1);
 
       release?.();
+    });
+
+    /**
+     * `stop()` waits for the pass in progress, but only for its budget.
+     *
+     * An unbounded wait turns a bounded worker drain into a SIGKILL at the
+     * container's grace deadline: the shutdown step blocks on a pass that is
+     * itself blocked on a hung Redis command, every other shutdown step behind
+     * it never runs, and the orchestrator kills the process mid-write. The
+     * abandoned pass is safe by construction — it holds no lease and rebuilds
+     * its candidates next time — so waiting past the budget buys nothing.
+     */
+    it('returns from stop within its budget even if the pass never settles', async () => {
+      let release: (() => void) | undefined;
+      findStaleNonTerminal.mockImplementation(
+        () =>
+          new Promise<Candidate[]>((resolve) => {
+            release = () => resolve([]);
+          }),
+      );
+
+      reconciler.start();
+      // Past one interval, so a pass is genuinely in flight and `stop()` has
+      // something to wait on rather than nothing.
+      await sleep(120);
+      expect(findStaleNonTerminal).toHaveBeenCalledTimes(1);
+
+      const startedAt = Date.now();
+      await reconciler.stop(50);
+      const elapsed = Date.now() - startedAt;
+
+      expect(elapsed).toBeLessThan(400);
+
+      // Let the abandoned pass finish so the suite leaves nothing pending.
+      release?.();
+      await sleep(10);
     });
   });
 });
