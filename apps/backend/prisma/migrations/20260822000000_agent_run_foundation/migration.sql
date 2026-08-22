@@ -5,10 +5,11 @@ CREATE TYPE "agent_run_status" AS ENUM ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILE
 CREATE TABLE "agent_run" (
     "id" TEXT NOT NULL,
     "agentId" TEXT NOT NULL,
+    "agentVersion" INTEGER NOT NULL,
     "runtime" TEXT NOT NULL,
     "status" "agent_run_status" NOT NULL DEFAULT 'QUEUED',
     "organizationId" TEXT NOT NULL,
-    "createdByUserId" TEXT NOT NULL,
+    "createdByUserId" TEXT,
     "input" JSONB NOT NULL,
     "output" JSONB,
     "lastError" TEXT,

@@ -19,10 +19,13 @@ export type AgentValue =
 export type AgentRun = {
   id: string;
   agentId: string;
+  /** The definition revision this run is pinned to for its whole lifetime. */
+  agentVersion: number;
   runtime: string;
   status: AgentRunStatus;
   organizationId: string;
-  createdByUserId: string;
+  /** Null when no authenticated application User initiated the run. */
+  createdByUserId: string | null;
   input: AgentValue;
   output: AgentValue | null;
   lastError: string | null;
@@ -36,9 +39,10 @@ export type AgentRun = {
 
 export type CreateAgentRun = {
   agentId: string;
+  agentVersion: number;
   runtime: string;
   organizationId: string;
-  createdByUserId: string;
+  createdByUserId: string | null;
   input: AgentValue;
   idempotencyKey: string;
 };

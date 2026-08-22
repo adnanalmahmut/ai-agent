@@ -1328,6 +1328,7 @@ export type InvitationScalarFieldEnum = (typeof InvitationScalarFieldEnum)[keyof
 export const AgentRunScalarFieldEnum = {
   id: 'id',
   agentId: 'agentId',
+  agentVersion: 'agentVersion',
   runtime: 'runtime',
   status: 'status',
   organizationId: 'organizationId',

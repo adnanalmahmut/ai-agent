@@ -63,13 +63,16 @@ describe('AgentRun foundation (e2e)', () => {
   const request = (
     idempotencyKey: string,
     organizationId: string = organizationIds[0],
+    overrides: Partial<CreateAgentRun> = {},
   ): CreateAgentRun => ({
     agentId: 'test-only-agent',
+    agentVersion: 1,
     runtime: 'test-only-runtime',
     organizationId,
     createdByUserId: userId,
     input: { prompt: 'deterministic test input' },
     idempotencyKey,
+    ...overrides,
   });
 
   beforeAll(async () => {
@@ -130,12 +133,15 @@ describe('AgentRun foundation (e2e)', () => {
 
     expect(persisted).toMatchObject({
       id: result.id,
+      agentId: 'test-only-agent',
+      agentVersion: 1,
       status: 'QUEUED',
       organizationId: organizationIds[0],
       createdByUserId: userId,
       idempotencyKey: 'committed-request',
       attemptCount: 0,
     });
+    expect(result.agentVersion).toBe(1);
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: 'agent-run.queued',
@@ -198,6 +204,75 @@ describe('AgentRun foundation (e2e)', () => {
     expect(runs).toHaveLength(1);
     expect(events).toHaveLength(1);
     expect(events[0]?.payload).toEqual({ runId: results[0]?.id });
+  });
+
+  it('pins the accepted run to the requested definition version', async () => {
+    // Two runs of the same agent at different revisions must stay
+    // independently resolvable; acceptance is what fixes the version.
+    const [first, second] = await Promise.all([
+      service.create(request('pinned-v1', organizationIds[0])),
+      service.create(
+        request('pinned-v2', organizationIds[0], { agentVersion: 2 }),
+      ),
+    ]);
+
+    await expect(
+      prisma.agentRun.findUniqueOrThrow({ where: { id: first.id } }),
+    ).resolves.toMatchObject({ agentId: 'test-only-agent', agentVersion: 1 });
+    await expect(
+      prisma.agentRun.findUniqueOrThrow({ where: { id: second.id } }),
+    ).resolves.toMatchObject({ agentId: 'test-only-agent', agentVersion: 2 });
+  });
+
+  it('accepts a run with no authenticated initiating user', async () => {
+    const result = await service.create(
+      request('system-initiated-request', organizationIds[0], {
+        createdByUserId: null,
+      }),
+    );
+
+    expect(result.createdByUserId).toBeNull();
+
+    const persisted = await prisma.agentRun.findUniqueOrThrow({
+      where: { id: result.id },
+      include: { createdByUser: true },
+    });
+
+    expect(persisted.createdByUserId).toBeNull();
+    expect(persisted.createdByUser).toBeNull();
+
+    // A creator-less run is still fully durable work: it commits its queue
+    // intent exactly like a user-initiated one.
+    await expect(
+      prisma.outboxEvent.count({ where: { dedupeKey: result.id } }),
+    ).resolves.toBe(1);
+  });
+
+  it('preserves the User relation for a user-initiated run', async () => {
+    const result = await service.create(request('user-initiated-request'));
+
+    const persisted = await prisma.agentRun.findUniqueOrThrow({
+      where: { id: result.id },
+      include: { createdByUser: true },
+    });
+
+    expect(persisted.createdByUserId).toBe(userId);
+    expect(persisted.createdByUser).toMatchObject({ id: userId });
+
+    // The relation is a real restricted foreign key, not a loose string.
+    await expect(
+      prisma.agentRun.create({
+        data: {
+          agentId: 'test-only-agent',
+          agentVersion: 1,
+          runtime: 'test-only-runtime',
+          organizationId: organizationIds[0],
+          createdByUserId: `${fixtureId}-absent-user`,
+          input: {},
+          idempotencyKey: 'dangling-creator-request',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'P2003' });
   });
 
   it('allows different organizations to reuse an idempotency key', async () => {

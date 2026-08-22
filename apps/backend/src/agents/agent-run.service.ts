@@ -35,6 +35,7 @@ export class AgentRunService {
         const created = await tx.agentRun.create({
           data: {
             agentId: input.agentId,
+            agentVersion: input.agentVersion,
             runtime: input.runtime,
             organizationId: input.organizationId,
             createdByUserId: input.createdByUserId,
