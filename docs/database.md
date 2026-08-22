@@ -11,8 +11,19 @@ work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,
 string because application code owns runtime support; adding a runtime does not
 inherently require a database enum migration. Request idempotency is enforced
 by `UNIQUE (organizationId, idempotencyKey)`, while the run id used as BullMQ's
-job id is only short-lived transport deduplication. Organization and creator
-foreign keys restrict deletion so execution history cannot be silently removed.
+job id is only short-lived transport deduplication. The organization foreign key
+restricts deletion so execution history cannot be silently removed, and the
+creator foreign key does the same when a creator is present.
+
+`agentVersion` pins the run to one definition revision. Definitions are code,
+so `agentId` alone is ambiguous the moment a definition changes: a run accepted
+before a deployment must still execute the revision it was accepted against.
+The pair `(agentId, agentVersion)` is therefore what a worker resolves.
+
+`createdByUserId` is nullable. Null means only that no authenticated
+application User initiated the run, which is the honest representation for
+scheduled or system-initiated work. It is not an actor abstraction, a trigger
+hierarchy, or a placeholder for a synthetic system user.
 
 Migration order:
 

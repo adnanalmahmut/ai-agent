@@ -134,6 +134,21 @@ recorded with the exact failed check and evidence.
   ordinary retries, duplicates, and stalled redelivery without introducing the
   deferred execution-lease framework; `attemptsMade` remains the source for
   BullMQ final-attempt classification.
+- 2026-08-22: `AgentRun.agentVersion` is a plain integer application revision
+  persisted at acceptance. Asynchronous work outlives the deployment that
+  accepted it, so `agentId` alone cannot identify the code a worker should run.
+  A simple pinned integer buys determinism without a versioning platform,
+  database-managed definitions, or a lifecycle service.
+- 2026-08-22: `AgentRun.createdByUserId` becomes nullable. Scheduled and
+  system-initiated work has no authenticated application User, and null states
+  exactly that. The rejected alternatives — an actor abstraction, a polymorphic
+  initiator, a trigger hierarchy, or a synthetic system user — all add a domain
+  concept this slice does not have.
+- 2026-08-22: Both corrections edit the existing unmerged AgentRun migration
+  rather than stacking corrective migrations. The migration has not landed on
+  `main`, so there is no deployed state to preserve and no reason to publish
+  historical churn. `prisma migrate dev` re-applied it and reported the schema
+  in sync with no additional migration, which is the drift proof.
 - 2026-08-22: Prisma 7.9.1 deterministically emits trailing indentation in new
   enum field-reference blank lines. A path-scoped `.gitattributes` rule disables
   only `blank-at-eol` checking for generated Prisma output so committed bytes

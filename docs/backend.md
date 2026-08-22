@@ -22,10 +22,13 @@ resolved from validated account/request state.
 The agent feature provides internal durable acceptance and background execution
 infrastructure. `AgentRunService` commits an application-owned AgentRun and its
 `agent-run.queued` outbox event atomically, with organization-scoped PostgreSQL
-idempotency. The worker conditionally claims attempts and invokes Mastra behind
-the minimal application-owned `AgentRuntime.run` boundary. Production
-definitions remain empty and no public create route is exposed, so this still
-does not let a user execute an agent.
+idempotency. Each accepted run persists `agentVersion`, pinning it to the exact
+definition revision it was accepted against, and `createdByUserId` is nullable
+so work with no authenticated initiating user is representable. The worker
+conditionally claims attempts and invokes Mastra behind the minimal
+application-owned `AgentRuntime.run` boundary. Production definitions remain
+empty and no public create route is exposed, so this still does not let a user
+execute an agent.
 
 Canonical implementation detail and delivery guarantees remain in
 [`apps/backend/README.md`](../apps/backend/README.md).

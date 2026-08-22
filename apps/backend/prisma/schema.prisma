@@ -258,16 +258,26 @@ enum AgentRunStatus {
 /// application-owned definition; definitions are code, so it is deliberately
 /// not a foreign key.
 model AgentRun {
-  id              String         @id @default(uuid())
-  agentId         String
-  runtime         String
-  status          AgentRunStatus @default(QUEUED)
+  id      String @id @default(uuid())
+  agentId String
+
+  /// The exact definition revision this run is pinned to. Asynchronous work
+  /// must execute the definition that was current when it was accepted, so
+  /// `(agentId, agentVersion)` — not `agentId` alone — identifies the code the
+  /// worker resolves, including across a rolling deployment.
+  agentVersion Int
+
+  runtime String
+  status  AgentRunStatus @default(QUEUED)
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  createdByUserId String
-  createdByUser   User   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  /// Null means no authenticated application User initiated this run — for
+  /// example scheduled or system-initiated work. It is not an actor
+  /// abstraction and carries no other meaning.
+  createdByUserId String?
+  createdByUser   User?   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   /// Application-owned input and result values. They are JSON so the database
   /// does not make a runtime SDK's request/result types canonical.
