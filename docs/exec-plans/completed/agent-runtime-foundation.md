@@ -234,12 +234,50 @@ recorded with the exact failed check and evidence.
   monotonic skipped-ordinal CAS, exact `(id, version)` definition resolution,
   and the owning documentation updates. The updated base was merged forward
   into PR 2 without rewriting either branch.
-- [ ] Final-head CI for both remediated draft heads. Earlier green runs
-  correspond to superseded heads and do not carry over.
-- [ ] Final handoff report.
-- [ ] Human review (PR 1 first, then PR 2) and merge. This plan stays under
-  `active/` until the work actually lands.
+- [x] Final-head CI green for both remediated draft heads.
+- [x] Final handoff report delivered.
+- [x] Human review completed (PR 1 first, then PR 2) and both merged.
 
 ## Blockers
 
-None currently.
+None. No blocker remains that belongs to this slice.
+
+## Outcome
+
+Both pull requests were reviewed by a human and merged to `main`.
+
+| Item | Value |
+|---|---|
+| PR 1 | #27 `feat/agent-run-foundation` -> `main` |
+| PR 1 merge commit | `ca26258c0e0199f9544a5fdcddf1ad87f3a94035` |
+| PR 2 | #28 `feat/agent-runtime-mastra` -> `feat/agent-run-foundation` |
+| PR 2 merge commit (final `main`) | `f313f4bf97ba0b71fdfdd4eea98eaee84c6b62dc` |
+| Final-head CI | Green for both final heads before merge |
+| Feature branches | Deleted after merge |
+
+Every acceptance criterion above was met. What landed:
+
+- Durable `AgentRun` accepted atomically with its `agent-run.queued` outbox
+  event, idempotent per `(organizationId, idempotencyKey)`.
+- `agentVersion` pinned at acceptance and resolved as an exact
+  `(id, version)` pair, with no latest-version fallback.
+- `attemptsStarted` used as a monotonic execution fencing token, with
+  completion and failure writes gated on the exact claimed ordinal.
+- A replaceable `AgentRuntime` boundary with Mastra confined to
+  `apps/backend/src/agents/runtime/mastra/**`, provider logging contained, and
+  production definitions deliberately empty.
+
+### Deferred out of this slice
+
+These were recorded here as known gaps and are not defects of the merged work.
+They are carried by the follow-on plan
+[agent-run-terminal-reconciliation](../active/agent-run-terminal-reconciliation.md):
+
+- Terminal BullMQ failure reconciliation, recorded above as a hard prerequisite
+  before the first production `AgentDefinition` or public AgentRun API.
+- Classifying deterministic configuration failures as non-retryable, coupled
+  with forcing a final durable failure.
+- Narrowing the `Agent.__setLogger` SDK-compatibility risk.
+
+The historical decision log above is preserved as written; it records what was
+known at the time, including the entries that these follow-on items supersede.
