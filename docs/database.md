@@ -25,16 +25,21 @@ application User initiated the run, which is the honest representation for
 scheduled or system-initiated work. It is not an actor abstraction, a trigger
 hierarchy, or a placeholder for a synthetic system user.
 
-The AgentRun migration is still unmerged and was corrected in place rather than
-by a follow-up migration. In a repository-local reproduction using Prisma
-7.9.1, a database that had already applied the earlier form continued to report
-the schema as up to date and `migrate deploy` did not re-apply the edited file.
-That observed behavior is the reason for the local reset guidance here; it is
-not asserted as a general Prisma migration rule outside this tested path.
-Deployed environments are unaffected — this migration has never been applied
-to one, and CI builds a fresh database per run — but a local database that
-applied the earlier form must be reset with
-`pnpm --filter backend db:reset`.
+A run can also be finalized by the worker's reconciliation sweep rather than by
+the attempt that was executing it. When BullMQ terminally fails a job without
+invoking the handler, no attempt is left to record an outcome, so the sweep
+writes `FAILED` with `completedAt` and an application-owned constant. That
+write is conditional on the run still being `QUEUED` or `RUNNING`, which is what
+makes a repeated, delayed, or reordered observation a no-op and keeps a run that
+a late worker managed to complete from being dragged back to failed. It
+deliberately does not match on `attemptCount`: the sweep is not an attempt, and
+forging an ordinal would be wrong precisely in the skipped-ordinal case the
+fence exists for.
+
+`INDEX (status, updatedAt)` serves that sweep, which repeatedly asks for the
+oldest non-terminal runs. Terminal rows are never deleted, so without the index
+a bounded query would cost a full scan proportional to total history rather than
+to the backlog it is looking for. It carries no durable state and no semantics.
 
 Migration order:
 
@@ -44,6 +49,7 @@ Migration order:
 4. Nullable session country/city.
 5. Better Auth database rate-limit storage.
 6. Durable agent-run foundation.
+7. Agent-run reconciliation index.
 
 Sessions/accounts cascade with their user because they have no independent
 historical meaning. Membership and invitation foreign keys restrict deletion
