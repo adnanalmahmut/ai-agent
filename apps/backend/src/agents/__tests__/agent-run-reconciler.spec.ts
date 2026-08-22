@@ -248,6 +248,28 @@ describe('AgentRunReconciler', () => {
       expect(warn).not.toHaveBeenCalled();
     });
 
+    /**
+     * A `false` write still finishes the observation.
+     *
+     * Claimed in `advancePast`'s contract and otherwise untested: a run another
+     * writer already made terminal has left the candidate set, so it cannot pin
+     * the scan and the cursor must move on. Only a *rejecting* write holds the
+     * cursor back — pinning on `false` too would stall the sweep on a row the
+     * query is never going to return again.
+     */
+    it('advances past a run another writer had already finalized', async () => {
+      const rows = page('already-terminal', 'behind-it');
+      reconciler = withBatchSize(2);
+      findStaleNonTerminal.mockResolvedValueOnce(rows).mockResolvedValue([]);
+      jobTransportState.mockResolvedValue('failed');
+      reconcileTerminalFailure.mockResolvedValue(false);
+
+      await reconciler.reconcileOnce();
+      await reconciler.reconcileOnce();
+
+      expect(cursorOnCall(1)).toEqual(cursorOf(rows[1]));
+    });
+
     it('counts a mixed batch exactly', async () => {
       findStaleNonTerminal.mockResolvedValue([
         candidate({ id: 'failed-1' }),
@@ -655,10 +677,12 @@ describe('AgentRunReconciler', () => {
     });
 
     /**
-     * The advance is per candidate reached, not per candidate acted on. A
+     * The advance is per candidate finished, not per candidate written. A
      * cursor that only moved for reconciled rows would stall on the first
      * `missing` or `pending` row — the two answers that leave the row unwritten
-     * and therefore permanently at the head of the query.
+     * and therefore permanently at the head of the query. (Finished is not the
+     * same as reached: see the terminal-write test below, where a candidate is
+     * reached and deliberately not advanced past.)
      */
     it('advances past candidates it could not act on, not just the ones it wrote', async () => {
       reconciler = withBatchSize(3);
@@ -721,21 +745,11 @@ describe('AgentRunReconciler', () => {
     });
 
     /**
-     * A short page that still had rows in it.
-     *
-     * The reset happens on the query result and the advance happens per row, so
-     * a short non-empty page leaves the last row's cursor behind and the cycle
-     * restarts one pass later, after that cursor returns nothing. Locked in
-     * because the property that matters is that the scan *does* wrap: a change
-     * that left the cursor set indefinitely here would reintroduce the one-way
-     * walk.
-     */
-    /**
      * A short page ends the cycle immediately, not one pass later.
      *
      * The reset has to happen after the loop, because the loop advances the
-     * cursor for every candidate it reaches — reset first and the last row of a
-     * short page would overwrite it, costing an extra empty query every cycle
+     * cursor for every candidate it finishes — reset first and the last row of
+     * a short page would overwrite it, costing an extra empty query every cycle
      * before the wrap took effect.
      */
     it('wraps back to the oldest run immediately after a short page', async () => {
@@ -748,6 +762,89 @@ describe('AgentRunReconciler', () => {
       await reconciler.reconcileOnce();
 
       expect(cursorOnCall(1)).toBeUndefined();
+    });
+
+    /**
+     * THE OTHER HEADLINE TEST: a proven-failed run survives a database blip.
+     *
+     * This is the one ordering in the loop that can lose a run permanently. The
+     * transport has already answered `failed`, so the pass knows this row needs
+     * finalizing; if the cursor moved on that verdict and the write then
+     * rejected, the next pass would resume *after* the row nobody wrote. It is
+     * not one interval of latency, because the row's `updatedAt` never moves
+     * and only a wrap could bring it back — so the backlog here deliberately
+     * keeps every page full, leaving the scan no short page to wrap on. The run
+     * would stay `RUNNING` while the sweep logged healthy passes.
+     *
+     * The table drops finalized rows the way the real query does, so the pages
+     * shift as work completes instead of being a fixed script.
+     */
+    it('presents a run again when its terminal write rejects, instead of scanning past it', async () => {
+      reconciler = withBatchSize(3);
+
+      const table = page(
+        'run-a',
+        'run-b',
+        'run-c',
+        'run-d',
+        'run-e',
+        'run-f',
+        'run-g',
+      );
+      const finalized = new Set<string>();
+
+      findStaleNonTerminal.mockImplementation((_staleBefore, limit, after) =>
+        Promise.resolve(
+          table
+            .filter(
+              (row) =>
+                !finalized.has(row.id) &&
+                (after === undefined || row.updatedAt > after.updatedAt),
+            )
+            .slice(0, limit),
+        ),
+      );
+      jobTransportState.mockResolvedValue('failed');
+
+      let blip = true;
+      reconcileTerminalFailure.mockImplementation((runId) => {
+        if (runId === 'run-b' && blip) {
+          blip = false;
+
+          return Promise.reject(
+            new Error('the database system is shutting down'),
+          );
+        }
+
+        finalized.add(runId);
+
+        return Promise.resolve(true);
+      });
+
+      await expect(reconciler.reconcileOnce()).rejects.toThrow(
+        'the database system is shutting down',
+      );
+
+      // The verdict on run-b was observed, and nothing recorded it.
+      expect([...finalized]).toEqual(['run-a']);
+
+      const second = await reconciler.reconcileOnce();
+
+      // The pass after the blip resumed at run-a — so run-b, whose failure this
+      // sweep had already proven, was the very next row it was handed.
+      expect(cursorOnCall(1)).toEqual(cursorOf(table[0]));
+      expect(reconcileTerminalFailure.mock.calls.map(([id]) => id)).toEqual([
+        'run-a',
+        'run-b', // rejected
+        'run-b', // retried
+        'run-c',
+        'run-d',
+      ]);
+      expect(finalized.has('run-b')).toBe(true);
+
+      // A full page again, so the cycle never wrapped: the retry came from the
+      // cursor staying put, not from the scan starting over.
+      expect(second).toMatchObject({ examined: 3, failed: 3, reconciled: 3 });
     });
 
     /**

@@ -236,6 +236,12 @@ the same rows forever — and once enough of them filled a page, no newer run
 would be examined again. The cursor resets on a short page, so the scan cycles;
 losing it to a restart costs a cycle, not correctness.
 
+The cursor moves only past a finished observation: for `pending` and `missing`
+that is the transport verdict, and for `failed` it is the terminal write
+resolving. A rejected write leaves the cursor behind the candidate, so the next
+pass retries the same row instead of scanning past a run it has already proven
+needs finalizing.
+
 What the conditional does *not* protect is a run still in flight. A worker whose
 lock lapsed mid-model-call keeps running, and if the sweep finalizes the run
 first, that worker's success write matches nothing and its result is discarded.

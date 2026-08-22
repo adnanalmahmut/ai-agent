@@ -331,6 +331,45 @@ profile). CI on the final head must be green.
   before or with the API. The previous three-attempt budget at two-second
   backoff would not have bridged a rollout either, so this changes little in
   practice, but it is now an ordering requirement rather than a preference.
+- 2026-08-22: Repair after human review of PR #29. The cursor advanced on the
+  transport verdict, which is a completed observation for `pending` and
+  `missing` but only half of one for `failed`: the durable write is the other
+  half. A PostgreSQL rejection during that write therefore left the cursor past
+  a run the sweep had already proven needed finalizing. This supersedes the
+  "advanced past every candidate reached" formulation in the entry above, and
+  it is worse than the one-interval cost that entry and the PR both claimed —
+  nothing wrote the row, so its `updatedAt` never moves, and only the cursor
+  wrapping could return it, which requires reaching a short page. A backlog that
+  keeps filling pages need not produce one, so the run could stay `RUNNING`
+  indefinitely while the sweep reported healthy passes. Fixed by advancing per
+  branch, after the write on the `failed` path. The short-page reset sits after
+  the loop and so is skipped by a throwing pass, which is what keeps the cursor
+  behind the candidate rather than wrapping and hiding it behind a cycle.
+  Mutation-verified: restoring the single advance on the verdict kills the new
+  regression test and nothing else, which is also the evidence that no existing
+  test covered this ordering.
+- 2026-08-22: Considered and rejected during that repair — bounding the retry so
+  a candidate whose write rejects twice in succession is advanced past anyway.
+  It would trade the fixed defect back in: in the pathological
+  never-a-short-page case that is exactly the skip the human reviewer found. The
+  question it answers is whether a single row can reject deterministically, and
+  the evidence is that it cannot. `reconcileTerminalFailure` is one `updateMany`
+  keyed on `id` and status, writing a module constant, no unique index, no
+  foreign key, and the migrations contain no trigger and no check constraint;
+  `updateMany` returns `count: 0` rather than throwing on no match. The
+  realistic failures — pool timeout, connection reset, serialization failure, a
+  read-only primary during failover — are connection- or cluster-scoped and hit
+  every candidate identically, so no row can single itself out, and while writes
+  are globally failing a pin costs nothing because nothing can be reconciled
+  anyway. A held row lock blocks inside the `await` rather than rejecting, which
+  is unchanged by this repair. If a poison row were ever reachable the pinned
+  behaviour is still the better one: every pass rejects and logs, which is a
+  loud stall, where the pre-fix behaviour was a silent skip.
+- 2026-08-22: The `false` return from `reconcileTerminalFailure` advances the
+  cursor like any other finished observation, and now has a test. The contract
+  was stated in the code and survived a mutation, because a row another writer
+  already finalized leaves the candidate set and so cannot pin the scan — true,
+  but true by an argument no assertion held.
 
 ## Progress
 
@@ -349,6 +388,9 @@ profile). CI on the final head must be green.
 - [x] Aggregate revalidation.
 - [x] PR [#29](https://github.com/adnanalmahmut/ai-agent/pull/29) opened against
   `main`, left unmerged for human review.
+- [x] Repair cycle 2: the blocking cursor/write ordering finding from human
+  review of PR #29 fixed, regression-tested, mutation-verified, and corrected in
+  every document that had stated the weaker guarantee.
 - [ ] Human review and merge. This plan stays under `active/` until the work
   lands, and moves to `completed/` with its landing evidence in that same
   change.

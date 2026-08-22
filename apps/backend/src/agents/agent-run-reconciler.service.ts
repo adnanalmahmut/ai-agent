@@ -93,6 +93,9 @@ export class AgentRunReconciler {
    * all. Resuming past what has been seen bounds each row to one visit per
    * cycle.
    *
+   * It moves only for a *finished* observation, which for a failed job means
+   * after the terminal write resolves; see `advancePast`.
+   *
    * Losing it costs nothing but time. A restart resumes from the oldest run and
    * walks the same cycle again, which is why correctness still rests on
    * PostgreSQL alone and not on anything this process remembers.
@@ -173,6 +176,19 @@ export class AgentRunReconciler {
     this.logger.info('Agent run reconciler stopped');
   }
 
+  /**
+   * Marks a candidate finished, so the next pass starts after it.
+   *
+   * Called per branch rather than once after the transport answers, because
+   * "reached" and "finished" are not the same event for every verdict and only
+   * the second one is safe to skip past. On the failed branch that means after
+   * the write settles — before the logging, which is not part of the
+   * observation.
+   */
+  private advancePast(candidate: { id: string; updatedAt: Date }): void {
+    this.cursor = { updatedAt: candidate.updatedAt, id: candidate.id };
+  }
+
   private scheduleNext(delayMs: number): void {
     if (this.stopping) return;
 
@@ -185,17 +201,27 @@ export class AgentRunReconciler {
       void pass
         .catch((error: unknown) => {
           /**
-           * Reached when PostgreSQL or Redis was unreachable for the pass. It is
-           * logged and dropped on purpose: the next pass recomputes its
-           * candidates from scratch, so an outage costs one interval rather than
-           * the loop. Nothing durable was written, and nothing needs undoing.
+           * Reached when PostgreSQL or Redis was unreachable for the pass, or
+           * when a terminal write rejected. It is logged and dropped on purpose:
+           * the next pass recomputes its candidates from scratch and — since
+           * the cursor advances only past a finished observation — is handed the
+           * candidate this pass failed on. Nothing durable was written, and
+           * nothing needs undoing.
            *
            * This is the only place the component logs a message it did not
-           * write, and it is safe because of what cannot reach here: the
-           * reconciler never invokes a runtime, so no provider error, prompt or
-           * response body exists on this path — only a Prisma or ioredis
-           * infrastructure error, whose text is what makes an outage
-           * diagnosable. The message alone, never the stack or cause.
+           * write, and it is bounded by what cannot reach here: the reconciler
+           * never invokes a runtime, so no provider error, prompt or response
+           * body exists on this path — only a Prisma or ioredis infrastructure
+           * error, whose text is what makes an outage diagnosable. The message
+           * alone, never the stack or cause.
+           *
+           * Not a claim that the text is contentless. A Prisma initialization
+           * error names the database host and port (`P1001`) or the database
+           * user (`P1000`), so the ceiling here is deployment topology, not
+           * business data and not a credential — which is the accepted cost of
+           * being able to tell one outage from another. Narrowing this to an
+           * error code would be a change of judgement about infrastructure
+           * telemetry generally, not about this component.
            */
           this.logger.warn(
             { err: error instanceof Error ? { message: error.message } : {} },
@@ -259,12 +285,9 @@ export class AgentRunReconciler {
         candidate.id,
       );
 
-      // Advanced for every candidate reached, whatever the answer was. A row
-      // the pass could not act on must still not be the next pass's first row.
-      this.cursor = { updatedAt: candidate.updatedAt, id: candidate.id };
-
       if (state === 'pending') {
         pass.pending += 1;
+        this.advancePast(candidate);
         continue;
       }
 
@@ -278,12 +301,36 @@ export class AgentRunReconciler {
          * than the staleness threshold into destroyed work.
          */
         missing.push(candidate.id);
+        this.advancePast(candidate);
         continue;
       }
 
       pass.failed += 1;
 
       const reconciled = await this.runs.reconcileTerminalFailure(candidate.id);
+
+      /**
+       * After the write, never before it. `pending` and `missing` are finished
+       * observations the moment the transport answers — there is nothing left
+       * to do for those rows — but a `failed` verdict is only half of one, and
+       * the durable write is the other half.
+       *
+       * Advancing on the verdict alone would mean a PostgreSQL blip during that
+       * write left the cursor pointing past a run this pass had already proven
+       * needs finalizing. That is not one interval of latency: nothing writes
+       * the row, so its `updatedAt` never moves and the only thing that would
+       * bring it back is the cursor wrapping — which requires reaching a short
+       * page, and a backlog that keeps filling pages may not produce one for a
+       * long time, or at all. The run this component exists to finalize would
+       * stay `RUNNING` while the sweep reported healthy passes.
+       *
+       * A rejection here therefore propagates with the cursor still behind this
+       * candidate, so the next pass is handed the same row and tries again.
+       * `false` — a run another writer already made terminal — is a completed
+       * observation like any other and advances normally.
+       */
+      this.advancePast(candidate);
+
       if (!reconciled) continue;
 
       pass.reconciled += 1;
@@ -305,8 +352,15 @@ export class AgentRunReconciler {
      * is picked up.
      *
      * After the loop, not before it: the loop advances the cursor per candidate
-     * reached, so resetting first would simply be overwritten and the wrap
+     * it finishes, so resetting first would simply be overwritten and the wrap
      * would cost an extra empty query every cycle.
+     *
+     * Only reached when the loop ran to completion, so a pass that throws
+     * leaves the cursor behind the candidate it failed on and the next pass is
+     * handed that row first. That is a latency property rather than a
+     * correctness one: wrapping would re-scan from the oldest row, where an
+     * unreconciled candidate is still stale, still non-terminal and therefore
+     * still in the result set. A wrap re-presents; it never skips.
      */
     if (candidates.length < batchSize) this.cursor = undefined;
 

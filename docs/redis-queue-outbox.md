@@ -118,6 +118,16 @@ mechanism would stop recovering with no signal but a repeated log line. The
 cursor resets when a page comes back short, so the scan is a cycle. Losing it to
 a restart costs a cycle, not correctness.
 
+It advances only past a *finished* observation. For a job the transport reports
+`pending` or `missing` that is the verdict itself, since there is nothing left
+to do for the row; for a `failed` one it is the terminal write resolving. If
+that write rejects, the pass propagates the rejection with the cursor still
+behind the candidate, so the next pass is handed the same row. Advancing on the
+verdict instead would let one PostgreSQL blip carry the scan past a run already
+proven to need finalizing — and because nothing wrote it, its `updatedAt` would
+not move and only a wrap could bring it back, which a backlog that keeps filling
+pages need not produce.
+
 **`QueueEvents` is deliberately not the mechanism.** Its consumer is a plain
 `XREAD` starting at `$` with no cursor persisted anywhere — BullMQ 6.1.2 has no
 consumer groups — so an event published while the process is down is lost rather
