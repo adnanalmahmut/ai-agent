@@ -1,7 +1,8 @@
 import { describe, expect, it, jest } from '@jest/globals';
-import type { Job } from 'bullmq';
+import { UnrecoverableError, type Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 
+import { AgentConfigurationError } from '../agent-configuration.error';
 import {
   AgentExecutionHandler,
   type AgentExecutionJob,
@@ -261,5 +262,197 @@ describe('AgentExecutionHandler', () => {
       'Agent execution failed',
       true,
     );
+  });
+
+  /**
+   * A failure a retry cannot fix — an `AgentRun` pinned to a definition this
+   * deployment does not carry, or one whose persisted runtime disagrees with
+   * it. The third attempt resolves the same registry as the first, so the only
+   * thing the budget buys is a longer delay before somebody is told.
+   */
+  describe('a deterministic configuration failure', () => {
+    const registryError = () =>
+      new AgentConfigurationError(
+        'agent "test-agent" version 1 is not in the registry',
+      );
+
+    it('stops the retries on the first attempt instead of spending the budget', async () => {
+      const { handler, runner, runs } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      runner.run.mockRejectedValue(registryError());
+      runs.recordExecutionFailure.mockResolvedValue(true);
+
+      // Attempt one of three: an ordinary failure here would be non-final.
+      const error = await handler.handle(job(0, 3)).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(UnrecoverableError);
+      expect((error as Error).name).toBe('UnrecoverableError');
+      expect(runs.recordExecutionFailure).toHaveBeenCalledWith(
+        run.id,
+        run.attemptCount,
+        'Agent execution failed',
+        true,
+      );
+    });
+
+    // BullMQ copies the rejection's message into the job's durable
+    // `failedReason`, so the registry's own text must not reach it.
+    it('carries none of the registry message into what BullMQ records', async () => {
+      const { handler, runner, runs } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      runner.run.mockRejectedValue(registryError());
+      runs.recordExecutionFailure.mockResolvedValue(true);
+
+      const error = await handler.handle(job(0, 3)).catch((e: unknown) => e);
+
+      expect((error as Error).message).toBe('Agent execution failed');
+    });
+
+    it('distinguishes it from a runtime failure with a fixed reason code', async () => {
+      const { handler, runner, runs, warn } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      runner.run.mockRejectedValue(registryError());
+      runs.recordExecutionFailure.mockResolvedValue(true);
+
+      await expect(handler.handle(job(0, 3))).rejects.toThrow();
+
+      // Everything persisted and rethrown is the same constant, so without the
+      // code a missing definition and a provider timeout are indistinguishable.
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          runId: run.id,
+          agentId: run.agentId,
+          agentVersion: run.agentVersion,
+          reason: 'configuration_error',
+          final: true,
+        }),
+        expect.any(String),
+      );
+    });
+
+    /**
+     * The identifying fields are application-owned columns, never anything read
+     * off the caught error. A registry message that reached the log would be
+     * one an untrusted runtime could have authored.
+     */
+    it('reports it without copying anything out of the error', async () => {
+      const { handler, runner, runs, warn } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      runner.run.mockRejectedValue(
+        new AgentConfigurationError('leaked provider detail sk-proj-SECRET'),
+      );
+      runs.recordExecutionFailure.mockResolvedValue(true);
+
+      await expect(handler.handle(job(0, 3))).rejects.toThrow();
+
+      const logged = JSON.stringify(warn.mock.calls);
+      expect(logged).not.toContain('SECRET');
+      expect(logged).not.toContain('leaked provider detail');
+      expect(logged).not.toContain('AgentConfigurationError');
+    });
+
+    /**
+     * The pairing that makes stopping the retries safe, and the reason the
+     * throw is conditional rather than automatic.
+     *
+     * A lost claim means a newer delivery of this job is executing right now
+     * and owns the run. `UnrecoverableError` from this stale delivery would
+     * terminally fail the job on that delivery's behalf, ending work that is
+     * still running — so a delivery that wrote nothing rejects like any other
+     * failure and lets BullMQ's own lock arbitrate.
+     */
+    it('rejects retryably when it no longer owns the run it would have failed', async () => {
+      const { handler, runner, runs } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      runner.run.mockRejectedValue(registryError());
+      // The CAS matched nothing: a newer delivery holds the attempt.
+      runs.recordExecutionFailure.mockResolvedValue(false);
+
+      const error = await handler.handle(job(0, 3)).catch((e: unknown) => e);
+
+      expect(error).not.toBeInstanceOf(UnrecoverableError);
+      expect((error as Error).name).toBe('Error');
+      expect((error as Error).message).toBe('Agent execution failed');
+    });
+
+    // A failed durable write outranks the classification: the fact worth
+    // reporting is that this delivery no longer owns the run.
+    it('reports the lost claim rather than the classification', async () => {
+      const { handler, runner, runs, warn } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      runner.run.mockRejectedValue(registryError());
+      runs.recordExecutionFailure.mockResolvedValue(false);
+
+      await expect(handler.handle(job(0, 3))).rejects.toThrow();
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ runId: run.id, reason: 'claim_lost' }),
+        expect.any(String),
+      );
+      expect(warn).not.toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'configuration_error' }),
+        expect.any(String),
+      );
+    });
+
+    /**
+     * Why classification is `instanceof` and never the error's own fields.
+     *
+     * `name` and `message` are attacker-shaped: a model provider, a tool
+     * response or a compromised dependency can produce either. If the handler
+     * read them, a failing provider could talk the worker out of its retries by
+     * naming its error well — every transient outage would become a terminal
+     * run. Only code in this repository can construct the class, so identity is
+     * the one signal a provider cannot forge.
+     */
+    it('cannot be spoofed by an error that merely names itself one', async () => {
+      const { handler, runner, runs, warn } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      const impostor = new Error(
+        'agent "test-agent" version 1 is not in the registry',
+      );
+      impostor.name = 'AgentConfigurationError';
+      runner.run.mockRejectedValue(impostor);
+      runs.recordExecutionFailure.mockResolvedValue(true);
+
+      const error = await handler.handle(job(0, 3)).catch((e: unknown) => e);
+
+      expect(error).not.toBeInstanceOf(UnrecoverableError);
+      expect((error as Error).name).toBe('Error');
+      // Attempt one of three still has budget, and a forged name must not
+      // consume it.
+      expect(runs.recordExecutionFailure).toHaveBeenCalledWith(
+        run.id,
+        run.attemptCount,
+        'Agent execution failed',
+        false,
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'runtime_error' }),
+        expect.any(String),
+      );
+    });
+
+    it('leaves an ordinary failure to the retry budget it was given', async () => {
+      const { handler, runner, runs, warn } = harness();
+      runs.claimExecutionAttempt.mockResolvedValue(run);
+      runner.run.mockRejectedValue(new Error('provider timed out'));
+      runs.recordExecutionFailure.mockResolvedValue(true);
+
+      const error = await handler.handle(job(0, 3)).catch((e: unknown) => e);
+
+      expect(error).not.toBeInstanceOf(UnrecoverableError);
+      expect((error as Error).name).toBe('Error');
+      expect(runs.recordExecutionFailure).toHaveBeenCalledWith(
+        run.id,
+        run.attemptCount,
+        'Agent execution failed',
+        false,
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'runtime_error', final: false }),
+        expect.any(String),
+      );
+    });
   });
 });

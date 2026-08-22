@@ -13,6 +13,14 @@ export type ReconciliationPass = {
   missing: number;
   pending: number;
   reconciled: number;
+  /**
+   * Candidates the pass never reached because shutdown began.
+   *
+   * Reported rather than left implicit: without it `pending + failed + missing`
+   * silently stops adding up to `examined`, which reads as lost work instead of
+   * an abandoned tail. Nothing is lost — the next pass rebuilds the list.
+   */
+  abandoned: number;
 };
 
 /**
@@ -163,6 +171,13 @@ export class AgentRunReconciler {
            * logged and dropped on purpose: the next pass recomputes its
            * candidates from scratch, so an outage costs one interval rather than
            * the loop. Nothing durable was written, and nothing needs undoing.
+           *
+           * This is the only place the component logs a message it did not
+           * write, and it is safe because of what cannot reach here: the
+           * reconciler never invokes a runtime, so no provider error, prompt or
+           * response body exists on this path — only a Prisma or ioredis
+           * infrastructure error, whose text is what makes an outage
+           * diagnosable. The message alone, never the stack or cause.
            */
           this.logger.warn(
             { err: error instanceof Error ? { message: error.message } : {} },
@@ -192,6 +207,7 @@ export class AgentRunReconciler {
       missing: 0,
       pending: 0,
       reconciled: 0,
+      abandoned: 0,
     };
 
     if (candidates.length === 0) return pass;
@@ -202,8 +218,11 @@ export class AgentRunReconciler {
      * commands at once instead of one, and there is nothing to gain by
      * finishing a recovery sweep faster.
      */
-    for (const candidate of candidates) {
-      if (this.stopping) break;
+    for (const [index, candidate] of candidates.entries()) {
+      if (this.stopping) {
+        pass.abandoned = candidates.length - index;
+        break;
+      }
 
       /**
        * The job id is the run id. Acceptance writes the outbox event with the
@@ -233,7 +252,7 @@ export class AgentRunReconciler {
         this.logger.warn(
           {
             runId: candidate.id,
-            status: candidate.status,
+            previousStatus: candidate.status,
             reason: 'transport_record_missing',
           },
           'Agent run has no transport record; leaving its state unchanged',
@@ -259,7 +278,7 @@ export class AgentRunReconciler {
       );
     }
 
-    if (pass.reconciled > 0 || pass.missing > 0) {
+    if (pass.reconciled > 0 || pass.missing > 0 || pass.abandoned > 0) {
       this.logger.info(pass, 'Agent run reconciliation pass completed');
     }
 

@@ -285,11 +285,23 @@ None currently.
 
 ## Known unrelated observation
 
-`outbox.e2e-spec.ts › claim › honours the batch limit` failed intermittently
-during this work, returning all five rows for a `LIMIT 2` claim. It reproduces
-on a clean `main` worktree at `f313f4b` at the same rate as on this branch
-(3/5 versus 2/5 interleaved), and both stopped reproducing together once the
-window closed. It is not caused by this change. The window coincided with a
-migration being applied to the shared development database mid-session, which
-CI never does — it builds a fresh database and applies all migrations before
-running any test.
+`outbox.e2e-spec.ts › claim › honours the batch limit` fails intermittently,
+returning all five rows for a claim whose `limit` is 2. Nothing in this change
+touches `src/core/outbox`.
+
+Evidence that it is pre-existing:
+
+- Run alone and interleaved, it failed on a clean `main` worktree at `f313f4b`
+  3 times in 5 and on this branch 2 times in 5, then both stopped together.
+- Over the full suite, `main` failed 1 run in 7 and this branch 1 in 4; in the
+  branch failure it appeared alongside the three already-known
+  `better-auth-rate-limit` timing tests, which is the signature of machine load
+  rather than of a code path.
+
+Not root-caused, and deliberately not pursued here. One hypothesis worth a
+separate investigation: a `LIMIT` bound as a parameter through Prisma
+`$queryRaw` appears not to be applied, which under a prepared-statement or
+pooled-connection explanation would be load-correlated and rare. If that is
+real it is a general `$queryRaw` concern rather than an outbox one, and its
+practical effect on the dispatcher is a larger-than-configured batch, not lost
+or duplicated work.
