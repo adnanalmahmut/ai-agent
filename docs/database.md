@@ -26,12 +26,14 @@ scheduled or system-initiated work. It is not an actor abstraction, a trigger
 hierarchy, or a placeholder for a synthetic system user.
 
 The AgentRun migration is still unmerged and was corrected in place rather than
-by a follow-up migration. A database that applied its earlier form keeps the old
-table: Prisma reports the schema up to date and `migrate deploy` re-applies
-nothing, because a changed checksum on an applied migration raises no drift
-signal. Deployed environments are unaffected — this migration has never been
-applied to one, and CI builds a fresh database per run — but a local database
-that applied the earlier form must be reset with
+by a follow-up migration. In a repository-local reproduction using Prisma
+7.9.1, a database that had already applied the earlier form continued to report
+the schema as up to date and `migrate deploy` did not re-apply the edited file.
+That observed behavior is the reason for the local reset guidance here; it is
+not asserted as a general Prisma migration rule outside this tested path.
+Deployed environments are unaffected — this migration has never been applied
+to one, and CI builds a fresh database per run — but a local database that
+applied the earlier form must be reset with
 `pnpm --filter backend db:reset`.
 
 Migration order:
