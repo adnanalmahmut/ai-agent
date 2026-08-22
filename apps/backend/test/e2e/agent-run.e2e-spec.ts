@@ -206,6 +206,28 @@ describe('AgentRun foundation (e2e)', () => {
     expect(events[0]?.payload).toEqual({ runId: results[0]?.id });
   });
 
+  it('returns the same run for a sequential retry without re-queueing it', async () => {
+    // The concurrent case above only ever exercises the P2002 branch, because
+    // all six requests get past the pre-check before anyone commits. This is
+    // the ordinary client retry — the first request already committed — and it
+    // is the path that must not append a second queue intent.
+    const first = await service.create(request('sequential-retry'));
+    const second = await service.create(request('sequential-retry'));
+
+    expect(second.id).toBe(first.id);
+    await expect(
+      prisma.agentRun.count({
+        where: {
+          organizationId: organizationIds[0],
+          idempotencyKey: 'sequential-retry',
+        },
+      }),
+    ).resolves.toBe(1);
+    await expect(
+      prisma.outboxEvent.count({ where: { dedupeKey: first.id } }),
+    ).resolves.toBe(1);
+  });
+
   it('pins the accepted run to the requested definition version', async () => {
     // Two runs of the same agent at different revisions must stay
     // independently resolvable; acceptance is what fixes the version.

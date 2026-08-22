@@ -32,10 +32,12 @@
 //   member.organizationId  -> Restrict
 //   invitation.inviterId   -> Restrict
 //   invitation.organizationId -> Restrict
+//   agent_run.organizationId  -> Restrict
+//   agent_run.createdByUserId -> Restrict (nullable; only when a creator exists)
 //
-// The four Restricts are deliberate. Membership and invitation rows carry
-// history, and hard deletion of a user or an organization is not an operation
-// this application offers. If a physical delete is ever attempted — by hand, by
+// The six Restricts are deliberate. Membership, invitation, and agent-run rows
+// carry history, and hard deletion of a user or an organization is not an
+// operation this application offers. If a physical delete is ever attempted — by hand, by
 // a future migration, or by a Better Auth route we failed to disable — it must
 // fail loudly rather than quietly shredding organizational history.
 //

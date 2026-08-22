@@ -25,6 +25,15 @@ application User initiated the run, which is the honest representation for
 scheduled or system-initiated work. It is not an actor abstraction, a trigger
 hierarchy, or a placeholder for a synthetic system user.
 
+The AgentRun migration is still unmerged and was corrected in place rather than
+by a follow-up migration. A database that applied its earlier form keeps the old
+table: Prisma reports the schema up to date and `migrate deploy` re-applies
+nothing, because a changed checksum on an applied migration raises no drift
+signal. Deployed environments are unaffected — this migration has never been
+applied to one, and CI builds a fresh database per run — but a local database
+that applied the earlier form must be reset with
+`pnpm --filter backend db:reset`.
+
 Migration order:
 
 1. Better Auth core.
