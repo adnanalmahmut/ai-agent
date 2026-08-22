@@ -316,6 +316,16 @@ profile). CI on the final head must be green.
   has given up; `RUNNING` forever is worse) but the earlier documentation
   asserted only the safe half of it, which was true for an already-`SUCCEEDED`
   run and false for one in flight. Both owning documents now say so.
+- 2026-08-22: A short candidate page now ends the cycle immediately instead of
+  one pass later. The reset had been placed before the loop, which advances the
+  cursor for every candidate it reaches and therefore overwrote it. Behaviour
+  was correct either way; the code simply did not do what its own comment said.
+- 2026-08-22: The keyset predicate gained an integration test, because the unit
+  tests can only assert the cursor the reconciler passes, not that PostgreSQL
+  honours it. Five runs are forced to share one `updatedAt`: a cursor compared
+  on the timestamp alone would skip every row inside the last one's
+  millisecond, silently and only under load. Mutation-verified against exactly
+  that simplification.
 - 2026-08-22: Recorded rather than fixed — a deterministic failure is now
   terminal on first sight, so adding a definition requires deploying the worker
   before or with the API. The previous three-attempt budget at two-second
@@ -336,8 +346,12 @@ profile). CI on the final head must be green.
 - [x] Code, security, and test-engineer reviews of the complete diff.
 - [x] Repair cycle 1: every confirmed defect fixed, every accepted trade
   recorded in the owning documentation.
-- [ ] Aggregate revalidation.
-- [ ] PR opened with green final-head CI.
+- [x] Aggregate revalidation.
+- [x] PR [#29](https://github.com/adnanalmahmut/ai-agent/pull/29) opened against
+  `main`, left unmerged for human review.
+- [ ] Human review and merge. This plan stays under `active/` until the work
+  lands, and moves to `completed/` with its landing evidence in that same
+  change.
 
 ## Blockers
 
