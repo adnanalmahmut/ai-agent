@@ -144,10 +144,10 @@ trade.
 
 The worker composes one explicit `agent-execution` / `execute` handler. It loads
 the durable AgentRun by `{ runId }`, conditionally claims the BullMQ attempt,
-resolves a code-owned definition, and passes application-owned input through
-`AgentRunner` to an explicit runtime registry. Production definitions are empty
-until a real product agent is selected, so there is still no user-facing agent
-capability or provider-secret requirement.
+resolves the code-owned definition the run was pinned to, and passes
+application-owned input through `AgentRunner` to an explicit runtime registry.
+Production definitions are empty until a real product agent is selected, so
+there is still no user-facing agent capability or provider-secret requirement.
 
 The runtime contract intentionally has only `name` and `run`. Mastra is the
 first adapter, and every Mastra import must stay within
@@ -155,14 +155,35 @@ first adapter, and every Mastra import must stay within
 durable state, retry decisions, and definition ownership remain outside the SDK
 boundary. A future real agent is registered by adding its minimal definition to
 `src/agents/definitions/index.ts`, then adding the authorized API and provider
-configuration in that feature.
+configuration in that feature. The first one starts at version 1.
+
+Definitions are identified by the exact `(id, version)` pair, and a definition
+is immutable once published under a version. `AgentRunner` resolves the pair
+persisted on the run, never the id alone, so a run accepted before a deployment
+still executes the revision it was accepted against. A duplicate `(id, version)`
+is a composition error, distinct versions of one id are valid, and an unknown
+pair fails loudly — there is deliberately no fallback to a latest version. Any
+version still referenced by a `QUEUED` or `RUNNING` AgentRun must therefore
+remain resolvable throughout a rolling deployment. Automated retention of
+superseded versions is not implemented.
 
 Attempt claims use `(status, attemptCount)` as a PostgreSQL compare-and-set
 version. `attemptCount` records BullMQ's active-start ordinal, which advances
-for ordinary retries and stalled-job recovery. Terminal or already-claimed
-duplicate delivery is a no-op; an intermediate failure remains `RUNNING` and is
-rethrown for BullMQ retry; the configured final attempt records `FAILED` and
-still rejects the job. Persisted and BullMQ failure messages are generic
+for ordinary retries and stalled-job recovery.
+
+The claim is monotonic: a delivery takes ownership when
+`attemptCount < attemptsStarted`. It is deliberately not an exact predecessor.
+BullMQ increments `attemptsStarted` in Redis at move-to-active, before this
+process runs, so a worker killed before its first write consumes an ordinal
+PostgreSQL never observes and the durable sequence can skip values. Demanding
+`attemptsStarted - 1` wedged exactly those runs. The ordinal works as a fencing
+token because BullMQ never reissues or decrements it, and completion and
+failure writes still CAS on the exact claimed `attemptCount`, so a superseded
+worker cannot finalize a run a newer delivery now owns.
+
+A stale, duplicate, or terminal delivery is a no-op; an intermediate failure
+remains `RUNNING` and is rethrown for BullMQ retry; the configured final attempt
+records `FAILED` and still rejects the job. Persisted and BullMQ failure messages are generic
 diagnostics and do not include provider messages, error names, responses, or
 stacks.
 
@@ -176,9 +197,12 @@ checkpoints, provider abstraction, and tool abstraction are intentionally
 deferred.
 
 BullMQ can fail a job before invoking the handler when the job exceeds its
-stalled-job allowance. That exceptional transport failure can currently leave
-the durable AgentRun `RUNNING`; terminal transport reconciliation is deferred
-and must be addressed before production agent definitions are enabled.
+stalled-job allowance (`maxStalledCount`, default 1). It records a deferred
+failure and fails the job on the next pickup without calling the processor, so
+no application code gets the chance to reconcile and the durable AgentRun can
+stay `RUNNING` indefinitely. Terminal BullMQ failure reconciliation is a hard
+prerequisite before enabling the first production AgentDefinition or public
+AgentRun API.
 
 ### A claim is versioned, so a stale dispatcher cannot overwrite a newer outcome
 
