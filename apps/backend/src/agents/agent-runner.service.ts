@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { AgentConfigurationError } from './agent-configuration.error';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import type { AgentRun, AgentRuntimeResult } from './agent.types';
@@ -20,7 +21,9 @@ export class AgentRunner {
     const definition = this.definitions.resolve(run.agentId, run.agentVersion);
 
     if (definition.runtime !== run.runtime) {
-      throw new Error(
+      // Two durable facts that disagree. Neither one changes while the run is
+      // in flight, so this cannot come right on a later attempt.
+      throw new AgentConfigurationError(
         `AgentRun runtime "${run.runtime}" does not match definition runtime "${definition.runtime}"`,
       );
     }

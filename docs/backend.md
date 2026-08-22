@@ -26,7 +26,15 @@ idempotency. Each accepted run persists `agentVersion`, pinning it to the exact
 definition revision it was accepted against, and `createdByUserId` is nullable
 so work with no authenticated initiating user is representable. The worker
 conditionally claims attempts and invokes Mastra behind the minimal
-application-owned `AgentRuntime.run` boundary. Production definitions remain
+application-owned `AgentRuntime.run` boundary, with the SDK's own no-op logger
+installed so provider request and response payloads cannot bypass Pino
+redaction into container logs.
+
+A worker-only reconciliation sweep finalizes runs whose queue job the transport
+failed terminally without ever invoking the handler, which BullMQ does when a
+job exceeds its stalled-job allowance. Deterministic configuration failures —
+an unregistered definition pair, a runtime mismatch — are recorded as final
+immediately instead of consuming the retry budget. Production definitions remain
 empty and no public create route is exposed, so this still does not let a user
 execute an agent.
 

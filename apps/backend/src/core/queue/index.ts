@@ -3,6 +3,7 @@ export {
   QueueProducer,
   type PublishOptions,
   type PublishResult,
+  type QueueJobTransportState,
 } from './queue-producer.service';
 export {
   QueuePublishError,

@@ -151,7 +151,24 @@ there is still no user-facing agent capability or provider-secret requirement.
 
 The runtime contract intentionally has only `name` and `run`. Mastra is the
 first adapter, and every Mastra import must stay within
-`src/agents/runtime/mastra/**` or tests under that directory. Application types,
+`src/agents/runtime/mastra/**` or tests under that directory.
+
+The adapter installs the SDK's exported `noopLogger` on each agent before
+running it. `MastraBase` otherwise constructs a `ConsoleLogger` at level
+`error`, and the agent loop logs the raw provider error — the outbound request
+body containing the instructions and the prompt, the provider response body,
+the endpoint and the model id — through `console.error`, where Pino's redaction
+never sees it. No environment variable disables it. `noopLogger` is the same
+object Mastra installs for its documented `logger: false`, and it is assigned
+through a typed local so a future SDK that changes the hook fails `typecheck`
+rather than silently regressing into unredacted logging. A no-network adapter
+test drives the real SDK with a stub model and asserts nothing reaches
+`console.*`, alongside an inverted control that proves the leak is real.
+
+Two residual limits are worth stating: `__setLogger` is typed and not marked
+internal, but it is undocumented; and the SDK contains raw `console.*` calls
+that no logger injection can reach. Neither is on a path this adapter exercises
+today, which is why the test asserts on `console.*` rather than on the logger. Application types,
 durable state, retry decisions, and definition ownership remain outside the SDK
 boundary. A future real agent is registered by adding its minimal definition to
 `src/agents/definitions/index.ts`, then adding the authorized API and provider
@@ -196,13 +213,68 @@ real tool use case. Streaming, memory, storage, workflows, cancellation,
 checkpoints, provider abstraction, and tool abstraction are intentionally
 deferred.
 
-BullMQ can fail a job before invoking the handler when the job exceeds its
-stalled-job allowance (`maxStalledCount`, default 1). It records a deferred
-failure and fails the job on the next pickup without calling the processor, so
-no application code gets the chance to reconcile and the durable AgentRun can
-stay `RUNNING` indefinitely. Terminal BullMQ failure reconciliation is a hard
-prerequisite before enabling the first production AgentDefinition or public
-AgentRun API.
+### The transport can end a job without the handler
+
+BullMQ fails a job before invoking the handler when it exceeds its stalled-job
+allowance (`maxStalledCount`, default 1): the stalled check writes a deferred
+failure marker and returns the job to `wait`, and the next fetch turns that
+marker into a synthetic `UnrecoverableError` on a branch that skips the
+processor. No application code runs, so nothing records the outcome.
+
+`AgentRunReconciler` — worker-only, on its own interval — reads a bounded page
+of the oldest non-terminal runs from PostgreSQL, asks the transport for each
+one's job state, and writes `FAILED` with `completedAt` and a safe constant for
+the ones whose job is in the failed set. The write is conditional on the run
+still being `QUEUED` or `RUNNING`, so it is idempotent and cannot overwrite a
+terminal outcome; it does not match on `attemptCount`, because the sweep is not
+an attempt.
+
+It reads through a keyset cursor on `(updatedAt, id)`, which is what makes the
+sweep progress rather than merely repeat. A candidate it cannot act on is left
+unwritten, so `updatedAt` never moves and always-from-the-beginning would return
+the same rows forever — and once enough of them filled a page, no newer run
+would be examined again. The cursor resets on a short page, so the scan cycles;
+losing it to a restart costs a cycle, not correctness.
+
+The cursor moves only past a finished observation: for `pending` and `missing`
+that is the transport verdict, and for `failed` it is the terminal write
+resolving. A rejected write leaves the cursor behind the candidate, so the next
+pass retries the same row instead of scanning past a run it has already proven
+needs finalizing.
+
+What the conditional does *not* protect is a run still in flight. A worker whose
+lock lapsed mid-model-call keeps running, and if the sweep finalizes the run
+first, that worker's success write matches nothing and its result is discarded.
+An accepted trade — the transport has given up, and `RUNNING` forever is worse —
+and a reason to keep the staleness threshold above the slowest expected call.
+
+`QueueEvents` would have been the smaller-looking answer and is not a correct
+one: it reads the stream from `$` with no persisted cursor, so an event
+published while the process is down is lost rather than delayed. Correctness
+lives in the sweep, which keeps nothing between passes.
+
+It never re-queues and never fails a run for being slow. Re-running a failed run
+would restart `attemptsStarted` at 1 against a higher `attemptCount` and be
+rejected by the fence, so it belongs to a separate future operation; and a job
+the transport has no record of is logged, not failed, because retention and
+not-yet-published look identical from here.
+
+### A deterministic failure is final immediately
+
+An unregistered `(agentId, agentVersion)` pair, a runtime that disagrees with
+its definition, and an unsupported runtime raise `AgentConfigurationError`. The
+registries come from code, so a retry resolves the same thing; the handler
+records the durable failure as final and throws `UnrecoverableError`.
+
+Only when it still holds the claim, though. If the finalizing write matched
+nothing, a newer delivery owns the run, and terminally failing the job on its
+behalf would end work that is still running — so a stale delivery rejects
+ordinarily. Classification is `instanceof` and nothing else, so a provider error
+cannot choose a name or message that talks the worker out of its retries.
+
+This makes deployment order matter when a definition is added: bring the worker
+up before, or with, the API, or a run accepted by a new API instance and
+delivered to an older worker is failed immediately rather than retried.
 
 ### A claim is versioned, so a stale dispatcher cannot overwrite a newer outcome
 

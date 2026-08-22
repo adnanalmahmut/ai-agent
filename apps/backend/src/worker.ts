@@ -2,6 +2,7 @@ import type { ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger, PinoLogger } from 'nestjs-pino';
 
+import { AgentRunReconciler } from './agents/agent-run-reconciler.service';
 import { appConfig, queueConfig } from './config';
 import {
   ProcessReadiness,
@@ -11,6 +12,7 @@ import {
 import { OutboxDispatcher } from './core/outbox';
 import { QueueProducer, QueueWorkerRunner } from './core/queue';
 import { WorkerModule } from './worker.module';
+import { startWorkerRuntime } from './worker.runtime';
 import { workerShutdownSteps } from './worker.shutdown';
 
 /**
@@ -43,20 +45,13 @@ async function bootstrap() {
   const producer = app.get(QueueProducer);
   const runner = app.get(QueueWorkerRunner);
   const dispatcher = app.get(OutboxDispatcher);
+  const reconciler = app.get(AgentRunReconciler);
   const shutdownLogger = await app.resolve(PinoLogger);
 
-  /**
-   * Startup has an order, and it is the reverse of shutdown's.
-   *
-   * The producer's queues are constructed first, so BullMQ's handshake and Lua
-   * script loading happen here — where a failure is a startup problem somebody
-   * will see — rather than inside the dispatcher's first publish, where it would
-   * look like a slow queue. The workers start next, and only then does the
-   * dispatcher begin producing work for them.
-   */
-  producer.init();
-  runner.start();
-  dispatcher.start();
+  // Startup has an order, and it is the reverse of shutdown's. It lives in its
+  // own module so a test can run the real sequence rather than a copy.
+  startWorkerRuntime({ producer, runner, dispatcher, reconciler });
+
   readiness.markReady();
 
   const shutdown = async (signal: NodeJS.Signals) => {
@@ -65,6 +60,7 @@ async function bootstrap() {
     const outcome = await runShutdownSequence(
       workerShutdownSteps({
         dispatcher,
+        reconciler,
         readiness,
         runner,
         producer,

@@ -302,6 +302,11 @@ model AgentRun {
 
   @@unique([organizationId, idempotencyKey])
   @@index([createdByUserId])
+  /// Serves the reconciliation sweep, which repeatedly asks for the oldest
+  /// non-terminal runs. Without it that bounded query degrades into a full
+  /// scan of a table whose terminal rows are never deleted, so its cost would
+  /// grow with total history rather than with the backlog it is meant to find.
+  @@index([status, updatedAt])
   @@map("agent_run")
 }
 

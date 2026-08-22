@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { AgentConfigurationError } from './agent-configuration.error';
 import type { AgentRuntime } from './agent-runtime';
 import { MastraRuntime } from './runtime/mastra/mastra.runtime';
 
@@ -13,7 +14,12 @@ export class AgentRuntimeRegistry {
       case 'mastra':
         return this.mastra;
       default:
-        throw new Error(`Agent runtime "${name}" is not supported`);
+        // Deterministic for the same reason the definition registry's miss is:
+        // the mapping is a `switch` in this file, not something a retry can
+        // discover.
+        throw new AgentConfigurationError(
+          `Agent runtime "${name}" is not supported`,
+        );
     }
   }
 }

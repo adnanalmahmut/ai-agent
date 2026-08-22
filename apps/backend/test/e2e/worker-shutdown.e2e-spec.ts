@@ -21,7 +21,10 @@ import {
   QUEUE_NAMES,
   type QueueJobHandler,
 } from '../../src/core/queue';
-import { workerShutdownSteps } from '../../src/worker.shutdown';
+import {
+  workerShutdownSteps,
+  type WorkerShutdownDeps,
+} from '../../src/worker.shutdown';
 
 /**
  * The worker's drain under the two failures that actually compete for the
@@ -142,6 +145,7 @@ describe('worker shutdown under failure injection (e2e)', () => {
   } as unknown as QueueProducer;
 
   let dispatcher: OutboxDispatcher;
+  let reconciler: WorkerShutdownDeps['reconciler'];
 
   beforeEach(async () => {
     stuckPublishes.length = 0;
@@ -172,6 +176,11 @@ describe('worker shutdown under failure injection (e2e)', () => {
     inspector.on('error', () => undefined);
 
     dispatcher = new OutboxDispatcher(repository, stuckProducer, queue, silent);
+
+    // The reconciler has nothing to do in this scenario; it is present because
+    // the production sequence includes it, and its step must be seen to run in
+    // the right position rather than be quietly omitted from the test's copy.
+    reconciler = { stop: () => Promise.resolve() };
   }, 60_000);
 
   afterEach(async () => {
@@ -218,6 +227,7 @@ describe('worker shutdown under failure injection (e2e)', () => {
     const outcome = await runShutdownSequence(
       workerShutdownSteps({
         dispatcher,
+        reconciler,
         readiness,
         runner,
         producer: stuckProducer,
@@ -246,6 +256,7 @@ describe('worker shutdown under failure injection (e2e)', () => {
     // Every step ran, including the cleanup behind the two stuck ones.
     expect(outcome.completed).toEqual([
       'stop-outbox-dispatcher',
+      'stop-agent-run-reconciler',
       'mark-not-ready',
       'close-queue-workers',
       'close-queue-producers',
@@ -306,6 +317,7 @@ describe('worker shutdown under failure injection (e2e)', () => {
     await runShutdownSequence(
       workerShutdownSteps({
         dispatcher,
+        reconciler,
         readiness,
         runner,
         producer: stuckProducer,

@@ -1,5 +1,6 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
+import { AgentConfigurationError } from '../agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import type { AgentRuntime } from '../agent-runtime';
 import { AgentRuntimeRegistry } from '../agent-runtime.registry';
@@ -168,6 +169,69 @@ describe('AgentRuntimeRegistry', () => {
 
     expect(() => registry.resolve('langgraph')).toThrow(
       'Agent runtime "langgraph" is not supported',
+    );
+  });
+});
+
+/**
+ * The class, not the wording, at every deterministic throw site.
+ *
+ * A proven hole rather than a hypothetical one: reverting all three sites from
+ * `AgentConfigurationError` to a plain `new Error(...)` left the entire unit
+ * and e2e suites green, because every assertion above matches only on message
+ * text — which both classes carry identically.
+ *
+ * The regression that hides behind that is not cosmetic. `AgentExecutionHandler`
+ * branches on `isAgentConfigurationError`, and identity is the only thing it
+ * reads. A plain `Error` therefore stops being final on first sight and
+ * silently regains the full retry budget with exponential backoff for a failure
+ * whose third attempt resolves exactly the same registry as its first — while
+ * the run sits `RUNNING` between the attempts and nobody is told any sooner.
+ */
+describe('deterministic configuration failures carry their own class', () => {
+  it('marks an unregistered (id, version) pair as a configuration failure', async () => {
+    const registry = new AgentDefinitionRegistry([definition]);
+    const resolve = jest.fn();
+    const runner = new AgentRunner(registry, {
+      resolve,
+    } as unknown as AgentRuntimeRegistry);
+
+    expect(() => registry.resolve(definition.id, 7)).toThrow(
+      AgentConfigurationError,
+    );
+
+    // Asserted through the runner too: this is the path the worker takes, and
+    // it is the worker's classification that the class decides.
+    await expect(
+      runner.run({
+        agentId: definition.id,
+        agentVersion: 7,
+        runtime: 'mastra',
+        input: 'hello',
+      }),
+    ).rejects.toBeInstanceOf(AgentConfigurationError);
+  });
+
+  it('marks a persisted runtime disagreeing with the definition as a configuration failure', async () => {
+    const runner = new AgentRunner(new AgentDefinitionRegistry([definition]), {
+      resolve: jest.fn(),
+    } as unknown as AgentRuntimeRegistry);
+
+    await expect(
+      runner.run({
+        agentId: definition.id,
+        agentVersion: 1,
+        runtime: 'future-runtime',
+        input: 'hello',
+      }),
+    ).rejects.toBeInstanceOf(AgentConfigurationError);
+  });
+
+  it('marks an unsupported runtime name as a configuration failure', () => {
+    const registry = new AgentRuntimeRegistry(new MastraRuntime());
+
+    expect(() => registry.resolve('langgraph')).toThrow(
+      AgentConfigurationError,
     );
   });
 });

@@ -1,3 +1,4 @@
+import type { AgentRunReconciler } from './agents/agent-run-reconciler.service';
 import type { ShutdownStep } from './core/lifecycle';
 import type { ProcessReadiness } from './core/lifecycle';
 import type { OutboxDispatcher } from './core/outbox';
@@ -16,6 +17,7 @@ export const CLEANUP_RESERVE_MS = 5_000;
 
 export type WorkerShutdownDeps = {
   dispatcher: Pick<OutboxDispatcher, 'stop'>;
+  reconciler: Pick<AgentRunReconciler, 'stop'>;
   readiness: Pick<ProcessReadiness, 'markDraining'>;
   runner: Pick<QueueWorkerRunner, 'stop'>;
   producer: Pick<QueueProducer, 'close'>;
@@ -39,12 +41,16 @@ export type WorkerShutdownDeps = {
  *   1. Stop the dispatcher. It is the only thing still *creating* work for this
  *      process, and it waits for the publish in flight — so nothing is left
  *      mid-publish when the queue closes underneath it.
- *   2. Fail readiness.
- *   3. Drain the queue workers: stop claiming at once, let active jobs finish,
+ *   2. Stop the agent-run reconciler, which reads both Redis and PostgreSQL and
+ *      would otherwise still be doing so when steps 4 and 5 take them away.
+ *      Before the worker drain rather than after, because a reconciler pass is
+ *      short and holds nothing, whereas the drain may use most of the budget.
+ *   3. Fail readiness.
+ *   4. Drain the queue workers: stop claiming at once, let active jobs finish,
  *      force the close if the budget runs out. Also closes `QueueEvents`, after
  *      the workers, so the last failures are still recorded.
- *   4. Close the producers.
- *   5. Close the application, which runs the module hooks that disconnect Redis
+ *   5. Close the producers.
+ *   6. Close the application, which runs the module hooks that disconnect Redis
  *      and Prisma — each next to the resource it owns rather than restated here.
  *
  * Both draining steps draw from the single process-wide budget rather than from
@@ -54,12 +60,14 @@ export type WorkerShutdownDeps = {
  *
  * Nothing here writes business state. A job abandoned when the budget runs out
  * keeps its durable record and is recovered as stalled; an outbox row claimed
- * but not published stays `PROCESSING` until its lease expires. A deployment is
+ * but not published stays `PROCESSING` until its lease expires; a reconciler
+ * pass cut short simply recomputes its candidates next time. A deployment is
  * not a cancellation.
  */
 export function workerShutdownSteps(deps: WorkerShutdownDeps): ShutdownStep[] {
   const {
     dispatcher,
+    reconciler,
     readiness,
     runner,
     producer,
@@ -72,6 +80,16 @@ export function workerShutdownSteps(deps: WorkerShutdownDeps): ShutdownStep[] {
       name: 'stop-outbox-dispatcher',
       run: (budget) =>
         dispatcher.stop(budget.allow(drainGraceMs, CLEANUP_RESERVE_MS)),
+    },
+    {
+      /**
+       * Bounded by the same shared budget as every other draining step. A pass
+       * abandoned here leaves nothing behind: it holds no lease and no claim,
+       * and the next process rebuilds its candidate list from PostgreSQL.
+       */
+      name: 'stop-agent-run-reconciler',
+      run: (budget) =>
+        reconciler.stop(budget.allow(drainGraceMs, CLEANUP_RESERVE_MS)),
     },
     {
       /**

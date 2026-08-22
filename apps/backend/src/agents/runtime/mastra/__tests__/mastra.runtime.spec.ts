@@ -7,6 +7,16 @@ import {
   jest,
 } from '@jest/globals';
 
+/**
+ * Mocks `@mastra/core/agent` wholesale to test the adapter's input/output
+ * conversion and its logger installation cheaply and in isolation.
+ *
+ * Do not merge this file with `mastra.containment.spec.ts`. That suite proves
+ * the logger containment against the real SDK, and a module mock applies to a
+ * whole file, so combining them would silently make the containment claim
+ * vacuous. Here the injected logger's discard behavior is asserted directly;
+ * the sibling suite asserts the effect on the real console.
+ */
 const generate = jest.fn<(prompt: string) => Promise<{ text: string }>>();
 const setLogger = jest.fn<(logger: unknown) => void>();
 const Agent = jest.fn<
