@@ -31,6 +31,7 @@ describe('MastraRuntime', () => {
     const runtime = new MastraRuntime();
     const definition = {
       id: 'test-agent',
+      version: 1,
       runtime: 'mastra',
       instructions: 'Test instructions',
       model: 'test/provider-model',

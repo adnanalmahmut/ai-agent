@@ -134,6 +134,18 @@ recorded with the exact failed check and evidence.
   ordinary retries, duplicates, and stalled redelivery without introducing the
   deferred execution-lease framework; `attemptsMade` remains the source for
   BullMQ final-attempt classification.
+- 2026-08-22: The RUNNING claim predicate is monotonic
+  (`attemptCount < attemptsStarted`), not exact-predecessor
+  (`attemptCount == attemptsStarted - 1`). Verified against installed BullMQ
+  6.1.2: `attemptsStarted` is incremented by `HINCRBY` in
+  `prepareJobForProcessing.lua` at move-to-active, before any application code
+  runs, and stalled recovery does not reset it. A worker killed between
+  activation and its first PostgreSQL write therefore consumes an ordinal the
+  database never observes, so the durable sequence is strictly increasing with
+  gaps. The exact-predecessor form wedged such a run permanently; the monotonic
+  form treats the ordinal as a fencing token, which is sound because BullMQ
+  never reissues or decrements it. Completion/failure writes stay gated on the
+  exact claimed `attemptCount`, so a superseded worker cannot finalize.
 - 2026-08-22: `AgentRun.agentVersion` is a plain integer application revision
   persisted at acceptance. Asynchronous work outlives the deployment that
   accepted it, so `agentId` alone cannot identify the code a worker should run.
@@ -149,6 +161,23 @@ recorded with the exact failed check and evidence.
   `main`, so there is no deployed state to preserve and no reason to publish
   historical churn. `prisma migrate dev` re-applied it and reported the schema
   in sync with no additional migration, which is the drift proof.
+- 2026-08-22: `AgentDefinition` carries an explicit `version` and the registry
+  is keyed by the exact `(id, version)` pair. A duplicate pair is a composition
+  error, distinct versions of one id are valid, and resolution never falls back
+  to a latest version — silent drift onto newer code for a run accepted against
+  an older definition is precisely what the pairing prevents. Definitions are
+  immutable once published under a version; a version still referenced by a
+  QUEUED or RUNNING AgentRun must remain resolvable across a rolling
+  deployment. Automated retention of superseded versions is deliberately not
+  implemented.
+- 2026-08-22: Terminal BullMQ failure reconciliation remains deferred. Verified
+  in BullMQ 6.1.2 that exceeding `maxStalledCount` (default 1) sets a deferred
+  failure and fails the job on next pickup without invoking the processor, so
+  no application code gets a chance to reconcile and the AgentRun can stay
+  RUNNING. Building a transport reconciliation framework is out of scope for
+  infrastructure PRs with empty production definitions, but it is recorded as a
+  hard prerequisite before the first production AgentDefinition or public
+  AgentRun API.
 - 2026-08-22: Prisma 7.9.1 deterministically emits trailing indentation in new
   enum field-reference blank lines. A path-scoped `.gitattributes` rule disables
   only `blank-at-eol` checking for generated Prisma output so committed bytes
@@ -171,12 +200,16 @@ recorded with the exact failed check and evidence.
 
 - [x] Intake, repository policy, harness, workflow, role, and owning-doc review.
 - [x] Evidence-backed source map and final design.
-- [x] PR 1 publication and final-head CI; draft PR #27 is green at its current
-  head.
-- [ ] PR 2 publication and final-head CI. Implementation, focused/aggregate
-  validation, independent review, remediation, and documentation sync are
-  complete.
+- [x] PR 1 published as draft #27; PR 2 published as draft #28 on top of it.
+- [x] Remediation: `agentVersion` pinning, nullable `createdByUserId`,
+  monotonic skipped-ordinal CAS, exact `(id, version)` definition resolution,
+  and the owning documentation updates. The updated base was merged forward
+  into PR 2 without rewriting either branch.
+- [ ] Final-head CI for both remediated draft heads. Earlier green runs
+  correspond to superseded heads and do not carry over.
 - [ ] Final handoff report.
+- [ ] Human review (PR 1 first, then PR 2) and merge. This plan stays under
+  `active/` until the work actually lands.
 
 ## Blockers
 

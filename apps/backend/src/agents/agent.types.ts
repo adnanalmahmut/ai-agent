@@ -54,9 +54,16 @@ export const AGENT_RUNTIME_NAMES = {
 export type AgentRuntimeName =
   (typeof AGENT_RUNTIME_NAMES)[keyof typeof AGENT_RUNTIME_NAMES];
 
-/** The code-owned configuration required to construct one runtime agent. */
+/**
+ * The code-owned configuration required to construct one runtime agent.
+ *
+ * A definition is immutable once identified by `(id, version)`. Changing
+ * behavior means registering a new version, never editing a published one,
+ * because a durable AgentRun may already be pinned to the old pair.
+ */
 export type AgentDefinition = {
   id: string;
+  version: number;
   runtime: AgentRuntimeName;
   instructions: string;
   model: string;

@@ -93,7 +93,7 @@ export class AgentRunService {
       where: {
         id: runId,
         status: 'QUEUED',
-        attemptCount: 0,
+        attemptCount: { lt: attemptsStarted },
       },
       data: {
         status: 'RUNNING',
@@ -105,11 +105,23 @@ export class AgentRunService {
 
     if (queuedClaim[0]) return toAgentRun(queuedClaim[0]);
 
+    // Monotonic, not exact-predecessor. BullMQ increments `attemptsStarted`
+    // inside Redis at move-to-active, before any of this process runs, so a
+    // worker that is killed between activation and this statement consumes an
+    // ordinal PostgreSQL never observes. The durable sequence is therefore
+    // strictly increasing but may have gaps: after a claim at 1, the next
+    // delivery to arrive here can legitimately be 3. Requiring
+    // `attemptCount === attemptsStarted - 1` wedges exactly that run.
+    //
+    // `attemptsStarted` is unique per delivery and never decreases, which is
+    // what makes it usable as a fencing token: a greater ordinal is a newer
+    // delivery and may take ownership, an equal or lesser one is stale or
+    // duplicate and must do nothing.
     const runningClaim = await this.prisma.agentRun.updateManyAndReturn({
       where: {
         id: runId,
         status: 'RUNNING',
-        attemptCount: attemptsStarted - 1,
+        attemptCount: { lt: attemptsStarted },
       },
       data: {
         attemptCount: attemptsStarted,
@@ -125,21 +137,10 @@ export class AgentRunService {
 
     if (!current) throw new Error(`AgentRun "${runId}" does not exist`);
 
-    if (current.status === 'SUCCEEDED' || current.status === 'FAILED') {
-      return null;
-    }
-
-    // Another delivery already claimed this attempt. It owns the model call.
-    if (
-      current.status === 'RUNNING' &&
-      current.attemptCount >= attemptsStarted
-    ) {
-      return null;
-    }
-
-    throw new Error(
-      `AgentRun "${runId}" cannot claim queue start ${attemptsStarted}`,
-    );
+    // Terminal runs are finished business truth; a late delivery cannot
+    // reopen them. A stale or duplicate active start for a run already at or
+    // beyond this ordinal is a safe no-op: the newer delivery owns the work.
+    return null;
   }
 
   async markExecutionSucceeded(

@@ -13,9 +13,11 @@ export class AgentRunner {
   ) {}
 
   async run(
-    run: Pick<AgentRun, 'agentId' | 'runtime' | 'input'>,
+    run: Pick<AgentRun, 'agentId' | 'agentVersion' | 'runtime' | 'input'>,
   ): Promise<AgentRuntimeResult> {
-    const definition = this.definitions.resolve(run.agentId);
+    // The persisted pair, not just the id: this run must execute the revision
+    // it was accepted against even if a newer one has since been deployed.
+    const definition = this.definitions.resolve(run.agentId, run.agentVersion);
 
     if (definition.runtime !== run.runtime) {
       throw new Error(

@@ -4,6 +4,10 @@ import type { AgentDefinition } from './agent.types';
 
 export const AGENT_DEFINITIONS = Symbol('AGENT_DEFINITIONS');
 
+function key(id: string, version: number): string {
+  return `${id}@${version}`;
+}
+
 /** Explicit code-owned definitions. There is no discovery or plugin loading. */
 @Injectable()
 export class AgentDefinitionRegistry {
@@ -15,19 +19,31 @@ export class AgentDefinitionRegistry {
     const indexed = new Map<string, AgentDefinition>();
 
     for (const definition of definitions) {
-      if (indexed.has(definition.id)) {
-        throw new Error(`Duplicate agent definition "${definition.id}"`);
+      const identity = key(definition.id, definition.version);
+
+      // Two definitions claiming one `(id, version)` make the pair meaningless
+      // as durable identity, and an AgentRun pinned to it would resolve to
+      // whichever happened to be registered last. Fail at composition rather
+      // than let that reach a worker.
+      if (indexed.has(identity)) {
+        throw new Error(`Duplicate agent definition "${identity}"`);
       }
-      indexed.set(definition.id, definition);
+      indexed.set(identity, definition);
     }
 
     this.definitions = indexed;
   }
 
-  resolve(id: string): AgentDefinition {
-    const definition = this.definitions.get(id);
+  /**
+   * Resolves the exact pinned revision. There is deliberately no fallback to a
+   * latest version: silently running newer code for a run accepted against an
+   * older definition is the drift this pairing exists to prevent.
+   */
+  resolve(id: string, version: number): AgentDefinition {
+    const identity = key(id, version);
+    const definition = this.definitions.get(identity);
     if (!definition)
-      throw new Error(`Agent definition "${id}" is not registered`);
+      throw new Error(`Agent definition "${identity}" is not registered`);
     return definition;
   }
 }

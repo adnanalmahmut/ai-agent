@@ -12,6 +12,7 @@ import type { AgentRun } from '../agent.types';
 const run: AgentRun = {
   id: 'run-1',
   agentId: 'test-agent',
+  agentVersion: 1,
   runtime: 'mastra',
   status: 'RUNNING',
   organizationId: 'org-1',
