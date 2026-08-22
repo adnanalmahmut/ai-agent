@@ -18,6 +18,23 @@ pnpm dev
 pnpm worker:dev
 ```
 
+There is a third entrypoint, `src/cli.ts`, which runs one operator command and
+exits rather than serving anything. It creates the platform's first super
+administrator — the one action nothing inside the authorized surface can
+perform, because granting that role is itself a super-administrator action:
+
+```bash
+# `cli` runs dist/, so build first; `cli:dev` compiles on the fly instead.
+pnpm --filter backend cli:dev super-admin:create \
+  --email you@example.com --name 'Your Name'
+```
+
+It succeeds only while the platform has no super administrator. The password is
+prompted for without echo, or read from the first line of stdin when the command
+is not attached to a terminal; `--password` is rejected because it would be in
+shell history before the command ever saw it. Exit codes and the operator
+procedure are in [`docs/operations-runbook.md`](../../docs/operations-runbook.md).
+
 The test stack runs on its own ports so a test run can never reach into
 development data:
 

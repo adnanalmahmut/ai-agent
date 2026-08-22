@@ -271,7 +271,7 @@ Every acceptance criterion above was met. What landed:
 
 These were recorded here as known gaps and are not defects of the merged work.
 They are carried by the follow-on plan
-[agent-run-terminal-reconciliation](../active/agent-run-terminal-reconciliation.md):
+[agent-run-terminal-reconciliation](agent-run-terminal-reconciliation.md):
 
 - Terminal BullMQ failure reconciliation, recorded above as a hard prerequisite
   before the first production `AgentDefinition` or public AgentRun API.
