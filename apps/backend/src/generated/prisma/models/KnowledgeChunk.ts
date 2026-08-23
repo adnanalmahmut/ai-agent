@@ -944,9 +944,16 @@ export type $KnowledgeChunkPayload<ExtArgs extends runtime.Types.Extensions.Inte
     ordinal: number
     content: string
     /**
-     * Which model produced the vector. Two models' embeddings are not
-     * comparable, so a mixed table is a silently wrong ranking; recording it
-     * per row is what makes a migration to another model detectable.
+     * Which model produced the vector.
+     * 
+     * Two models' embeddings are not comparable — the numbers occupy different
+     * spaces and the distance between them is arithmetic rather than meaning.
+     * 1536 dimensions was chosen so `text-embedding-3-large` can replace
+     * `text-embedding-3-small` without a column change, which means the swap
+     * will not be forced through a migration that stops traffic: during
+     * re-embedding the table holds both. Retrieval therefore *filters* on this
+     * column rather than merely recording it, so a query ranks within one model
+     * or returns nothing, never across two.
      */
     embeddingModel: string | null
     createdAt: Date
