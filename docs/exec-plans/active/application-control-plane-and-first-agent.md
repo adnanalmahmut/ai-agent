@@ -398,6 +398,11 @@ on any PR touching compose or images.
     the retrieval a running agent performs. No `assertFeature` caller exists
     anywhere yet.
 
+- 2026-08-23: The committed Prisma client embeds the schema *text* as
+  `inlineSchema`, so editing a `///` doc comment after the last
+  `prisma generate` is drift and fails CI on its own. Regenerate after any
+  schema edit, comments included — not only after a field or model change.
+
 ## Blockers
 
 None currently.
