@@ -37,6 +37,14 @@ export const GLOBAL_PERMISSION_STATEMENTS = {
   ...defaultStatements,
   accountLifecycle: ['deactivate', 'restore'],
   organizationLifecycle: ['restore'],
+  controlPlane: ['read', 'write'],
+  /**
+   * Separate from `controlPlane:write`, and with no read counterpart, because
+   * there is nothing to read: no surface returns a stored credential. Writing
+   * one is the more consequential act, so it is its own statement rather than
+   * a corner of the general operator permission.
+   */
+  managedSecret: ['write'],
 } as const;
 
 export const globalAccessControl = createAccessControl(
@@ -48,13 +56,23 @@ const globalUser = globalAccessControl.newRole({
   session: [],
   accountLifecycle: [],
   organizationLifecycle: [],
+  controlPlane: [],
+  managedSecret: [],
 });
 
 const globalAdmin = globalAccessControl.newRole({
   user: ['get', 'list', 'create', 'update', 'ban', 'impersonate'],
   session: ['list', 'revoke', 'delete'],
   accountLifecycle: [],
+  /**
+   * The control plane is withheld from `admin`, matching the server. It turns
+   * features on for the whole platform, changes the limits every organization
+   * runs under, and holds the provider credentials: the blast radius is the
+   * deployment, not one account.
+   */
   organizationLifecycle: [],
+  controlPlane: [],
+  managedSecret: [],
 });
 
 const globalSuperAdmin = globalAccessControl.newRole({
@@ -73,6 +91,8 @@ const globalSuperAdmin = globalAccessControl.newRole({
   session: ['list', 'revoke', 'delete'],
   accountLifecycle: ['deactivate', 'restore'],
   organizationLifecycle: ['restore'],
+  controlPlane: ['read', 'write'],
+  managedSecret: ['write'],
 });
 
 /**

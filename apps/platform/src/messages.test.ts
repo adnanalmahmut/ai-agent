@@ -10,6 +10,8 @@ import english from '../messages/en.json';
 import { AUTH_ERROR_CODES } from './features/auth/auth-errors';
 import { INVITATION_FAILURES } from './features/organization/invitation-state';
 import { organizationRoles } from './features/authorization/permissions';
+import { CONTROL_PLANE_ERROR_KINDS } from './features/control-plane/use-control-plane-resource';
+import { FEATURE_FLAG_SOURCES } from './lib/application-api';
 
 /**
  * Translation coverage.
@@ -121,6 +123,24 @@ describe('every state the code can reach has copy', () => {
       }
     },
   );
+
+  it.each(CONTROL_PLANE_ERROR_KINDS)('ControlPlane.error.%s', (kind) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `ControlPlane.error.${kind}`),
+        `${locale}: ${kind}`,
+      ).toBeTruthy();
+    }
+  });
+
+  it.each(FEATURE_FLAG_SOURCES)('ControlPlane.flags.source.%s', (source) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `ControlPlane.flags.source.${source}`),
+        `${locale}: ${source}`,
+      ).toBeTruthy();
+    }
+  });
 
   it.each(Object.keys(organizationRoles))('Organization.roles.%s', (role) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {

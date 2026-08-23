@@ -164,8 +164,11 @@ on any PR touching compose or images.
   head `28bc6ec86ea90380778074043d2ff957b382a920`, CI run
   [32596855361](https://github.com/adnanalmahmut/ai-agent/actions/runs/32596855361)
   green across all five jobs.
-- [ ] PR2 `feat/control-plane-core`
-- [ ] PR3 `feat/platform-control-plane`
+- [x] PR2 `feat/control-plane-core` — [#31](https://github.com/adnanalmahmut/ai-agent/pull/31),
+  head `42894f701068e8f289ef1b4631cd380943b30212`, CI run
+  [32628412579](https://github.com/adnanalmahmut/ai-agent/actions/runs/32628412579)
+  green across all five jobs.
+- [~] PR3 `feat/platform-control-plane`
 - [ ] PR4 `feat/knowledge-rag-core`
 - [ ] PR5 `feat/knowledge-management`
 - [ ] PR6 `feat/content-idea-agent`
@@ -241,6 +244,91 @@ on any PR touching compose or images.
     unanswerable after the fact. An append-only event recording actor, action,
     key and timestamp — never the value — belongs with the Platform surface in
     PR3, where there is a place to read it.
+
+- 2026-08-23: The Platform control-plane screen loads each panel only when its
+  tab is opened. The credentials listing is the most sensitive of the three and
+  an operator reading about feature flags has no reason to request it.
+- 2026-08-23: The credential input is cleared after every write, including a
+  rejected one. A rejected value is still a credential, and a controlled input
+  keeps it across re-renders and through a browser's form restore.
+- 2026-08-23: The screen holds no opinion about a setting's bounds. The
+  registry's schema is the only authority, and a client-side range would either
+  refuse a value the server accepts or accept one it refuses; the operator reads
+  the server's own reasons instead.
+- 2026-08-23: `CONTROL_PLANE_PATH` lives in `apps/platform/src/config/paths.ts`
+  rather than beside its callers. Written out it is `/platform/control-plane` —
+  a backend route spelled identically to this application's own mount point and
+  meaning something entirely different. The repository's architecture test
+  catches the literal, and it is right to.
+
+- 2026-08-23: `apiRequest` unwraps the backend's `{ success, data, meta }`
+  envelope. It had never done so and nothing had noticed, because every caller
+  that existed before the control plane returns `void` — no body had ever been
+  read. The three panels would have received the envelope where they expected
+  a list and crashed to the route error boundary on first render. The
+  pre-existing test for this asserted against a bare array, a response the
+  global `ResponseInterceptor` cannot produce, and so pinned the defect rather
+  than catching it.
+- 2026-08-23: A 401 is reported as an expired session, separately from a 403.
+  The recoveries are opposites: signing in again fixes one, and nothing the
+  operator can do fixes the other. Collapsing them tells someone who holds the
+  role to go looking for it.
+- 2026-08-23: The credential note is refused when it contains the credential
+  being stored. The two inputs are stacked in one narrow column with only the
+  upper one masked, so a paste landing a row too low is silent — and the note
+  is stored unsealed and read back verbatim by anyone who can list the slots.
+  Sending it would leave a live credential in a column AES-256-GCM never
+  touches, in the database and in every backup. Nothing is sent when the note
+  is refused; the operator is told why.
+- 2026-08-23: A refused reset keeps the operator's draft, matching Save. The
+  earlier asymmetry discarded their text on a write that had changed nothing.
+- 2026-08-23: `CONTROL_PLANE_ERROR_KINDS` and `FEATURE_FLAG_SOURCES` are arrays
+  rather than bare unions, so `messages.test.ts` can assert copy exists for
+  every one. A union is gone at runtime, and what it leaves behind is a raw key
+  path rendered into an error card.
+
+- 2026-08-23: The hook's race guarantees are tested against the hook, not
+  through the rendered screen. Every panel disables the row it is writing, so a
+  second write to the same row cannot be issued from the Platform at all — a
+  block-level test for a superseded response asserts a state the UI makes
+  unreachable and fails for the wrong reason. The guarantee still has to hold,
+  because the disabled button is UX and not an invariant, so it is asserted in
+  `use-control-plane-resource.test.ts` where the property lives.
+
+- 2026-08-23: PR4 will use exact vector search with no vector index, and the
+  decision is now evidence-backed rather than a preference. Two independent
+  reasons. First, recall: pgvector's own README states that an approximate
+  index changes results, and a measured 50,000-row, 100-tenant reproduction
+  returned 4 of 10 requested rows under HNSW with the default `ef_search`,
+  because the tenant predicate is applied *after* the index scan. Second,
+  durability: Prisma 7 emits `DROP INDEX` for a vector index on every
+  subsequent migration — including one created by raw SQL inside a migration
+  file — because `schema.prisma` cannot represent it. The index would silently
+  disappear on a forward-only pipeline. A btree on `organizationId` is what
+  pgvector's README recommends for a low-percentage filter, and is what will be
+  used.
+- 2026-08-23: The vector column must be declared `Unsupported("vector(1536)")?`
+  — nullable. A *required* `Unsupported` field removes `create`, `createMany`
+  and `upsert` from the generated delegate entirely, which was verified against
+  the installed Prisma 7.9.1.
+- 2026-08-23: `@@index([embedding])` is not a workaround. Prisma accepts it and
+  it applies, but it produces a plain btree, which cannot serve
+  `ORDER BY embedding <=> $1` — roughly 6 KB per row of index for no benefit.
+- 2026-08-23: PR4 will read and write vectors through `$queryRaw`, not
+  TypedSQL. `prisma generate --sql` requires a reachable database at generate
+  time, and this repository commits the generated client and fails CI on drift
+  — adopting TypedSQL would make the drift check depend on a live pgvector
+  PostgreSQL.
+- 2026-08-23: Moving to `pgvector/pgvector:pg16` is a Debian image where the
+  current one is Alpine, and there is no Alpine variant. The data directory is
+  binary-compatible for the same PostgreSQL major, but musl and glibc sort text
+  differently under the same locale name, and musl records no collation version
+  — so PostgreSQL emits no mismatch warning and every text btree index is
+  silently left in the wrong order. `REINDEX DATABASE` followed by
+  `ALTER DATABASE ... REFRESH COLLATION VERSION` is therefore a mandatory
+  operator step on the existing Staging volume, and a deployment prerequisite
+  recorded for the human who merges this stack. The application does not and
+  must not perform it.
 
 ## Blockers
 

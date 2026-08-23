@@ -7,8 +7,18 @@ non-root user.
 
 `apps/platform` is a React 19 + Vite application mounted at `/platform/`. It
 contains authentication, account settings, active-session location, global
-administration, organization membership/invitations, and permission-gated UI.
-Client permission gates improve UX; backend authorization remains decisive.
+administration, organization membership/invitations, the operator control-plane
+surface, and permission-gated UI. Client permission gates improve UX; backend
+authorization remains decisive.
+
+The control-plane screen (`/admin/control-plane`) edits feature flags, runtime
+settings, and provider credentials. It can write a credential and can never
+read one: no endpoint returns a stored secret and the screen shows no masked
+preview, so the only evidence a credential exists is its metadata. Reading it
+requires `controlPlane:read`; writing a credential requires the separate
+`managedSecret:write`, which `admin` does not hold. A credential's optional
+note is stored unsealed and returned by the listing, so the screen refuses to
+send one that contains the credential being stored.
 The production image serves static files with unprivileged Nginx.
 
 Platform public configuration is compiled into the immutable Vite artifact at
