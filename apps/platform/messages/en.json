@@ -475,6 +475,7 @@
       "overview": "Overview",
       "members": "Members",
       "invitations": "Invitations",
+      "knowledge": "Knowledge",
       "settings": "Settings"
     },
     "overview": {
@@ -824,6 +825,44 @@
       },
       "lastRotated": "Last rotated {when}",
       "labelHoldsCredential": "That note contains the credential. Nothing was sent — clear the note and store the credential in the field above."
+    }
+  },
+  "Knowledge": {
+    "title": "Knowledge",
+    "description": "The reference material this organization's agents answer from. Text you store here is split into passages and embedded; nothing else is read.",
+    "loading": "Loading…",
+    "error": {
+      "unavailable": "The platform API could not be reached.",
+      "unauthenticated": "Your session has expired. Sign in again to continue.",
+      "forbidden": "You do not have permission to change this organization's knowledge.",
+      "disabled": "The knowledge base is switched off for this organization. A platform operator can turn it on.",
+      "invalid": "That could not be stored.",
+      "failed": "Something went wrong. Try again."
+    },
+    "spaces": {
+      "heading": "Spaces",
+      "empty": "No spaces yet",
+      "emptyHint": "A space groups documents an agent may read together.",
+      "slug": "Slug",
+      "name": "Name",
+      "create": "Create space",
+      "delete": "Delete {name}"
+    },
+    "documents": {
+      "heading": "Documents in {space}",
+      "empty": "No documents in this space",
+      "title": "Title",
+      "content": "Text",
+      "store": "Store document",
+      "replaceHint": "Storing a document with an existing title replaces its text. Identical text changes nothing.",
+      "delete": "Delete {title}",
+      "column": {
+        "title": "Document",
+        "passages": "Passages",
+        "revision": "Revision",
+        "updated": "Updated",
+        "actions": "Actions"
+      }
     }
   }
 }

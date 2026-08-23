@@ -14,6 +14,16 @@ export interface EmbeddingPort {
   readonly dimensions: number;
 
   /**
+   * How many texts this adapter sends in one provider request.
+   *
+   * Stated so a caller can page its own work at the same granularity. A caller
+   * that hands over a whole document gets one all-or-nothing call: a failure
+   * on the last batch discards every vector the earlier ones were billed for,
+   * and the retry pays for them again.
+   */
+  readonly maxBatch: number;
+
+  /**
    * Embeds in order: `embed(texts)[i]` is the vector for `texts[i]`.
    *
    * Batched because every provider charges and rate-limits per request, and a

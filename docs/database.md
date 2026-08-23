@@ -98,6 +98,14 @@ it here returns another organization's material. `knowledge_chunk` carries
 `spaceId` for the same reason — a context policy is enforced by the same
 predicate that ranks.
 
+A document is identified within its space by title —
+`@@unique([organizationId, spaceId, title])` — because ingestion is an upsert
+on the material's own name rather than on an id the caller would have to keep.
+`revision` counts how many times that title's content has actually changed;
+there is deliberately no revision *history* table, since nothing in this
+milestone reads an older revision and a table that is only ever written is a
+table that will drift.
+
 Organization deletion is restricted on all three, like every other business
 table. Documents and chunks cascade from their space, and chunks from their
 document, because neither has meaning without its parent and re-ingestion

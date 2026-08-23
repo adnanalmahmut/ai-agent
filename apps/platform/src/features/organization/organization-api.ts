@@ -60,3 +60,112 @@ export function listArchivedOrganizations(
 ): Promise<ArchivedOrganization[]> {
   return apiRequest(`${ORGANIZATIONS}/archived`, { signal });
 }
+
+/* ----------------------------- knowledge ------------------------------ */
+
+/**
+ * The organization's reference material.
+ *
+ * Addressed by the organization in the path rather than by whichever one the
+ * session has selected, because the backend authorizes the same way — a
+ * request naming a different organization than the reader's active one is
+ * answered about the organization it names.
+ */
+
+export type KnowledgeSpace = {
+  id: string;
+  slug: string;
+  name: string;
+  documentCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type KnowledgeDocument = {
+  id: string;
+  title: string;
+  sourceUri: string | null;
+  checksum: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  _count: { chunks: number };
+};
+
+/** What ingestion answers, including whether the text was new. */
+export type IngestedDocument = {
+  id: string;
+  title: string;
+  revision: number;
+  chunkCount: number;
+  changed: boolean;
+};
+
+const knowledgeBase = (organizationId: string) =>
+  `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/knowledge`;
+
+export function listKnowledgeSpaces(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<KnowledgeSpace[]> {
+  return apiRequest(`${knowledgeBase(organizationId)}/spaces`, { signal });
+}
+
+export function createKnowledgeSpace(
+  organizationId: string,
+  space: { slug: string; name: string },
+): Promise<KnowledgeSpace> {
+  return apiRequest(`${knowledgeBase(organizationId)}/spaces`, {
+    method: 'POST',
+    body: space,
+  });
+}
+
+export function deleteKnowledgeSpace(
+  organizationId: string,
+  spaceId: string,
+): Promise<{ id: string }> {
+  return apiRequest(
+    `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(spaceId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export function listKnowledgeDocuments(
+  organizationId: string,
+  spaceId: string,
+  signal?: AbortSignal,
+): Promise<KnowledgeDocument[]> {
+  return apiRequest(
+    `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(
+      spaceId,
+    )}/documents`,
+    { signal },
+  );
+}
+
+/** `PUT`, because a document is addressed by title and re-submitting is a replace. */
+export function ingestKnowledgeDocument(
+  organizationId: string,
+  spaceId: string,
+  document: { title: string; sourceUri?: string; content: string },
+): Promise<IngestedDocument> {
+  return apiRequest(
+    `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(
+      spaceId,
+    )}/documents`,
+    { method: 'PUT', body: document },
+  );
+}
+
+export function deleteKnowledgeDocument(
+  organizationId: string,
+  documentId: string,
+): Promise<{ id: string }> {
+  return apiRequest(
+    `${knowledgeBase(organizationId)}/documents/${encodeURIComponent(
+      documentId,
+    )}`,
+    { method: 'DELETE' },
+  );
+}

@@ -249,6 +249,14 @@ export function createRoutes(): RouteObject[] {
                                   },
                                 },
                                 {
+                                  path: 'knowledge',
+                                  lazy: {
+                                    Component: async () =>
+                                      (await organizationModule())
+                                        .OrganizationKnowledgeRoute,
+                                  },
+                                },
+                                {
                                   path: 'settings',
                                   lazy: {
                                     Component: async () =>

@@ -19,6 +19,15 @@ requires `controlPlane:read`; writing a credential requires the separate
 `managedSecret:write`, which `admin` does not hold. A credential's optional
 note is stored unsealed and returned by the listing, so the screen refuses to
 send one that contains the credential being stored.
+
+An organization's Knowledge tab manages its spaces and documents. It always
+asks for the organization in hand rather than the session's active one, and
+document rows are tied to the space they were loaded for, so choosing a second
+space shows nothing until that space's own rows arrive rather than the previous
+space's material under the new heading. Write controls are hidden from a reader
+holding only `knowledge:read`, which is UX — the guard behind the endpoints
+decides.
+
 The production image serves static files with unprivileged Nginx.
 
 Platform public configuration is compiled into the immutable Vite artifact at

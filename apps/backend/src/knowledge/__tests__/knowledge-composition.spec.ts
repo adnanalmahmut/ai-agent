@@ -4,7 +4,8 @@ import { AppModule } from '../../app.module';
 import { ControlPlaneCoreModule } from '../../control-plane';
 import { WorkerModule } from '../../worker.module';
 import { PgVectorKnowledgeRepository } from '../adapters/pgvector.repository';
-import { KnowledgeCoreModule } from '../knowledge.module';
+import { KnowledgeCoreModule, KnowledgeModule } from '../knowledge.module';
+import { KnowledgeController } from '../knowledge.controller';
 import { RETRIEVAL_PORT } from '../ports/retrieval.port';
 
 /**
@@ -17,11 +18,18 @@ const metadata = (key: string, module: unknown): unknown[] =>
   (Reflect.getMetadata(key, module as object) as unknown[]) ?? [];
 
 describe('knowledge composition', () => {
-  it('is available to both execution modes', () => {
-    // The worker assembles an agent's context when the run executes; the API
-    // needs the same domain for the surfaces that manage it.
+  it('gives the worker the domain without the management surface', () => {
+    // The worker embeds documents and assembles an agent's context when the
+    // run executes. It serves no HTTP, so it must not receive a controller.
     expect(metadata('imports', WorkerModule)).toContain(KnowledgeCoreModule);
-    expect(metadata('imports', AppModule)).toContain(KnowledgeCoreModule);
+    expect(metadata('imports', WorkerModule)).not.toContain(KnowledgeModule);
+  });
+
+  it('gives the API the management surface', () => {
+    expect(metadata('imports', AppModule)).toContain(KnowledgeModule);
+    expect(metadata('controllers', KnowledgeModule)).toEqual([
+      KnowledgeController,
+    ]);
   });
 
   /**

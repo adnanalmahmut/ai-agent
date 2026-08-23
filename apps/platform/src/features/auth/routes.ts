@@ -34,6 +34,8 @@ export const ORGANIZATION_ROUTES = {
   members: (id: string) => `/organizations/${encodeURIComponent(id)}/members`,
   invitations: (id: string) =>
     `/organizations/${encodeURIComponent(id)}/invitations`,
+  knowledge: (id: string) =>
+    `/organizations/${encodeURIComponent(id)}/knowledge`,
   settings: (id: string) => `/organizations/${encodeURIComponent(id)}/settings`,
 } as const;
 

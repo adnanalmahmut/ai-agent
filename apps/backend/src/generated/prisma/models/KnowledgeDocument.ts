@@ -24,8 +24,18 @@ export type KnowledgeDocumentModel = runtime.Types.Result.DefaultSelection<Prism
 
 export type AggregateKnowledgeDocument = {
   _count: KnowledgeDocumentCountAggregateOutputType | null
+  _avg: KnowledgeDocumentAvgAggregateOutputType | null
+  _sum: KnowledgeDocumentSumAggregateOutputType | null
   _min: KnowledgeDocumentMinAggregateOutputType | null
   _max: KnowledgeDocumentMaxAggregateOutputType | null
+}
+
+export type KnowledgeDocumentAvgAggregateOutputType = {
+  revision: number | null
+}
+
+export type KnowledgeDocumentSumAggregateOutputType = {
+  revision: number | null
 }
 
 export type KnowledgeDocumentMinAggregateOutputType = {
@@ -35,6 +45,7 @@ export type KnowledgeDocumentMinAggregateOutputType = {
   title: string | null
   sourceUri: string | null
   checksum: string | null
+  revision: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -46,6 +57,7 @@ export type KnowledgeDocumentMaxAggregateOutputType = {
   title: string | null
   sourceUri: string | null
   checksum: string | null
+  revision: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -57,11 +69,20 @@ export type KnowledgeDocumentCountAggregateOutputType = {
   title: number
   sourceUri: number
   checksum: number
+  revision: number
   createdAt: number
   updatedAt: number
   _all: number
 }
 
+
+export type KnowledgeDocumentAvgAggregateInputType = {
+  revision?: true
+}
+
+export type KnowledgeDocumentSumAggregateInputType = {
+  revision?: true
+}
 
 export type KnowledgeDocumentMinAggregateInputType = {
   id?: true
@@ -70,6 +91,7 @@ export type KnowledgeDocumentMinAggregateInputType = {
   title?: true
   sourceUri?: true
   checksum?: true
+  revision?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -81,6 +103,7 @@ export type KnowledgeDocumentMaxAggregateInputType = {
   title?: true
   sourceUri?: true
   checksum?: true
+  revision?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -92,6 +115,7 @@ export type KnowledgeDocumentCountAggregateInputType = {
   title?: true
   sourceUri?: true
   checksum?: true
+  revision?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -135,6 +159,18 @@ export type KnowledgeDocumentAggregateArgs<ExtArgs extends runtime.Types.Extensi
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: KnowledgeDocumentAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: KnowledgeDocumentSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: KnowledgeDocumentMinAggregateInputType
@@ -165,6 +201,8 @@ export type KnowledgeDocumentGroupByArgs<ExtArgs extends runtime.Types.Extension
   take?: number
   skip?: number
   _count?: KnowledgeDocumentCountAggregateInputType | true
+  _avg?: KnowledgeDocumentAvgAggregateInputType
+  _sum?: KnowledgeDocumentSumAggregateInputType
   _min?: KnowledgeDocumentMinAggregateInputType
   _max?: KnowledgeDocumentMaxAggregateInputType
 }
@@ -176,9 +214,12 @@ export type KnowledgeDocumentGroupByOutputType = {
   title: string
   sourceUri: string | null
   checksum: string
+  revision: number
   createdAt: Date
   updatedAt: Date
   _count: KnowledgeDocumentCountAggregateOutputType | null
+  _avg: KnowledgeDocumentAvgAggregateOutputType | null
+  _sum: KnowledgeDocumentSumAggregateOutputType | null
   _min: KnowledgeDocumentMinAggregateOutputType | null
   _max: KnowledgeDocumentMaxAggregateOutputType | null
 }
@@ -208,6 +249,7 @@ export type KnowledgeDocumentWhereInput = {
   title?: Prisma.StringFilter<"KnowledgeDocument"> | string
   sourceUri?: Prisma.StringNullableFilter<"KnowledgeDocument"> | string | null
   checksum?: Prisma.StringFilter<"KnowledgeDocument"> | string
+  revision?: Prisma.IntFilter<"KnowledgeDocument"> | number
   createdAt?: Prisma.DateTimeFilter<"KnowledgeDocument"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"KnowledgeDocument"> | Date | string
   organization?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
@@ -222,6 +264,7 @@ export type KnowledgeDocumentOrderByWithRelationInput = {
   title?: Prisma.SortOrder
   sourceUri?: Prisma.SortOrderInput | Prisma.SortOrder
   checksum?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   organization?: Prisma.OrganizationOrderByWithRelationInput
@@ -231,6 +274,7 @@ export type KnowledgeDocumentOrderByWithRelationInput = {
 
 export type KnowledgeDocumentWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  organizationId_spaceId_title?: Prisma.KnowledgeDocumentOrganizationIdSpaceIdTitleCompoundUniqueInput
   id_organizationId?: Prisma.KnowledgeDocumentIdOrganizationIdCompoundUniqueInput
   AND?: Prisma.KnowledgeDocumentWhereInput | Prisma.KnowledgeDocumentWhereInput[]
   OR?: Prisma.KnowledgeDocumentWhereInput[]
@@ -240,12 +284,13 @@ export type KnowledgeDocumentWhereUniqueInput = Prisma.AtLeast<{
   title?: Prisma.StringFilter<"KnowledgeDocument"> | string
   sourceUri?: Prisma.StringNullableFilter<"KnowledgeDocument"> | string | null
   checksum?: Prisma.StringFilter<"KnowledgeDocument"> | string
+  revision?: Prisma.IntFilter<"KnowledgeDocument"> | number
   createdAt?: Prisma.DateTimeFilter<"KnowledgeDocument"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"KnowledgeDocument"> | Date | string
   organization?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   space?: Prisma.XOR<Prisma.KnowledgeSpaceScalarRelationFilter, Prisma.KnowledgeSpaceWhereInput>
   chunks?: Prisma.KnowledgeChunkListRelationFilter
-}, "id" | "id_organizationId">
+}, "id" | "organizationId_spaceId_title" | "id_organizationId">
 
 export type KnowledgeDocumentOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -254,11 +299,14 @@ export type KnowledgeDocumentOrderByWithAggregationInput = {
   title?: Prisma.SortOrder
   sourceUri?: Prisma.SortOrderInput | Prisma.SortOrder
   checksum?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.KnowledgeDocumentCountOrderByAggregateInput
+  _avg?: Prisma.KnowledgeDocumentAvgOrderByAggregateInput
   _max?: Prisma.KnowledgeDocumentMaxOrderByAggregateInput
   _min?: Prisma.KnowledgeDocumentMinOrderByAggregateInput
+  _sum?: Prisma.KnowledgeDocumentSumOrderByAggregateInput
 }
 
 export type KnowledgeDocumentScalarWhereWithAggregatesInput = {
@@ -271,6 +319,7 @@ export type KnowledgeDocumentScalarWhereWithAggregatesInput = {
   title?: Prisma.StringWithAggregatesFilter<"KnowledgeDocument"> | string
   sourceUri?: Prisma.StringNullableWithAggregatesFilter<"KnowledgeDocument"> | string | null
   checksum?: Prisma.StringWithAggregatesFilter<"KnowledgeDocument"> | string
+  revision?: Prisma.IntWithAggregatesFilter<"KnowledgeDocument"> | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"KnowledgeDocument"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"KnowledgeDocument"> | Date | string
 }
@@ -280,6 +329,7 @@ export type KnowledgeDocumentCreateInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   organization: Prisma.OrganizationCreateNestedOneWithoutKnowledgeDocumentsInput
@@ -294,6 +344,7 @@ export type KnowledgeDocumentUncheckedCreateInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   chunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutDocumentInput
@@ -304,6 +355,7 @@ export type KnowledgeDocumentUpdateInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutKnowledgeDocumentsNestedInput
@@ -318,6 +370,7 @@ export type KnowledgeDocumentUncheckedUpdateInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   chunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutDocumentNestedInput
@@ -330,6 +383,7 @@ export type KnowledgeDocumentCreateManyInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -339,6 +393,7 @@ export type KnowledgeDocumentUpdateManyMutationInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -350,6 +405,7 @@ export type KnowledgeDocumentUncheckedUpdateManyInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -364,6 +420,12 @@ export type KnowledgeDocumentOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
+export type KnowledgeDocumentOrganizationIdSpaceIdTitleCompoundUniqueInput = {
+  organizationId: string
+  spaceId: string
+  title: string
+}
+
 export type KnowledgeDocumentIdOrganizationIdCompoundUniqueInput = {
   id: string
   organizationId: string
@@ -376,8 +438,13 @@ export type KnowledgeDocumentCountOrderByAggregateInput = {
   title?: Prisma.SortOrder
   sourceUri?: Prisma.SortOrder
   checksum?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type KnowledgeDocumentAvgOrderByAggregateInput = {
+  revision?: Prisma.SortOrder
 }
 
 export type KnowledgeDocumentMaxOrderByAggregateInput = {
@@ -387,6 +454,7 @@ export type KnowledgeDocumentMaxOrderByAggregateInput = {
   title?: Prisma.SortOrder
   sourceUri?: Prisma.SortOrder
   checksum?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -398,8 +466,13 @@ export type KnowledgeDocumentMinOrderByAggregateInput = {
   title?: Prisma.SortOrder
   sourceUri?: Prisma.SortOrder
   checksum?: Prisma.SortOrder
+  revision?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+}
+
+export type KnowledgeDocumentSumOrderByAggregateInput = {
+  revision?: Prisma.SortOrder
 }
 
 export type KnowledgeDocumentScalarRelationFilter = {
@@ -510,6 +583,7 @@ export type KnowledgeDocumentCreateWithoutOrganizationInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   space: Prisma.KnowledgeSpaceCreateNestedOneWithoutDocumentsInput
@@ -522,6 +596,7 @@ export type KnowledgeDocumentUncheckedCreateWithoutOrganizationInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   chunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutDocumentInput
@@ -563,6 +638,7 @@ export type KnowledgeDocumentScalarWhereInput = {
   title?: Prisma.StringFilter<"KnowledgeDocument"> | string
   sourceUri?: Prisma.StringNullableFilter<"KnowledgeDocument"> | string | null
   checksum?: Prisma.StringFilter<"KnowledgeDocument"> | string
+  revision?: Prisma.IntFilter<"KnowledgeDocument"> | number
   createdAt?: Prisma.DateTimeFilter<"KnowledgeDocument"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"KnowledgeDocument"> | Date | string
 }
@@ -572,6 +648,7 @@ export type KnowledgeDocumentCreateWithoutSpaceInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   organization: Prisma.OrganizationCreateNestedOneWithoutKnowledgeDocumentsInput
@@ -583,6 +660,7 @@ export type KnowledgeDocumentUncheckedCreateWithoutSpaceInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   chunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutDocumentInput
@@ -619,6 +697,7 @@ export type KnowledgeDocumentCreateWithoutChunksInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
   organization: Prisma.OrganizationCreateNestedOneWithoutKnowledgeDocumentsInput
@@ -632,6 +711,7 @@ export type KnowledgeDocumentUncheckedCreateWithoutChunksInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -657,6 +737,7 @@ export type KnowledgeDocumentUpdateWithoutChunksInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutKnowledgeDocumentsNestedInput
@@ -670,6 +751,7 @@ export type KnowledgeDocumentUncheckedUpdateWithoutChunksInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -680,6 +762,7 @@ export type KnowledgeDocumentCreateManyOrganizationInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -689,6 +772,7 @@ export type KnowledgeDocumentUpdateWithoutOrganizationInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   space?: Prisma.KnowledgeSpaceUpdateOneRequiredWithoutDocumentsNestedInput
@@ -701,6 +785,7 @@ export type KnowledgeDocumentUncheckedUpdateWithoutOrganizationInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   chunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutDocumentNestedInput
@@ -712,6 +797,7 @@ export type KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -721,6 +807,7 @@ export type KnowledgeDocumentCreateManySpaceInput = {
   title: string
   sourceUri?: string | null
   checksum: string
+  revision?: number
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -730,6 +817,7 @@ export type KnowledgeDocumentUpdateWithoutSpaceInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutKnowledgeDocumentsNestedInput
@@ -741,6 +829,7 @@ export type KnowledgeDocumentUncheckedUpdateWithoutSpaceInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   chunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutDocumentNestedInput
@@ -751,6 +840,7 @@ export type KnowledgeDocumentUncheckedUpdateManyWithoutSpaceInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   sourceUri?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   checksum?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -793,6 +883,7 @@ export type KnowledgeDocumentSelect<ExtArgs extends runtime.Types.Extensions.Int
   title?: boolean
   sourceUri?: boolean
   checksum?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
@@ -808,6 +899,7 @@ export type KnowledgeDocumentSelectCreateManyAndReturn<ExtArgs extends runtime.T
   title?: boolean
   sourceUri?: boolean
   checksum?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
@@ -821,6 +913,7 @@ export type KnowledgeDocumentSelectUpdateManyAndReturn<ExtArgs extends runtime.T
   title?: boolean
   sourceUri?: boolean
   checksum?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
@@ -834,11 +927,12 @@ export type KnowledgeDocumentSelectScalar = {
   title?: boolean
   sourceUri?: boolean
   checksum?: boolean
+  revision?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type KnowledgeDocumentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "spaceId" | "title" | "sourceUri" | "checksum" | "createdAt" | "updatedAt", ExtArgs["result"]["knowledgeDocument"]>
+export type KnowledgeDocumentOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "spaceId" | "title" | "sourceUri" | "checksum" | "revision" | "createdAt" | "updatedAt", ExtArgs["result"]["knowledgeDocument"]>
 export type KnowledgeDocumentInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   space?: boolean | Prisma.KnowledgeSpaceDefaultArgs<ExtArgs>
@@ -881,6 +975,17 @@ export type $KnowledgeDocumentPayload<ExtArgs extends runtime.Types.Extensions.I
      * call per chunk.
      */
     checksum: string
+    /**
+     * How many times the body has been replaced, starting at one.
+     * 
+     * There is deliberately no revision *history*. Keeping superseded chunks
+     * would mean either retrieving stale passages or carrying an is-current
+     * predicate through the one query whose predicates are the isolation
+     * guarantee. This counter exists so a caller can see that a re-ingestion
+     * changed something, and so the outbox event for one edit is distinct from
+     * the event for the next.
+     */
+    revision: number
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["knowledgeDocument"]>
@@ -1315,6 +1420,7 @@ export interface KnowledgeDocumentFieldRefs {
   readonly title: Prisma.FieldRef<"KnowledgeDocument", 'String'>
   readonly sourceUri: Prisma.FieldRef<"KnowledgeDocument", 'String'>
   readonly checksum: Prisma.FieldRef<"KnowledgeDocument", 'String'>
+  readonly revision: Prisma.FieldRef<"KnowledgeDocument", 'Int'>
   readonly createdAt: Prisma.FieldRef<"KnowledgeDocument", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"KnowledgeDocument", 'DateTime'>
 }
