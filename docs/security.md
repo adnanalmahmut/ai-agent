@@ -29,6 +29,22 @@ Primary boundaries:
   goes straight to the adapter that needs it. Writing one requires a
   super-admin-only permission that is separate from reading control-plane
   metadata.
+- Knowledge isolation: an organization's chunks are reachable only through a
+  query whose `WHERE` carries both `organizationId` and the granted `spaceId`s.
+  The predicate is in the statement that ranks, not applied to its results,
+  because ranking the whole table first lets another tenant's closer material
+  displace this one's from the requested top-N before any filter runs — which
+  presents as missing results, not as an error. Both columns are denormalized
+  onto the chunk so the predicate cannot be lost to a forgotten join, and the
+  agreement between a chunk's tenant and its space's tenant is a composite
+  foreign key rather than a convention — a row that claims one organization
+  while sitting in another's space cannot be written. A search
+  with no organization is refused before a query is built rather than allowed to
+  match nothing, and an empty granted-space list retrieves nothing rather than
+  everything. The write that attaches an embedding is scoped the same way and
+  reports whether it matched, so a cross-tenant chunk id is a visible no-op
+  rather than a silent success. Retrieved passages are untrusted context and are
+  never used as instructions.
 - Supply chain: frozen pnpm lock, current generated Prisma client, SHA-tagged
   images, provenance/SBOM, digest-pinned migration and runtime images, no
   production rebuild.

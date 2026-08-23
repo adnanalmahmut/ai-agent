@@ -2,7 +2,7 @@
 
 PostgreSQL stores identity, sessions, accounts, verification records,
 organizations, members, invitations, Better Auth rate-limit rows, agent runs,
-and outbox events. Prisma schema and generated client are committed and CI
+outbox events, control-plane state, and organization knowledge. Prisma schema and generated client are committed and CI
 verifies that generation is current.
 
 `agent_run` is the durable business authority for accepted background agent
@@ -81,3 +81,69 @@ Deployments run `prisma migrate deploy` before application rollout. Migration
 failure stops deployment. Schema evolution must remain backward compatible via
 expand → migrate/backfill → switch → contract-later; rollback never executes a
 down migration. See [backup/restore](backup-restore.md) for recovery.
+## Knowledge
+
+`knowledge_space`, `knowledge_document`, and `knowledge_chunk` hold
+organization-owned reference material, chunked and embedded so an agent can be
+given the parts of it that bear on a request. A space is a named collection
+within one organization, unique by `(organizationId, slug)`, because an agent's
+context policy names the spaces it may read by slug and a slug stays readable
+in code review where a per-deployment uuid would not.
+
+All three tables carry `organizationId`, including the two that could derive it
+through a parent. That denormalization is the isolation mechanism: the tenant
+predicate has to sit in the same row as the vector so the ranking query can be
+scoped without a join, and a join is something a later query can omit. Omitting
+it here returns another organization's material. `knowledge_chunk` carries
+`spaceId` for the same reason — a context policy is enforced by the same
+predicate that ranks.
+
+Organization deletion is restricted on all three, like every other business
+table. Documents and chunks cascade from their space, and chunks from their
+document, because neither has meaning without its parent and re-ingestion
+replaces them wholesale.
+
+The tenant column is enforced, not merely maintained. `KnowledgeSpace` and
+`KnowledgeDocument` carry `@@unique([id, organizationId])` so a child can
+reference the pair, and `KnowledgeChunk` references
+`(spaceId, organizationId)` and `(documentId, organizationId)` rather than the
+two ids alone. Left as independent single-column keys, the three tenant answers
+on one row would agree only as far as whatever wrote it was correct — and
+`organizationId` is the entire scoping predicate. As pairs, a chunk claiming one
+organization while sitting in another's space is a constraint violation.
+
+`knowledge_chunk.embedding` is `vector(1536)`, provided by the `vector`
+extension that the migration creates. 1536 is `text-embedding-3-small` native
+and reachable by `text-embedding-3-large` through its `dimensions` parameter,
+so two further models remain available without a table rewrite and a full
+re-embedding. The column is nullable, and not only because a chunk exists
+before it is embedded: a *required* `Unsupported` field removes `create`,
+`createMany` and `upsert` from the generated Prisma delegate entirely. Vectors
+are therefore written by a raw `UPDATE` after the row exists, and a chunk whose
+embedding is still null is excluded from retrieval rather than treated as a
+zero vector — which would be an equidistant match to everything.
+
+`embeddingModel` records which model produced each vector, and retrieval
+filters on it. Two models' embeddings are not comparable, and 1536 dimensions
+was chosen precisely so one model can replace another without a column change —
+which means the swap is not forced through a migration that stops traffic and
+the table holds both during re-embedding. A query that ranked across them would
+be confidently wrong with no error, so a search states the model it was
+embedded with and sees only rows from that model.
+
+There is deliberately **no vector index**. An approximate index applies the
+tenant predicate after the index scan, so a scoped query returns whichever of
+the requested rows happen to survive the filter — short, with no error. Prisma
+also cannot represent HNSW or IVFFlat and emits `DROP INDEX` for one on every
+subsequent migration, including an index created by raw SQL inside a migration
+file, so it would not survive a forward-only pipeline in any case. Exact search
+needs no index. The btree on `(organizationId, spaceId)` is what serves the
+scoping predicate, which is what pgvector's own guidance recommends for a
+filter this selective. Introducing an approximate index is a decision for
+measured evidence, not for anticipation.
+
+Vector reads and writes go through `$queryRaw`/`$executeRaw` rather than
+TypedSQL. `prisma generate --sql` requires a reachable database at generation
+time, and this repository commits the generated client and fails CI on drift —
+adopting it would put a pgvector-capable PostgreSQL into the client-generation
+step to type two queries.

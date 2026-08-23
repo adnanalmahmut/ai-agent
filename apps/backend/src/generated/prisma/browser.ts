@@ -114,3 +114,43 @@ export type RuntimeSetting = Prisma.RuntimeSettingModel
  * application can say which of the two happened.
  */
 export type ManagedSecret = Prisma.ManagedSecretModel
+/**
+ * Model KnowledgeSpace
+ * A named collection of documents inside one organization.
+ * 
+ * Spaces exist so an agent can be pointed at *some* of an organization's
+ * material rather than all of it: `content-idea@1` reads brand and product
+ * notes and has no business reading a support archive. The set an agent may
+ * see is declared in its code-owned context policy, not chosen at call time.
+ */
+export type KnowledgeSpace = Prisma.KnowledgeSpaceModel
+/**
+ * Model KnowledgeDocument
+ * One source text, before it was split.
+ * 
+ * Kept as a row of its own rather than folded into the chunks so a retrieved
+ * passage can say where it came from, and so re-ingesting a changed source
+ * replaces a known set of chunks instead of accumulating duplicates.
+ */
+export type KnowledgeDocument = Prisma.KnowledgeDocumentModel
+/**
+ * Model KnowledgeChunk
+ * One passage and its embedding.
+ * 
+ * `embedding` is `Unsupported` because Prisma has no vector type, and it is
+ * *nullable* because a required `Unsupported` field removes `create`,
+ * `createMany` and `upsert` from the generated delegate entirely — verified
+ * against the installed 7.9.1. A row is therefore written first and its
+ * vector set by a raw `UPDATE`, and a chunk whose embedding is still null is
+ * simply not retrievable yet.
+ * 
+ * There is deliberately no vector index. An approximate index changes which
+ * rows come back, and the tenant predicate is applied *after* the index scan
+ * — so a scoped query under HNSW returns whichever of the requested rows
+ * happen to survive the filter, silently short. Prisma also cannot represent
+ * such an index and emits `DROP INDEX` for it on every subsequent migration,
+ * so it would not survive a forward-only pipeline in any case. Exact search
+ * needs no index; the btree below is what pgvector's own guidance recommends
+ * for a filter this selective.
+ */
+export type KnowledgeChunk = Prisma.KnowledgeChunkModel

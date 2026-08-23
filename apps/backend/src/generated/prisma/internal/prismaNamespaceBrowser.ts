@@ -64,7 +64,10 @@ export const ModelName = {
   FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
   FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
   RuntimeSetting: 'RuntimeSetting',
-  ManagedSecret: 'ManagedSecret'
+  ManagedSecret: 'ManagedSecret',
+  KnowledgeSpace: 'KnowledgeSpace',
+  KnowledgeDocument: 'KnowledgeDocument',
+  KnowledgeChunk: 'KnowledgeChunk'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -291,6 +294,46 @@ export const ManagedSecretScalarFieldEnum = {
 } as const
 
 export type ManagedSecretScalarFieldEnum = (typeof ManagedSecretScalarFieldEnum)[keyof typeof ManagedSecretScalarFieldEnum]
+
+
+export const KnowledgeSpaceScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  slug: 'slug',
+  name: 'name',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type KnowledgeSpaceScalarFieldEnum = (typeof KnowledgeSpaceScalarFieldEnum)[keyof typeof KnowledgeSpaceScalarFieldEnum]
+
+
+export const KnowledgeDocumentScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  spaceId: 'spaceId',
+  title: 'title',
+  sourceUri: 'sourceUri',
+  checksum: 'checksum',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type KnowledgeDocumentScalarFieldEnum = (typeof KnowledgeDocumentScalarFieldEnum)[keyof typeof KnowledgeDocumentScalarFieldEnum]
+
+
+export const KnowledgeChunkScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  spaceId: 'spaceId',
+  documentId: 'documentId',
+  ordinal: 'ordinal',
+  content: 'content',
+  embeddingModel: 'embeddingModel',
+  createdAt: 'createdAt'
+} as const
+
+export type KnowledgeChunkScalarFieldEnum = (typeof KnowledgeChunkScalarFieldEnum)[keyof typeof KnowledgeChunkScalarFieldEnum]
 
 
 export const SortOrder = {

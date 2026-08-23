@@ -218,6 +218,9 @@ export type OrganizationWhereInput = {
   invitations?: Prisma.InvitationListRelationFilter
   agentRuns?: Prisma.AgentRunListRelationFilter
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
+  knowledgeSpaces?: Prisma.KnowledgeSpaceListRelationFilter
+  knowledgeDocuments?: Prisma.KnowledgeDocumentListRelationFilter
+  knowledgeChunks?: Prisma.KnowledgeChunkListRelationFilter
 }
 
 export type OrganizationOrderByWithRelationInput = {
@@ -234,6 +237,9 @@ export type OrganizationOrderByWithRelationInput = {
   invitations?: Prisma.InvitationOrderByRelationAggregateInput
   agentRuns?: Prisma.AgentRunOrderByRelationAggregateInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideOrderByRelationAggregateInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceOrderByRelationAggregateInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentOrderByRelationAggregateInput
+  knowledgeChunks?: Prisma.KnowledgeChunkOrderByRelationAggregateInput
 }
 
 export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
@@ -253,6 +259,9 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   invitations?: Prisma.InvitationListRelationFilter
   agentRuns?: Prisma.AgentRunListRelationFilter
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
+  knowledgeSpaces?: Prisma.KnowledgeSpaceListRelationFilter
+  knowledgeDocuments?: Prisma.KnowledgeDocumentListRelationFilter
+  knowledgeChunks?: Prisma.KnowledgeChunkListRelationFilter
 }, "id" | "slug">
 
 export type OrganizationOrderByWithAggregationInput = {
@@ -299,6 +308,9 @@ export type OrganizationCreateInput = {
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateInput = {
@@ -315,6 +327,9 @@ export type OrganizationUncheckedCreateInput = {
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUpdateInput = {
@@ -331,6 +346,9 @@ export type OrganizationUpdateInput = {
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateInput = {
@@ -347,6 +365,9 @@ export type OrganizationUncheckedUpdateInput = {
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationCreateManyInput = {
@@ -482,6 +503,48 @@ export type OrganizationUpdateOneRequiredWithoutFeatureFlagOverridesNestedInput 
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutFeatureFlagOverridesInput, Prisma.OrganizationUpdateWithoutFeatureFlagOverridesInput>, Prisma.OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput>
 }
 
+export type OrganizationCreateNestedOneWithoutKnowledgeSpacesInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeSpacesInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeSpacesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutKnowledgeSpacesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutKnowledgeSpacesNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeSpacesInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeSpacesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutKnowledgeSpacesInput
+  upsert?: Prisma.OrganizationUpsertWithoutKnowledgeSpacesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutKnowledgeSpacesInput, Prisma.OrganizationUpdateWithoutKnowledgeSpacesInput>, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeSpacesInput>
+}
+
+export type OrganizationCreateNestedOneWithoutKnowledgeDocumentsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeDocumentsInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutKnowledgeDocumentsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutKnowledgeDocumentsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeDocumentsInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutKnowledgeDocumentsInput
+  upsert?: Prisma.OrganizationUpsertWithoutKnowledgeDocumentsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutKnowledgeDocumentsInput, Prisma.OrganizationUpdateWithoutKnowledgeDocumentsInput>, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeDocumentsInput>
+}
+
+export type OrganizationCreateNestedOneWithoutKnowledgeChunksInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeChunksInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeChunksInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutKnowledgeChunksInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutKnowledgeChunksNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeChunksInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeChunksInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutKnowledgeChunksInput
+  upsert?: Prisma.OrganizationUpsertWithoutKnowledgeChunksInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutKnowledgeChunksInput, Prisma.OrganizationUpdateWithoutKnowledgeChunksInput>, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeChunksInput>
+}
+
 export type OrganizationCreateWithoutMembersInput = {
   id?: string
   name: string
@@ -495,6 +558,9 @@ export type OrganizationCreateWithoutMembersInput = {
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateWithoutMembersInput = {
@@ -510,6 +576,9 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationCreateOrConnectWithoutMembersInput = {
@@ -541,6 +610,9 @@ export type OrganizationUpdateWithoutMembersInput = {
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutMembersInput = {
@@ -556,6 +628,9 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationCreateWithoutInvitationsInput = {
@@ -571,6 +646,9 @@ export type OrganizationCreateWithoutInvitationsInput = {
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateWithoutInvitationsInput = {
@@ -586,6 +664,9 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationCreateOrConnectWithoutInvitationsInput = {
@@ -617,6 +698,9 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
@@ -632,6 +716,9 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationCreateWithoutAgentRunsInput = {
@@ -647,6 +734,9 @@ export type OrganizationCreateWithoutAgentRunsInput = {
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateWithoutAgentRunsInput = {
@@ -662,6 +752,9 @@ export type OrganizationUncheckedCreateWithoutAgentRunsInput = {
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationCreateOrConnectWithoutAgentRunsInput = {
@@ -693,6 +786,9 @@ export type OrganizationUpdateWithoutAgentRunsInput = {
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutAgentRunsInput = {
@@ -708,6 +804,9 @@ export type OrganizationUncheckedUpdateWithoutAgentRunsInput = {
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationCreateWithoutFeatureFlagOverridesInput = {
@@ -723,6 +822,9 @@ export type OrganizationCreateWithoutFeatureFlagOverridesInput = {
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput = {
@@ -738,6 +840,9 @@ export type OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput = {
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationCreateOrConnectWithoutFeatureFlagOverridesInput = {
@@ -769,6 +874,9 @@ export type OrganizationUpdateWithoutFeatureFlagOverridesInput = {
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput = {
@@ -784,6 +892,273 @@ export type OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput = {
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationCreateWithoutKnowledgeSpacesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationUncheckedCreateWithoutKnowledgeSpacesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationCreateOrConnectWithoutKnowledgeSpacesInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeSpacesInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeSpacesInput>
+}
+
+export type OrganizationUpsertWithoutKnowledgeSpacesInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutKnowledgeSpacesInput, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeSpacesInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeSpacesInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeSpacesInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutKnowledgeSpacesInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutKnowledgeSpacesInput, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeSpacesInput>
+}
+
+export type OrganizationUpdateWithoutKnowledgeSpacesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutKnowledgeSpacesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationCreateWithoutKnowledgeDocumentsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationCreateOrConnectWithoutKnowledgeDocumentsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeDocumentsInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput>
+}
+
+export type OrganizationUpsertWithoutKnowledgeDocumentsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutKnowledgeDocumentsInput, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeDocumentsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeDocumentsInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutKnowledgeDocumentsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutKnowledgeDocumentsInput, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeDocumentsInput>
+}
+
+export type OrganizationUpdateWithoutKnowledgeDocumentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutKnowledgeDocumentsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationCreateWithoutKnowledgeChunksInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationUncheckedCreateWithoutKnowledgeChunksInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationCreateOrConnectWithoutKnowledgeChunksInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeChunksInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeChunksInput>
+}
+
+export type OrganizationUpsertWithoutKnowledgeChunksInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutKnowledgeChunksInput, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeChunksInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeChunksInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeChunksInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutKnowledgeChunksInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutKnowledgeChunksInput, Prisma.OrganizationUncheckedUpdateWithoutKnowledgeChunksInput>
+}
+
+export type OrganizationUpdateWithoutKnowledgeChunksInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutKnowledgeChunksInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 
@@ -796,6 +1171,9 @@ export type OrganizationCountOutputType = {
   invitations: number
   agentRuns: number
   featureFlagOverrides: number
+  knowledgeSpaces: number
+  knowledgeDocuments: number
+  knowledgeChunks: number
 }
 
 export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -803,6 +1181,9 @@ export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Exte
   invitations?: boolean | OrganizationCountOutputTypeCountInvitationsArgs
   agentRuns?: boolean | OrganizationCountOutputTypeCountAgentRunsArgs
   featureFlagOverrides?: boolean | OrganizationCountOutputTypeCountFeatureFlagOverridesArgs
+  knowledgeSpaces?: boolean | OrganizationCountOutputTypeCountKnowledgeSpacesArgs
+  knowledgeDocuments?: boolean | OrganizationCountOutputTypeCountKnowledgeDocumentsArgs
+  knowledgeChunks?: boolean | OrganizationCountOutputTypeCountKnowledgeChunksArgs
 }
 
 /**
@@ -843,6 +1224,27 @@ export type OrganizationCountOutputTypeCountFeatureFlagOverridesArgs<ExtArgs ext
   where?: Prisma.FeatureFlagOrganizationOverrideWhereInput
 }
 
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountKnowledgeSpacesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.KnowledgeSpaceWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountKnowledgeDocumentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.KnowledgeDocumentWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountKnowledgeChunksArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.KnowledgeChunkWhereInput
+}
+
 
 export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -858,6 +1260,9 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   agentRuns?: boolean | Prisma.Organization$agentRunsArgs<ExtArgs>
   featureFlagOverrides?: boolean | Prisma.Organization$featureFlagOverridesArgs<ExtArgs>
+  knowledgeSpaces?: boolean | Prisma.Organization$knowledgeSpacesArgs<ExtArgs>
+  knowledgeDocuments?: boolean | Prisma.Organization$knowledgeDocumentsArgs<ExtArgs>
+  knowledgeChunks?: boolean | Prisma.Organization$knowledgeChunksArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["organization"]>
 
@@ -903,6 +1308,9 @@ export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.Interna
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   agentRuns?: boolean | Prisma.Organization$agentRunsArgs<ExtArgs>
   featureFlagOverrides?: boolean | Prisma.Organization$featureFlagOverridesArgs<ExtArgs>
+  knowledgeSpaces?: boolean | Prisma.Organization$knowledgeSpacesArgs<ExtArgs>
+  knowledgeDocuments?: boolean | Prisma.Organization$knowledgeDocumentsArgs<ExtArgs>
+  knowledgeChunks?: boolean | Prisma.Organization$knowledgeChunksArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OrganizationIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -915,6 +1323,9 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     invitations: Prisma.$InvitationPayload<ExtArgs>[]
     agentRuns: Prisma.$AgentRunPayload<ExtArgs>[]
     featureFlagOverrides: Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>[]
+    knowledgeSpaces: Prisma.$KnowledgeSpacePayload<ExtArgs>[]
+    knowledgeDocuments: Prisma.$KnowledgeDocumentPayload<ExtArgs>[]
+    knowledgeChunks: Prisma.$KnowledgeChunkPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1334,6 +1745,9 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   invitations<T extends Prisma.Organization$invitationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$invitationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InvitationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   agentRuns<T extends Prisma.Organization$agentRunsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentRunsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentRunPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   featureFlagOverrides<T extends Prisma.Organization$featureFlagOverridesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$featureFlagOverridesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  knowledgeSpaces<T extends Prisma.Organization$knowledgeSpacesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$knowledgeSpacesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$KnowledgeSpacePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  knowledgeDocuments<T extends Prisma.Organization$knowledgeDocumentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$knowledgeDocumentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$KnowledgeDocumentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  knowledgeChunks<T extends Prisma.Organization$knowledgeChunksArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$knowledgeChunksArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$KnowledgeChunkPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1858,6 +2272,78 @@ export type Organization$featureFlagOverridesArgs<ExtArgs extends runtime.Types.
   take?: number
   skip?: number
   distinct?: Prisma.FeatureFlagOrganizationOverrideScalarFieldEnum | Prisma.FeatureFlagOrganizationOverrideScalarFieldEnum[]
+}
+
+/**
+ * Organization.knowledgeSpaces
+ */
+export type Organization$knowledgeSpacesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the KnowledgeSpace
+   */
+  select?: Prisma.KnowledgeSpaceSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the KnowledgeSpace
+   */
+  omit?: Prisma.KnowledgeSpaceOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeSpaceInclude<ExtArgs> | null
+  where?: Prisma.KnowledgeSpaceWhereInput
+  orderBy?: Prisma.KnowledgeSpaceOrderByWithRelationInput | Prisma.KnowledgeSpaceOrderByWithRelationInput[]
+  cursor?: Prisma.KnowledgeSpaceWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.KnowledgeSpaceScalarFieldEnum | Prisma.KnowledgeSpaceScalarFieldEnum[]
+}
+
+/**
+ * Organization.knowledgeDocuments
+ */
+export type Organization$knowledgeDocumentsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the KnowledgeDocument
+   */
+  select?: Prisma.KnowledgeDocumentSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the KnowledgeDocument
+   */
+  omit?: Prisma.KnowledgeDocumentOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeDocumentInclude<ExtArgs> | null
+  where?: Prisma.KnowledgeDocumentWhereInput
+  orderBy?: Prisma.KnowledgeDocumentOrderByWithRelationInput | Prisma.KnowledgeDocumentOrderByWithRelationInput[]
+  cursor?: Prisma.KnowledgeDocumentWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.KnowledgeDocumentScalarFieldEnum | Prisma.KnowledgeDocumentScalarFieldEnum[]
+}
+
+/**
+ * Organization.knowledgeChunks
+ */
+export type Organization$knowledgeChunksArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the KnowledgeChunk
+   */
+  select?: Prisma.KnowledgeChunkSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the KnowledgeChunk
+   */
+  omit?: Prisma.KnowledgeChunkOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.KnowledgeChunkInclude<ExtArgs> | null
+  where?: Prisma.KnowledgeChunkWhereInput
+  orderBy?: Prisma.KnowledgeChunkOrderByWithRelationInput | Prisma.KnowledgeChunkOrderByWithRelationInput[]
+  cursor?: Prisma.KnowledgeChunkWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.KnowledgeChunkScalarFieldEnum | Prisma.KnowledgeChunkScalarFieldEnum[]
 }
 
 /**

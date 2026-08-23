@@ -168,8 +168,11 @@ on any PR touching compose or images.
   head `42894f701068e8f289ef1b4631cd380943b30212`, CI run
   [32628412579](https://github.com/adnanalmahmut/ai-agent/actions/runs/32628412579)
   green across all five jobs.
-- [~] PR3 `feat/platform-control-plane`
-- [ ] PR4 `feat/knowledge-rag-core`
+- [x] PR3 `feat/platform-control-plane` — [#32](https://github.com/adnanalmahmut/ai-agent/pull/32),
+  head `6d6fc2994d2481ef171d47726bb25c3610b61614`, CI run
+  [32642515109](https://github.com/adnanalmahmut/ai-agent/actions/runs/32642515109)
+  green across all five jobs.
+- [~] PR4 `feat/knowledge-rag-core`
 - [ ] PR5 `feat/knowledge-management`
 - [ ] PR6 `feat/content-idea-agent`
 - [ ] PR7 `feat/content-idea-platform`
@@ -329,6 +332,71 @@ on any PR touching compose or images.
   operator step on the existing Staging volume, and a deployment prerequisite
   recorded for the human who merges this stack. The application does not and
   must not perform it.
+
+- 2026-08-23: PR3 found and repaired a defect that predated it: `apiRequest`
+  never unwrapped the backend's `{ success, data, meta }` envelope. Every
+  caller that existed before the control plane returns `void`, so no body had
+  ever been read and the omission was invisible. The pre-existing test asserted
+  against a bare array — a response the global `ResponseInterceptor` cannot
+  produce — and so pinned the defect rather than catching it.
+- 2026-08-23: PR4 denormalizes `organizationId` onto all three knowledge
+  tables, and `spaceId` onto chunks, rather than deriving either through a
+  parent. The scoping predicate has to sit in the same row as the vector so the
+  ranking query can be scoped without a join; a join is a thing a later query
+  can omit, and omitting this one returns another organization's material.
+- 2026-08-23: `EmbeddingPort` is declared in PR4 and left unbound. Nothing in
+  this increment turns text into a vector — the provider adapter arrives with
+  the ingestion pipeline that needs it — and binding a placeholder would put a
+  fake in production wiring.
+- 2026-08-23: Retrieval takes a vector, not text. The thing that embeds is the
+  pipeline, and a retrieval service that embedded on the caller's behalf would
+  make the core depend on a provider it does not need.
+- 2026-08-23: The operator ceiling `knowledge.retrieval_max_chunks` clamps the
+  caller's requested limit rather than defaulting it. How much context a run
+  may pull is a cost decision belonging to whoever pays the provider bill, and
+  a limit a caller can exceed is advisory.
+- 2026-08-23: An empty granted-space list retrieves nothing rather than
+  everything, and is refused before a query is built. "No spaces declared" must
+  never widen to "all spaces", which is what dropping an empty `IN` clause
+  would do.
+- 2026-08-23: The knowledge isolation suite is an e2e against real pgvector,
+  not a unit test with a double. A fake repository can show that an
+  organization id is passed along; it cannot show that the id *scopes*
+  anything. The fixtures make the other tenant's chunk a strictly closer match
+  than the querying tenant's, so an unscoped or post-filtered query returns the
+  wrong row first rather than passing by luck.
+
+- 2026-08-23: PR4 review repaired five findings and accepted one deferral.
+  - A non-integer retrieval limit is refused rather than clamped.
+    `Math.min(NaN, ceiling)` is `NaN`, the driver binds `NaN` and `Infinity` as
+    SQL `NULL`, and `LIMIT NULL` means *no limit* — verified against the test
+    database — so the operator ceiling was bypassable by the value an HTTP
+    handler produces for any non-numeric query string. Checked in the service
+    and again at the SQL boundary.
+  - A zero-norm embedding is refused. pgvector answers `NaN` for cosine
+    distance rather than raising, PostgreSQL sorts `NaN` last instead of
+    erroring, and every threshold a caller applies against it is false — so a
+    search would report that nothing is relevant, silently.
+  - The score range was documented as `[0, 1]` and is `[-1, 1]`. `<=>` is
+    distance over `[0, 2]`, and real models produce negative similarity for
+    opposed text. Corrected rather than clamped: clamping would erase the
+    difference between unrelated and opposite.
+  - `embeddingModel` is now a predicate rather than a note. The schema claimed
+    recording it made a model migration detectable; nothing detected anything.
+    A query states the model it was embedded with and ranks within it, which
+    matters because 1536 dimensions was chosen precisely so a model swap is
+    *not* forced through a migration that stops traffic — the table holds both
+    during re-embedding.
+  - The tenant column is now enforced by composite foreign keys rather than
+    maintained by convention. `knowledge_chunk.organizationId` is the entire
+    scoping predicate, and three independent single-column references left the
+    row's three tenant answers agreeing only as far as whatever wrote it was
+    correct. Done now because the tables are empty and it is additive.
+  - Deferred: retrieval does not check `knowledge.enabled`. The flag's promise
+    is that disabling refuses *new* work; an accepted run must still complete,
+    so the gate belongs at the acceptance boundary in PR5 and PR6, not inside
+    the retrieval a running agent performs. No `assertFeature` caller exists
+    anywhere yet.
 
 ## Blockers
 
