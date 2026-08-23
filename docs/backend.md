@@ -44,6 +44,24 @@ immediately instead of consuming the retry budget. Production definitions remain
 empty and no public create route is exposed, so this still does not let a user
 execute an agent.
 
+The control plane (`src/control-plane/`) holds operational state an operator can
+change without a deployment: feature flags, typed runtime settings, and
+encrypted provider credentials. Every key is registered in code with its schema,
+default and bounds, so the Platform cannot create a setting nothing reads or
+store a value outside the range the application is known to behave across.
+
+Nothing there is cached. Evaluation is a query per check, deliberately: the
+semantic the flags promise is that disabling a feature stops acceptance of new
+work immediately, and any TTL turns "immediately" into "eventually" precisely
+when an operator is switching something off because it is misbehaving. Disabling
+a flag never cancels an accepted `AgentRun`; that durable contract is unchanged,
+and hard cancellation is a separate feature.
+
+Both composition roots get the control plane, but only the API gets its
+controller — the worker imports the providers alone, because it resolves a
+provider credential when it executes rather than receiving one in a job payload
+that would sit in Redis and be as stale as the moment it was enqueued.
+
 ## Operator commands
 
 `src/cli.ts` runs one command and exits. Today that is

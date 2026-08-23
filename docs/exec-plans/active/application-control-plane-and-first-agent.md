@@ -159,13 +159,88 @@ on any PR touching compose or images.
 - [x] Intake and discovery across auth/RBAC/CLI, the agent subsystem, database
   and container topology, the Platform app, and current Prisma/pgvector
   documentation — all evidence-backed against installed source.
-- [ ] PR1 `feat/bootstrap-super-admin-cli`
+- [x] PR1 `feat/bootstrap-super-admin-cli`
+- [x] PR1 landing evidence: [#30](https://github.com/adnanalmahmut/ai-agent/pull/30),
+  head `28bc6ec86ea90380778074043d2ff957b382a920`, CI run
+  [32596855361](https://github.com/adnanalmahmut/ai-agent/actions/runs/32596855361)
+  green across all five jobs.
 - [ ] PR2 `feat/control-plane-core`
 - [ ] PR3 `feat/platform-control-plane`
 - [ ] PR4 `feat/knowledge-rag-core`
 - [ ] PR5 `feat/knowledge-management`
 - [ ] PR6 `feat/content-idea-agent`
 - [ ] PR7 `feat/content-idea-platform`
+
+- 2026-08-23: PR2 stores feature-flag overrides in two tables rather than one
+  with a nullable `organizationId`. PostgreSQL treats NULLs as distinct in a
+  unique index, so the constraint that matters most — at most one platform
+  override per key — would not have held, and it would have failed silently by
+  permitting duplicates rather than loudly at write time.
+- 2026-08-23: Nothing in the control plane is cached. For flags the reason is
+  semantic: the promise is that disabling a feature stops acceptance
+  immediately, and a TTL contradicts it exactly when an operator is switching
+  something off because it is misbehaving. For secrets it is rotation: a cached
+  credential outlives the rotation meant to retire it.
+- 2026-08-23: Managed secrets record a fingerprint of the master key that sealed
+  them. Without it, decrypting after `APP_ENCRYPTION_KEY` changed is an
+  authentication failure indistinguishable from a corrupted row, and an operator
+  would be told the data was tampered with when in fact they need to re-enter
+  the credential.
+- 2026-08-23: `APP_ENCRYPTION_KEY` was added to `ops/runtime-preflight.sh`'s
+  required list. It is a deployment prerequisite: an environment without it
+  fails preflight rather than booting and failing on the first secret read.
+- 2026-08-23: PR2 security review raised four findings; three were repaired and
+  one is deferred.
+  - Repaired: `openSecret` pinned the GCM authentication tag to sixteen bytes
+    and asserts the nonce length. Node accepts 4, 8, and 12-16 byte tags and
+    verifies a short tag against a *prefix* of the correct one, so a row whose
+    tag had been truncated to four bytes decrypted successfully — forgery at
+    roughly 2^32 work for anyone with write access to the column. Reverting the
+    guard fails six tests, one per length Node would otherwise accept.
+  - Repaired: `reveal` now logs the decryption diagnosis at `warn`. It was only
+    attached to an exception the caller renders as "credential unavailable", so
+    the wrong-key-versus-altered-row distinction the fingerprint column exists
+    to produce reached nobody.
+  - Repaired: `resolve` no longer consults an organization override for a flag
+    the registry does not scope to organizations. Writes were already refused,
+    but a flag narrowed in code after overrides existed would still have been
+    overridden by the rows written while it was legal.
+- 2026-08-23: PR2 code review raised eight findings and the test review found
+  three surviving mutants. All were repaired.
+  - `ops/runtime-preflight.sh` now checks the master key's shape, not only its
+    presence. `openssl rand -hex 32` yields 64 characters that are all valid
+    base64 and decode to 48 bytes, so the old check passed it and the
+    application refused it at `ConfigModule` init — after the migration
+    container had already run. It is now a preflight refusal.
+  - Rotating a managed secret no longer erases its label. An operator pasting a
+    new key does not resubmit the note saying which account it belongs to, and
+    an omitted label was being written as `NULL` to the only surface that shows
+    it.
+  - The settings read surface distinguishes "never configured" from "stored
+    value no longer satisfies its schema". Collapsed, a bound tightened in code
+    showed the default beside the date the operator set something else, with
+    nothing to explain the disagreement and a reset button that appeared to do
+    nothing.
+  - An unknown `organizationId` is a 404. It was a 500 with a stack trace on
+    write (an unmapped foreign-key violation) and a fabricated 200 on read.
+  - Runtime setting values are typed `Prisma.InputJsonValue` rather than cast
+    with `as never`. The cast hid that an `.optional()` registry entry would
+    make `set()` answer 200 and change nothing, because Prisma reads
+    `undefined` on an update as "leave this column alone".
+  - The module barrel no longer re-exports the cipher primitives. They take a
+    key as an argument, so exporting them let any feature encrypt or decrypt a
+    credential outside the service that owns the fingerprint check and the
+    failure contract.
+  - Authorization is now proved by a route table rather than by sampling.
+    Deleting `@UserHasPermission` from four routes left the whole suite green,
+    because those routes were never probed. Every route is now swept against a
+    platform `user`, a platform `admin`, an organization owner, and an
+    anonymous caller, and a route added without a table row fails the sweep.
+  - Deferred: control-plane writes have no audit trail. `updatedByUserId` is the
+    only attribution and a delete removes it, so "who turned this off" is
+    unanswerable after the fact. An append-only event recording actor, action,
+    key and timestamp — never the value — belongs with the Platform surface in
+    PR3, where there is a place to read it.
 
 ## Blockers
 

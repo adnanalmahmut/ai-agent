@@ -31,6 +31,9 @@ export type I18nTranslations = {
         "QUEUE_UNAVAILABLE": string;
         "AI_PROVIDER_UNAVAILABLE": string;
         "RESOURCE_CONFLICT": string;
+        "FEATURE_DISABLED": string;
+        "SECRET_NOT_CONFIGURED": string;
+        "SECRET_UNREADABLE": string;
     };
     "mail": {
         "passwordReset": {

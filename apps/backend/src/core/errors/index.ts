@@ -26,6 +26,14 @@ export const APP_ERROR_CODES = [
   'ORGANIZATION_NOT_ARCHIVED',
   'ORGANIZATION_ARCHIVED',
 
+  // Control plane. A disabled feature is 403 rather than 404: the route exists
+  // and the caller may well be entitled to it, but the platform has switched
+  // the capability off. A missing credential is 503, because it is an
+  // operator-fixable configuration gap, not something the caller did wrong.
+  'FEATURE_DISABLED',
+  'SECRET_NOT_CONFIGURED',
+  'SECRET_UNREADABLE',
+
   // Infrastructure and external-provider failures.
   'SERVICE_UNAVAILABLE',
   'QUEUE_UNAVAILABLE',

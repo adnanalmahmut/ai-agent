@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { appConfig, observabilityConfig, workerConfigurations } from './config';
 import { AgentExecutionHandler } from './agents/agent-execution.handler';
 import { AgentExecutionModule } from './agents/agent-execution.module';
+import { ControlPlaneCoreModule } from './control-plane';
 import { LifecycleModule } from './core/lifecycle';
 import { OutboxModule } from './core/outbox';
 import { createLoggerOptions } from './core/providers/logger.options';
@@ -60,6 +61,11 @@ import { DatabaseModule } from './database';
     }),
     LifecycleModule,
     DatabaseModule,
+    // Without the controller: this process serves no HTTP. An agent execution
+    // resolves its provider credential here, at the moment it runs, rather
+    // than receiving one in a job payload that would sit in Redis and be as
+    // stale as the moment it was enqueued.
+    ControlPlaneCoreModule,
     RedisModule,
     QueueModule,
     OutboxModule,

@@ -36,6 +36,7 @@ POSTGRES_PASSWORD
 POSTGRES_DB
 DATABASE_URL
 REDIS_URL
+APP_ENCRYPTION_KEY
 BETTER_AUTH_SECRET
 BETTER_AUTH_URL
 BETTER_AUTH_TRUSTED_ORIGINS
@@ -50,6 +51,23 @@ for key in $required; do
 done
 
 [ "$(value_for NODE_ENV)" = "$expected_environment" ] || die 'NODE_ENV does not match the host environment'
+
+# The master key is the one required value with a checkable shape, and the one
+# whose failure is most expensive to discover late. The application rejects
+# anything that does not base64-decode to exactly 32 bytes, and it does so at
+# ConfigModule init — which the deploy sequence reaches only after the
+# migration container has already run. `openssl rand -hex 32` is the easy
+# mistake: 64 hex characters are all valid base64, so a non-empty check passes
+# and the value decodes to 48 bytes. Caught here it is a preflight refusal;
+# caught at boot it is a half-applied release.
+encryption_key=$(value_for APP_ENCRYPTION_KEY)
+case "$encryption_key" in
+  *[!A-Za-z0-9+/=]* | *=[!=]*) die 'APP_ENCRYPTION_KEY must be base64' ;;
+esac
+encryption_key_bytes=$(printf '%s' "$encryption_key" | base64 -d 2>/dev/null | wc -c | tr -d '[:space:]') ||
+  die 'APP_ENCRYPTION_KEY must be base64'
+[ "$encryption_key_bytes" = '32' ] ||
+  die 'APP_ENCRYPTION_KEY must decode to 32 bytes (generate with: openssl rand -base64 32)'
 
 google_enabled=$(value_for GOOGLE_AUTH_ENABLED)
 case "$google_enabled" in

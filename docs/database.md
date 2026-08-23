@@ -54,6 +54,23 @@ Migration order:
 5. Better Auth database rate-limit storage.
 6. Durable agent-run foundation.
 7. Agent-run reconciliation index.
+8. Control plane: feature-flag overrides, runtime settings, managed secrets.
+
+Feature-flag overrides are two tables — one platform-wide, one per
+organization — rather than one table with a nullable `organizationId`.
+PostgreSQL treats NULLs as distinct in a unique index, so "at most one platform
+override per key" would not actually hold on the single-table shape, and the
+constraint that matters most would have been the one silently missing. The
+organization table cascades on organization delete, because an override for an
+organization that no longer exists has no meaning. Every control-plane table
+nulls its editor on user delete: who changed a setting is useful history but
+must never block removing an account.
+
+Managed secrets store ciphertext, nonce and authentication tag as separate
+`Bytea` columns alongside the algorithm and a fingerprint of the master key that
+sealed them. The fingerprint is what lets the application distinguish "encrypted
+under a key this deployment no longer has" from "this row was altered" — GCM
+alone reports both as an authentication failure.
 
 Sessions/accounts cascade with their user because they have no independent
 historical meaning. Membership and invitation foreign keys restrict deletion

@@ -33,6 +33,9 @@ export const ERROR_TRANSLATION_KEYS = {
   ORGANIZATION_ALREADY_ARCHIVED: 'errors.ORGANIZATION_ALREADY_ARCHIVED',
   ORGANIZATION_NOT_ARCHIVED: 'errors.ORGANIZATION_NOT_ARCHIVED',
   ORGANIZATION_ARCHIVED: 'errors.ORGANIZATION_ARCHIVED',
+  FEATURE_DISABLED: 'errors.FEATURE_DISABLED',
+  SECRET_NOT_CONFIGURED: 'errors.SECRET_NOT_CONFIGURED',
+  SECRET_UNREADABLE: 'errors.SECRET_UNREADABLE',
   SERVICE_UNAVAILABLE: 'errors.SERVICE_UNAVAILABLE',
   QUEUE_UNAVAILABLE: 'errors.QUEUE_UNAVAILABLE',
   AI_PROVIDER_UNAVAILABLE: 'errors.AI_PROVIDER_UNAVAILABLE',
@@ -60,6 +63,13 @@ export const ERROR_STATUS_CODES = {
   // 403: the organization exists and the caller may well be a member, but the
   // organization's lifecycle state forbids the operation.
   ORGANIZATION_ARCHIVED: HttpStatus.FORBIDDEN,
+  // 403: the capability is switched off for this caller, which is an
+  // authorization-shaped answer even though no permission was missing.
+  FEATURE_DISABLED: HttpStatus.FORBIDDEN,
+  // 503, not 500: nothing is broken, an operator simply has not supplied the
+  // credential yet, and the request may succeed unchanged once they do.
+  SECRET_NOT_CONFIGURED: HttpStatus.SERVICE_UNAVAILABLE,
+  SECRET_UNREADABLE: HttpStatus.SERVICE_UNAVAILABLE,
   SERVICE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
   QUEUE_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,
   AI_PROVIDER_UNAVAILABLE: HttpStatus.SERVICE_UNAVAILABLE,

@@ -110,6 +110,16 @@ describe('global access control', () => {
       ['accountLifecycle', 'deactivate'],
       ['accountLifecycle', 'restore'],
       ['organizationLifecycle', 'restore'],
+      /**
+       * The control plane is deliberately not an administrative surface. It
+       * turns features on for the whole platform, changes operational limits
+       * every organization runs under, and holds the provider credentials —
+       * the blast radius is the deployment, not one account, so it belongs to
+       * the role the operator creates once at bootstrap.
+       */
+      ['controlPlane', 'read'],
+      ['controlPlane', 'write'],
+      ['managedSecret', 'write'],
     ])('may not %s:%s', (resource, action) => {
       expect(allowsGlobal('admin', { [resource]: [action] })).toBe(false);
     });
@@ -117,6 +127,9 @@ describe('global access control', () => {
 
   describe('super_admin', () => {
     it.each([
+      ['controlPlane', 'read'],
+      ['controlPlane', 'write'],
+      ['managedSecret', 'write'],
       ['user', 'set-role'],
       ['user', 'set-password'],
       ['user', 'set-email'],

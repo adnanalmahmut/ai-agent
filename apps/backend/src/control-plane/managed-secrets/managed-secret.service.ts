@@ -1,0 +1,233 @@
+import { Inject, Injectable } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
+import { PinoLogger } from 'nestjs-pino';
+
+import { encryptionConfig } from '../../config';
+import { AppException } from '../../core/errors';
+import { PrismaService } from '../../database';
+import {
+  MANAGED_SECRET_KEYS,
+  type ManagedSecretKey,
+  managedSecretDefinition,
+} from './managed-secret.registry';
+import {
+  SecretDecryptionError,
+  fingerprintKey,
+  openSecret,
+  sealSecret,
+} from './secret-cipher';
+
+/**
+ * Everything the control plane may know about a credential.
+ *
+ * Note what is absent and note that it is absent *by construction* — this type
+ * has no field the plaintext could occupy, so a read surface cannot leak one by
+ * forgetting to omit it. A masked preview is also absent: the first four
+ * characters of an API key are a real substring of a real credential, and the
+ * convenience of recognising it is not worth putting any of it on a screen.
+ */
+export type ManagedSecretDescription = {
+  key: ManagedSecretKey;
+  description: string;
+  configured: boolean;
+  label: string | undefined;
+  algorithm: string | undefined;
+  lastRotatedAt: Date | undefined;
+  updatedAt: Date | undefined;
+  /**
+   * False when the row was encrypted with a different master key, so the
+   * Platform can tell an operator to re-enter it instead of leaving them to
+   * discover it as a provider outage.
+   */
+  usable: boolean;
+};
+
+/**
+ * Provider credentials, encrypted in PostgreSQL.
+ *
+ * ## The rules this exists to enforce
+ *
+ * A stored secret is never returned by a read surface, never logged, and never
+ * placed into `process.env`. The last one is the easy mistake and the worst:
+ * anything in the environment is inherited by every child process and dumped by
+ * every crash reporter, and it turns a scoped credential into an ambient one.
+ * Instead `reveal` hands the plaintext directly to the one adapter that needs
+ * it, at the moment it needs it.
+ *
+ * ## Why reads are not cached
+ *
+ * A cached credential outlives its rotation. An operator who rotates a leaked
+ * key expects the next call to use the new one, and a TTL turns that into a
+ * window where the compromised key is still in use. Provider calls take
+ * hundreds of milliseconds; one indexed primary-key read and an AES decryption
+ * are not what makes them slow.
+ */
+@Injectable()
+export class ManagedSecretService {
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(encryptionConfig.KEY)
+    private readonly encryption: ConfigType<typeof encryptionConfig>,
+    private readonly logger: PinoLogger,
+  ) {}
+
+  async describeAll(): Promise<ManagedSecretDescription[]> {
+    const rows = await this.prisma.managedSecret.findMany({
+      // Explicit, and the ciphertext is not in it. A `findMany` with no select
+      // would pull encrypted material into memory for a listing endpoint.
+      select: {
+        key: true,
+        label: true,
+        algorithm: true,
+        keyFingerprint: true,
+        lastRotatedAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const stored = new Map(rows.map((row) => [row.key, row]));
+    const fingerprint = this.currentFingerprint();
+
+    return MANAGED_SECRET_KEYS.map((key) => {
+      const row = stored.get(key);
+
+      return {
+        key,
+        description: managedSecretDefinition(key).description,
+        configured: row !== undefined,
+        label: row?.label ?? undefined,
+        algorithm: row?.algorithm,
+        lastRotatedAt: row?.lastRotatedAt,
+        updatedAt: row?.updatedAt,
+        usable: row === undefined ? false : row.keyFingerprint === fingerprint,
+      };
+    });
+  }
+
+  /**
+   * Stores or replaces a credential.
+   *
+   * Rotation is the same operation as first configuration, deliberately: a
+   * separate "rotate" path would be a second place to get the encryption right,
+   * and the only differences are a timestamp and the label.
+   *
+   * The label is the exception because it is the operator's own note about
+   * which account a credential belongs to, and it is not resubmitted when the
+   * point of the call is to paste a new key. Treating an omitted label as
+   * `null` would erase it on every rotation, silently, from the only surface
+   * that shows it.
+   */
+  async set(input: {
+    key: ManagedSecretKey;
+    value: string;
+    label?: string;
+    actorUserId: string;
+  }): Promise<ManagedSecretDescription> {
+    const rejection = managedSecretDefinition(input.key).validate(input.value);
+
+    if (rejection !== undefined) {
+      /**
+       * The reason is safe to return — it describes the shape a credential
+       * should have, never the value submitted. `looksLikeCredential` is
+       * written so that its messages cannot quote the input.
+       */
+      throw new AppException('VALIDATION_ERROR', {
+        context: { secretKey: input.key },
+        publicDetails: { reason: rejection },
+      });
+    }
+
+    const sealed = sealSecret(input.value, this.encryption.masterKey);
+
+    await this.prisma.managedSecret.upsert({
+      where: { key: input.key },
+      create: {
+        key: input.key,
+        label: input.label ?? null,
+        ...sealed,
+        updatedByUserId: input.actorUserId,
+      },
+      update: {
+        ...(input.label === undefined ? {} : { label: input.label }),
+        ...sealed,
+        lastRotatedAt: new Date(),
+        updatedByUserId: input.actorUserId,
+      },
+    });
+
+    return this.describe(input.key);
+  }
+
+  async remove(key: ManagedSecretKey): Promise<ManagedSecretDescription> {
+    await this.prisma.managedSecret.deleteMany({ where: { key } });
+
+    return this.describe(key);
+  }
+
+  /**
+   * Returns the plaintext, for one adapter, at the point of use.
+   *
+   * Not exposed through any controller and not reachable from a request
+   * parameter: the key is a registry member chosen by the calling adapter. The
+   * result must not be stored, logged, or copied into the environment.
+   */
+  async reveal(key: ManagedSecretKey): Promise<string> {
+    const row = await this.prisma.managedSecret.findUnique({
+      where: { key },
+      select: {
+        ciphertext: true,
+        iv: true,
+        authTag: true,
+        algorithm: true,
+        keyFingerprint: true,
+      },
+    });
+
+    if (row === null) {
+      throw new AppException('SECRET_NOT_CONFIGURED', {
+        context: { secretKey: key },
+      });
+    }
+
+    try {
+      return openSecret(row, this.encryption.masterKey);
+    } catch (error) {
+      const reason =
+        error instanceof SecretDecryptionError ? error.message : 'unknown';
+
+      /**
+       * Logged, not merely attached. The whole point of storing a key
+       * fingerprint is that "encrypted under a different master key" and "this
+       * row was altered" call for different responses, and a diagnosis that
+       * only travels inside an exception the caller renders as "credential
+       * unavailable" is a diagnosis nobody reads. The cipher's messages are
+       * written so they cannot quote key or plaintext material, which is what
+       * makes them safe to put in a log line beside a credential lookup.
+       */
+      this.logger.warn(
+        { secretKey: key, reason },
+        'Stored managed secret could not be decrypted',
+      );
+
+      /**
+       * Re-raised as an application error so a provider adapter's failure path
+       * cannot serialize a crypto error beside the credential it was fetching.
+       */
+      throw new AppException('SECRET_UNREADABLE', {
+        context: { secretKey: key, reason },
+      });
+    }
+  }
+
+  private async describe(
+    key: ManagedSecretKey,
+  ): Promise<ManagedSecretDescription> {
+    const all = await this.describeAll();
+
+    return all.find((entry) => entry.key === key)!;
+  }
+
+  private currentFingerprint(): string {
+    return fingerprintKey(this.encryption.masterKey);
+  }
+}

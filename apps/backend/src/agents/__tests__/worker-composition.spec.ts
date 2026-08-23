@@ -25,6 +25,10 @@ describe('WorkerModule agent composition', () => {
     process.env.DATABASE_URL ??=
       'postgresql://test:test@127.0.0.1:5432/test-database';
     process.env.REDIS_URL ??= 'redis://127.0.0.1:6379';
+    // The worker resolves provider credentials at execution time, so its root
+    // now parses the master key. Fake, and only for constructing the module.
+    process.env.APP_ENCRYPTION_KEY ??=
+      'dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=';
 
     moduleRef = await Test.createTestingModule({
       imports: [WorkerModule],

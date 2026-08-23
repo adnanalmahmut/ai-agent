@@ -35,6 +35,12 @@ class LeakyModule {}
 const LOG_ENV = {
   MAIL_DRIVER: 'log',
   MAIL_FROM_ADDRESS: 'no-reply@example.com',
+  /**
+   * Present only because this spec loads the whole `configurations` list, which
+   * now includes the control plane's master key. Obviously fake, and never a
+   * value any deployment could hold.
+   */
+  APP_ENCRYPTION_KEY: 'dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=',
 };
 
 async function bootWith(

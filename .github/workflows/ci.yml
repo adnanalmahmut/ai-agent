@@ -94,6 +94,10 @@ jobs:
       # `prisma migrate deploy` read these.
       DATABASE_URL: postgresql://backend_test_user:backend_test_password@localhost:5432/backend_test
       REDIS_URL: redis://localhost:6379
+      # Obviously fake, and only ever encrypts throwaway fixtures. The control
+      # plane requires a master key at boot, so the suites cannot construct the
+      # application without one.
+      APP_ENCRYPTION_KEY: dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
 
       # Boot-time configuration the e2e suites need in order to construct the
       # real `AppModule`. These are throwaway CI values, not secrets: the
@@ -270,6 +274,7 @@ jobs:
             echo 'POSTGRES_DB=app'
             echo 'DATABASE_URL=postgresql://app:test-only-container-password@postgres:5432/app'
             echo 'REDIS_URL=redis://redis:6379'
+            echo 'APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU='
             echo 'BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000'
             echo 'BETTER_AUTH_URL=http://localhost:3002/api/auth'
             echo 'BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000'
