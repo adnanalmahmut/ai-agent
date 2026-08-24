@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 
+import { PLATFORM_BASE_PATH } from '../src/config/paths.js';
+
 /**
  * The content-idea flow, in a real browser.
  *
@@ -197,14 +199,14 @@ async function stubApi(page: Page, options: Options = {}) {
 }
 
 /**
- * Relative to `baseURL`, which already carries `/platform/`.
+ * Explicitly includes the platform mount point.
  *
- * A leading slash would replace the whole path and skip the mount point — the
- * SPA is served from `/platform/`, so `/en/...` is a 404 from the preview
- * server rather than a route. Keeping it relative is also what exercises the
- * router's `basename` instead of bypassing it.
+ * `baseURL` is intentionally configured with that same mount point, but an
+ * absolute app path keeps the smoke test independent of URL-resolution
+ * differences between browser runners. `/en/...` would skip the mount point,
+ * whereas `/platform/en/...` exercises the real router basename.
  */
-const contentIdeasPath = `en/organizations/${ORGANIZATION_ID}/content-ideas`;
+const contentIdeasPath = `${PLATFORM_BASE_PATH}/en/organizations/${ORGANIZATION_ID}/content-ideas`;
 
 const fillForm = async (page: Page) => {
   await page.getByLabel(/^topic$/i).fill('Electric kettles');
