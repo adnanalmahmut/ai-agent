@@ -169,3 +169,93 @@ export function deleteKnowledgeDocument(
     { method: 'DELETE' },
   );
 }
+
+/* ---------------------------- content ideas ---------------------------- */
+
+/**
+ * Asking the content-idea agent for ideas, and reading the answer.
+ *
+ * Two calls and no third, mirroring the backend. Generation is asynchronous
+ * because it is a provider call that takes seconds and can fail, so the
+ * request returns an operation and the caller polls it — there is no
+ * synchronous variant to reach for.
+ */
+
+export type ContentIdeaRequest = {
+  topic: string;
+  audience: string;
+  guidance?: string;
+  count: number;
+};
+
+export type ContentIdea = {
+  title: string;
+  angle: string;
+  format: string;
+};
+
+/** What the agent returns, once it has returned. */
+export type ContentIdeaResult = {
+  ideas: ContentIdea[];
+  sources: string[];
+};
+
+/**
+ * The run lifecycle, mirroring the backend's `AgentRunStatus` exactly.
+ *
+ * A value rather than only a union, so the message test can assert this screen
+ * has a word for each one. A status arriving with no copy renders its own key
+ * path where a word should be.
+ */
+export const CONTENT_IDEA_STATUSES = [
+  'QUEUED',
+  'RUNNING',
+  'SUCCEEDED',
+  'FAILED',
+] as const;
+
+export type ContentIdeaStatus = (typeof CONTENT_IDEA_STATUSES)[number];
+
+export type ContentIdeaOperation = {
+  id: string;
+  status: ContentIdeaStatus;
+  /** Present only once the run succeeded; the backend withholds it until then. */
+  output: ContentIdeaResult | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+const contentIdeasBase = (organizationId: string) =>
+  `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/content-ideas`;
+
+/**
+ * The key is a parameter, not something generated here.
+ *
+ * Whether two submissions are the same request is a decision only the caller
+ * holding the form can make: a retry after a connection failure is the same
+ * request and must reuse its key, while a second ask with an edited topic is a
+ * different one. Minting a key inside this function would make every retry a
+ * new purchase.
+ */
+export function requestContentIdeas(
+  organizationId: string,
+  request: ContentIdeaRequest,
+  idempotencyKey: string,
+): Promise<ContentIdeaOperation> {
+  return apiRequest(contentIdeasBase(organizationId), {
+    method: 'POST',
+    body: request,
+    headers: { 'idempotency-key': idempotencyKey },
+  });
+}
+
+export function getContentIdeaOperation(
+  organizationId: string,
+  operationId: string,
+  signal?: AbortSignal,
+): Promise<ContentIdeaOperation> {
+  return apiRequest(
+    `${contentIdeasBase(organizationId)}/${encodeURIComponent(operationId)}`,
+    { signal },
+  );
+}

@@ -108,6 +108,47 @@ describe('a successful call', () => {
     });
   });
 
+  /**
+   * Content-idea generation requires an `Idempotency-Key`, so the client has to
+   * be able to send one. It travels beside the content type rather than
+   * replacing it — a request that lost its JSON header because it also carried
+   * a key would be refused by the pipe for a reason nothing in the UI could
+   * explain.
+   */
+  it('sends a caller header alongside the JSON header', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
+
+    await apiRequest('/organizations/org_1/content-ideas', {
+      method: 'POST',
+      body: { topic: 'Kettles' },
+      headers: { 'idempotency-key': 'key-1234' },
+    });
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': 'key-1234',
+      },
+    });
+  });
+
+  it('sends a caller header on a request with no body', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
+
+    await apiRequest('/organizations/org_1/content-ideas', {
+      headers: { 'idempotency-key': 'key-1234' },
+    });
+
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: { 'idempotency-key': 'key-1234' },
+    });
+    expect(
+      (fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>)[
+        'content-type'
+      ],
+    ).toBeUndefined();
+  });
+
   it('serializes a body it was given', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
 

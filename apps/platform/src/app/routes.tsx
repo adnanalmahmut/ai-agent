@@ -257,6 +257,14 @@ export function createRoutes(): RouteObject[] {
                                   },
                                 },
                                 {
+                                  path: 'content-ideas',
+                                  lazy: {
+                                    Component: async () =>
+                                      (await organizationModule())
+                                        .OrganizationContentIdeasRoute,
+                                  },
+                                },
+                                {
                                   path: 'settings',
                                   lazy: {
                                     Component: async () =>

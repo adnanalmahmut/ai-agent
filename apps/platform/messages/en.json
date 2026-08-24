@@ -476,6 +476,7 @@
       "members": "Members",
       "invitations": "Invitations",
       "knowledge": "Knowledge",
+      "contentIdeas": "Content ideas",
       "settings": "Settings"
     },
     "overview": {
@@ -863,6 +864,48 @@
         "updated": "Updated",
         "actions": "Actions"
       }
+    }
+  },
+  "ContentIdeas": {
+    "title": "Content ideas",
+    "description": "Ask this organization's agent for content ideas. It reads your brand, product and campaign spaces and grounds what it suggests in them.",
+    "form": {
+      "topic": "Topic",
+      "audience": "Audience",
+      "guidance": "Guidance (optional)",
+      "count": "How many",
+      "submit": "Generate ideas",
+      "hint": "Generation takes a few seconds. You will see the request queue and then run; the ideas appear when it finishes."
+    },
+    "status": {
+      "QUEUED": "Queued",
+      "RUNNING": "Running",
+      "SUCCEEDED": "Done",
+      "FAILED": "Failed",
+      "ABANDONED": "Still running"
+    },
+    "result": {
+      "heading": "This request",
+      "working": "Waiting for the agent",
+      "none": "No ideas requested yet",
+      "noneHint": "Describe a topic and an audience, and the agent will suggest angles grounded in this organization's knowledge.",
+      "readOnly": "Only an organization admin or owner can request content ideas.",
+      "empty": "The agent returned no ideas",
+      "failed": "The agent could not complete this request. Nothing was saved and you can ask again.",
+      "abandoned": "This request is taking longer than expected. It is still running on the server, but this screen loses track of it once you leave — so keep waiting, or start again.",
+      "resume": "Keep waiting",
+      "sources": "Grounded in: {spaces}",
+      "ungrounded": "Not grounded in any stored knowledge."
+    },
+    "error": {
+      "unavailable": "The platform API could not be reached.",
+      "unauthenticated": "Your session has expired. Sign in again to continue.",
+      "forbidden": "You do not have permission to request content ideas for this organization.",
+      "disabled": "Content ideas are switched off for this organization. A platform operator can turn them on.",
+      "invalid": "That request could not be accepted.",
+      "busy": "Too many requests right now. Wait for the ones in flight to finish, then try again.",
+      "gone": "That request could not be found.",
+      "failed": "Something went wrong. Try again."
     }
   }
 }

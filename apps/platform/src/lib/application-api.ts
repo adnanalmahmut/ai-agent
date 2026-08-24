@@ -61,6 +61,16 @@ type RequestOptions = {
   /** Serialized as JSON. Omit for a bodyless request. */
   body?: unknown;
   signal?: AbortSignal;
+  /**
+   * Extra request headers, for the one endpoint that requires one.
+   *
+   * Content-idea generation demands an `Idempotency-Key`, because it is a
+   * billed operation that is not naturally idempotent — a client retrying a
+   * timed-out request without one would buy the same answer twice. That is a
+   * per-request value rather than a property of this module, so it arrives
+   * here instead of being invented here.
+   */
+  headers?: Record<string, string>;
 };
 
 /**
@@ -80,7 +90,7 @@ export async function apiRequest<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, signal } = options;
+  const { method = 'GET', body, signal, headers } = options;
 
   let response: Response;
 
@@ -89,8 +99,7 @@ export async function apiRequest<T>(
       method,
       signal,
       credentials: 'include',
-      headers:
-        body === undefined ? undefined : { 'content-type': 'application/json' },
+      headers: requestHeaders(body, headers),
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   } catch (thrown) {
@@ -106,6 +115,27 @@ export async function apiRequest<T>(
   if (response.status === 204) return undefined as T;
 
   return unwrapEnvelope(await response.json()) as T;
+}
+
+/**
+ * The headers to send, or none at all.
+ *
+ * `undefined` rather than an empty object when there is nothing to say. The
+ * two are equivalent to `fetch`, but only one of them lets a test assert that
+ * a bodyless request declares no content type — which is the property worth
+ * holding, since declaring JSON on a request carrying none invites a proxy or
+ * a framework to look for a body that is not there.
+ */
+function requestHeaders(
+  body: unknown,
+  extra: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  const merged = {
+    ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+    ...extra,
+  };
+
+  return Object.keys(merged).length === 0 ? undefined : merged;
 }
 
 /**

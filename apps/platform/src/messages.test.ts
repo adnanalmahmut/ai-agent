@@ -12,6 +12,8 @@ import { INVITATION_FAILURES } from './features/organization/invitation-state';
 import { organizationRoles } from './features/authorization/permissions';
 import { CONTROL_PLANE_ERROR_KINDS } from './features/control-plane/use-control-plane-resource';
 import { FEATURE_FLAG_SOURCES } from './lib/application-api';
+import { CONTENT_IDEA_FAILURES } from './features/organization/content-idea-failures';
+import { CONTENT_IDEA_STATUSES } from './features/organization/organization-api';
 
 /**
  * Translation coverage.
@@ -141,6 +143,32 @@ describe('every state the code can reach has copy', () => {
       ).toBeTruthy();
     }
   });
+
+  it.each(CONTENT_IDEA_FAILURES)('ContentIdeas.error.%s', (kind) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `ContentIdeas.error.${kind}`),
+        `${locale}: ${kind}`,
+      ).toBeTruthy();
+    }
+  });
+
+  /**
+   * The statuses come from the backend's own `AgentRunStatus`, plus the one
+   * this screen adds for a run it stopped watching. A status arriving with no
+   * copy renders its own key path where a word should be.
+   */
+  it.each([...CONTENT_IDEA_STATUSES, 'ABANDONED'])(
+    'ContentIdeas.status.%s',
+    (status) => {
+      for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+        expect(
+          valueAt(tree as Tree, `ContentIdeas.status.${status}`),
+          `${locale}: ${status}`,
+        ).toBeTruthy();
+      }
+    },
+  );
 
   it.each(Object.keys(organizationRoles))('Organization.roles.%s', (role) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {

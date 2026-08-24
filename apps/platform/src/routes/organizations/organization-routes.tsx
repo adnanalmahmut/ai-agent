@@ -2,6 +2,7 @@ import { useLoaderData } from 'react-router';
 
 import { CreateOrganizationBlock } from '@/features/organization/blocks/create-organization-block';
 import { OrganizationInvitationsBlock } from '@/features/organization/blocks/organization-invitations-block';
+import { OrganizationContentIdeasBlock } from '@/features/organization/blocks/organization-content-ideas-block';
 import { OrganizationKnowledgeBlock } from '@/features/organization/blocks/organization-knowledge-block';
 import { OrganizationMembersBlock } from '@/features/organization/blocks/organization-members-block';
 import { OrganizationOverviewBlock } from '@/features/organization/blocks/organization-overview-block';
@@ -61,6 +62,21 @@ export function OrganizationKnowledgeRoute() {
   const { organization } = useOrganizationContext();
 
   return <OrganizationKnowledgeBlock key={organization.id} />;
+}
+
+/**
+ * Keyed on the organization, for the same reason the knowledge route is.
+ *
+ * This block holds an operation id, and an operation id belongs to one
+ * organization — reading it under another is a 404. Without the key, switching
+ * organizations would leave the previous one's result on screen under the new
+ * one's heading, and the poll that discovered the mismatch would surface it as
+ * an error rather than as the stale render it is.
+ */
+export function OrganizationContentIdeasRoute() {
+  const { organization } = useOrganizationContext();
+
+  return <OrganizationContentIdeasBlock key={organization.id} />;
 }
 
 export function OrganizationSettingsRoute() {

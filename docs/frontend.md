@@ -28,6 +28,32 @@ space's material under the new heading. Write controls are hidden from a reader
 holding only `knowledge:read`, which is UX — the guard behind the endpoints
 decides.
 
+An organization's Content ideas tab asks the `content-idea@1` agent for ideas
+grounded in that organization's knowledge. Generation is asynchronous, so the
+screen shows the operation it was given — queued, then running, then either the
+ideas or a failure — rather than a spinner implying an answer is a moment away
+from a provider call that might not return. It re-reads the operation on a short
+interval, once immediately so the first status shown is not already stale, and
+stops on a terminal status; a poll that could not reach the server is ridden out
+because the next tick recovers, while a poll the server *refused* stops asking.
+A run still going after three minutes is reported as still running rather than
+waited on indefinitely. Giving up is not cancelling — the run continues on the
+server and is paid for — but it is not recoverable: the operation id lives only
+in the screen's own state, and there is no list endpoint to find it again from,
+so leaving the screen loses track of it. The copy says exactly that.
+
+The idempotency key the endpoint requires is minted per submission and survives
+only a transport failure, where nobody knows whether the request was accepted;
+any answer from the server — a refusal included — means that submission is over
+and the next ask is a new key. Generation is billed, so a retry that minted a
+fresh key would buy the same answer twice.
+
+Both 403s are distinguished by code rather than status, so a disabled feature
+does not read as a missing permission, and the reason a 429 carried is rendered
+beneath the message — the per-user rate limit and the organization's in-flight
+ceiling share a status and are different problems. The form is hidden from a
+reader without `contentIdea:create`, which is UX; the backend decides.
+
 The production image serves static files with unprivileged Nginx.
 
 Platform public configuration is compiled into the immutable Vite artifact at
