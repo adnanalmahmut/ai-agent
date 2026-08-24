@@ -13,11 +13,6 @@ export { KnowledgeSpaceService } from './knowledge-space.service';
 export type { KnowledgeSpaceSummary } from './knowledge-space.service';
 export { KnowledgeIngestionService } from './knowledge-ingestion.service';
 export type { IngestedDocument } from './knowledge-ingestion.service';
-export { KnowledgeAuthorization } from './knowledge-authorization';
-export {
-  KnowledgePermissionGuard,
-  RequiresKnowledge,
-} from './knowledge-permission.guard';
 export { KnowledgeEmbeddingHandler } from './knowledge-embedding.handler';
 
 export {

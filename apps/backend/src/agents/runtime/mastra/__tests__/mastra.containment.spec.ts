@@ -7,10 +7,23 @@ import {
   jest,
 } from '@jest/globals';
 import { inspect } from 'node:util';
+import { z } from 'zod';
 
 import { Agent } from '@mastra/core/agent';
 
 import { MastraRuntime } from '../mastra.runtime';
+
+/**
+ * A stub model object never reaches credential resolution, so nothing here
+ * should call this. It throws rather than returning a value, which is what
+ * keeps the claim honest: a change that started resolving a secret on this
+ * path would fail loudly instead of quietly reaching the control plane.
+ */
+const unreachableRuntimeConfig = {
+  secret: () => {
+    throw new Error('This test must not resolve a provider credential');
+  },
+} as never;
 import {
   AGENT_RUNTIME_NAMES,
   type AgentDefinition,
@@ -23,11 +36,18 @@ import {
  * containment claim vacuous, because the thing being contained is the SDK's own
  * logging behavior.
  *
- * No network and no provider credential is involved. `new Agent()` performs no
- * I/O, model resolution is lazy, and the model here is a local stub that throws
- * a provider-shaped error before any transport would be used. Every test also
- * asserts that `fetch` was never called, so a future SDK that did reach out
- * would fail the suite rather than silently depend on the network.
+ * Hermetic throughout: `fetch` is replaced in every test, so nothing here can
+ * become a live call. The two provider-material tests never reach the network
+ * at all — their model is a local stub that throws a provider-shaped error
+ * first — and assert `fetch` was never called, so a future SDK that started
+ * reaching out would fail the suite rather than quietly depend on it. The
+ * credential test is the deliberate exception: it goes all the way to the
+ * transport with a key on the config, because that is the only way to observe
+ * what the SDK says about one, and the forbidden `fetch` is what stops it
+ * there.
+ *
+ * No real credential is involved anywhere. The canaries below are the only
+ * secret-shaped strings in the file.
  */
 
 /**
@@ -39,6 +59,8 @@ import {
 const SYSTEM_INSTRUCTIONS_CANARY = 'CANARY_SYSTEM_INSTRUCTIONS_a1b2c3';
 const USER_PROMPT_CANARY = 'CANARY_USER_PROMPT_d4e5f6';
 const PROVIDER_RESPONSE_CANARY = 'CANARY_PROVIDER_RESPONSE_BODY_9z8y7x';
+/** Obviously fake, and shaped like a key only so a leak is recognizable. */
+const CREDENTIAL_CANARY = 'CANARY_PROVIDER_CREDENTIAL_sk-not-real-5t6u7v';
 
 const ALL_CANARIES = [
   SYSTEM_INSTRUCTIONS_CANARY,
@@ -151,6 +173,81 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+/**
+ * The fourth class of provider material, and the one the two tests below
+ * cannot see.
+ *
+ * Both of them pass a stub model object, which never reaches credential
+ * resolution — deliberately, since that is what keeps them offline. But a real
+ * run puts a decrypted key on the model config handed to `new Agent(...)`, and
+ * that value is on a path neither test exercises. A diagnostic that serialized
+ * the model config, or an SDK whose construction started describing what it
+ * was given, would leak it with the rest of this file green.
+ *
+ * So this one constructs the real thing the way `MastraRuntime` does, with a
+ * provider string and a resolved credential, and asserts the console stayed
+ * silent. It performs no request: `new Agent()` does no I/O and model
+ * resolution is lazy, and `fetch` is forbidden to prove it.
+ */
+describe('Mastra credential containment', () => {
+  it('says nothing about the credential it was constructed with', async () => {
+    const fetchSpy = forbidNetwork();
+    const spies = captureConsole();
+
+    const definition = {
+      id: 'credential-containment-agent',
+      version: 1,
+      runtime: AGENT_RUNTIME_NAMES.mastra,
+      instructions: SYSTEM_INSTRUCTIONS_CANARY,
+      model: 'openai/gpt-4o-mini',
+      input: z.unknown(),
+      output: z.object({ answer: z.string() }),
+    } satisfies AgentDefinition;
+
+    const runtime = new MastraRuntime({
+      secret: () => Promise.resolve(CREDENTIAL_CANARY),
+    } as never);
+
+    /**
+     * Rejects because `fetch` is forbidden, which is the point: the run gets
+     * all the way to the transport with a real credential on the config, and
+     * then fails the way a network outage would.
+     */
+    const failure = await runtime
+      .run({
+        definition,
+        input: USER_PROMPT_CANARY,
+        context: [],
+      })
+      .then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+    const serialized = serializeConsole(spies);
+    const total = totalConsoleCalls(spies);
+
+    jest.restoreAllMocks();
+
+    expect(failure).not.toBeNull();
+    expect(total).toBe(0);
+    expect(serialized).not.toContain(CREDENTIAL_CANARY);
+
+    /**
+     * And not on the thrown value either. `AgentExecutionHandler` never
+     * serializes what it caught — the run's diagnostic is a constant — but the
+     * value still travels through BullMQ's failure path, so a key riding on it
+     * would be one `logger.error(error)` away from the container logs.
+     */
+    expect(
+      inspect(failure, { depth: null, maxStringLength: null }),
+    ).not.toContain(CREDENTIAL_CANARY);
+
+    // The credential went to the SDK, and the SDK tried to use it.
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+});
+
 describe('Mastra provider-material containment', () => {
   beforeAll(() => {
     // Fails loudly if the SDK ever stops resolving, so neither test below can
@@ -209,12 +306,22 @@ describe('Mastra provider-material containment', () => {
        * exists solely to bridge our narrower type to the SDK's wider one.
        */
       model: createLeakyStubModel() as unknown as string,
+      /**
+       * Never consulted: this run fails inside the SDK, and both schemas are
+       * enforced by `AgentRunner`, which is not on this path.
+       */
+      input: z.unknown(),
+      output: z.object({ answer: z.string() }),
     } satisfies AgentDefinition;
 
     const spies = captureConsole();
 
     await expect(
-      new MastraRuntime().run({ definition, input: USER_PROMPT_CANARY }),
+      new MastraRuntime(unreachableRuntimeConfig).run({
+        definition,
+        input: USER_PROMPT_CANARY,
+        context: [],
+      }),
     ).rejects.toThrow();
 
     const serialized = serializeConsole(spies);

@@ -1,3 +1,5 @@
+import type { ZodType } from 'zod';
+
 export const AGENT_RUN_STATUSES = [
   'QUEUED',
   'RUNNING',
@@ -72,6 +74,16 @@ export type CreateAgentRun = {
   createdByUserId: string | null;
   input: AgentValue;
   idempotencyKey: string;
+  /**
+   * How many runs this organization may already have in flight.
+   *
+   * Supplied by the caller rather than read here, because the ceiling is an
+   * operator-owned runtime setting and this service is the persistence slice
+   * — reading the control plane from it would put the API's acceptance path
+   * behind a second resolver it does not otherwise need. Omitted means no
+   * ceiling, which is what internal callers with no cost exposure want.
+   */
+  maxInFlight?: number;
 };
 
 export const AGENT_RUNTIME_NAMES = {
@@ -93,12 +105,73 @@ export type AgentDefinition = {
   version: number;
   runtime: AgentRuntimeName;
   instructions: string;
+  /**
+   * `provider/model`, which is also how the provider credential is chosen.
+   * The prefix names the provider; the managed secret is looked up from it.
+   */
   model: string;
+  /**
+   * What this agent accepts and what it promises to return.
+   *
+   * Both are parsed, never asserted. The input schema is the trust boundary
+   * for a caller's request; the output schema is the trust boundary for the
+   * provider's answer, which is the less obvious of the two — a model is an
+   * untrusted source that happens to be one this application pays for, and a
+   * run that stored whatever came back would make `AgentRun.output` a shape
+   * no consumer could rely on.
+   */
+  input: ZodType;
+  output: ZodType;
+  /**
+   * Which knowledge this agent may see. Absent means none at all.
+   *
+   * Declared on the definition rather than chosen per request, because it is
+   * part of the behavior a version pins: a definition that could be pointed at
+   * a different corpus by its caller would not mean anything stable, and the
+   * whole point of versioning is that a run's behavior is knowable from the
+   * pair it was accepted against.
+   */
+  contextPolicy?: ContextPolicy;
+};
+
+/**
+ * The knowledge an agent is allowed to be given, and how much of it.
+ *
+ * Spaces are named by slug because a slug is readable in code review and in a
+ * definition, where a per-deployment uuid would not be. They are resolved to
+ * ids against the caller's own organization at assembly time, so naming a
+ * space here grants nothing across a tenant boundary — a slug that does not
+ * exist for that organization simply contributes no passages.
+ *
+ * Both budgets are required, and they are separate because they bound
+ * different costs. `maxChunks` bounds the retrieval; `maxCharacters` bounds
+ * what is actually sent, which is what the provider bills for and what
+ * displaces the instructions if it grows.
+ */
+export type ContextPolicy = {
+  spaceSlugs: readonly string[];
+  maxChunks: number;
+  maxCharacters: number;
+};
+
+/** One retrieved passage, as it is handed to a runtime. */
+export type AgentContextPassage = {
+  /** The space it came from, by slug: provenance the model may state. */
+  space: string;
+  content: string;
 };
 
 export type AgentRuntimeRequest = {
   definition: AgentDefinition;
   input: AgentValue;
+  /**
+   * Retrieved material, kept separate from `input` all the way to the prompt.
+   *
+   * Never merged into the instructions. These passages are organization data
+   * that some member typed, and an adapter that concatenated them into the
+   * system message would be letting a document tell the agent what to do.
+   */
+  context: readonly AgentContextPassage[];
 };
 
 export type AgentRuntimeResult = {

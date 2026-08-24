@@ -13,6 +13,7 @@ import { MailModule } from './core/mail';
 import { createLoggerOptions } from './core/providers/logger.options';
 import { RateLimitModule } from './core/rate-limit';
 import { ControlPlaneModule } from './control-plane';
+import { ContentIdeaModule } from './content-ideas';
 import { KnowledgeModule } from './knowledge';
 import { DatabaseModule } from './database';
 
@@ -31,6 +32,7 @@ import { DatabaseModule } from './database';
     AgentsModule,
     ControlPlaneModule,
     KnowledgeModule,
+    ContentIdeaModule,
     AppI18nModule,
     HttpInfrastructureModule,
     RateLimitModule,

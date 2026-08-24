@@ -527,6 +527,96 @@ on any PR touching compose or images.
   unreachable, so no honest test exercises it, and inventing one would assert
   a scenario that cannot occur.
 
+- 2026-08-24: PR6 generalized PR5's knowledge guard rather than writing a second
+  one. Duplicating it would have meant two copies of the membership check, the
+  archive ordering and the fail-closed default — the three decisions in this
+  repository that are least safe to have two versions of. The cost is that PR6
+  touches PR5 files, which is the honest trade.
+
+- 2026-08-24: `agents.enabled` gated nothing. The flag has existed since the
+  control plane landed, described to operators as "accept new agent runs", and
+  no production code read it — harmless while no feature spent money through
+  that path, and exactly wrong now that one does. Acceptance checks it before
+  the per-feature flag, so the coarse switch is the coarse switch. Found by
+  review against this plan's own acceptance criteria, which name both flags.
+
+- 2026-08-24: `agents.max_concurrent_runs_per_organization` was likewise
+  declared and enforced nowhere. It is now checked at acceptance, *after* the
+  idempotency lookup: a caller retrying a request that was already accepted is
+  part of the count they would be refused by, and refusing them would strand a
+  run whose id they no longer hold. It is a ceiling and not a semaphore — two
+  accepts racing can both see room — because making it exact needs a lock or a
+  serializable transaction on every request to tighten a spend control by one
+  or two runs. The per-user rate limit was left at 20 per five minutes rather
+  than raised: it bounds one member, the new ceiling bounds the bill, and
+  loosening a production limit to fit a test suite is the wrong direction. The
+  suite spreads its requests across members instead.
+
+- 2026-08-24: The generation call is now bounded. Everything entering a prompt
+  was capped and nothing capped what came back, though tokens are billed before
+  the output schema can reject them. An output-token ceiling, a wall-clock
+  timeout so a stalled provider does not hold a worker slot until BullMQ
+  reclaims the job, and `maxRetries: 0` — retry belongs to BullMQ, which
+  records each attempt against the run, rather than to an SDK loop that spends
+  three calls and reports one. One set of numbers for one agent; a second
+  definition needing different ones makes this a field on `AgentDefinition`.
+
+- 2026-08-24: The passage fence escapes its own closing tags. A document
+  containing `</passage></reference>` could end the quoted block and continue
+  where the preamble tells the model the caller's request appears. The blast
+  radius today is one tenant's own bad answer, since this agent has no tools —
+  but that argument expires the moment it gains one, and by then nobody would
+  remember the fence was decorative. Angle brackets are replaced rather than
+  the tag names, so the text still reads as itself.
+
+- 2026-08-24: `isKnownProvider` used `in`, so `'toString' in PROVIDER_SECRETS`
+  answered true and a definition reading `toString/x` would have passed an
+  inherited function into the secret lookup. Not attacker-reachable — models
+  come only from code-owned definitions — and safe when it happened, but it
+  turned a deterministic configuration mistake into three retried runtime
+  failures. `Object.hasOwn` now.
+
+- 2026-08-24: The context assembler went through `KnowledgeSpaceService`
+  instead of `prisma` directly. `resolveSlugs` had been written in PR4 for
+  exactly this caller and then reimplemented inline, which left the knowledge
+  module's deliberate withholding of storage access crossed in one place and a
+  dead method beside it. It now returns the slug as well as the id, because the
+  caller labels each passage with the space it came from.
+
+- 2026-08-24: Two joins between unrelated literals are now asserted. Nothing
+  checked that `PRODUCTION_AGENT_DEFINITIONS` contains the `(id, version)` pair
+  the API pins onto every run it accepts, so dropping the definition or bumping
+  the constant would have left acceptance answering `202` and every run failing
+  in the worker as an unregistered pair. Nothing checked that a registered
+  definition names a provider this build can authenticate either. Both are
+  asserted where `WorkerModule` is already booted.
+
+- 2026-08-24: The "API cannot execute agents" assertion was depth-one, reading
+  `AppModule`'s own import list, and PR6 adds the feature module that would
+  want a runner. Adding `AgentExecutionModule` to `ContentIdeaModule` passed
+  every check in the suite. The boundary is now asserted over the transitive
+  import closure and over the provider set that closure declares.
+
+- 2026-08-24: The content-ideas e2e suite holds organization overrides rather
+  than a platform override. `control-plane.e2e-spec.ts` counts that table with
+  no predicate and clears it unscoped, precisely so an interrupted run cannot
+  leave a flag on for the next suite, so isolation is a property of the rows
+  rather than of `maxWorkers: 1` and an `afterAll` that ran. The suite also
+  deletes the outbox rows its runs committed, matching the three neighbouring
+  agent suites; leaving them accumulated PENDING dispatch intents pointing at
+  deleted rows. That omission is what produced the outbox batch-limit failure
+  in the first full e2e run, which is the same shape as the flake recorded
+  against PR3.
+
+- 2026-08-24: The evaluation fixtures were trimmed rather than grown. Rows
+  asserting that `.min(3)` refuses a two-character topic restate the line above
+  them and would have to be edited in lockstep with it forever, which makes
+  them a second copy of the schema. What was actually missing was a test that
+  `AgentRunner` applies the schema at all — the decision the file's own header
+  claimed to stand in for — along with the retry classification on either side
+  of it. Five mutants against those paths, all killed, including the one that
+  returns the provider's payload instead of the schema's product.
+
 ## Blockers
 
 None currently.

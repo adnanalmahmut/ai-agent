@@ -18,6 +18,19 @@ import { AgentExecutionModule } from '../agent-execution.module';
 import { AgentRunReconciler } from '../agent-run-reconciler.service';
 import { AgentRunService } from '../agent-run.service';
 import { AgentsModule } from '../agents.module';
+import { AgentContextAssembler } from '../agent-context.assembler';
+import { AgentDefinitionRegistry } from '../agent-definition.registry';
+import { AgentRunner } from '../agent-runner.service';
+import { AgentRuntimeRegistry } from '../agent-runtime.registry';
+import {
+  AUTHENTICATABLE_PROVIDERS,
+  MastraRuntime,
+} from '../runtime/mastra/mastra.runtime';
+import { PRODUCTION_AGENT_DEFINITIONS } from '../definitions';
+import {
+  CONTENT_IDEA_AGENT_ID,
+  CONTENT_IDEA_AGENT_VERSION,
+} from '../definitions/content-idea';
 
 describe('WorkerModule agent composition', () => {
   let moduleRef: TestingModule;
@@ -102,6 +115,48 @@ describe('WorkerModule agent composition', () => {
       AgentRunReconciler,
     );
   });
+
+  /**
+   * The other unrelated-literals join in this subsystem.
+   *
+   * The API pins `(CONTENT_IDEA_AGENT_ID, CONTENT_IDEA_AGENT_VERSION)` onto
+   * every run it accepts; the worker resolves that pair out of a separately
+   * written array. Dropping the definition from the array, or bumping the
+   * version constant without registering the new one, leaves acceptance
+   * answering `202` and every run failing in the worker as an unregistered
+   * pair — the exact shape of failure the queue/route assertion above exists
+   * to prevent, on a path nothing was watching.
+   */
+  it('can resolve the definition the API accepts runs against', () => {
+    const registry = moduleRef.get(AgentDefinitionRegistry);
+
+    expect(
+      registry.resolve(CONTENT_IDEA_AGENT_ID, CONTENT_IDEA_AGENT_VERSION),
+    ).toMatchObject({
+      id: CONTENT_IDEA_AGENT_ID,
+      version: CONTENT_IDEA_AGENT_VERSION,
+    });
+  });
+
+  /**
+   * Every registered definition must be runnable by this build.
+   *
+   * A definition naming a provider with no credential mapping constructs
+   * fine, registers fine, and fails deterministically the first time somebody
+   * pays attention — after a run has been accepted and a caller is waiting.
+   */
+  it('registers only definitions this build can authenticate and run', () => {
+    const runtimes = moduleRef.get(AgentRuntimeRegistry);
+
+    expect(PRODUCTION_AGENT_DEFINITIONS.length).toBeGreaterThan(0);
+
+    for (const definition of PRODUCTION_AGENT_DEFINITIONS) {
+      expect(() => runtimes.resolve(definition.runtime)).not.toThrow();
+      expect(AUTHENTICATABLE_PROVIDERS).toContain(
+        definition.model.split('/')[0],
+      );
+    }
+  });
 });
 
 /**
@@ -118,12 +173,113 @@ describe('AppModule agent composition', () => {
   const importsOf = (module: unknown): unknown[] =>
     (Reflect.getMetadata('imports', module as object) as unknown[]) ?? [];
 
+  /**
+   * An import entry is a class, a dynamic module `{ module, imports }`, or a
+   * `forwardRef`'s `{ forwardRef }` thunk. Unwrapped so none of the three can
+   * hide a subtree from the walks below.
+   */
+  const unwrap = (entry: unknown): unknown => {
+    const wrapper = entry as {
+      module?: unknown;
+      forwardRef?: () => unknown;
+    } | null;
+
+    if (typeof wrapper?.forwardRef === 'function') return wrapper.forwardRef();
+
+    return wrapper?.module ?? entry;
+  };
+
   it('imports no queue transport and no worker execution module', () => {
     const imports = importsOf(AppModule);
 
     expect(imports).toContain(AgentsModule);
     expect(imports).not.toContain(QueueModule);
     expect(imports).not.toContain(AgentExecutionModule);
+  });
+
+  /**
+   * The same boundary, but transitively — which is the only version of it that
+   * holds now that the API has a feature module in front of the agent.
+   *
+   * The assertion above reads `AppModule`'s own import list, so it says
+   * nothing about what those imports import. `ContentIdeaModule` is the module
+   * that would want a runner: someone adding `AgentExecutionModule` to *it* to
+   * run an agent on the request thread passes every static check here and
+   * every e2e test, because the e2e harness boots with Redis available. What
+   * the request path would actually gain is a queue producer, a reconciliation
+   * loop, and the ability to spend a provider credential inside an HTTP
+   * handler.
+   */
+  it('cannot reach agent execution through any module it imports', () => {
+    const seen = new Set<unknown>();
+    const queue: unknown[] = [AppModule];
+
+    while (queue.length > 0) {
+      const entry = queue.pop();
+      const resolved = unwrap(entry);
+
+      if (resolved === undefined || resolved === null) continue;
+      if (seen.has(resolved)) continue;
+      seen.add(resolved);
+
+      for (const imported of importsOf(resolved)) queue.push(imported);
+      // A dynamic module carries its own imports beside the class it names.
+      for (const imported of (entry as { imports?: unknown[] })?.imports ??
+        []) {
+        queue.push(imported);
+      }
+    }
+
+    expect(seen).toContain(AgentsModule);
+    expect(seen).not.toContain(AgentExecutionModule);
+    expect(seen).not.toContain(QueueModule);
+  });
+
+  /**
+   * And the providers themselves, not only the modules that carry them. A
+   * future module that declared `AgentRunner` directly rather than importing
+   * `AgentExecutionModule` would slip past the closure walk above.
+   */
+  it('declares no agent-execution provider anywhere in the API root', () => {
+    const seen = new Set<unknown>();
+    const providers = new Set<unknown>();
+    const queue: unknown[] = [AppModule];
+
+    while (queue.length > 0) {
+      const current = queue.pop();
+      const resolved = unwrap(current);
+
+      if (resolved === undefined || resolved === null) continue;
+      if (seen.has(resolved)) continue;
+      seen.add(resolved);
+
+      for (const provider of (Reflect.getMetadata('providers', resolved) ??
+        []) as unknown[]) {
+        providers.add((provider as { provide?: unknown })?.provide ?? provider);
+      }
+
+      for (const imported of importsOf(resolved)) queue.push(imported);
+      for (const imported of (current as { imports?: unknown[] })?.imports ??
+        []) {
+        queue.push(imported);
+      }
+    }
+
+    for (const provider of [
+      AgentRunner,
+      AgentContextAssembler,
+      AgentRuntimeRegistry,
+      AgentDefinitionRegistry,
+      MastraRuntime,
+      QueueProducer,
+      AgentRunReconciler,
+      AgentExecutionHandler,
+    ]) {
+      expect(providers).not.toContain(provider);
+    }
+
+    // Not vacuous: the walk really did find the API's own agent provider.
+    expect(providers).toContain(AgentRunService);
   });
 
   /**

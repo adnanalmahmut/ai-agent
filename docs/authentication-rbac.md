@@ -11,14 +11,19 @@ There are two deliberately separate access-control domains:
 | Domain | Roles | Authority |
 |---|---|---|
 | Platform | `user`, `admin`, `super_admin` | account/session administration and platform lifecycle |
-| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore, knowledge read/write |
+| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore, knowledge read/write, content-idea create/read |
 
-`knowledge` is the one organization resource Better Auth knows nothing about,
-so it is added rather than narrowed. Reading is ordinary membership — a member
+`knowledge` and `contentIdea` are the organization resources Better Auth knows
+nothing about, so they are added rather than narrowed. Reading is ordinary membership — a member
 who cannot see the material cannot tell why an agent answered as it did — while
-writing belongs to `admin` and `owner`. It is enforced by a guard that runs
-before body validation and authorizes against the organization named in the
-path, not the session's active one.
+writing belongs to `admin` and `owner`. `contentIdea` splits the same way and for the same
+reason: creating spends the platform's provider credential, and reading does
+not.
+
+Both are enforced by one shared guard that runs before body validation and
+authorizes against the organization named in the path, not the session's active
+one. One guard rather than one per feature — a second copy of that reasoning is
+a second place for it to be got subtly wrong.
 
 No global role grants organization authority and no organization role grants
 platform authority. `super_admin` alone can grant roles, take over account

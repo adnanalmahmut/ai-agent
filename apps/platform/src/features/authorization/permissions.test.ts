@@ -116,7 +116,10 @@ describe('global roles', () => {
 });
 
 /** What an ordinary member may do here. Everything else must be refused. */
-const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [['knowledge', 'read']];
+const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
+  ['knowledge', 'read'],
+  ['contentIdea', 'read'],
+];
 
 describe('organization roles', () => {
   /**

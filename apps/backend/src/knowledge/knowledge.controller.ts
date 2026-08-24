@@ -15,9 +15,9 @@ import { createZodDto } from '../core/http';
 import { UserRateLimit } from '../core/rate-limit';
 import { KnowledgeIngestionService } from './knowledge-ingestion.service';
 import {
-  KnowledgePermissionGuard,
-  RequiresKnowledge,
-} from './knowledge-permission.guard';
+  OrganizationPermissionGuard,
+  RequiresOrganizationPermission,
+} from '../core/auth/organization-permission.guard';
 import { KnowledgeSpaceService } from './knowledge-space.service';
 
 /**
@@ -32,7 +32,7 @@ import { KnowledgeSpaceService } from './knowledge-space.service';
  * The check is a guard rather than a line in each handler, because Nest runs
  * guards before pipes: otherwise a caller with no access to the organization
  * would have their body parsed and validated first and receive a validation
- * error describing the request shape. `KnowledgePermissionGuard` also refuses
+ * error describing the request shape. `OrganizationPermissionGuard` also refuses
  * any route it finds unmarked, so forgetting the decorator closes a route
  * rather than opening one.
  *
@@ -103,7 +103,7 @@ class IngestDocumentDto extends createZodDto(ingestSchema) {}
 
 @ApiTags('Knowledge')
 @Controller('organizations/:organizationId/knowledge')
-@UseGuards(KnowledgePermissionGuard)
+@UseGuards(OrganizationPermissionGuard)
 export class KnowledgeController {
   constructor(
     private readonly spaces: KnowledgeSpaceService,
@@ -111,7 +111,7 @@ export class KnowledgeController {
   ) {}
 
   @Get('spaces')
-  @RequiresKnowledge('read')
+  @RequiresOrganizationPermission({ knowledge: ['read'] })
   @ApiOperation({
     operationId: 'listKnowledgeSpaces',
     summary: "List an organization's knowledge spaces",
@@ -122,7 +122,7 @@ export class KnowledgeController {
   }
 
   @Post('spaces')
-  @RequiresKnowledge('write')
+  @RequiresOrganizationPermission({ knowledge: ['write'] })
   @ApiOperation({
     operationId: 'createKnowledgeSpace',
     summary: 'Create a knowledge space',
@@ -140,7 +140,7 @@ export class KnowledgeController {
   }
 
   @Delete('spaces/:spaceId')
-  @RequiresKnowledge('write')
+  @RequiresOrganizationPermission({ knowledge: ['write'] })
   @ApiOperation({
     operationId: 'deleteKnowledgeSpace',
     summary: 'Delete a knowledge space and everything in it',
@@ -155,7 +155,7 @@ export class KnowledgeController {
   }
 
   @Get('spaces/:spaceId/documents')
-  @RequiresKnowledge('read')
+  @RequiresOrganizationPermission({ knowledge: ['read'] })
   @ApiOperation({
     operationId: 'listKnowledgeDocuments',
     summary: 'List the documents in a knowledge space',
@@ -174,7 +174,7 @@ export class KnowledgeController {
    * text submitted twice is one document, unchanged the second time.
    */
   @Put('spaces/:spaceId/documents')
-  @RequiresKnowledge('write')
+  @RequiresOrganizationPermission({ knowledge: ['write'] })
   /**
    * Metered on a burst window, because this request is not generic.
    *
@@ -210,7 +210,7 @@ export class KnowledgeController {
   }
 
   @Delete('documents/:documentId')
-  @RequiresKnowledge('write')
+  @RequiresOrganizationPermission({ knowledge: ['write'] })
   @ApiOperation({
     operationId: 'deleteKnowledgeDocument',
     summary: 'Delete a document and its chunks',

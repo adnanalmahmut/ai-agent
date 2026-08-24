@@ -226,6 +226,15 @@ export const ORGANIZATION_PERMISSION_STATEMENTS = {
    * is a content decision rather than a routine one.
    */
   knowledge: ['read', 'write'],
+  /**
+   * Asking an agent for content ideas, and reading what it produced.
+   *
+   * Split for the same reason knowledge is: creating spends the platform's
+   * provider credential and reading does not. Reading is ordinary membership —
+   * the whole point of the feature is that a team sees the results — while
+   * `create` is the action with a bill attached.
+   */
+  contentIdea: ['create', 'read'],
 } as const;
 
 const organizationAc = createAccessControl(ORGANIZATION_PERMISSION_STATEMENTS);
@@ -238,6 +247,7 @@ const organizationMember = organizationAc.newRole({
   // Reading is ordinary membership; a member who cannot see the material
   // cannot tell why an agent answered as it did.
   knowledge: ['read'],
+  contentIdea: ['read'],
 });
 
 /** Runs the organization day to day, but cannot end its life. */
@@ -246,6 +256,7 @@ const organizationAdmin = organizationAc.newRole({
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
   knowledge: ['read', 'write'],
+  contentIdea: ['create', 'read'],
 });
 
 /**
@@ -260,6 +271,7 @@ const organizationOwner = organizationAc.newRole({
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
   knowledge: ['read', 'write'],
+  contentIdea: ['create', 'read'],
 });
 
 export const organizationAccessControl = organizationAc;

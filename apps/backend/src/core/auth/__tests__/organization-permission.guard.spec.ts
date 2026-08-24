@@ -2,19 +2,17 @@ import { describe, expect, it, jest } from '@jest/globals';
 import type { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
-import { AppException } from '../../core/errors';
-import type { KnowledgeAuthorization } from '../knowledge-authorization';
-import {
-  KnowledgePermissionGuard,
-  type KnowledgePermission,
-} from '../knowledge-permission.guard';
+import { AppException } from '../../errors';
+import type { OrganizationAccess } from '../organization-access.service';
+import { OrganizationPermissionGuard } from '../organization-permission.guard';
+import type { OrganizationPermissionRequest } from '../permissions';
 
 /**
  * The guard's own decisions, including the one no route can reach.
  *
- * Every knowledge route carries `@RequiresKnowledge`, so the unmarked-route
- * branch is unreachable end to end — and that is exactly why it is tested
- * here. It is the branch that decides what happens to a route someone adds
+ * Every guarded route carries `@RequiresOrganizationPermission`, so the
+ * unmarked-route branch is unreachable end to end — and that is exactly why it
+ * is tested here. It is the branch that decides what happens to a route someone adds
  * next year and forgets to mark, and if it ever became `return true` no
  * existing test would notice while the new route stood open.
  */
@@ -40,7 +38,9 @@ const contextFor = (input: {
     }),
   }) as unknown as ExecutionContext;
 
-const reflectorReturning = (permission: KnowledgePermission | undefined) => {
+const reflectorReturning = (
+  permission: OrganizationPermissionRequest | undefined,
+) => {
   const reflector = new Reflector();
   jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(permission);
 
@@ -58,14 +58,14 @@ const authorizationSpy = () => {
 
         return Promise.resolve();
       },
-    } as unknown as KnowledgeAuthorization,
+    } as unknown as OrganizationAccess,
   };
 };
 
-describe('KnowledgePermissionGuard', () => {
+describe('OrganizationPermissionGuard', () => {
   it('refuses a route that declares no permission', async () => {
     const { authorization, calls } = authorizationSpy();
-    const guard = new KnowledgePermissionGuard(
+    const guard = new OrganizationPermissionGuard(
       reflectorReturning(undefined),
       authorization,
     );
@@ -82,8 +82,8 @@ describe('KnowledgePermissionGuard', () => {
 
   it('refuses when no session reached the request', async () => {
     const { authorization } = authorizationSpy();
-    const guard = new KnowledgePermissionGuard(
-      reflectorReturning('read'),
+    const guard = new OrganizationPermissionGuard(
+      reflectorReturning({ knowledge: ['read'] }),
       authorization,
     );
 
@@ -94,8 +94,8 @@ describe('KnowledgePermissionGuard', () => {
 
   it('refuses when the path carries no organization', async () => {
     const { authorization } = authorizationSpy();
-    const guard = new KnowledgePermissionGuard(
-      reflectorReturning('read'),
+    const guard = new OrganizationPermissionGuard(
+      reflectorReturning({ knowledge: ['read'] }),
       authorization,
     );
 
@@ -106,8 +106,8 @@ describe('KnowledgePermissionGuard', () => {
 
   it('asks about the organization in the path, with the declared permission', async () => {
     const { authorization, calls } = authorizationSpy();
-    const guard = new KnowledgePermissionGuard(
-      reflectorReturning('write'),
+    const guard = new OrganizationPermissionGuard(
+      reflectorReturning({ knowledge: ['write'] }),
       authorization,
     );
 
@@ -120,7 +120,7 @@ describe('KnowledgePermissionGuard', () => {
     expect(calls[0]).toEqual({
       organizationId: 'org_a',
       actorUserId: 'user_a',
-      permission: 'write',
+      permission: { knowledge: ['write'] },
     });
   });
 });

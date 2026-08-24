@@ -202,10 +202,16 @@ describe('global access control', () => {
 });
 
 /** Resources the plugin knows nothing about, so there is no default to narrow. */
-const OWN_ORGANIZATION_RESOURCES: readonly string[] = ['knowledge'];
+const OWN_ORGANIZATION_RESOURCES: readonly string[] = [
+  'knowledge',
+  'contentIdea',
+];
 
 /** What an ordinary member may do. Everything else must be refused. */
-const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [['knowledge', 'read']];
+const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
+  ['knowledge', 'read'],
+  ['contentIdea', 'read'],
+];
 
 describe('organization access control', () => {
   describe('permission catalog', () => {
