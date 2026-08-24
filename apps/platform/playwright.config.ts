@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 
 import { PLATFORM_BASE_PATH } from './src/config/paths.js';
 
@@ -38,6 +39,10 @@ import { PLATFORM_BASE_PATH } from './src/config/paths.js';
  */
 
 const PORT = Number(process.env.PLATFORM_E2E_PORT ?? 4173);
+const PLATFORM_ROOT = fileURLToPath(new URL('.', import.meta.url));
+const VITE_CLI = fileURLToPath(
+  new URL('./node_modules/vite/bin/vite.js', import.meta.url),
+);
 
 export default defineConfig({
   testDir: './e2e',
@@ -71,7 +76,14 @@ export default defineConfig({
    * is exercised rather than bypassed.
    */
   webServer: {
-    command: `npx vite preview --port ${PORT} --strictPort`,
+    // Invoke the committed local binary directly. Under a filtered pnpm
+    // script, `npx` delegates to npm and can spend the entire readiness window
+    // resolving a package it already has locally.
+    command: `node ${JSON.stringify(VITE_CLI)} preview ${JSON.stringify(PLATFORM_ROOT)} --host 127.0.0.1 --port ${PORT} --strictPort`,
+    // Playwright inherits the command's caller directory, which is the
+    // workspace root in CI. Pin this to the package so the local Vite path is
+    // deterministic.
+    cwd: PLATFORM_ROOT,
     url: `http://127.0.0.1:${PORT}${PLATFORM_BASE_PATH}/`,
     reuseExistingServer: process.env.CI === undefined,
     timeout: 120_000,
