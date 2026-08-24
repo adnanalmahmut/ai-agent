@@ -208,6 +208,10 @@ jobs:
     name: platform
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Public build metadata validated by `src/config/public.ts`. The
+      # production Docker build requires the same value explicitly.
+      VITE_APP_NAME: AI Agents
 
     steps:
       - name: Check out
