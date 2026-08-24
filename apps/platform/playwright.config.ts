@@ -43,6 +43,7 @@ const PLATFORM_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const VITE_CLI = fileURLToPath(
   new URL('./node_modules/vite/bin/vite.js', import.meta.url),
 );
+const USE_EXTERNAL_SERVER = process.env.PLATFORM_E2E_EXTERNAL_SERVER === 'true';
 
 export default defineConfig({
   testDir: './e2e',
@@ -75,17 +76,19 @@ export default defineConfig({
    * production build fails. It also honours `base`, so the router's basename
    * is exercised rather than bypassed.
    */
-  webServer: {
-    // Invoke the committed local binary directly. Under a filtered pnpm
-    // script, `npx` delegates to npm and can spend the entire readiness window
-    // resolving a package it already has locally.
-    command: `node ${JSON.stringify(VITE_CLI)} preview ${JSON.stringify(PLATFORM_ROOT)} --host 127.0.0.1 --port ${PORT} --strictPort`,
-    // Playwright inherits the command's caller directory, which is the
-    // workspace root in CI. Pin this to the package so the local Vite path is
-    // deterministic.
-    cwd: PLATFORM_ROOT,
-    url: `http://127.0.0.1:${PORT}${PLATFORM_BASE_PATH}/`,
-    reuseExistingServer: process.env.CI === undefined,
-    timeout: 120_000,
-  },
+  webServer: USE_EXTERNAL_SERVER
+    ? undefined
+    : {
+        // Invoke the committed local binary directly. Under a filtered pnpm
+        // script, `npx` delegates to npm and can spend the entire readiness
+        // window resolving a package it already has locally.
+        command: `node ${JSON.stringify(VITE_CLI)} preview ${JSON.stringify(PLATFORM_ROOT)} --host 127.0.0.1 --port ${PORT} --strictPort`,
+        // Playwright inherits the command's caller directory, which is the
+        // workspace root in CI. Pin this to the package so the local Vite path
+        // is deterministic.
+        cwd: PLATFORM_ROOT,
+        url: `http://127.0.0.1:${PORT}${PLATFORM_BASE_PATH}/`,
+        reuseExistingServer: process.env.CI === undefined,
+        timeout: 120_000,
+      },
 });

@@ -250,7 +250,19 @@ jobs:
         run: pnpm --filter platform exec playwright install --with-deps chromium
 
       - name: Browser smoke tests
-        run: pnpm --filter platform run test:e2e
+        env:
+          PLATFORM_E2E_EXTERNAL_SERVER: 'true'
+        run: |
+          pnpm --dir apps/platform exec vite preview --host 127.0.0.1 --port 4173 --strictPort &
+          platform_preview_pid=$!
+          trap 'kill "$platform_preview_pid" 2>/dev/null || true' EXIT
+          attempts=0
+          until curl --fail --silent --show-error http://127.0.0.1:4173/platform/ >/dev/null; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -lt 30 ] || exit 1
+            sleep 1
+          done
+          pnpm --filter platform run test:e2e
 
   containers:
     name: containers
