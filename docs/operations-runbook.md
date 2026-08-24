@@ -101,13 +101,17 @@ here; it would only produce an account nobody can use.
 The command changes nothing on a platform that already has a super
 administrator, so re-running it is safe.
 
-**Lockout.** A deactivated or banned super administrator still counts, so the
-gate stays closed — deliberately, since the alternative would let anyone with
-host access mint a new root credential on a live platform by deactivating the
-old one. The consequence is that deactivating or demoting the last super
-administrator locks the platform out with no sanctioned recovery, and repair
-means restoring that account's role directly in the database. Treat the last
-super administrator as load-bearing.
+**Last usable super administrator.** The bootstrap gate still counts every
+super administrator, including a banned or deactivated one: host access is the
+trust boundary for bootstrap and must not become an account-recovery path.
+Separately, application account mutations are prevented from leaving zero
+*usable* super administrators. The Better Auth hooks reject a demotion, ban,
+deactivation, or deletion that would do so, and a PostgreSQL trigger with a
+transaction-scoped advisory lock enforces the same floor for concurrent or
+bypassing application writes. Operators can therefore keep at least one
+sign-in-capable platform administrator without relying on direct database
+repair; out-of-band database administration remains an exceptional recovery
+procedure, not part of normal account management.
 
 ## Release
 

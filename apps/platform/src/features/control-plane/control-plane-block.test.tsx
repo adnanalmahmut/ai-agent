@@ -31,6 +31,7 @@ const resetRuntimeSetting = vi.fn();
 const listManagedSecrets = vi.fn();
 const setManagedSecret = vi.fn();
 const removeManagedSecret = vi.fn();
+const listControlPlaneAudit = vi.fn();
 
 vi.mock('@/lib/application-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/application-api')>(
@@ -48,6 +49,7 @@ vi.mock('@/lib/application-api', async () => {
     listManagedSecrets: (...args: unknown[]) => listManagedSecrets(...args),
     setManagedSecret: (...args: unknown[]) => setManagedSecret(...args),
     removeManagedSecret: (...args: unknown[]) => removeManagedSecret(...args),
+    listControlPlaneAudit: (...args: unknown[]) => listControlPlaneAudit(...args),
   };
 });
 
@@ -108,6 +110,22 @@ beforeEach(() => {
   listFeatureFlags.mockResolvedValue([flag()]);
   listRuntimeSettings.mockResolvedValue([setting()]);
   listManagedSecrets.mockResolvedValue([secret()]);
+  listControlPlaneAudit.mockResolvedValue({
+    items: [
+      {
+        id: 'audit_1',
+        occurredAt: '2026-08-24T12:00:00.000Z',
+        actorUserId: 'user_1',
+        resource: 'featureFlag',
+        action: 'featureFlag.setPlatformOverride',
+        resourceKey: 'agents.enabled',
+        organizationId: null,
+        before: null,
+        after: { kind: 'featureFlagOverride', enabled: true },
+      },
+    ],
+    nextCursor: null,
+  });
 });
 
 /**
@@ -226,6 +244,7 @@ describe('ControlPlaneBlock', () => {
     expect(listFeatureFlags).not.toHaveBeenCalled();
     expect(listRuntimeSettings).not.toHaveBeenCalled();
     expect(listManagedSecrets).not.toHaveBeenCalled();
+    expect(listControlPlaneAudit).not.toHaveBeenCalled();
   });
 
   it('loads only the panel that is open', async () => {
@@ -242,6 +261,21 @@ describe('ControlPlaneBlock', () => {
     await openTab(/credentials/i);
 
     await waitFor(() => expect(listManagedSecrets).toHaveBeenCalled());
+  });
+
+  it('loads safe audit history only when its tab is opened', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+
+    await openTab(/audit history/i);
+
+    await screen.findByText(/set platform override/i);
+    expect(listControlPlaneAudit).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('user_1')).toBeInTheDocument();
+    // The client renders a closed safe projection, not arbitrary JSON.
+    expect(screen.getByText(/no stored state → enabled/i)).toBeInTheDocument();
   });
 });
 

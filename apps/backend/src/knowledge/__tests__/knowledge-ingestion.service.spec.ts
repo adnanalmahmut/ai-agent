@@ -3,6 +3,7 @@ import { Prisma } from '../../generated/prisma/client';
 
 import { AppException } from '../../core/errors';
 import { KnowledgeIngestionService } from '../knowledge-ingestion.service';
+import { KnowledgeSpaceService } from '../knowledge-space.service';
 
 /**
  * The ingestion branches a round trip cannot reach.
@@ -18,6 +19,9 @@ import { KnowledgeIngestionService } from '../knowledge-ingestion.service';
 
 const SPACE = 'space_1';
 const ORGANIZATION = 'org_1';
+
+/** A registry member, because the taxonomy is code-owned and closed. */
+const SLUG = 'brand.voice' as const;
 
 type Fakes = {
   service: KnowledgeIngestionService;
@@ -44,6 +48,9 @@ const build = (
   };
 
   const txClient = {
+    // Ingestion ensures the space row inside its own transaction, so the
+    // transaction client has to answer the upsert too.
+    knowledgeSpace: { upsert: jest.fn(() => Promise.resolve({ id: SPACE })) },
     knowledgeDocument: { upsert: jest.fn(() => Promise.resolve(saved)) },
     knowledgeChunk: {
       deleteMany: jest.fn(() => Promise.resolve({ count: 0 })),
@@ -53,11 +60,14 @@ const build = (
 
   const prisma = {
     knowledgeSpace: {
-      findFirst: jest.fn(() => Promise.resolve({ id: SPACE })),
+      findUnique: jest.fn(() => Promise.resolve({ id: SPACE })),
+      upsert: jest.fn(() => Promise.resolve({ id: SPACE })),
     },
     knowledgeDocument: {
       findFirst: jest.fn(() => Promise.resolve(options.existing ?? null)),
-      updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+      updateManyAndReturn: jest.fn(() =>
+        Promise.resolve([{ sourceUri: null, updatedAt: new Date() }]),
+      ),
     },
     knowledgeChunk: { count: jest.fn(() => Promise.resolve(0)) },
     $transaction:
@@ -84,10 +94,23 @@ const build = (
 
   const embeddings = { model: 'model-a', dimensions: 3, maxBatch: 8 };
 
+  /**
+   * The real space service over the same fake client.
+   *
+   * Substituting a double here would let the ingestion path drift from the
+   * ensure-inside-the-transaction contract without any test noticing, which is
+   * exactly the seam these cases are about.
+   */
+  const spaces = new KnowledgeSpaceService(
+    prisma as never,
+    runtimeConfig as never,
+  );
+
   const service = new KnowledgeIngestionService(
     prisma as never,
     outbox as never,
     runtimeConfig as never,
+    spaces,
     embeddings as never,
   );
 
@@ -97,7 +120,7 @@ const build = (
 const ingest = (service: KnowledgeIngestionService, content = 'A sentence.') =>
   service.ingest({
     organizationId: ORGANIZATION,
-    spaceId: SPACE,
+    slug: SLUG,
     title: 'Policies',
     content,
   });

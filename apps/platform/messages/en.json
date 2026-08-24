@@ -826,6 +826,48 @@
       },
       "lastRotated": "Last rotated {when}",
       "labelHoldsCredential": "That note contains the credential. Nothing was sent — clear the note and store the credential in the field above."
+    },
+    "audit": {
+      "tab": "Audit history",
+      "empty": "No control-plane changes have been recorded.",
+      "loadMore": "Load more",
+      "platformScope": "Platform",
+      "systemActor": "System",
+      "column": {
+        "when": "When",
+        "actor": "Actor",
+        "action": "Action",
+        "resource": "Resource",
+        "scope": "Scope",
+        "change": "Safe change"
+      },
+      "state": {
+        "none": "No stored state",
+        "changed": "Changed",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "settingChanged": "Setting changed",
+        "redacted": "Redacted",
+        "configured": "Configured",
+      "notConfigured": "Not configured"
+    },
+    "action": {
+      "featureFlag": {
+        "setPlatformOverride": "Set platform override",
+        "clearPlatformOverride": "Cleared platform override",
+        "setOrganizationOverride": "Set organization override",
+        "clearOrganizationOverride": "Cleared organization override"
+      },
+      "runtimeSetting": {
+        "set": "Set runtime setting",
+        "reset": "Reset runtime setting"
+      },
+      "managedSecret": {
+        "configure": "Configured credential",
+        "rotate": "Rotated credential",
+        "remove": "Removed credential"
+      }
+    }
     }
   },
   "Knowledge": {
@@ -842,16 +884,33 @@
     },
     "spaces": {
       "heading": "Spaces",
-      "empty": "No spaces yet",
-      "emptyHint": "A space groups documents an agent may read together.",
-      "slug": "Slug",
-      "name": "Name",
-      "create": "Create space",
-      "delete": "Delete {name}"
+      "taxonomyHint": "These spaces are the same for every organization. Each agent reads only the ones its version declares, so where you file something decides which agents can see it.",
+      "clear": "Delete everything in {name}",
+      "name": {
+        "organization": {
+          "profile": "Organization profile"
+        },
+        "brand": {
+          "identity": "Brand identity",
+          "voice": "Brand voice"
+        },
+        "audience": "Audience",
+        "products": {
+          "services": "Products and services"
+        },
+        "content": {
+          "strategy": "Content strategy"
+        },
+        "design": {
+          "system": "Design system"
+        },
+        "faq": "FAQ"
+      }
     },
     "documents": {
       "heading": "Documents in {space}",
       "empty": "No documents in this space",
+      "more": "Load more",
       "title": "Title",
       "content": "Text",
       "store": "Store document",
@@ -868,14 +927,31 @@
   },
   "ContentIdeas": {
     "title": "Content ideas",
-    "description": "Ask this organization's agent for content ideas. It reads your brand, product and campaign spaces and grounds what it suggests in them.",
+    "description": "Ask this organization's agent for content ideas. It reads your organization profile, brand voice, audience and content strategy, and grounds what it suggests in them.",
+    "unavailable": {
+      "title": "Generation is switched off for this organization.",
+      "agents_disabled": "A platform operator has paused every agent. Nothing can be generated until they turn agents back on.",
+      "content_ideas_disabled": "A platform operator has switched content ideas off for this organization. Existing results are still readable."
+    },
     "form": {
       "topic": "Topic",
-      "audience": "Audience",
+      "goal": "Goal",
+      "language": "Content language",
+      "languageHint": "The language the ideas are written in. It does not have to match the language you are reading this in.",
+      "audience": "Audience (optional)",
       "guidance": "Guidance (optional)",
       "count": "How many",
       "submit": "Generate ideas",
       "hint": "Generation takes a few seconds. You will see the request queue and then run; the ideas appear when it finishes."
+    },
+    "language": {
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "format": {
+      "carousel": "Carousel",
+      "post": "Post",
+      "video": "Video"
     },
     "status": {
       "QUEUED": "Queued",
@@ -887,12 +963,13 @@
     "result": {
       "heading": "This request",
       "working": "Waiting for the agent",
+      "angle": "Angle:",
       "none": "No ideas requested yet",
-      "noneHint": "Describe a topic and an audience, and the agent will suggest angles grounded in this organization's knowledge.",
+      "noneHint": "Describe a topic and what the content is for, and the agent will suggest angles grounded in this organization's knowledge.",
       "readOnly": "Only an organization admin or owner can request content ideas.",
       "empty": "The agent returned no ideas",
       "failed": "The agent could not complete this request. Nothing was saved and you can ask again.",
-      "abandoned": "This request is taking longer than expected. It is still running on the server, but this screen loses track of it once you leave — so keep waiting, or start again.",
+      "abandoned": "This request is taking longer than expected. It is still running on the server, and this page's address holds its id — so you can keep waiting, reload later, or share the link.",
       "resume": "Keep waiting",
       "sources": "Grounded in: {spaces}",
       "ungrounded": "Not grounded in any stored knowledge."
@@ -904,7 +981,7 @@
       "disabled": "Content ideas are switched off for this organization. A platform operator can turn them on.",
       "invalid": "That request could not be accepted.",
       "busy": "Too many requests right now. Wait for the ones in flight to finish, then try again.",
-      "gone": "That request could not be found.",
+      "gone": "That request could not be found. It may belong to another organization, or it may never have existed.",
       "failed": "Something went wrong. Try again."
     }
   }

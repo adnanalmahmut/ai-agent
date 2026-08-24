@@ -4,6 +4,10 @@ import { PinoLogger } from 'nestjs-pino';
 import { AppException } from '../../core/errors';
 import { PrismaService } from '../../database';
 import {
+  ControlPlaneAuditService,
+  type ControlPlaneAuditState,
+} from '../audit/control-plane-audit.service';
+import {
   RUNTIME_SETTING_KEYS,
   type RuntimeSettingKey,
   type RuntimeSettingValue,
@@ -49,6 +53,7 @@ export type RuntimeSettingState = {
 export class RuntimeSettingService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly audit: ControlPlaneAuditService,
     private readonly logger: PinoLogger,
   ) {}
 
@@ -150,17 +155,32 @@ export class RuntimeSettingService {
       });
     }
 
-    await this.prisma.runtimeSetting.upsert({
-      where: { key: input.key },
-      create: {
-        key: input.key,
-        value: parsed.data,
-        updatedByUserId: input.actorUserId,
-      },
-      update: {
-        value: parsed.data,
-        updatedByUserId: input.actorUserId,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.runtimeSetting.findUnique({
+        where: { key: input.key },
+        select: { value: true },
+      });
+
+      await tx.runtimeSetting.upsert({
+        where: { key: input.key },
+        create: {
+          key: input.key,
+          value: parsed.data,
+          updatedByUserId: input.actorUserId,
+        },
+        update: {
+          value: parsed.data,
+          updatedByUserId: input.actorUserId,
+        },
+      });
+
+      await this.audit.record(tx, {
+        action: 'runtimeSetting.set',
+        resourceKey: input.key,
+        actorUserId: input.actorUserId,
+        before: before === null ? null : settingState(definition, before.value),
+        after: settingState(definition, parsed.data),
+      });
     });
 
     const state = await this.listAll();
@@ -169,11 +189,51 @@ export class RuntimeSettingService {
   }
 
   /** Restores the code default by removing the row, not by writing it. */
-  async reset(key: RuntimeSettingKey): Promise<RuntimeSettingState> {
-    await this.prisma.runtimeSetting.deleteMany({ where: { key } });
+  async reset(input: {
+    key: RuntimeSettingKey;
+    actorUserId: string;
+  }): Promise<RuntimeSettingState> {
+    const definition = runtimeSettingDefinition(input.key);
+
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.runtimeSetting.findUnique({
+        where: { key: input.key },
+        select: { value: true },
+      });
+
+      await tx.runtimeSetting.deleteMany({ where: { key: input.key } });
+
+      await this.audit.record(tx, {
+        action: 'runtimeSetting.reset',
+        resourceKey: input.key,
+        actorUserId: input.actorUserId,
+        before: before === null ? null : settingState(definition, before.value),
+        after: null,
+      });
+    });
 
     const state = await this.listAll();
 
-    return state.find((entry) => entry.key === key)!;
+    return state.find((entry) => entry.key === input.key)!;
   }
+}
+
+/**
+ * A setting's value as the audit log may record it.
+ *
+ * The registry's `sensitivity` decides, not the caller. Every setting is
+ * `public` today and recording their values is the point of the log — an
+ * operator asking "what was the limit before" wants the number. But `internal`
+ * exists in the registry, and the day something is marked that way the audit
+ * log must not be the surface that publishes it to everyone holding
+ * `controlPlane:read`. Deciding here rather than at each call site means that
+ * change is one word in the registry rather than an audit of every writer.
+ */
+function settingState(
+  definition: { sensitivity: string },
+  value: unknown,
+): ControlPlaneAuditState {
+  return definition.sensitivity === 'public'
+    ? { kind: 'runtimeSettingValue', value }
+    : { kind: 'runtimeSettingValue', redacted: true };
 }

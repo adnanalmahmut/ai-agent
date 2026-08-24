@@ -449,7 +449,7 @@ describe('the query handed to retrieval', () => {
       count: z.number(),
     }),
     contextPolicy: {
-      spaceSlugs: ['brand'],
+      spaceSlugs: ['brand.voice'],
       maxChunks: 3,
       maxCharacters: 500,
     },

@@ -119,6 +119,39 @@ describe('super-admin bootstrap CLI (e2e)', () => {
     });
   };
 
+  /**
+   * Runs one block with the super-administrator floor suspended.
+   *
+   * The database refuses an UPDATE that would leave no usable super
+   * administrator — which is the invariant, working. This suite's whole
+   * premise is the state that invariant forbids: the bootstrap command runs
+   * only when the platform has none, and reaching that state on a shared test
+   * database means stripping the role from every account that holds it.
+   *
+   * So the floor is suspended for exactly the two statements that borrow and
+   * return the roles, and for nothing else. Not for the tests themselves: the
+   * command's own refusals are what they assert, and a suite that ran with the
+   * guard off throughout could not tell a bootstrap the command refused from
+   * one the database refused.
+   *
+   * This is also the documented operator procedure for un-wedging a platform
+   * that has genuinely lost its last administrator — see the runbook. It needs
+   * table ownership, which the migration user has.
+   */
+  const withoutSuperAdminFloor = async (work: () => Promise<void>) => {
+    await harness.prisma.$executeRawUnsafe(
+      'ALTER TABLE "user" DISABLE TRIGGER enforce_super_admin_floor_trigger',
+    );
+
+    try {
+      await work();
+    } finally {
+      await harness.prisma.$executeRawUnsafe(
+        'ALTER TABLE "user" ENABLE TRIGGER enforce_super_admin_floor_trigger',
+      );
+    }
+  };
+
   beforeAll(async () => {
     harness = await createHarness();
 
@@ -155,16 +188,18 @@ describe('super-admin bootstrap CLI (e2e)', () => {
       rolesOf(holder.role).includes(SUPER_ADMIN),
     );
 
-    for (const holder of borrowed) {
-      const remaining = rolesOf(holder.role).filter(
-        (role) => role !== SUPER_ADMIN,
-      );
+    await withoutSuperAdminFloor(async () => {
+      for (const holder of borrowed) {
+        const remaining = rolesOf(holder.role).filter(
+          (role) => role !== SUPER_ADMIN,
+        );
 
-      await harness.prisma.user.update({
-        where: { id: holder.id },
-        data: { role: remaining.length > 0 ? remaining.join(',') : null },
-      });
-    }
+        await harness.prisma.user.update({
+          where: { id: holder.id },
+          data: { role: remaining.length > 0 ? remaining.join(',') : null },
+        });
+      }
+    });
   }, 90_000);
 
   afterEach(async () => {
@@ -175,12 +210,14 @@ describe('super-admin bootstrap CLI (e2e)', () => {
     if (harness) {
       await deleteFixtures();
 
-      for (const holder of borrowed) {
-        await harness.prisma.user.update({
-          where: { id: holder.id },
-          data: { role: holder.role },
-        });
-      }
+      await withoutSuperAdminFloor(async () => {
+        for (const holder of borrowed) {
+          await harness.prisma.user.update({
+            where: { id: holder.id },
+            data: { role: holder.role },
+          });
+        }
+      });
     }
 
     await cli?.close();
@@ -393,9 +430,28 @@ describe('super-admin bootstrap CLI (e2e)', () => {
     it('still blocks a second bootstrap when it has been deactivated', async () => {
       const address = await createOwner('deactivated');
 
-      await harness.prisma.user.update({
-        where: { email: address },
-        data: { deletedAt: new Date(), deletionReason: 'e2e soft delete' },
+      /**
+       * The floor is suspended to construct this state, and that is the point
+       * rather than a workaround.
+       *
+       * Two invariants count differently, deliberately. This command's gate
+       * counts *holders of the role*, so deactivating the owner cannot be used
+       * to mint a second root account. The super-administrator floor counts
+       * *usable* administrators, so a banned colleague is not mistaken for a
+       * survivor. Where they disagree is exactly here — one holder, not usable
+       * — and the floor now makes that state unreachable through any
+       * application path, which is a better outcome than the one this test was
+       * written to guard against.
+       *
+       * The gate still has to be right if the state arrives another way: a row
+       * that predates the trigger, direct SQL, a restored backup. So the state
+       * is built the only way it now can be, and the assertion is unchanged.
+       */
+      await withoutSuperAdminFloor(async () => {
+        await harness.prisma.user.update({
+          where: { email: address },
+          data: { deletedAt: new Date(), deletionReason: 'e2e soft delete' },
+        });
       });
 
       await expect(
@@ -416,9 +472,12 @@ describe('super-admin bootstrap CLI (e2e)', () => {
     it('still blocks a second bootstrap when it has been banned', async () => {
       const address = await createOwner('banned');
 
-      await harness.prisma.user.update({
-        where: { email: address },
-        data: { banned: true, banReason: 'e2e ban' },
+      // Suspended for the same reason as the deactivation case above.
+      await withoutSuperAdminFloor(async () => {
+        await harness.prisma.user.update({
+          where: { email: address },
+          data: { banned: true, banReason: 'e2e ban' },
+        });
       });
 
       await expect(

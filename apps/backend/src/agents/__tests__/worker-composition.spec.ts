@@ -26,6 +26,10 @@ import {
   AUTHENTICATABLE_PROVIDERS,
   MastraRuntime,
 } from '../runtime/mastra/mastra.runtime';
+import {
+  KNOWLEDGE_SPACE_SLUGS,
+  isKnowledgeSpaceSlug,
+} from '../../knowledge/knowledge-space.registry';
 import { PRODUCTION_AGENT_DEFINITIONS } from '../definitions';
 import {
   CONTENT_IDEA_AGENT_ID,
@@ -155,6 +159,51 @@ describe('WorkerModule agent composition', () => {
       expect(AUTHENTICATABLE_PROVIDERS).toContain(
         definition.model.split('/')[0],
       );
+    }
+  });
+
+  /**
+   * Every space a definition claims to read must exist in the taxonomy.
+   *
+   * The compiler already enforces this — `ContextPolicy.spaceSlugs` is typed as
+   * `KnowledgeSpaceSlug[]` — and this asserts it again at runtime for the one
+   * case the compiler cannot see: a definition constructed through a cast, or
+   * one whose slug was correct when written and whose registry entry has since
+   * been removed in a change that used `as` to make the file compile.
+   *
+   * The failure mode it guards is silent, which is why it is worth a second
+   * check. A policy naming a slug nothing resolves is not an error at runtime:
+   * `resolveSlugs` returns nothing, the assembler returns no passages, and the
+   * agent answers ungrounded — indistinguishable from an organization that has
+   * stored nothing. Nobody reports it, because the feature appears to work.
+   */
+  it('names only knowledge spaces the registry defines', () => {
+    const policies = PRODUCTION_AGENT_DEFINITIONS.filter(
+      (definition) => definition.contextPolicy !== undefined,
+    );
+
+    // Not vacuous: at least one shipped definition actually reads knowledge.
+    expect(policies.length).toBeGreaterThan(0);
+
+    for (const definition of policies) {
+      const policy = definition.contextPolicy!;
+
+      expect(policy.spaceSlugs.length).toBeGreaterThan(0);
+
+      for (const slug of policy.spaceSlugs) {
+        expect(isKnowledgeSpaceSlug(slug)).toBe(true);
+        expect(KNOWLEDGE_SPACE_SLUGS).toContain(slug);
+      }
+
+      // A policy naming one space twice retrieves nothing extra and reads as a
+      // wider grant than it is.
+      expect(new Set(policy.spaceSlugs).size).toBe(policy.spaceSlugs.length);
+
+      // Both budgets bind, and neither is zero — a policy that declared spaces
+      // and a budget of nothing would resolve them and then discard every
+      // passage, which is the same silent emptiness in a different place.
+      expect(policy.maxChunks).toBeGreaterThan(0);
+      expect(policy.maxCharacters).toBeGreaterThan(0);
     }
   });
 });

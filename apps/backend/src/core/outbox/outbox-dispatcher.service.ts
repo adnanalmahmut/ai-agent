@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { hostname } from 'node:os';
 import { PinoLogger } from 'nestjs-pino';
+import { hostname } from 'node:os';
 
 import { queueConfig } from '../../config';
 import { QueueProducer, classifyPublishError } from '../queue';

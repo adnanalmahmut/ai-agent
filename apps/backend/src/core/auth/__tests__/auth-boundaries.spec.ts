@@ -116,6 +116,25 @@ describe('core/auth boundaries', () => {
   });
 });
 
+/**
+ * The `SUPER_ADMIN_GUARDED_PATHS` literal, removed.
+ *
+ * A table of paths this application *refuses* is indistinguishable from a list
+ * of paths it calls to a substring search, so it is cut out before the search
+ * runs. Anchored on the exported name and the closing `};` of the literal, so a
+ * table that stopped existing simply stops being excised rather than silently
+ * swallowing the rest of the file.
+ */
+function withoutGuardTable(code: string): string {
+  const start = code.indexOf('export const SUPER_ADMIN_GUARDED_PATHS');
+  if (start === -1) return code;
+
+  const end = code.indexOf('\n  };', start);
+  if (end === -1) return code;
+
+  return code.slice(0, start) + code.slice(end);
+}
+
 describe('authorization invariants', () => {
   /**
    * Roles are permission bundles, so a role *name* must never be the thing a
@@ -222,12 +241,19 @@ describe('authorization invariants', () => {
    * Better Auth's `removeUser` is hard, irreversible deletion. No role is
    * granted `user:delete`, and no application code calls the endpoint either —
    * so the policy holds even if a role definition were changed by mistake.
+   *
+   * The guard table in `auth-hooks.ts` is excised before scanning, and only
+   * that table. It names `/admin/remove-user` in order to *refuse* requests to
+   * it, which is the opposite of calling it — but the check is a substring
+   * search, and a search cannot tell the two apart. Cutting the table out keeps
+   * the invariant in full force for every other line of that file and every
+   * line of every other file, which a whole-file exemption would not.
    */
   it('never calls Better Auth hard user deletion', () => {
     const offenders: string[] = [];
 
     for (const file of allSources) {
-      const code = codeOf(file);
+      const code = withoutGuardTable(codeOf(file));
       if (
         /\bremoveUser\s*\(/.test(code) ||
         code.includes('/admin/remove-user')

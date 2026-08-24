@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../database';
 import { AppException } from '../errors';
+import {
+  isSuperAdminFloorViolation,
+  lastSuperAdminException,
+  wouldEmptySuperAdmins,
+} from './super-admin-floor';
 
 export type AccountLifecycleResult = {
   userId: string;
@@ -53,27 +58,56 @@ export class AccountLifecycleService {
       });
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      const deactivated = await tx.user.update({
-        where: { id: input.userId },
-        data: {
-          deletedAt: new Date(),
-          deletedByUserId: input.actorUserId,
-          deletionReason: input.reason ?? null,
-        },
-        select: { id: true, deletedAt: true },
-      });
+    /**
+     * Deactivation is one of the four ways to make a super administrator
+     * unusable, and the only one that does not go through Better Auth — so it
+     * needs the same check its routes get, for the same reason. Notably this
+     * also covers the self-service route: the last super administrator
+     * deactivating their own account is the single likeliest way this lockout
+     * would actually happen.
+     *
+     * The database trigger is still the authority under concurrency. This asks
+     * first so the ordinary case gets a sentence instead of a stack trace.
+     */
+    if (await wouldEmptySuperAdmins(this.prisma, input.userId)) {
+      throw lastSuperAdminException('deactivate');
+    }
 
-      const { count } = await tx.session.deleteMany({
-        where: { userId: input.userId },
-      });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const deactivated = await tx.user.update({
+          where: { id: input.userId },
+          data: {
+            deletedAt: new Date(),
+            deletedByUserId: input.actorUserId,
+            deletionReason: input.reason ?? null,
+          },
+          select: { id: true, deletedAt: true },
+        });
 
-      return {
-        userId: deactivated.id,
-        deletedAt: deactivated.deletedAt,
-        revokedSessions: count,
-      };
-    });
+        const { count } = await tx.session.deleteMany({
+          where: { userId: input.userId },
+        });
+
+        return {
+          userId: deactivated.id,
+          deletedAt: deactivated.deletedAt,
+          revokedSessions: count,
+        };
+      });
+    } catch (error) {
+      /**
+       * The racing loser. Its pre-check passed because the other transaction
+       * had not committed yet; the trigger blocked it, saw zero, and raised.
+       * Translated here so both callers get the same 409 rather than one of
+       * them getting a PostgreSQL exception as a 500.
+       */
+      if (isSuperAdminFloorViolation(error)) {
+        throw lastSuperAdminException('deactivate');
+      }
+
+      throw error;
+    }
   }
 
   /**

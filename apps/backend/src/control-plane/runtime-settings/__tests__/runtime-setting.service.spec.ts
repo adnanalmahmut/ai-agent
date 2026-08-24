@@ -11,6 +11,8 @@ import { z } from 'zod';
 
 import { AppException } from '../../../core/errors';
 import type { PrismaService } from '../../../database';
+import { Prisma } from '../../../generated/prisma/client';
+import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
 import type { RuntimeSettingKey } from '../runtime-setting.registry';
 
 /**
@@ -84,15 +86,29 @@ type Row = { key: string; value: unknown; updatedAt: Date } | null;
 
 const UPDATED_AT = new Date('2026-01-01T00:00:00.000Z');
 
+const ACTOR_ID = 'user-operator-1';
+
 describe('RuntimeSettingService', () => {
   const findUnique = jest.fn<(args: unknown) => Promise<Row>>();
   const findMany = jest.fn<(args: unknown) => Promise<NonNullable<Row>[]>>();
   const upsert = jest.fn<(args: unknown) => Promise<unknown>>();
   const deleteMany = jest.fn<(args: unknown) => Promise<{ count: number }>>();
 
+  /**
+   * The audit write, captured rather than stubbed away, so what these tests
+   * observe is the projection the real service builds.
+   */
+  const auditCreate = jest.fn<(args: unknown) => Promise<unknown>>();
+
   const prisma = {
     runtimeSetting: { findUnique, findMany, upsert, deleteMany },
+    controlPlaneAuditEvent: { create: auditCreate },
+    /** One client for both writes; that they commit together is an e2e claim. */
+    $transaction: (work: (tx: unknown) => Promise<unknown>) => work(prisma),
   } as unknown as PrismaService;
+
+  const auditRow = () =>
+    (auditCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> })?.data;
 
   const warn = jest.fn<(payload: unknown, message?: string) => void>();
   const logger = { warn } as unknown as PinoLogger;
@@ -102,14 +118,22 @@ describe('RuntimeSettingService', () => {
   /** Everything the logger was handed, as one searchable string. */
   const loggedText = () => JSON.stringify(warn.mock.calls);
 
+  /** Everything the audit log was handed, as one searchable string. */
+  const auditedText = () => JSON.stringify(auditCreate.mock.calls);
+
   beforeEach(() => {
     findUnique.mockReset().mockResolvedValue(null);
     findMany.mockReset().mockResolvedValue([]);
     upsert.mockReset().mockResolvedValue({});
     deleteMany.mockReset().mockResolvedValue({ count: 1 });
     warn.mockReset();
+    auditCreate.mockReset().mockResolvedValue({});
 
-    service = new RuntimeSettingService(prisma, logger);
+    service = new RuntimeSettingService(
+      prisma,
+      new ControlPlaneAuditService(prisma),
+      logger,
+    );
   });
 
   describe('get', () => {
@@ -369,7 +393,10 @@ describe('RuntimeSettingService', () => {
    */
   describe('reset', () => {
     it('deletes the row instead of storing the default value', async () => {
-      const state = await service.reset(setting('spec.bounded_number'));
+      const state = await service.reset({
+        key: setting('spec.bounded_number'),
+        actorUserId: ACTOR_ID,
+      });
 
       expect(deleteMany).toHaveBeenCalledWith({
         where: { key: 'spec.bounded_number' },
@@ -380,6 +407,119 @@ describe('RuntimeSettingService', () => {
         isDefault: true,
         updatedAt: undefined,
       });
+    });
+  });
+
+  /**
+   * The audit log is the second place a setting's value can end up, and the
+   * first one with a read surface every `controlPlane:read` holder can reach.
+   * The registry's `sensitivity` has to govern it for the same reason it
+   * governs the logger.
+   */
+  describe('audit', () => {
+    it('records the previous and new value for a public setting', async () => {
+      findUnique.mockResolvedValue({
+        key: 'spec.bounded_number',
+        value: 10,
+        updatedAt: UPDATED_AT,
+      });
+
+      await service.set({
+        key: setting('spec.bounded_number'),
+        value: 42,
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditRow()).toMatchObject({
+        action: 'runtimeSetting.set',
+        resource: 'runtimeSetting',
+        resourceKey: 'spec.bounded_number',
+        actorUserId: ACTOR_ID,
+        before: { kind: 'runtimeSettingValue', value: 10 },
+        after: { kind: 'runtimeSettingValue', value: 42 },
+      });
+    });
+
+    it('records that a setting had no stored value rather than inventing one', async () => {
+      findUnique.mockResolvedValue(null);
+
+      await service.set({
+        key: setting('spec.bounded_number'),
+        value: 42,
+        actorUserId: ACTOR_ID,
+      });
+
+      // Prisma's SQL-NULL sentinel, not the JSON value `null`: the setting had
+      // no stored state, which is a different fact from a stored `null`.
+      expect(auditRow()?.before).toBe(Prisma.DbNull);
+    });
+
+    it('redacts the value of a setting the registry marks internal', async () => {
+      findUnique.mockResolvedValue({
+        key: 'spec.internal_url',
+        value: `https://old.${CANARY}.example.test`,
+        updatedAt: UPDATED_AT,
+      });
+
+      await service.set({
+        key: setting('spec.internal_url'),
+        value: `https://${CANARY}.example.test`,
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditedText()).not.toContain(CANARY);
+      expect(auditRow()).toMatchObject({
+        before: { kind: 'runtimeSettingValue', redacted: true },
+        after: { kind: 'runtimeSettingValue', redacted: true },
+      });
+    });
+
+    it('records the value a reset removed', async () => {
+      findUnique.mockResolvedValue({
+        key: 'spec.bounded_number',
+        value: 42,
+        updatedAt: UPDATED_AT,
+      });
+
+      await service.reset({
+        key: setting('spec.bounded_number'),
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditRow()).toMatchObject({
+        action: 'runtimeSetting.reset',
+        before: { kind: 'runtimeSettingValue', value: 42 },
+      });
+      expect(auditRow()?.after).toBe(Prisma.DbNull);
+    });
+
+    /**
+     * A refused mutation must leave no trace saying it happened. An audit log
+     * that recorded attempts alongside changes would answer "was this ever set
+     * to 5000" with a yes for a request the service rejected.
+     */
+    it('writes nothing when the value is refused', async () => {
+      await expect(
+        service.set({
+          key: setting('spec.bounded_number'),
+          value: 5_000,
+          actorUserId: ACTOR_ID,
+        }),
+      ).rejects.toBeInstanceOf(AppException);
+
+      expect(auditCreate).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing when the setting is not editable', async () => {
+      await expect(
+        service.set({
+          key: setting('spec.locked'),
+          value: 'anything',
+          actorUserId: ACTOR_ID,
+        }),
+      ).rejects.toBeInstanceOf(AppException);
+
+      expect(auditCreate).not.toHaveBeenCalled();
     });
   });
 });

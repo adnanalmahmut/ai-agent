@@ -26,6 +26,17 @@ export const APP_ERROR_CODES = [
   'ORGANIZATION_NOT_ARCHIVED',
   'ORGANIZATION_ARCHIVED',
 
+  /**
+   * The platform must keep at least one usable super administrator.
+   *
+   * 409 rather than 403: the caller holds the authority and the request is
+   * well-formed — it is the *state* that forbids it, and it stops being
+   * forbidden as soon as a second super administrator exists. A 403 would send
+   * an operator looking for a permission to grant themselves, which is exactly
+   * the permission they already have.
+   */
+  'LAST_SUPER_ADMIN',
+
   // Control plane. A disabled feature is 403 rather than 404: the route exists
   // and the caller may well be entitled to it, but the platform has switched
   // the capability off. A missing credential is 503, because it is an

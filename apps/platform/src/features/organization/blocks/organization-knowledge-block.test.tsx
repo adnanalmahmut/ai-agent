@@ -23,8 +23,7 @@ vi.mock('@/features/auth/auth-client', async () => {
  * tests are about is the operator's screen.
  */
 const listKnowledgeSpaces = vi.fn();
-const createKnowledgeSpace = vi.fn();
-const deleteKnowledgeSpace = vi.fn();
+const clearKnowledgeSpace = vi.fn();
 const listKnowledgeDocuments = vi.fn();
 const ingestKnowledgeDocument = vi.fn();
 const deleteKnowledgeDocument = vi.fn();
@@ -37,8 +36,7 @@ vi.mock('../organization-api', async () => {
   return {
     ...actual,
     listKnowledgeSpaces: (...args: unknown[]) => listKnowledgeSpaces(...args),
-    createKnowledgeSpace: (...args: unknown[]) => createKnowledgeSpace(...args),
-    deleteKnowledgeSpace: (...args: unknown[]) => deleteKnowledgeSpace(...args),
+    clearKnowledgeSpace: (...args: unknown[]) => clearKnowledgeSpace(...args),
     listKnowledgeDocuments: (...args: unknown[]) =>
       listKnowledgeDocuments(...args),
     ingestKnowledgeDocument: (...args: unknown[]) =>
@@ -52,14 +50,28 @@ const { OrganizationKnowledgeBlock } =
   await import('./organization-knowledge-block');
 const { ApiError, ApiUnavailableError } = await import('@/lib/application-api');
 
+/**
+ * A registry entry, not a row somebody created.
+ *
+ * The taxonomy is the application's: the same eight spaces exist for every
+ * organization, `configured` says whether this one has stored anything in it,
+ * and there is no id on the surface at all.
+ */
 const space = (overrides: Record<string, unknown> = {}) => ({
-  id: 'space_brand',
-  slug: 'brand',
-  name: 'Brand',
+  slug: 'brand.voice',
+  name: 'Brand voice',
+  description: 'Tone, vocabulary, and how the brand writes.',
+  configured: true,
   documentCount: 1,
   createdAt: '2026-02-01T00:00:00.000Z',
   updatedAt: '2026-02-01T00:00:00.000Z',
   ...overrides,
+});
+
+/** One page of documents, which is what the listing now answers with. */
+const page = (items: unknown[], nextCursor: string | null = null) => ({
+  items,
+  nextCursor,
 });
 
 const document = (overrides: Record<string, unknown> = {}) => ({
@@ -85,7 +97,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   listKnowledgeSpaces.mockResolvedValue([space()]);
-  listKnowledgeDocuments.mockResolvedValue([document()]);
+  listKnowledgeDocuments.mockResolvedValue(page([document()]));
 });
 
 describe('the knowledge screen', () => {
@@ -94,8 +106,30 @@ describe('the knowledge screen', () => {
 
     render();
 
-    expect(await screen.findByText('Brand')).toBeInTheDocument();
+    expect(await screen.findByText('Brand voice')).toBeInTheDocument();
     expect(await screen.findByText('Policies')).toBeInTheDocument();
+  });
+
+  /**
+   * The name comes from this application's dictionary, keyed on the slug — not
+   * from the `name` column the server happens to return.
+   *
+   * An operator reading Arabic should not be shown an English taxonomy, and
+   * the server has only one name per space. The canary is a name no dictionary
+   * contains: if it reaches the screen, the translation was bypassed.
+   */
+  it('names a space from the reader dictionary, not from the server', async () => {
+    allow('knowledge:read');
+    listKnowledgeSpaces.mockResolvedValue([
+      space({ name: 'SERVER-SUPPLIED-NAME' }),
+    ]);
+
+    render();
+
+    expect(await screen.findByText('Brand voice')).toBeInTheDocument();
+    expect(
+      screen.queryByText('SERVER-SUPPLIED-NAME'),
+    ).not.toBeInTheDocument();
   });
 
   /**
@@ -112,7 +146,7 @@ describe('the knowledge screen', () => {
 
     render();
 
-    await screen.findByText('Brand');
+    await screen.findByText('Brand voice');
 
     expect(listKnowledgeSpaces).toHaveBeenCalledWith(
       organization().id,
@@ -176,10 +210,10 @@ describe('the knowledge screen', () => {
 
     render();
 
-    await screen.findByText('Brand');
+    await screen.findByText('Brand voice');
 
     expect(
-      screen.queryByRole('button', { name: /create space/i }),
+      screen.queryByRole('button', { name: /delete everything/i }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: /store document/i }),
@@ -193,31 +227,53 @@ describe('the knowledge screen', () => {
     render();
 
     expect(
-      await screen.findByRole('button', { name: /create space/i }),
+      await screen.findByRole('button', { name: /store document/i }),
     ).toBeInTheDocument();
     expect(
-      await screen.findByRole('button', { name: /store document/i }),
+      await screen.findByRole('button', { name: /delete everything/i }),
     ).toBeInTheDocument();
   });
 
-  it('creates a space from what was typed', async () => {
+  /**
+   * The taxonomy is code-owned, so there is nothing to create and no field to
+   * type a slug into. This is the property the redesign rests on: a customer
+   * cannot invent a space, which is what stops an agent's context policy from
+   * silently naming one nobody uses.
+   */
+  it('offers no way to invent a space', async () => {
     allow('knowledge:read', 'knowledge:write');
-    createKnowledgeSpace.mockResolvedValue(space({ id: 'space_product' }));
 
     render();
 
-    await userEvent.type(await screen.findByLabelText(/slug/i), 'product');
-    await userEvent.type(screen.getByLabelText(/^name$/i), 'Product');
-    await userEvent.click(
-      screen.getByRole('button', { name: /create space/i }),
-    );
+    await screen.findByText('Brand voice');
 
-    await waitFor(() =>
-      expect(createKnowledgeSpace).toHaveBeenCalledWith(organization().id, {
-        slug: 'product',
-        name: 'Product',
+    expect(
+      screen.queryByRole('button', { name: /create space/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/slug/i)).not.toBeInTheDocument();
+  });
+
+  /**
+   * Every registry entry is offered, including the ones this organization has
+   * never written to — the listing is the taxonomy, and what varies is the
+   * count beside each.
+   */
+  it('shows every space, including the empty ones', async () => {
+    allow('knowledge:read');
+    listKnowledgeSpaces.mockResolvedValue([
+      space(),
+      space({
+        slug: 'faq',
+        name: 'FAQ',
+        configured: false,
+        documentCount: 0,
       }),
-    );
+    ]);
+
+    render();
+
+    expect(await screen.findByText('Brand voice')).toBeInTheDocument();
+    expect(screen.getByText('FAQ')).toBeInTheDocument();
   });
 
   it('stores a document in the selected space', async () => {
@@ -241,7 +297,7 @@ describe('the knowledge screen', () => {
     await waitFor(() =>
       expect(ingestKnowledgeDocument).toHaveBeenCalledWith(
         organization().id,
-        'space_brand',
+        'brand.voice',
         { title: 'Returns', content: 'Sixty days.' },
       ),
     );
@@ -316,42 +372,61 @@ describe('the knowledge screen', () => {
     );
   });
 
-  it('deletes the selected space', async () => {
+  it('empties the selected space by slug', async () => {
     allow('knowledge:read', 'knowledge:write');
-    deleteKnowledgeSpace.mockResolvedValue({ id: 'space_brand' });
+    clearKnowledgeSpace.mockResolvedValue({ slug: 'brand.voice' });
 
     render();
 
     await userEvent.click(
-      await screen.findByRole('button', { name: /delete brand/i }),
+      await screen.findByRole('button', { name: /delete everything in brand voice/i }),
     );
 
     await waitFor(() =>
-      expect(deleteKnowledgeSpace).toHaveBeenCalledWith(
+      expect(clearKnowledgeSpace).toHaveBeenCalledWith(
         organization().id,
-        'space_brand',
+        'brand.voice',
       ),
     );
+  });
+
+  /**
+   * Emptying a space that holds nothing is not an operation, so the control is
+   * absent rather than present and answering 404.
+   */
+  it('offers no way to empty a space that holds nothing', async () => {
+    allow('knowledge:read', 'knowledge:write');
+    listKnowledgeSpaces.mockResolvedValue([
+      space({ configured: false, documentCount: 0 }),
+    ]);
+
+    render();
+
+    await screen.findByText('Brand voice');
+
+    expect(
+      screen.queryByRole('button', { name: /delete everything/i }),
+    ).not.toBeInTheDocument();
   });
 
   it('switches the document list when another space is chosen', async () => {
     allow('knowledge:read');
     listKnowledgeSpaces.mockResolvedValue([
       space(),
-      space({ id: 'space_product', slug: 'product', name: 'Product' }),
+      space({ slug: 'products.services', configured: false, documentCount: 0 }),
     ]);
 
     render();
 
     await userEvent.click(
-      await screen.findByRole('button', { name: /product/i }),
+      await screen.findByRole('button', { name: /products and services/i }),
     );
 
     await waitFor(() =>
       expect(listKnowledgeDocuments).toHaveBeenLastCalledWith(
         organization().id,
-        'space_product',
-        expect.any(AbortSignal),
+        'products.services',
+        { signal: expect.any(AbortSignal) },
       ),
     );
   });
@@ -366,11 +441,11 @@ describe('the knowledge screen', () => {
     allow('knowledge:read');
     listKnowledgeSpaces.mockResolvedValue([
       space(),
-      space({ id: 'space_product', slug: 'product', name: 'Product' }),
+      space({ slug: 'products.services', configured: false, documentCount: 0 }),
     ]);
-    listKnowledgeDocuments.mockImplementation((_organizationId, spaceId) =>
-      spaceId === 'space_brand'
-        ? Promise.resolve([document()])
+    listKnowledgeDocuments.mockImplementation((_organizationId, slug) =>
+      slug === 'brand.voice'
+        ? Promise.resolve(page([document()]))
         : new Promise(() => {}),
     );
 
@@ -379,7 +454,7 @@ describe('the knowledge screen', () => {
     expect(await screen.findByText('Policies')).toBeInTheDocument();
 
     await userEvent.click(
-      await screen.findByRole('button', { name: /product/i }),
+      await screen.findByRole('button', { name: /products and services/i }),
     );
 
     await waitFor(() =>
@@ -412,26 +487,110 @@ describe('the knowledge screen', () => {
 
   it('reports a refusal from the server', async () => {
     allow('knowledge:read', 'knowledge:write');
-    createKnowledgeSpace.mockRejectedValue(new ApiError(409, 'CONFLICT'));
+    ingestKnowledgeDocument.mockRejectedValue(new ApiError(409, 'CONFLICT'));
 
     render();
 
-    await userEvent.type(await screen.findByLabelText(/slug/i), 'brand');
-    await userEvent.type(screen.getByLabelText(/^name$/i), 'Brand');
+    await userEvent.type(await screen.findByLabelText(/^title$/i), 'Policies');
+    await userEvent.type(screen.getByLabelText(/^text$/i), 'Some text.');
     await userEvent.click(
-      screen.getByRole('button', { name: /create space/i }),
+      screen.getByRole('button', { name: /store document/i }),
     );
 
     await screen.findByText(/could not be stored/i);
   });
 
-  it('says so when an organization has no spaces yet', async () => {
-    allow('knowledge:read');
-    listKnowledgeSpaces.mockResolvedValue([]);
+  /**
+   * Paging, which replaced a silent two-hundred-row ceiling. The old listing
+   * stopped without saying so, and a client had no way to tell a space with
+   * exactly two hundred documents from one with a thousand.
+   */
+  describe('paging through documents', () => {
+    it('offers no control when the page is the whole collection', async () => {
+      allow('knowledge:read');
 
-    render();
+      render();
 
-    expect(await screen.findByText(/no spaces yet/i)).toBeInTheDocument();
-    expect(listKnowledgeDocuments).not.toHaveBeenCalled();
+      await screen.findByText('Policies');
+
+      expect(
+        screen.queryByRole('button', { name: /load more/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('appends the next page rather than replacing the list', async () => {
+      allow('knowledge:read');
+      listKnowledgeDocuments
+        .mockResolvedValueOnce(page([document()], 'cursor-1'))
+        .mockResolvedValueOnce(
+          page([document({ id: 'doc_returns', title: 'Returns' })]),
+        );
+
+      render();
+
+      await userEvent.click(
+        await screen.findByRole('button', { name: /load more/i }),
+      );
+
+      expect(await screen.findByText('Returns')).toBeInTheDocument();
+      // The first page is still there; this is a longer list, not a new one.
+      expect(screen.getByText('Policies')).toBeInTheDocument();
+
+      expect(listKnowledgeDocuments).toHaveBeenLastCalledWith(
+        organization().id,
+        'brand.voice',
+        { cursor: 'cursor-1' },
+      );
+    });
+
+    it('stops offering more once the last page has arrived', async () => {
+      allow('knowledge:read');
+      listKnowledgeDocuments
+        .mockResolvedValueOnce(page([document()], 'cursor-1'))
+        .mockResolvedValueOnce(
+          page([document({ id: 'doc_returns', title: 'Returns' })]),
+        );
+
+      render();
+
+      await userEvent.click(
+        await screen.findByRole('button', { name: /load more/i }),
+      );
+
+      await screen.findByText('Returns');
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: /load more/i }),
+        ).not.toBeInTheDocument(),
+      );
+    });
+
+    /**
+     * A cursor is a position in one space's ordering and means nothing in
+     * another's. Switching spaces has to discard it, or the next page pages
+     * the wrong collection.
+     */
+    it('does not carry a cursor across to another space', async () => {
+      allow('knowledge:read');
+      listKnowledgeSpaces.mockResolvedValue([
+        space(),
+        space({ slug: 'faq', configured: false, documentCount: 0 }),
+      ]);
+      listKnowledgeDocuments.mockResolvedValue(page([document()], 'cursor-1'));
+
+      render();
+
+      await screen.findByRole('button', { name: /load more/i });
+
+      await userEvent.click(screen.getByRole('button', { name: /faq/i }));
+
+      await waitFor(() =>
+        expect(listKnowledgeDocuments).toHaveBeenLastCalledWith(
+          organization().id,
+          'faq',
+          { signal: expect.any(AbortSignal) },
+        ),
+      );
+    });
   });
 });

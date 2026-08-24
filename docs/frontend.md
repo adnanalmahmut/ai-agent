@@ -12,21 +12,27 @@ surface, and permission-gated UI. Client permission gates improve UX; backend
 authorization remains decisive.
 
 The control-plane screen (`/admin/control-plane`) edits feature flags, runtime
-settings, and provider credentials. It can write a credential and can never
+settings, and provider credentials, and exposes a separately loaded,
+cursor-paginated audit-history tab. It can write a credential and can never
 read one: no endpoint returns a stored secret and the screen shows no masked
-preview, so the only evidence a credential exists is its metadata. Reading it
-requires `controlPlane:read`; writing a credential requires the separate
-`managedSecret:write`, which `admin` does not hold. A credential's optional
-note is stored unsealed and returned by the listing, so the screen refuses to
-send one that contains the credential being stored.
+preview, so the only evidence a credential exists is its metadata. The audit
+tab renders only closed, safe state projections (never arbitrary audit JSON),
+so a future server regression cannot turn an operator's DOM into a credential
+exfiltration surface. Reading it requires `controlPlane:read`; writing a
+credential requires the separate `managedSecret:write`, which `admin` does not
+hold. A credential's optional note is stored unsealed and returned by the
+listing, so the screen refuses to send one that contains the credential being
+stored.
 
-An organization's Knowledge tab manages its spaces and documents. It always
-asks for the organization in hand rather than the session's active one, and
-document rows are tied to the space they were loaded for, so choosing a second
-space shows nothing until that space's own rows arrive rather than the previous
-space's material under the new heading. Write controls are hidden from a reader
-holding only `knowledge:read`, which is UX — the guard behind the endpoints
-decides.
+An organization's Knowledge tab manages its eight code-owned spaces and their
+documents. It always asks for the organization in hand rather than the
+session's active one, and document rows are tied to the space they were loaded
+for, so choosing a second space shows nothing until that space's own rows
+arrive rather than the previous space's material under the new heading. The
+document API uses bounded, stable cursor pagination and the tab can load later
+pages; cursors remain scoped to the same organization and space. Write controls
+are hidden from a reader holding only `knowledge:read`, which is UX — the guard
+behind the endpoints decides.
 
 An organization's Content ideas tab asks the `content-idea@1` agent for ideas
 grounded in that organization's knowledge. Generation is asynchronous, so the
@@ -38,15 +44,16 @@ stops on a terminal status; a poll that could not reach the server is ridden out
 because the next tick recovers, while a poll the server *refused* stops asking.
 A run still going after three minutes is reported as still running rather than
 waited on indefinitely. Giving up is not cancelling — the run continues on the
-server and is paid for — but it is not recoverable: the operation id lives only
-in the screen's own state, and there is no list endpoint to find it again from,
-so leaving the screen loses track of it. The copy says exactly that.
+server and is paid for — but its operation id is written to the route query, so
+a reload or navigation reconstructs the same authorized operation. A stale,
+unreadable, or wrong-organization operation id fails closed and is never shown
+under another organization.
 
-The idempotency key the endpoint requires is minted per submission and survives
-only a transport failure, where nobody knows whether the request was accepted;
-any answer from the server — a refusal included — means that submission is over
-and the next ask is a new key. Generation is billed, so a retry that minted a
-fresh key would buy the same answer twice.
+The idempotency key the endpoint requires is minted per material request and,
+with its request fingerprint and organization, survives an ambiguous transport
+failure in session storage. A reload/retry therefore reuses the uncertain key
+instead of buying a second run. It is cleared only when acceptance or refusal
+is unambiguous; a materially changed request receives a new identity.
 
 Both 403s are distinguished by code rather than status, so a disabled feature
 does not read as a missing permission, and the reason a 429 carried is rendered

@@ -169,6 +169,12 @@ describe('Control plane (e2e)', () => {
       path: () => `${BASE}/secrets`,
     },
     {
+      handler: 'listAudit',
+      label: 'GET audit',
+      method: 'get',
+      path: () => `${BASE}/audit`,
+    },
+    {
       handler: 'setSecret',
       label: 'PUT secret',
       method: 'put',

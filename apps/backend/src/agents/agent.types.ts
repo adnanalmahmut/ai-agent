@@ -1,5 +1,15 @@
 import type { ZodType } from 'zod';
 
+/**
+ * Imported from the leaf registry module rather than the Knowledge barrel.
+ *
+ * The barrel exports services and Nest modules, and this file is the agents'
+ * type vocabulary — pulling the barrel in would make every consumer of an agent
+ * type depend transitively on the storage adapters. The registry is a plain
+ * table with no imports of its own.
+ */
+import type { KnowledgeSpaceSlug } from '../knowledge/knowledge-space.registry';
+
 export const AGENT_RUN_STATUSES = [
   'QUEUED',
   'RUNNING',
@@ -143,13 +153,21 @@ export type AgentDefinition = {
  * space here grants nothing across a tenant boundary — a slug that does not
  * exist for that organization simply contributes no passages.
  *
+ * The slug type is the *registry's*, not `string`. That is the difference
+ * between a policy that is wrong and a policy that does not compile: a typo, or
+ * a space removed from the taxonomy, used to produce a policy that resolved to
+ * nothing and reported nothing, because "no such space" and "an empty space"
+ * are the same observation at retrieval time. Now it is a type error, and a
+ * composition test asserts the same thing at runtime for anything that reaches
+ * this shape without passing through the compiler.
+ *
  * Both budgets are required, and they are separate because they bound
  * different costs. `maxChunks` bounds the retrieval; `maxCharacters` bounds
  * what is actually sent, which is what the provider bills for and what
  * displaces the instructions if it grows.
  */
 export type ContextPolicy = {
-  spaceSlugs: readonly string[];
+  spaceSlugs: readonly KnowledgeSpaceSlug[];
   maxChunks: number;
   maxCharacters: number;
 };

@@ -29,6 +29,11 @@ Primary boundaries:
   goes straight to the adapter that needs it. Writing one requires a
   super-admin-only permission that is separate from reading control-plane
   metadata.
+- Control-plane history: mutations append an atomic audit event with only
+  closed, sensitivity-aware before/after projections. The event payload never
+  contains a credential plaintext, ciphertext, IV, authentication tag, or other
+  recoverable credential material; the Platform likewise renders only known
+  safe state shapes.
 - Agent context: what an agent may read is declared on its definition as a
   `ContextPolicy` naming knowledge spaces by slug, and the slugs are resolved
   against the caller's own organization at assembly time — so a definition

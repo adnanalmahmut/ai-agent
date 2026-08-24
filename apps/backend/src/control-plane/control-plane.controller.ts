@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import {
   Session,
@@ -9,6 +17,10 @@ import { z } from 'zod';
 
 import { AppException } from '../core/errors';
 import { createZodDto } from '../core/http';
+import {
+  CONTROL_PLANE_AUDIT_RESOURCES,
+  ControlPlaneAuditService,
+} from './audit/control-plane-audit.service';
 import {
   FEATURE_FLAG_KEYS,
   type FeatureFlagKey,
@@ -71,6 +83,24 @@ const secretSchema = z
 class ManagedSecretDto extends createZodDto(secretSchema) {}
 
 /**
+ * The audit listing's query, bounded on every field.
+ *
+ * The filters are the two questions the history is actually asked — what
+ * happened to this key, and what happened to this organization — rather than a
+ * general query language over a log table.
+ */
+const auditQuerySchema = z
+  .object({
+    cursor: z.string().trim().min(1).max(512).optional(),
+    limit: z.coerce.number().int().optional(),
+    resource: z.enum(CONTROL_PLANE_AUDIT_RESOURCES).optional(),
+    resourceKey: z.string().trim().min(1).max(120).optional(),
+    organizationId: z.string().trim().min(1).max(120).optional(),
+  })
+  .strict();
+class AuditQueryDto extends createZodDto(auditQuerySchema) {}
+
+/**
  * Turns an unrecognised key into a 404 before any service sees it.
  *
  * A shared helper so all three resources answer the same way. The key is echoed
@@ -98,6 +128,7 @@ export class ControlPlaneController {
     private readonly flags: FeatureFlagService,
     private readonly settings: RuntimeSettingService,
     private readonly secrets: ManagedSecretService,
+    private readonly audit: ControlPlaneAuditService,
   ) {}
 
   // --- Feature flags -------------------------------------------------------
@@ -156,10 +187,11 @@ export class ControlPlaneController {
     summary: 'Remove the platform override and fall back to the code default',
   })
   @ApiParam({ name: 'key', enum: FEATURE_FLAG_KEYS })
-  clearFeatureFlag(@Param('key') key: string) {
-    return this.flags.clearPlatformOverride(
-      assertKnown<FeatureFlagKey>(key, isFeatureFlagKey, 'feature-flag'),
-    );
+  clearFeatureFlag(@Param('key') key: string, @Session() session: UserSession) {
+    return this.flags.clearPlatformOverride({
+      key: assertKnown<FeatureFlagKey>(key, isFeatureFlagKey, 'feature-flag'),
+      actorUserId: session.user.id,
+    });
   }
 
   @Put('feature-flags/:key/organizations/:organizationId')
@@ -195,10 +227,12 @@ export class ControlPlaneController {
   clearOrganizationFeatureFlag(
     @Param('key') key: string,
     @Param('organizationId') organizationId: string,
+    @Session() session: UserSession,
   ) {
     return this.flags.clearOrganizationOverride({
       key: assertKnown<FeatureFlagKey>(key, isFeatureFlagKey, 'feature-flag'),
       organizationId,
+      actorUserId: session.user.id,
     });
   }
 
@@ -244,14 +278,15 @@ export class ControlPlaneController {
     summary: 'Remove a stored setting and fall back to the code default',
   })
   @ApiParam({ name: 'key', enum: RUNTIME_SETTING_KEYS })
-  resetSetting(@Param('key') key: string) {
-    return this.settings.reset(
-      assertKnown<RuntimeSettingKey>(
+  resetSetting(@Param('key') key: string, @Session() session: UserSession) {
+    return this.settings.reset({
+      key: assertKnown<RuntimeSettingKey>(
         key,
         isRuntimeSettingKey,
         'runtime-setting',
       ),
-    );
+      actorUserId: session.user.id,
+    });
   }
 
   // --- Managed secrets -----------------------------------------------------
@@ -297,9 +332,44 @@ export class ControlPlaneController {
     summary: 'Remove a stored provider credential',
   })
   @ApiParam({ name: 'key', enum: MANAGED_SECRET_KEYS })
-  removeSecret(@Param('key') key: string) {
-    return this.secrets.remove(
-      assertKnown<ManagedSecretKey>(key, isManagedSecretKey, 'secret'),
-    );
+  removeSecret(@Param('key') key: string, @Session() session: UserSession) {
+    return this.secrets.remove({
+      key: assertKnown<ManagedSecretKey>(key, isManagedSecretKey, 'secret'),
+      actorUserId: session.user.id,
+    });
+  }
+
+  // --- Audit ---------------------------------------------------------------
+
+  /**
+   * The history of every control-plane mutation, newest first.
+   *
+   * `controlPlane:read` and not a permission of its own. The log's contents are
+   * a subset of what that grant already shows — which flags exist, how the
+   * platform is tuned, which credential slots are configured — plus who changed
+   * them and when. Inventing a fourth statement for strictly less exposure
+   * would be a permission an operator has to be granted twice to see one
+   * screen. Notably `managedSecret:write` is *not* required: reading that a
+   * credential was rotated is not the same authority as rotating one, and the
+   * entries carry no credential material to protect.
+   *
+   * There is no write, update or delete route here, and that is the append-only
+   * guarantee — enforced by the absence of a handler rather than by a grant
+   * somebody could widen.
+   */
+  @Get('audit')
+  @UserHasPermission({ permissions: { controlPlane: ['read'] } })
+  @ApiOperation({
+    operationId: 'listControlPlaneAudit',
+    summary: 'List one bounded page of control-plane change history',
+  })
+  listAudit(@Query() query: AuditQueryDto) {
+    return this.audit.list({
+      cursor: query.cursor,
+      limit: query.limit,
+      resource: query.resource,
+      resourceKey: query.resourceKey,
+      organizationId: query.organizationId,
+    });
   }
 }

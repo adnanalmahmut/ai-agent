@@ -4,8 +4,8 @@ import {
   Delete,
   Get,
   Param,
-  Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
@@ -13,11 +13,17 @@ import { z } from 'zod';
 
 import { createZodDto } from '../core/http';
 import { UserRateLimit } from '../core/rate-limit';
+import { AppException } from '../core/errors';
 import { KnowledgeIngestionService } from './knowledge-ingestion.service';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
 } from '../core/auth/organization-permission.guard';
+import {
+  KNOWLEDGE_SPACE_SLUGS,
+  isKnowledgeSpaceSlug,
+  type KnowledgeSpaceSlug,
+} from './knowledge-space.registry';
 import { KnowledgeSpaceService } from './knowledge-space.service';
 
 /**
@@ -43,27 +49,40 @@ import { KnowledgeSpaceService } from './knowledge-space.service';
  * another tenant's space exists.
  */
 
-const slugSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(64)
-  /**
-   * Lowercase, because a context policy names a space by slug in code and
-   * `Brand` and `brand` reading as two spaces would be a silent policy miss.
-   */
-  .regex(
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-    'A slug may contain lowercase letters, numbers, and single hyphens',
-  );
+/**
+ * Turns a path segment into a registry member, or answers 404.
+ *
+ * There is no slug *schema* any more, and no `name` a caller may submit. The
+ * taxonomy is code-owned, so the only question this boundary asks is whether
+ * the segment names a registered space — which makes an unknown slug
+ * unpersistable through the application rather than merely discouraged. 404
+ * rather than 400 because an unregistered slug names no resource, which is the
+ * same answer a space belonging to another organization gets.
+ */
+function assertRegisteredSlug(value: string): KnowledgeSpaceSlug {
+  if (!isKnowledgeSpaceSlug(value)) {
+    throw new AppException('NOT_FOUND', {
+      context: { resource: 'knowledgeSpace' },
+    });
+  }
 
-const createSpaceSchema = z
+  return value;
+}
+
+/**
+ * Bounded, and both fields optional.
+ *
+ * `limit` arrives as a query string, so it is coerced before it is bounded;
+ * the service refuses an out-of-range page rather than clamping it, because a
+ * silently shortened page reads as the end of the collection.
+ */
+const listDocumentsSchema = z
   .object({
-    slug: slugSchema,
-    name: z.string().trim().min(1).max(120),
+    cursor: z.string().trim().min(1).max(512).optional(),
+    limit: z.coerce.number().int().optional(),
   })
   .strict();
-class CreateSpaceDto extends createZodDto(createSpaceSchema) {}
+class ListDocumentsDto extends createZodDto(listDocumentsSchema) {}
 
 const ingestSchema = z
   .object({
@@ -114,66 +133,66 @@ export class KnowledgeController {
   @RequiresOrganizationPermission({ knowledge: ['read'] })
   @ApiOperation({
     operationId: 'listKnowledgeSpaces',
-    summary: "List an organization's knowledge spaces",
+    summary:
+      'List the canonical knowledge spaces and what this organization has stored',
   })
   @ApiParam({ name: 'organizationId' })
   listSpaces(@Param('organizationId') organizationId: string) {
     return this.spaces.list(organizationId);
   }
 
-  @Post('spaces')
+  /**
+   * There is deliberately no route that *creates* a space.
+   *
+   * The eight spaces are the application's taxonomy, so the listing above
+   * already returns all of them and a caller has nothing to add. Rows appear
+   * when a document is first ingested into a space, inside that ingestion's own
+   * transaction. What is left is emptying one, below.
+   */
+  @Delete('spaces/:slug')
   @RequiresOrganizationPermission({ knowledge: ['write'] })
   @ApiOperation({
-    operationId: 'createKnowledgeSpace',
-    summary: 'Create a knowledge space',
+    operationId: 'clearKnowledgeSpace',
+    summary: 'Delete everything this organization has stored in one space',
   })
   @ApiParam({ name: 'organizationId' })
-  createSpace(
+  @ApiParam({ name: 'slug', enum: KNOWLEDGE_SPACE_SLUGS })
+  clearSpace(
     @Param('organizationId') organizationId: string,
-    @Body() body: CreateSpaceDto,
+    @Param('slug') slug: string,
   ) {
-    return this.spaces.create({
+    return this.spaces.remove({
       organizationId,
-      slug: body.slug,
-      name: body.name,
+      slug: assertRegisteredSlug(slug),
     });
   }
 
-  @Delete('spaces/:spaceId')
-  @RequiresOrganizationPermission({ knowledge: ['write'] })
-  @ApiOperation({
-    operationId: 'deleteKnowledgeSpace',
-    summary: 'Delete a knowledge space and everything in it',
-  })
-  @ApiParam({ name: 'organizationId' })
-  @ApiParam({ name: 'spaceId' })
-  deleteSpace(
-    @Param('organizationId') organizationId: string,
-    @Param('spaceId') spaceId: string,
-  ) {
-    return this.spaces.remove({ organizationId, spaceId });
-  }
-
-  @Get('spaces/:spaceId/documents')
+  @Get('spaces/:slug/documents')
   @RequiresOrganizationPermission({ knowledge: ['read'] })
   @ApiOperation({
     operationId: 'listKnowledgeDocuments',
-    summary: 'List the documents in a knowledge space',
+    summary: 'List one bounded page of the documents in a knowledge space',
   })
   @ApiParam({ name: 'organizationId' })
-  @ApiParam({ name: 'spaceId' })
+  @ApiParam({ name: 'slug', enum: KNOWLEDGE_SPACE_SLUGS })
   listDocuments(
     @Param('organizationId') organizationId: string,
-    @Param('spaceId') spaceId: string,
+    @Param('slug') slug: string,
+    @Query() query: ListDocumentsDto,
   ) {
-    return this.documents.list({ organizationId, spaceId });
+    return this.documents.list({
+      organizationId,
+      slug: assertRegisteredSlug(slug),
+      cursor: query.cursor,
+      limit: query.limit,
+    });
   }
 
   /**
    * `PUT`, because ingestion is addressed by title and is idempotent: the same
    * text submitted twice is one document, unchanged the second time.
    */
-  @Put('spaces/:spaceId/documents')
+  @Put('spaces/:slug/documents')
   @RequiresOrganizationPermission({ knowledge: ['write'] })
   /**
    * Metered on a burst window, because this request is not generic.
@@ -194,15 +213,15 @@ export class KnowledgeController {
     summary: 'Create or replace a document by title',
   })
   @ApiParam({ name: 'organizationId' })
-  @ApiParam({ name: 'spaceId' })
+  @ApiParam({ name: 'slug', enum: KNOWLEDGE_SPACE_SLUGS })
   ingest(
     @Param('organizationId') organizationId: string,
-    @Param('spaceId') spaceId: string,
+    @Param('slug') slug: string,
     @Body() body: IngestDocumentDto,
   ) {
     return this.documents.ingest({
       organizationId,
-      spaceId,
+      slug: assertRegisteredSlug(slug),
       title: body.title,
       sourceUri: body.sourceUri,
       content: body.content,

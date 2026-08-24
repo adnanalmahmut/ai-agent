@@ -57,27 +57,46 @@ export function renderWithProviders(
 export function renderInOrganization(
   ui: ReactElement,
   context: OrganizationContext,
-  { locale = 'en' as AppLocale } = {},
-): RenderResult & { locale: AppLocale } {
+  {
+    locale = 'en' as AppLocale,
+    /**
+     * Where the reader arrives, which for a screen that keeps state in the
+     * query string is part of the input rather than scenery.
+     *
+     * The content-idea block carries its operation in `?operation=`, so
+     * "reload with a run in the URL" is a test that starts at that URL — and
+     * asserting recovery any other way would be asserting against a fiction of
+     * the component's own plumbing.
+     */
+    initialEntries = ['/'],
+  }: { locale?: AppLocale; initialEntries?: string[] } = {},
+): RenderResult & { locale: AppLocale; router: ReturnType<typeof createMemoryRouter> } {
   const { direction } = LOCALE_META[locale];
 
-  const router = createMemoryRouter([
-    {
-      path: '/',
-      element: (
-        <IntlProvider locale={locale} messages={MESSAGES[locale]} timeZone="UTC">
-          <DirectionProvider direction={direction}>
-            <Outlet context={context} />
-          </DirectionProvider>
-        </IntlProvider>
-      ),
-      children: [{ index: true, element: ui }],
-    },
-  ]);
+  const router = createMemoryRouter(
+    [
+      {
+        path: '/',
+        element: (
+          <IntlProvider
+            locale={locale}
+            messages={MESSAGES[locale]}
+            timeZone="UTC"
+          >
+            <DirectionProvider direction={direction}>
+              <Outlet context={context} />
+            </DirectionProvider>
+          </IntlProvider>
+        ),
+        children: [{ index: true, element: ui }],
+      },
+    ],
+    { initialEntries },
+  );
 
   const result = render(<RouterProvider router={router} />);
 
-  return Object.assign(result, { locale });
+  return Object.assign(result, { locale, router });
 }
 
 export { arabic, english };

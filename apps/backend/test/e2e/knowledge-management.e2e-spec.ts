@@ -8,6 +8,7 @@ import {
 } from '@jest/globals';
 
 import { FeatureFlagService } from '../../src/control-plane';
+import { KNOWLEDGE_SPACE_SLUGS } from '../../src/knowledge/knowledge-space.registry';
 import { KNOWLEDGE_DOCUMENT_INGESTED } from '../../src/knowledge/knowledge.events';
 import { EMBEDDING_MODEL } from '../../src/knowledge/adapters/openai-embedding.adapter';
 import { KnowledgeController } from '../../src/knowledge/knowledge.controller';
@@ -19,6 +20,17 @@ import {
   type Harness,
   type TestUser,
 } from '../support/auth-harness';
+
+/**
+ * The actor recorded on control-plane writes this harness makes.
+ *
+ * The audit log records who changed a flag, and these setups change flags — so
+ * every call has to name somebody. A fixed non-user id rather than a session
+ * user: the events are the harness's own, and attributing them to a test member
+ * would put rows in the log that read as though a member of the organization
+ * had reached the operator surface.
+ */
+const CONTROL_PLANE_ACTOR = 'e2e-harness';
 
 /**
  * The organization's knowledge surface, against the real application.
@@ -34,16 +46,36 @@ import {
  * goes missing is always the one on the route nobody thought to probe.
  */
 
-type SpaceBody = { id: string; slug: string; name: string };
+type SpaceBody = {
+  slug: string;
+  name: string;
+  description: string;
+  configured: boolean;
+  documentCount: number;
+};
+
+type DocumentPage = { items: DocumentBody[]; nextCursor: string | null };
 type DocumentBody = {
   id: string;
+  title: string;
   revision: number;
   chunkCount: number;
   changed: boolean;
   sourceUri: string | null;
+  updatedAt: string;
 };
 
 const dataOf = <T>(body: unknown): T => (body as { data: T }).data;
+
+/**
+ * The two registry slugs this suite writes under.
+ *
+ * Registry members rather than invented strings, because there is no longer a
+ * route that would accept an invented one — which is the point of the redesign
+ * and is asserted directly further down.
+ */
+const SLUG = 'brand.voice';
+const OTHER_SLUG = 'products.services';
 
 const TEXT = [
   'Our refund window is thirty days from delivery.',
@@ -59,7 +91,6 @@ describe('organization knowledge', () => {
   let superAdmin: TestUser;
   let organizationId: string;
   let otherOrganizationId: string;
-  let spaceId: string;
 
   const base = (id = organizationId) =>
     `/organizations/${encodeURIComponent(id)}/knowledge`;
@@ -124,9 +155,10 @@ describe('organization knowledge', () => {
      * references a deleted document, so they would accumulate in a table two
      * other suites treat as theirs to truncate.
      */
-    await harness.app
-      .get(FeatureFlagService)
-      .clearPlatformOverride('knowledge.enabled');
+    await harness.app.get(FeatureFlagService).clearPlatformOverride({
+      key: 'knowledge.enabled',
+      actorUserId: CONTROL_PLANE_ACTOR,
+    });
     await harness.prisma.outboxEvent.deleteMany({
       where: { type: KNOWLEDGE_DOCUMENT_INGESTED },
     });
@@ -137,17 +169,17 @@ describe('organization knowledge', () => {
   });
 
   beforeEach(async () => {
+    /**
+     * No space is created here, and there is no route that would.
+     *
+     * The taxonomy is code-owned: the eight spaces exist in the registry
+     * whether or not this organization has stored anything, and the row appears
+     * on first ingestion inside that ingestion's own transaction. Clearing the
+     * rows is therefore the whole of the reset.
+     */
     await harness.prisma.knowledgeSpace.deleteMany({
       where: { organizationId: { in: [organizationId, otherOrganizationId] } },
     });
-
-    const created = await as(harness, owner).post(`${base()}/spaces`, {
-      slug: 'brand',
-      name: 'Brand',
-    });
-    expect(created.status).toBe(201);
-
-    spaceId = dataOf<SpaceBody>(created.body).id;
   });
 
   describe('authorization', () => {
@@ -157,20 +189,19 @@ describe('organization knowledge', () => {
      */
     const routes = () => [
       { method: 'get' as const, path: `${base()}/spaces`, write: false },
-      { method: 'post' as const, path: `${base()}/spaces`, write: true },
       {
         method: 'del' as const,
-        path: `${base()}/spaces/${spaceId}`,
+        path: `${base()}/spaces/${SLUG}`,
         write: true,
       },
       {
         method: 'get' as const,
-        path: `${base()}/spaces/${spaceId}/documents`,
+        path: `${base()}/spaces/${SLUG}/documents`,
         write: false,
       },
       {
         method: 'put' as const,
-        path: `${base()}/spaces/${spaceId}/documents`,
+        path: `${base()}/spaces/${SLUG}/documents`,
         write: true,
       },
       {
@@ -187,8 +218,6 @@ describe('organization knowledge', () => {
       switch (route.method) {
         case 'get':
           return client.get(route.path);
-        case 'post':
-          return client.post(route.path);
         case 'put':
           return client.put(route.path);
         case 'del':
@@ -266,12 +295,12 @@ describe('organization knowledge', () => {
     });
 
     it('lets an organization admin write', async () => {
-      const response = await as(harness, orgAdmin).post(`${base()}/spaces`, {
-        slug: 'product',
-        name: 'Product',
-      });
+      const response = await as(harness, orgAdmin).put(
+        `${base()}/spaces/${OTHER_SLUG}/documents`,
+        { title: 'Product notes', content: TEXT },
+      );
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(200);
     });
 
     /**
@@ -301,121 +330,177 @@ describe('organization knowledge', () => {
    * has to be asserted by its effect rather than by the absence of an error.
    */
   describe('listings are scoped to the organization in the path', () => {
-    it('returns no documents from a space owned by another organization', async () => {
-      const theirSpace = dataOf<{ id: string }>(
-        (
-          await as(harness, outsider).post(
-            `${base(otherOrganizationId)}/spaces`,
-            {
-              slug: 'theirs',
-              name: 'Theirs',
-            },
-          )
-        ).body,
-      );
-
+    /**
+     * The slug is now the same string in every organization, which makes this
+     * the sharper version of the old test rather than a weaker one: the caller
+     * names a space that genuinely exists for somebody else, spelled exactly
+     * as it is spelled there, and the only thing standing between them and its
+     * contents is the tenant predicate.
+     */
+    it('returns no documents from another organization space of the same name', async () => {
       await as(harness, outsider)
-        .put(`${base(otherOrganizationId)}/spaces/${theirSpace.id}/documents`, {
+        .put(`${base(otherOrganizationId)}/spaces/${SLUG}/documents`, {
           title: 'Their handbook',
           content: TEXT,
         })
         .expect(200);
 
-      // The caller is authorized for their own organization and names a space
-      // id belonging to another. The space predicate alone would return it.
       const response = await as(harness, owner).get(
-        `${base()}/spaces/${theirSpace.id}/documents`,
+        `${base()}/spaces/${SLUG}/documents`,
       );
 
       expect(response.status).toBe(200);
-      expect(dataOf<unknown[]>(response.body)).toEqual([]);
+      expect(dataOf<DocumentPage>(response.body).items).toEqual([]);
     });
 
-    it('lists only the caller organization own spaces', async () => {
+    it('counts only the caller organization own documents', async () => {
       await as(harness, outsider)
-        .post(`${base(otherOrganizationId)}/spaces`, {
-          slug: 'brand',
-          name: 'Their brand',
+        .put(`${base(otherOrganizationId)}/spaces/${SLUG}/documents`, {
+          title: 'Their handbook',
+          content: TEXT,
         })
-        .expect(201);
+        .expect(200);
 
       const response = await as(harness, owner).get(`${base()}/spaces`);
+      const spaces = dataOf<SpaceBody[]>(response.body);
 
-      const spaces = dataOf<{ id: string; name: string }[]>(response.body);
-
-      expect(spaces.length).toBeGreaterThan(0);
-      expect(spaces.map((space) => space.name)).not.toContain('Their brand');
-
-      const owned = await harness.prisma.knowledgeSpace.findMany({
-        where: { id: { in: spaces.map((space) => space.id) } },
-        select: { organizationId: true },
-      });
-
-      expect(
-        owned.every((space) => space.organizationId === organizationId),
-      ).toBe(true);
+      // The taxonomy is the same eight for everyone; what is scoped is what has
+      // been stored in it.
+      expect(spaces).toHaveLength(KNOWLEDGE_SPACE_SLUGS.length);
+      expect(spaces.every((space) => space.documentCount === 0)).toBe(true);
+      expect(spaces.every((space) => !space.configured)).toBe(true);
     });
   });
 
   describe('spaces', () => {
-    it('refuses a second space with the same slug', async () => {
-      const response = await as(harness, owner).post(`${base()}/spaces`, {
-        slug: 'brand',
-        name: 'Brand again',
-      });
+    /**
+     * The taxonomy is the application's, and the listing says so before
+     * anything has been stored.
+     *
+     * This is the property the whole redesign rests on: a customer cannot
+     * invent a space, so there is nothing to create and nothing to name. What
+     * the screen shows is the eight the code declares, annotated with what this
+     * organization has put in them.
+     */
+    it('returns the whole registry, including spaces nothing is stored in', async () => {
+      const response = await as(harness, owner).get(`${base()}/spaces`);
 
-      expect(response.status).toBe(409);
-      expect(errorBody(response).errorCode).toBe('CONFLICT');
+      expect(response.status).toBe(200);
+
+      const spaces = dataOf<SpaceBody[]>(response.body);
+
+      expect(spaces.map((space) => space.slug)).toEqual([
+        ...KNOWLEDGE_SPACE_SLUGS,
+      ]);
+      expect(spaces.every((space) => space.name.length > 0)).toBe(true);
+      expect(spaces.every((space) => space.description.length > 0)).toBe(true);
     });
 
-    it('lets another organization use the same slug', async () => {
-      const response = await as(harness, outsider).post(
-        `${base(otherOrganizationId)}/spaces`,
-        { slug: 'brand', name: 'Brand' },
-      );
-
-      expect(response.status).toBe(201);
-    });
-
-    it.each(['Brand', 'has space', 'trailing-', 'ümlaut'])(
-      'refuses the slug %p',
-      async (slug) => {
-        const response = await as(harness, owner).post(`${base()}/spaces`, {
-          slug,
-          name: 'Whatever',
-        });
-
-        expect(response.status).toBe(400);
-      },
-    );
-
-    it('will not delete a space through another organization', async () => {
-      const response = await as(harness, outsider).del(
-        `${base(otherOrganizationId)}/spaces/${spaceId}`,
-      );
-
-      expect(response.status).toBe(404);
-    });
-
-    it('takes the documents with it', async () => {
+    it('reports a space as configured once something is in it', async () => {
       await as(harness, owner)
-        .put(`${base()}/spaces/${spaceId}/documents`, {
+        .put(`${base()}/spaces/${SLUG}/documents`, {
           title: 'Policies',
           content: TEXT,
         })
         .expect(200);
 
-      await as(harness, owner).del(`${base()}/spaces/${spaceId}`).expect(200);
+      const spaces = dataOf<SpaceBody[]>(
+        (await as(harness, owner).get(`${base()}/spaces`)).body,
+      );
+      const stored = spaces.find((space) => space.slug === SLUG);
+
+      expect(stored).toMatchObject({ configured: true, documentCount: 1 });
+      expect(
+        spaces
+          .filter((space) => space.slug !== SLUG)
+          .every((s) => !s.configured),
+      ).toBe(true);
+    });
+
+    /**
+     * An unregistered slug is unpersistable through the application, which is
+     * the guarantee that replaced the old free-text field. 404 rather than 400:
+     * it names no resource, the same answer another organization's material
+     * gets.
+     */
+    it.each([
+      'brand',
+      'Brand.Voice',
+      'products',
+      'anything-a-customer-invents',
+      'constructor',
+      '__proto__',
+    ])('refuses the unregistered slug %p', async (slug) => {
+      const write = await as(harness, owner).put(
+        `${base()}/spaces/${encodeURIComponent(slug)}/documents`,
+        { title: 'Whatever', content: TEXT },
+      );
+
+      expect(write.status).toBe(404);
+
+      const read = await as(harness, owner).get(
+        `${base()}/spaces/${encodeURIComponent(slug)}/documents`,
+      );
+
+      expect(read.status).toBe(404);
+
+      // And nothing was written under it.
+      expect(
+        await harness.prisma.knowledgeSpace.count({ where: { slug } }),
+      ).toBe(0);
+    });
+
+    it('answers an empty page for a registered space nothing is stored in', async () => {
+      const response = await as(harness, owner).get(
+        `${base()}/spaces/${SLUG}/documents`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(dataOf<DocumentPage>(response.body)).toEqual({
+        items: [],
+        nextCursor: null,
+      });
+    });
+
+    it('empties one space without touching another organization', async () => {
+      await as(harness, outsider)
+        .put(`${base(otherOrganizationId)}/spaces/${SLUG}/documents`, {
+          title: 'Theirs',
+          content: TEXT,
+        })
+        .expect(200);
+      await as(harness, owner)
+        .put(`${base()}/spaces/${SLUG}/documents`, {
+          title: 'Policies',
+          content: TEXT,
+        })
+        .expect(200);
+
+      await as(harness, owner).del(`${base()}/spaces/${SLUG}`).expect(200);
 
       expect(
-        await harness.prisma.knowledgeChunk.count({ where: { spaceId } }),
+        await harness.prisma.knowledgeChunk.count({
+          where: { organizationId },
+        }),
       ).toBe(0);
+      expect(
+        await harness.prisma.knowledgeChunk.count({
+          where: { organizationId: otherOrganizationId },
+        }),
+      ).toBeGreaterThan(0);
+    });
+
+    /** Emptying a space it has nothing in is a 404, not a silent success. */
+    it('refuses to empty a space this organization has never used', async () => {
+      const response = await as(harness, owner).del(`${base()}/spaces/${SLUG}`);
+
+      expect(response.status).toBe(404);
     });
   });
 
   describe('ingestion', () => {
     const ingest = (body: Record<string, unknown>) =>
-      as(harness, owner).put(`${base()}/spaces/${spaceId}/documents`, body);
+      as(harness, owner).put(`${base()}/spaces/${SLUG}/documents`, body);
 
     it('stores a document as chunks and queues the embedding', async () => {
       const response = await ingest({ title: 'Policies', content: TEXT });
@@ -624,6 +709,94 @@ describe('organization knowledge', () => {
       expect(stored.sourceUri).toBe('https://example.test/correct');
     });
 
+    /**
+     * The response has to describe the row *after* the write, not before it.
+     *
+     * `updatedAt` carries `@updatedAt`, so correcting a `sourceUri` bumps it —
+     * and the unchanged-content path used to answer with the value it had read
+     * a moment earlier, reporting the timestamp of the change *before* this
+     * one. A client that stores what it is told and uses it to decide whether
+     * its copy is current would conclude its stale copy is the newest, which is
+     * the one question this field exists to answer.
+     *
+     * Asserted against the committed row rather than against a clock, so it
+     * cannot pass by the two happening to be close together.
+     */
+    it('reports the timestamp the source-reference correction committed', async () => {
+      const first = dataOf<DocumentBody>(
+        (
+          await ingest({
+            title: 'Policies',
+            content: TEXT,
+            sourceUri: 'https://example.test/typo',
+          })
+        ).body,
+      );
+
+      const corrected = dataOf<DocumentBody>(
+        (
+          await ingest({
+            title: 'Policies',
+            content: TEXT,
+            sourceUri: 'https://example.test/correct',
+          })
+        ).body,
+      );
+
+      const stored = await harness.prisma.knowledgeDocument.findUniqueOrThrow({
+        where: { id: first.id },
+        select: { sourceUri: true, updatedAt: true, revision: true },
+      });
+
+      // The returned `updatedAt` is the committed one, not the pre-update one.
+      expect(corrected.updatedAt).toBe(stored.updatedAt.toISOString());
+      expect(corrected.updatedAt).not.toBe(first.updatedAt);
+      expect(new Date(corrected.updatedAt).getTime()).toBeGreaterThan(
+        new Date(first.updatedAt).getTime(),
+      );
+
+      // And the things a source-reference correction must not do.
+      expect(stored.revision).toBe(1);
+      expect(corrected.revision).toBe(1);
+      expect(corrected.changed).toBe(false);
+    });
+
+    /**
+     * The other half: a genuinely unchanged submission writes nothing, so the
+     * timestamp must *not* move. Without this the fix above could be a blanket
+     * `updatedAt: new Date()` on every re-ingestion, which would be a write on
+     * the path whose whole purpose is not to write.
+     */
+    it('leaves the timestamp alone when nothing at all changed', async () => {
+      const first = dataOf<DocumentBody>(
+        (
+          await ingest({
+            title: 'Policies',
+            content: TEXT,
+            sourceUri: 'https://example.test/same',
+          })
+        ).body,
+      );
+
+      const again = dataOf<DocumentBody>(
+        (
+          await ingest({
+            title: 'Policies',
+            content: TEXT,
+            sourceUri: 'https://example.test/same',
+          })
+        ).body,
+      );
+
+      const stored = await harness.prisma.knowledgeDocument.findUniqueOrThrow({
+        where: { id: first.id },
+        select: { updatedAt: true },
+      });
+
+      expect(again.updatedAt).toBe(first.updatedAt);
+      expect(stored.updatedAt.toISOString()).toBe(first.updatedAt);
+    });
+
     it('replaces the chunks when the text changes, leaving none of the old ones', async () => {
       const first = dataOf<DocumentBody>(
         (await ingest({ title: 'Policies', content: TEXT })).body,
@@ -687,22 +860,38 @@ describe('organization knowledge', () => {
       expect(response.status).toBe(400);
     });
 
-    it('refuses a space belonging to another organization', async () => {
-      const theirs = dataOf<SpaceBody>(
-        (
-          await as(harness, outsider).post(
-            `${base(otherOrganizationId)}/spaces`,
-            { slug: 'theirs', name: 'Theirs' },
-          )
-        ).body,
-      );
+    /**
+     * Ingesting into a space another organization has already used stores a row
+     * for *this* organization rather than writing into theirs.
+     *
+     * The old version of this asserted a 404 on a space id belonging to
+     * somebody else. There are no space ids on the surface any more, so the
+     * question changes shape: the slug is the same string for everyone, and
+     * what must hold is that the row `ensure` writes carries the caller's
+     * tenant. A `where` that had lost `organizationId` would silently make the
+     * two organizations share one space.
+     */
+    it('writes into this organization space, not the neighbour one of the same name', async () => {
+      await as(harness, outsider)
+        .put(`${base(otherOrganizationId)}/spaces/${SLUG}/documents`, {
+          title: 'Theirs',
+          content: TEXT,
+        })
+        .expect(200);
 
-      const response = await as(harness, owner).put(
-        `${base()}/spaces/${theirs.id}/documents`,
-        { title: 'Smuggled', content: TEXT },
-      );
+      await ingest({ title: 'Ours', content: TEXT });
 
-      expect(response.status).toBe(404);
+      const spaces = await harness.prisma.knowledgeSpace.findMany({
+        where: {
+          slug: SLUG,
+          organizationId: { in: [organizationId, otherOrganizationId] },
+        },
+        select: { organizationId: true },
+      });
+
+      // Two rows, one per tenant — not one row shared.
+      expect(spaces).toHaveLength(2);
+      expect(new Set(spaces.map((space) => space.organizationId)).size).toBe(2);
     });
 
     it('deletes a document and its chunks', async () => {
@@ -750,7 +939,7 @@ describe('organization knowledge', () => {
 
     it('refuses writes and still serves reads when disabled', async () => {
       await as(harness, owner)
-        .put(`${base()}/spaces/${spaceId}/documents`, {
+        .put(`${base()}/spaces/${SLUG}/documents`, {
           title: 'Policies',
           content: TEXT,
         })
@@ -765,26 +954,41 @@ describe('organization knowledge', () => {
 
       try {
         const refused = await as(harness, owner).put(
-          `${base()}/spaces/${spaceId}/documents`,
+          `${base()}/spaces/${SLUG}/documents`,
           { title: 'Another', content: TEXT },
         );
 
         expect(refused.status).toBe(403);
         expect(errorBody(refused).errorCode).toBe('FEATURE_DISABLED');
 
-        const creating = await as(harness, owner).post(`${base()}/spaces`, {
-          slug: 'blocked',
-          name: 'Blocked',
-        });
-        expect(creating.status).toBe(403);
+        // Including into a space this organization has not used yet, which is
+        // the path that would create the row: the gate is checked before the
+        // transaction that ensures it opens.
+        const opening = await as(harness, owner).put(
+          `${base()}/spaces/${OTHER_SLUG}/documents`,
+          { title: 'Blocked', content: TEXT },
+        );
+        expect(opening.status).toBe(403);
+        expect(errorBody(opening).errorCode).toBe('FEATURE_DISABLED');
+        expect(
+          await harness.prisma.knowledgeSpace.count({
+            where: { organizationId, slug: OTHER_SLUG },
+          }),
+        ).toBe(0);
 
+        // Both reads still answer. Disabling a feature refuses new work; it
+        // does not hide what an organization already has.
         const reading = await as(harness, owner).get(
-          `${base()}/spaces/${spaceId}/documents`,
+          `${base()}/spaces/${SLUG}/documents`,
         );
         expect(reading.status).toBe(200);
-        expect(dataOf<unknown[]>(reading.body)).toHaveLength(1);
+        expect(dataOf<DocumentPage>(reading.body).items).toHaveLength(1);
+
+        const listing = await as(harness, owner).get(`${base()}/spaces`);
+        expect(listing.status).toBe(200);
       } finally {
         await flags().clearOrganizationOverride({
+          actorUserId: CONTROL_PLANE_ACTOR,
           key: 'knowledge.enabled',
           organizationId,
         });
@@ -801,21 +1005,19 @@ describe('organization knowledge', () => {
     it('still allows removal when disabled', async () => {
       const document = dataOf<DocumentBody>(
         (
-          await as(harness, owner).put(
-            `${base()}/spaces/${spaceId}/documents`,
-            { title: 'Removable', content: TEXT },
-          )
-        ).body,
-      );
-
-      const doomed = dataOf<{ id: string }>(
-        (
-          await as(harness, owner).post(`${base()}/spaces`, {
-            slug: 'doomed',
-            name: 'Doomed',
+          await as(harness, owner).put(`${base()}/spaces/${SLUG}/documents`, {
+            title: 'Removable',
+            content: TEXT,
           })
         ).body,
       );
+
+      await as(harness, owner)
+        .put(`${base()}/spaces/${OTHER_SLUG}/documents`, {
+          title: 'Doomed',
+          content: TEXT,
+        })
+        .expect(200);
 
       await flags().setOrganizationOverride({
         key: 'knowledge.enabled',
@@ -830,7 +1032,7 @@ describe('organization knowledge', () => {
           .expect(200);
 
         await as(harness, owner)
-          .del(`${base()}/spaces/${doomed.id}`)
+          .del(`${base()}/spaces/${OTHER_SLUG}`)
           .expect(200);
 
         expect(
@@ -840,11 +1042,12 @@ describe('organization knowledge', () => {
         ).toBe(0);
         expect(
           await harness.prisma.knowledgeSpace.count({
-            where: { id: doomed.id },
+            where: { organizationId, slug: OTHER_SLUG },
           }),
         ).toBe(0);
       } finally {
         await flags().clearOrganizationOverride({
+          actorUserId: CONTROL_PLANE_ACTOR,
           key: 'knowledge.enabled',
           organizationId,
         });
@@ -860,14 +1063,15 @@ describe('organization knowledge', () => {
       });
 
       try {
-        const response = await as(harness, outsider).post(
-          `${base(otherOrganizationId)}/spaces`,
-          { slug: 'unaffected', name: 'Unaffected' },
+        const response = await as(harness, outsider).put(
+          `${base(otherOrganizationId)}/spaces/${OTHER_SLUG}/documents`,
+          { title: 'Unaffected', content: TEXT },
         );
 
-        expect(response.status).toBe(201);
+        expect(response.status).toBe(200);
       } finally {
         await flags().clearOrganizationOverride({
+          actorUserId: CONTROL_PLANE_ACTOR,
           key: 'knowledge.enabled',
           organizationId,
         });
@@ -875,16 +1079,151 @@ describe('organization knowledge', () => {
     });
   });
 
+  /**
+   * Paging, against a real database.
+   *
+   * The old listing returned up to two hundred rows and then stopped, silently
+   * — a client had no way to tell a space with exactly two hundred documents
+   * from one with a thousand. What replaces it is keyset paging, and the two
+   * properties worth asserting end to end are that the sequence is complete and
+   * that a cursor grants nothing.
+   */
+  describe('document paging', () => {
+    /** Titles chosen so lexical order and insertion order disagree. */
+    const TITLES = [
+      'Delta note',
+      'Alpha note',
+      'Echo note',
+      'Bravo note',
+      'Charlie note',
+    ];
+
+    const seed = async (target = organizationId, user = owner) => {
+      for (const title of TITLES) {
+        await as(harness, user)
+          .put(`${base(target)}/spaces/${SLUG}/documents`, {
+            title,
+            content: `${TEXT}\n\n${title}`,
+          })
+          .expect(200);
+      }
+    };
+
+    const page = (query: string, user = owner, target = organizationId) =>
+      as(harness, user).get(`${base(target)}/spaces/${SLUG}/documents${query}`);
+
+    it('walks the whole collection exactly once, in a stable order', async () => {
+      await seed();
+
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      let requests = 0;
+
+      do {
+        const response = await page(
+          `?limit=2${cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`}`,
+        );
+
+        expect(response.status).toBe(200);
+
+        const body = dataOf<DocumentPage>(response.body);
+
+        expect(body.items.length).toBeLessThanOrEqual(2);
+        seen.push(...body.items.map((item) => item.title));
+        cursor = body.nextCursor;
+        requests += 1;
+
+        // A cursor that never advanced would loop until the suite timed out.
+        expect(requests).toBeLessThan(10);
+      } while (cursor !== null);
+
+      // Every document, once, in title order — not insertion order.
+      expect(seen).toEqual([...TITLES].sort());
+      expect(new Set(seen).size).toBe(TITLES.length);
+    });
+
+    /**
+     * The last page must not emit a cursor.
+     *
+     * A `nextCursor` returned whenever a page came back full leaves a client
+     * fetching one empty page at the end of every collection whose size divides
+     * evenly by the page size — which is why the query reads one row more than
+     * it returns.
+     */
+    it('stops without a cursor when the collection divides evenly', async () => {
+      await seed();
+
+      const first = dataOf<DocumentPage>((await page('?limit=5')).body);
+
+      expect(first.items).toHaveLength(5);
+      expect(first.nextCursor).toBeNull();
+    });
+
+    it('refuses a page size beyond the server ceiling rather than clamping it', async () => {
+      const response = await page('?limit=5000');
+
+      expect(response.status).toBe(400);
+      expect(errorBody(response).errorCode).toBe('VALIDATION_ERROR');
+    });
+
+    it.each(['?limit=0', '?limit=-1', '?cursor=not-a-cursor'])(
+      'refuses %s',
+      async (query) => {
+        expect((await page(query)).status).toBe(400);
+      },
+    );
+
+    /**
+     * A cursor is a position, not a capability.
+     *
+     * The strongest available statement: take a cursor minted while paging
+     * another organization's identically-named space and present it here. The
+     * tenant predicate stays in the query, so it can only position over rows
+     * this caller could already read — it cannot redirect the listing, and it
+     * cannot leak the neighbour's titles.
+     */
+    it('does not let a cursor from another organization reach its rows', async () => {
+      await seed(otherOrganizationId, outsider);
+      await as(harness, owner)
+        .put(`${base()}/spaces/${SLUG}/documents`, {
+          title: 'Ours only',
+          content: TEXT,
+        })
+        .expect(200);
+
+      const theirs = dataOf<DocumentPage>(
+        (await page('?limit=1', outsider, otherOrganizationId)).body,
+      );
+
+      expect(theirs.nextCursor).not.toBeNull();
+
+      const response = await page(
+        `?limit=10&cursor=${encodeURIComponent(theirs.nextCursor!)}`,
+      );
+
+      expect(response.status).toBe(200);
+
+      const titles = dataOf<DocumentPage>(response.body).items.map(
+        (item) => item.title,
+      );
+
+      for (const title of TITLES) {
+        expect(titles).not.toContain(title);
+      }
+      expect(JSON.stringify(response.body)).not.toContain('Delta note');
+    });
+  });
+
   it('never returns chunk text from a listing', async () => {
     await as(harness, owner)
-      .put(`${base()}/spaces/${spaceId}/documents`, {
+      .put(`${base()}/spaces/${SLUG}/documents`, {
         title: 'Policies',
         content: TEXT,
       })
       .expect(200);
 
     const response = await as(harness, owner).get(
-      `${base()}/spaces/${spaceId}/documents`,
+      `${base()}/spaces/${SLUG}/documents`,
     );
 
     // The listing is metadata. Serving the whole corpus from an index route

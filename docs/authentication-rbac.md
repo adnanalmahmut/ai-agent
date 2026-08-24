@@ -36,11 +36,14 @@ is created out-of-band by the `super-admin:create` operator command, which
 refuses while any super administrator exists — including a deactivated or banned
 one, so the gate cannot be reopened by removing the incumbent.
 
-That condition is not a security boundary on its own: a super administrator can
-demote the last super administrator and reopen it. **The command's real trust
-boundary is host access.** Anyone who can run it can already read `DATABASE_URL`
-and write the role column directly, which is why it is excluded from the
-deployment key's forced-command allowlist and available only to local root.
+The bootstrap condition is not the application account-safety invariant.
+Better Auth lifecycle hooks and a PostgreSQL advisory-lock trigger prevent
+normal application mutations (demotion, ban, deactivation, or deletion) from
+leaving zero usable super administrators, including two concurrent attempts.
+**The command's real trust boundary is still host access.** Anyone who can run
+it can already administer the database directly, which is why it is excluded
+from the deployment key's forced-command allowlist and available only to local
+root.
 
 It goes through Better Auth's own admin endpoint so the account it writes uses
 the same password hashing, the same `credential` provider linkage, and the same

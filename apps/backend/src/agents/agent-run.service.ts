@@ -15,6 +15,18 @@ import {
 
 const AGENT_RUN_QUEUED = 'agent-run.queued';
 
+/**
+ * The advisory-lock namespace for agent-run acceptance.
+ *
+ * PostgreSQL's advisory locks share one global space, so an unrelated feature
+ * taking `pg_advisory_xact_lock(hashtext(someId))` could block acceptance for
+ * an organization whose id happened to hash to the same number. The two-integer
+ * form partitions that space, and this constant is agent-run acceptance's
+ * partition. Any other advisory lock in this application must pick a different
+ * one; the value itself is arbitrary and only has to be distinct.
+ */
+export const AGENT_RUN_CAPACITY_LOCK = 4_310_001;
+
 type PersistedAgentRun = Awaited<
   ReturnType<PrismaService['agentRun']['findUniqueOrThrow']>
 >;
@@ -53,28 +65,75 @@ export class AgentRunService {
    * internal service and must supply a registered definition/runtime pair.
    */
   async create(input: CreateAgentRun): Promise<AgentRun> {
+    /**
+     * An obvious retry is answered without taking a lock.
+     *
+     * Not the authoritative check — the same lookup is repeated inside the
+     * transaction below, where it is serialized against concurrent accepts.
+     * This one exists so the overwhelmingly common case, a client re-sending a
+     * request whose response it never saw, does not queue behind every other
+     * acceptance in the organization.
+     */
     const existing = await this.findByIdempotencyKey(input);
     if (existing) return toAgentRun(existing);
 
-    /**
-     * Checked here rather than at the controller, because here is the first
-     * point that knows this is new work.
-     *
-     * A caller retrying a request that timed out has already been accepted and
-     * has already been paid for; refusing their retry at a ceiling they are
-     * themselves part of would strand a run they can no longer reach. The
-     * idempotency short-circuit above runs first for exactly that reason.
-     *
-     * A ceiling, not a semaphore. Two accepts racing can both observe room and
-     * both take it, so the bound is exceeded by at most the number of requests
-     * in flight at that instant. Making it exact needs a serializable
-     * transaction or a lock on the acceptance path, which is a real cost paid
-     * on every request to tighten a spend control by one or two runs.
-     */
-    await this.assertCapacity(input);
-
     try {
       const run = await this.prisma.$transaction(async (tx) => {
+        /**
+         * The ceiling is exact, and this is what makes it exact.
+         *
+         * Counting in-flight runs and then inserting one is a
+         * read-modify-write, and PostgreSQL's default isolation does not stop
+         * two of them from interleaving: both transactions read the same count,
+         * both see room, both commit, and an organization limited to one run
+         * has two. Nothing about that is visible afterwards — the runs look
+         * ordinary and the bill is simply larger than the operator set.
+         *
+         * The lock is a transaction-scoped advisory lock keyed on the
+         * organization, so the count and the insert happen as one indivisible
+         * decision per tenant. Transaction-scoped rather than session-scoped
+         * because it is released by commit or rollback rather than by a call
+         * this code has to remember to make — a lock leaked on an error path
+         * would wedge every subsequent acceptance for that organization until
+         * the connection was recycled.
+         *
+         * Two integers rather than one bigint: the first is a namespace
+         * constant so this lock cannot collide with an unrelated one taken
+         * elsewhere in the application, and the second is `hashtext` of the
+         * organization id. Two organizations whose ids happen to hash alike
+         * serialize against each other, which costs them a little latency and
+         * costs correctness nothing — the invariant is per-organization and a
+         * shared lock is stricter, never looser.
+         *
+         * Deliberately not a Redis semaphore. Redis is disposable coordination
+         * in this system: a semaphore there would grant capacity that no longer
+         * matched the durable rows the moment it was flushed, and reconciling
+         * the two would be a second source of truth for how many runs exist.
+         */
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${AGENT_RUN_CAPACITY_LOCK}, hashtext(${input.organizationId}))`;
+
+        /**
+         * Repeated under the lock, and repeated *before* the capacity check.
+         *
+         * A caller retrying a request that timed out has already been accepted
+         * and has already been paid for. Refusing their retry at a ceiling they
+         * are themselves part of would strand a run they can no longer reach —
+         * so an accepted key is answered with its run even when the
+         * organization is at capacity.
+         */
+        const accepted = await tx.agentRun.findUnique({
+          where: {
+            organizationId_idempotencyKey: {
+              organizationId: input.organizationId,
+              idempotencyKey: input.idempotencyKey,
+            },
+          },
+        });
+
+        if (accepted) return accepted;
+
+        await assertCapacity(tx, input);
+
         const created = await tx.agentRun.create({
           data: {
             agentId: input.agentId,
@@ -327,29 +386,6 @@ export class AgentRunService {
     return run === null ? null : toAgentRun(run);
   }
 
-  private async assertCapacity(input: CreateAgentRun): Promise<void> {
-    const { maxInFlight } = input;
-
-    if (maxInFlight === undefined) return;
-
-    const inFlight = await this.prisma.agentRun.count({
-      where: {
-        organizationId: input.organizationId,
-        status: { in: ['QUEUED', 'RUNNING'] },
-      },
-    });
-
-    if (inFlight < maxInFlight) return;
-
-    throw new AppException('TOO_MANY_REQUESTS', {
-      context: { resource: 'agentRun', organizationId: input.organizationId },
-      publicDetails: {
-        reason:
-          'This organization already has the maximum number of agent runs in flight. Wait for one to finish.',
-      },
-    });
-  }
-
   private findByIdempotencyKey(
     input: Pick<CreateAgentRun, 'organizationId' | 'idempotencyKey'>,
   ) {
@@ -362,6 +398,45 @@ export class AgentRunService {
       },
     });
   }
+}
+
+/**
+ * Refuses a new run when the organization is already at its ceiling.
+ *
+ * A free function taking the transaction client rather than a method, because
+ * it is only ever correct inside the advisory lock above — a method on the
+ * service reachable from `this.prisma` would be a version of this check with no
+ * serialization behind it, sitting one autocomplete away from the version that
+ * has some.
+ *
+ * `maxInFlight` absent means no ceiling, which is what internal callers with no
+ * cost exposure want; the lock is still taken, which costs one round trip and
+ * keeps the acceptance path uniform.
+ */
+async function assertCapacity(
+  tx: Pick<PrismaService, 'agentRun'>,
+  input: CreateAgentRun,
+): Promise<void> {
+  const { maxInFlight } = input;
+
+  if (maxInFlight === undefined) return;
+
+  const inFlight = await tx.agentRun.count({
+    where: {
+      organizationId: input.organizationId,
+      status: { in: ['QUEUED', 'RUNNING'] },
+    },
+  });
+
+  if (inFlight < maxInFlight) return;
+
+  throw new AppException('TOO_MANY_REQUESTS', {
+    context: { resource: 'agentRun', organizationId: input.organizationId },
+    publicDetails: {
+      reason:
+        'This organization already has the maximum number of agent runs in flight. Wait for one to finish.',
+    },
+  });
 }
 
 function isUniqueConstraintViolation(

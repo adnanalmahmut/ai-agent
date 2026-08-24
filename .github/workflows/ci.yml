@@ -243,6 +243,15 @@ jobs:
       - name: Build
         run: pnpm --filter platform run build
 
+      # The smoke fixture intercepts every API call, so this needs neither the
+      # backend service container nor a provider credential. It does need a
+      # real Chromium: reload, URL state and sessionStorage are browser facts.
+      - name: Install Chromium for browser smoke
+        run: pnpm --filter platform exec playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        run: pnpm --filter platform run test:e2e
+
   containers:
     name: containers
     runs-on: ubuntu-latest

@@ -15,6 +15,31 @@ import { RuntimeConfigResolver } from '../control-plane';
 import { AppException } from '../core/errors';
 
 /**
+ * Why generation is or is not available to this organization right now.
+ *
+ * A product answer, not a control-plane one. An ordinary member holds no
+ * platform permission and must never be handed the operator API, so this says
+ * exactly what the screen needs — whether the button will work, and which of
+ * the two switches is off — and nothing about the rest of the platform's
+ * configuration.
+ *
+ * `reason` names the coarse switch first when both are off, matching the order
+ * acceptance checks them in, so the screen and the refusal agree.
+ */
+export const CONTENT_IDEA_UNAVAILABLE_REASONS = [
+  'agents_disabled',
+  'content_ideas_disabled',
+] as const;
+
+export type ContentIdeaUnavailableReason =
+  (typeof CONTENT_IDEA_UNAVAILABLE_REASONS)[number];
+
+export type ContentIdeaAvailability = {
+  available: boolean;
+  reason: ContentIdeaUnavailableReason | null;
+};
+
+/**
  * What a caller is told about a request they made.
  *
  * `output` is present only once the run succeeded, and `failed` carries no
@@ -46,6 +71,41 @@ export class ContentIdeaService {
     private readonly runs: AgentRunService,
     private readonly runtimeConfig: RuntimeConfigResolver,
   ) {}
+
+  /**
+   * Whether this organization may ask for ideas.
+   *
+   * Advisory, and the screen is told so: a flag can be switched off between
+   * this read and the submission that follows it, and acceptance re-evaluates
+   * both flags in the same order regardless of what this returned. That is the
+   * point — this exists so the common case does not require an operator to
+   * fill in a form and press a button to discover the feature is off, not so
+   * the client can decide.
+   *
+   * Not gated on the flags it reports. A readiness check that refused to answer
+   * when the answer was "no" would be unable to say the one thing it exists to
+   * say.
+   */
+  async availability(input: {
+    organizationId: string;
+  }): Promise<ContentIdeaAvailability> {
+    const scope = { organizationId: input.organizationId };
+
+    if (!(await this.runtimeConfig.isFeatureEnabled('agents.enabled', scope))) {
+      return { available: false, reason: 'agents_disabled' };
+    }
+
+    if (
+      !(await this.runtimeConfig.isFeatureEnabled(
+        'content_ideas.enabled',
+        scope,
+      ))
+    ) {
+      return { available: false, reason: 'content_ideas_disabled' };
+    }
+
+    return { available: true, reason: null };
+  }
 
   async request(input: {
     organizationId: string;

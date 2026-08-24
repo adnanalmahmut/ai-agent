@@ -25,6 +25,20 @@ import {
 } from '../support/auth-harness';
 
 /**
+ * The actor recorded on control-plane writes this harness makes.
+ *
+ * The audit log records who changed a flag, and these setups change flags — so
+ * every call has to name somebody. A fixed non-user id rather than a session
+ * user: the events are the harness's own, and attributing them to a test member
+ * would put rows in the log that read as though a member of the organization
+ * had reached the operator surface.
+ */
+const CONTROL_PLANE_ACTOR = 'e2e-harness';
+
+/** A registry member: the taxonomy is code-owned and closed. */
+const SLUG = 'organization.profile';
+
+/**
  * Ingest, embed, retrieve — the whole path, with the provider substituted.
  *
  * The provider is a double and always will be in CI: a real embedding call
@@ -141,9 +155,10 @@ describe('knowledge embedding pipeline', () => {
      * references a deleted document, so they would accumulate in a table two
      * other suites treat as theirs to truncate.
      */
-    await harness.app
-      .get(FeatureFlagService)
-      .clearPlatformOverride('knowledge.enabled');
+    await harness.app.get(FeatureFlagService).clearPlatformOverride({
+      key: 'knowledge.enabled',
+      actorUserId: CONTROL_PLANE_ACTOR,
+    });
     await harness.prisma.outboxEvent.deleteMany({
       where: { type: KNOWLEDGE_DOCUMENT_INGESTED },
     });
@@ -162,17 +177,34 @@ describe('knowledge embedding pipeline', () => {
       where: { organizationId },
     });
 
-    const space = await as(harness, owner).post(
-      `/organizations/${organizationId}/knowledge/spaces`,
-      { slug: 'policies', name: 'Policies' },
-    );
-    expect(space.status).toBe(201);
-    spaceId = dataOf<{ id: string }>(space.body).id;
+    /**
+     * The space row appears on first ingestion rather than through a create
+     * call — the taxonomy is code-owned and there is no route that defines one.
+     * Its id is still needed here, because retrieval is asked about space ids
+     * rather than slugs, so it is read back from the database after the first
+     * document has opened it.
+     */
+    await as(harness, owner)
+      .put(
+        `/organizations/${organizationId}/knowledge/spaces/${SLUG}/documents`,
+        {
+          title: 'Space opener',
+          content: 'A sentence that opens the space.',
+        },
+      )
+      .expect(200);
+
+    spaceId = (
+      await harness.prisma.knowledgeSpace.findFirstOrThrow({
+        where: { organizationId, slug: SLUG },
+        select: { id: true },
+      })
+    ).id;
   });
 
   const ingest = async (title: string, content: string) => {
     const response = await as(harness, owner).put(
-      `/organizations/${organizationId}/knowledge/spaces/${spaceId}/documents`,
+      `/organizations/${organizationId}/knowledge/spaces/${SLUG}/documents`,
       { title, content },
     );
     expect(response.status).toBe(200);

@@ -12,6 +12,20 @@ export {
 } from './control-plane.module';
 export { RuntimeConfigResolver } from './runtime-config.resolver';
 
+export {
+  AUDIT_PAGE_SIZE,
+  CONTROL_PLANE_AUDIT_ACTIONS,
+  CONTROL_PLANE_AUDIT_RESOURCES,
+  ControlPlaneAuditService,
+  MAX_AUDIT_PAGE_SIZE,
+} from './audit/control-plane-audit.service';
+export type {
+  ControlPlaneAuditAction,
+  ControlPlaneAuditEntry,
+  ControlPlaneAuditResource,
+  ControlPlaneAuditState,
+} from './audit/control-plane-audit.service';
+
 export { FeatureFlagService } from './feature-flags/feature-flag.service';
 export type {
   FeatureFlagSource,

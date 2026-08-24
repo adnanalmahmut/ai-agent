@@ -46,7 +46,7 @@ const build = (
 };
 
 const policy = (overrides: Partial<ContextPolicy> = {}): ContextPolicy => ({
-  spaceSlugs: ['brand'],
+  spaceSlugs: ['brand.voice'],
   maxChunks: 5,
   maxCharacters: 1_000,
   ...overrides,
@@ -90,7 +90,7 @@ describe('AgentContextAssembler', () => {
 
   it('does not embed an empty query', async () => {
     const { assembler, embed } = build({
-      spaces: [{ id: 'space_brand', slug: 'brand' }],
+      spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
     });
 
     await expect(
@@ -111,19 +111,19 @@ describe('AgentContextAssembler', () => {
    */
   it('resolves policy slugs only within the calling organization', async () => {
     const { assembler, resolveSlugs, search } = build({
-      spaces: [{ id: 'space_brand', slug: 'brand' }],
+      spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
       matches: [passage('Brand voice is plain.')],
     });
 
     await assembler.assemble({
       organizationId: 'org_1',
-      policy: policy({ spaceSlugs: ['brand', 'products'] }),
+      policy: policy({ spaceSlugs: ['brand.voice', 'products.services'] }),
       query: 'tone',
     });
 
     expect(resolveSlugs).toHaveBeenCalledWith({
       organizationId: 'org_1',
-      slugs: ['brand', 'products'],
+      slugs: ['brand.voice', 'products.services'],
     });
 
     expect(search).toHaveBeenCalledWith(
@@ -140,7 +140,7 @@ describe('AgentContextAssembler', () => {
     await expect(
       assembler.assemble({
         organizationId: 'org_1',
-        policy: policy({ spaceSlugs: ['someone-elses-space'] }),
+        policy: policy({ spaceSlugs: ['design.system'] }),
         query: 'tone',
       }),
     ).resolves.toEqual([]);
@@ -151,7 +151,7 @@ describe('AgentContextAssembler', () => {
 
   it('searches with the model the chunks were embedded with', async () => {
     const { assembler, search } = build({
-      spaces: [{ id: 'space_brand', slug: 'brand' }],
+      spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
     });
 
     await assembler.assemble({
@@ -171,7 +171,7 @@ describe('AgentContextAssembler', () => {
    */
   it('takes the chunk ceiling from the policy', async () => {
     const { assembler, search } = build({
-      spaces: [{ id: 'space_brand', slug: 'brand' }],
+      spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
     });
 
     await assembler.assemble({
@@ -193,7 +193,7 @@ describe('AgentContextAssembler', () => {
    */
   it('embeds the trimmed query itself', async () => {
     const { assembler, embed } = build({
-      spaces: [{ id: 'space_brand', slug: 'brand' }],
+      spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
     });
 
     await assembler.assemble({
@@ -207,7 +207,7 @@ describe('AgentContextAssembler', () => {
 
   it('searches with the vector it just embedded', async () => {
     const { assembler, search } = build({
-      spaces: [{ id: 'space_brand', slug: 'brand' }],
+      spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
     });
 
     await assembler.assemble({
@@ -224,8 +224,8 @@ describe('AgentContextAssembler', () => {
   it('labels each passage with the space it came from', async () => {
     const { assembler } = build({
       spaces: [
-        { id: 'space_brand', slug: 'brand' },
-        { id: 'space_products', slug: 'products' },
+        { id: 'space_brand', slug: 'brand.voice' },
+        { id: 'space_products', slug: 'products.services' },
       ],
       matches: [
         passage('Voice is plain.', 'space_brand'),
@@ -236,12 +236,12 @@ describe('AgentContextAssembler', () => {
     await expect(
       assembler.assemble({
         organizationId: 'org_1',
-        policy: policy({ spaceSlugs: ['brand', 'products'] }),
+        policy: policy({ spaceSlugs: ['brand.voice', 'products.services'] }),
         query: 'tone',
       }),
     ).resolves.toEqual([
-      { space: 'brand', content: 'Voice is plain.' },
-      { space: 'products', content: 'The kettle boils fast.' },
+      { space: 'brand.voice', content: 'Voice is plain.' },
+      { space: 'products.services', content: 'The kettle boils fast.' },
     ]);
   });
 
@@ -253,7 +253,7 @@ describe('AgentContextAssembler', () => {
      */
     it('drops passages rather than truncating them', async () => {
       const { assembler } = build({
-        spaces: [{ id: 'space_brand', slug: 'brand' }],
+        spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
         matches: [passage('a'.repeat(60)), passage('b'.repeat(60))],
       });
 
@@ -274,7 +274,7 @@ describe('AgentContextAssembler', () => {
      */
     it('keeps a later passage that still fits', async () => {
       const { assembler } = build({
-        spaces: [{ id: 'space_brand', slug: 'brand' }],
+        spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
         matches: [passage('a'.repeat(200)), passage('b'.repeat(10))],
       });
 
@@ -289,7 +289,7 @@ describe('AgentContextAssembler', () => {
 
     it('keeps ranked order for everything that fits', async () => {
       const { assembler } = build({
-        spaces: [{ id: 'space_brand', slug: 'brand' }],
+        spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
         matches: [passage('first'), passage('second'), passage('third')],
       });
 

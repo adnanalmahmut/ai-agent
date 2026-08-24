@@ -24,6 +24,7 @@ vi.mock('@/features/auth/auth-client', async () => {
  */
 const requestContentIdeas = vi.fn();
 const getContentIdeaOperation = vi.fn();
+const getContentIdeaAvailability = vi.fn();
 
 vi.mock('../organization-api', async () => {
   const actual = await vi.importActual<typeof import('../organization-api')>(
@@ -35,6 +36,8 @@ vi.mock('../organization-api', async () => {
     requestContentIdeas: (...args: unknown[]) => requestContentIdeas(...args),
     getContentIdeaOperation: (...args: unknown[]) =>
       getContentIdeaOperation(...args),
+    getContentIdeaAvailability: (...args: unknown[]) =>
+      getContentIdeaAvailability(...args),
   };
 });
 
@@ -71,8 +74,11 @@ const after = <T,>(ms: number, value: T) =>
 
 const IDEA = {
   title: 'Why our kettle boils in ninety seconds',
+  hook: 'Ninety seconds. Not a marketing number — a physics one.',
   angle: 'Lead with the engineering, then the morning routine.',
-  format: 'blog post',
+  summary:
+    'Open on the element, explain why surface area beats wattage, and land on what that buys somebody at 7am.',
+  suggestedFormat: 'post',
 };
 
 /**
@@ -85,18 +91,37 @@ const IDEA = {
  */
 const POLL_MS = 10;
 
-const render = (props: { pollTimeoutMs?: number } = {}) =>
+const render = (
+  props: { pollTimeoutMs?: number } = {},
+  options: { initialEntries?: string[] } = {},
+) =>
   renderInOrganization(
     <OrganizationContentIdeasBlock pollIntervalMs={POLL_MS} {...props} />,
     context({ organization: organization() }),
+    options,
   );
 
+/**
+ * The two required fields, and nothing else.
+ *
+ * `audience` is optional in the contract, so a helper that filled it in would
+ * make every test assert the same request shape and leave the optional path
+ * unexercised. The tests that care about it type it themselves.
+ */
 const fillForm = async () => {
+  await userEvent.type(screen.getByLabelText(/^topic$/i), 'Electric kettles');
   await userEvent.type(
-    screen.getByLabelText(/^topic$/i),
-    'Electric kettles',
+    screen.getByLabelText(/^goal$/i),
+    'Sell the autumn range',
   );
-  await userEvent.type(screen.getByLabelText(/^audience$/i), 'Home cooks');
+};
+
+/** What `fillForm` produces, as the request the block should send. */
+const REQUEST = {
+  topic: 'Electric kettles',
+  goal: 'Sell the autumn range',
+  language: 'en',
+  numberOfIdeas: 5,
 };
 
 const submit = () =>
@@ -110,6 +135,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   requestContentIdeas.mockResolvedValue(operation());
   getContentIdeaOperation.mockResolvedValue(operation());
+  getContentIdeaAvailability.mockResolvedValue({
+    available: true,
+    reason: null,
+  });
+  window.sessionStorage.clear();
 });
 
 describe('the content ideas screen', () => {
@@ -140,28 +170,36 @@ describe('the content ideas screen', () => {
     );
   });
 
-  it('sends the trimmed request and omits guidance that was left blank', async () => {
+  it('sends the trimmed request and omits what was left blank', async () => {
     allow('contentIdea:create', 'contentIdea:read');
 
     render();
-    await userEvent.type(screen.getByLabelText(/^topic$/i), '  Electric kettles  ');
-    await userEvent.type(screen.getByLabelText(/^audience$/i), 'Home cooks');
+    await userEvent.type(
+      screen.getByLabelText(/^topic$/i),
+      '  Electric kettles  ',
+    );
+    await userEvent.type(
+      screen.getByLabelText(/^goal$/i),
+      '  Sell the autumn range  ',
+    );
     await submit();
 
     await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
 
-    expect(requestContentIdeas.mock.calls[0]?.[1]).toEqual({
-      topic: 'Electric kettles',
-      audience: 'Home cooks',
-      count: 5,
-    });
+    // Both optional fields absent, not present-and-empty: the schema is strict
+    // about `audience` having three characters when it is there at all.
+    expect(requestContentIdeas.mock.calls[0]?.[1]).toEqual(REQUEST);
   });
 
-  it('sends guidance when it was given, trimmed like the rest', async () => {
+  it('sends the optional fields when they were given, trimmed like the rest', async () => {
     allow('contentIdea:create', 'contentIdea:read');
 
     render();
     await fillForm();
+    await userEvent.type(
+      screen.getByLabelText(/^audience/i),
+      '  Home cooks  ',
+    );
     await userEvent.type(
       screen.getByLabelText(/guidance/i),
       '  Keep it playful.  ',
@@ -171,11 +209,80 @@ describe('the content ideas screen', () => {
     await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
 
     expect(requestContentIdeas.mock.calls[0]?.[1]).toEqual({
-      topic: 'Electric kettles',
+      ...REQUEST,
       audience: 'Home cooks',
       guidance: 'Keep it playful.',
-      count: 5,
     });
+  });
+
+  /**
+   * The content language is a field, not an inference from the reader's locale.
+   *
+   * An Arabic-speaking marketer writing English campaign copy is the ordinary
+   * case, and a screen that read the UI locale would make it unreachable. So
+   * the request carries what the selector says, and the default is not the
+   * locale.
+   */
+  it('sends the language that was chosen, not the one being read', async () => {
+    allow('contentIdea:create', 'contentIdea:read');
+
+    render();
+    await fillForm();
+    await userEvent.selectOptions(
+      screen.getByLabelText(/content language/i),
+      'ar',
+    );
+    await submit();
+
+    await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
+
+    expect(requestContentIdeas.mock.calls[0]?.[1]).toMatchObject({
+      language: 'ar',
+    });
+  });
+
+  it('does not take the content language from the interface locale', async () => {
+    allow('contentIdea:create', 'contentIdea:read');
+
+    renderInOrganization(
+      <OrganizationContentIdeasBlock pollIntervalMs={POLL_MS} />,
+      context({ organization: organization() }),
+      { locale: 'ar' },
+    );
+
+    await userEvent.type(screen.getByLabelText(/الموضوع/), 'أباريق كهربائية');
+    await userEvent.type(screen.getByLabelText(/الهدف/), 'بيع تشكيلة الخريف');
+    await userEvent.click(screen.getByRole('button', { name: /ولّد أفكاراً/ }));
+
+    await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
+
+    // Reading the screen in Arabic; the content language is still the field's
+    // own default until somebody changes it.
+    expect(requestContentIdeas.mock.calls[0]?.[1]).toMatchObject({
+      language: 'en',
+    });
+  });
+
+  it('sends the number of ideas under its contract name', async () => {
+    allow('contentIdea:create', 'contentIdea:read');
+
+    render();
+    await fillForm();
+    await userEvent.clear(screen.getByLabelText(/how many/i));
+    await userEvent.type(screen.getByLabelText(/how many/i), '7');
+    await submit();
+
+    await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
+
+    const sent = requestContentIdeas.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+
+    expect(sent.numberOfIdeas).toBe(7);
+    // The old public name is gone, and the schema is strict — sending it would
+    // be a 400 rather than an ignored field.
+    expect(sent).not.toHaveProperty('count');
   });
 
   /**
@@ -188,6 +295,44 @@ describe('the content ideas screen', () => {
 
     render();
     await userEvent.type(screen.getByLabelText(/^topic$/i), 'a');
+    await userEvent.type(screen.getByLabelText(/^goal$/i), 'a');
+
+    expect(
+      screen.getByRole('button', { name: /generate ideas/i }),
+    ).toBeDisabled();
+  });
+
+  /**
+   * A goal is required, so a topic on its own is not a submittable request —
+   * and the button says so rather than the server.
+   */
+  it('will not submit without a goal', async () => {
+    allow('contentIdea:create', 'contentIdea:read');
+
+    render();
+    await userEvent.type(screen.getByLabelText(/^topic$/i), 'Electric kettles');
+
+    expect(
+      screen.getByRole('button', { name: /generate ideas/i }),
+    ).toBeDisabled();
+  });
+
+  /**
+   * `audience` is optional but bounded when present. A one-character answer is
+   * a slip, and the schema refuses it — so the button has to as well, or the
+   * form produces a 400 for something it could see.
+   */
+  it('will not submit a one-character audience, but will submit none at all', async () => {
+    allow('contentIdea:create', 'contentIdea:read');
+
+    render();
+    await fillForm();
+
+    expect(
+      screen.getByRole('button', { name: /generate ideas/i }),
+    ).toBeEnabled();
+
+    await userEvent.type(screen.getByLabelText(/^audience/i), 'a');
 
     expect(
       screen.getByRole('button', { name: /generate ideas/i }),
@@ -235,7 +380,8 @@ describe('the content ideas screen', () => {
      */
     it.each([
       ['topic', /^topic$/i, 200],
-      ['audience', /^audience$/i, 200],
+      ['goal', /^goal$/i, 300],
+      ['audience', /^audience/i, 200],
       ['guidance', /guidance/i, 1_000],
     ])('caps %s at the length the schema allows', (_name, label, most) => {
       allow('contentIdea:create', 'contentIdea:read');
@@ -250,7 +396,8 @@ describe('the content ideas screen', () => {
 
     it.each([
       ['topic', /^topic$/i, 201],
-      ['audience', /^audience$/i, 201],
+      ['goal', /^goal$/i, 301],
+      ['audience', /^audience/i, 201],
       ['guidance', /guidance/i, 1_001],
     ])('will not submit an over-long %s', async (_name, label, length) => {
       allow('contentIdea:create', 'contentIdea:read');
@@ -459,11 +606,23 @@ describe('the content ideas screen', () => {
       );
       expect(await screen.findByText(/^running$/i)).toBeVisible();
 
-      getContentIdeaOperation.mockResolvedValue(succeeded([IDEA], ['brand']));
+      getContentIdeaOperation.mockResolvedValue(succeeded([IDEA], ['brand.voice']));
       expect(await screen.findByText(IDEA.title)).toBeVisible();
-      expect(screen.getByText(IDEA.angle)).toBeVisible();
-      expect(screen.getByText(IDEA.format)).toBeVisible();
-      expect(screen.getByText(/grounded in: brand/i)).toBeVisible();
+
+      /**
+       * Every field of the richer contract, not only the two the old one had.
+       *
+       * A result view that dropped `hook` or `summary` would still render
+       * something that looks like an idea, which is why each is named here —
+       * the failure to catch is a field quietly missing from the card, not an
+       * empty screen.
+       */
+      expect(screen.getByText(IDEA.hook)).toBeVisible();
+      expect(screen.getByText(IDEA.angle, { exact: false })).toBeVisible();
+      expect(screen.getByText(IDEA.summary)).toBeVisible();
+      // The format is a translated badge, not the enum member.
+      expect(screen.getByText('Post')).toBeVisible();
+      expect(screen.getByText(/grounded in: brand\.voice/i)).toBeVisible();
     });
 
     it('polls the operation it was given, for this organization', async () => {
@@ -852,6 +1011,345 @@ describe('the content ideas screen', () => {
    * A reader without create is not shown a form that would answer 403. The gate
    * is UX; the backend re-derives the same decision from the database.
    */
+  /**
+   * The operation lives in the URL, which is what makes a reload recoverable.
+   *
+   * A billed run whose id existed only in a closure was lost by a reload, a
+   * navigation, or a crash — and the only recovery a reader would think of is
+   * asking again, which buys the answer twice. These assert the whole loop:
+   * accepted puts it there, arriving with it there picks it back up, and a
+   * stale one is corrected rather than reproduced forever.
+   */
+  describe('recovering an operation from the URL', () => {
+    const urlOf = (result: ReturnType<typeof render>) =>
+      `${result.router.state.location.pathname}${result.router.state.location.search}`;
+
+    it('puts an accepted operation into the address', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      requestContentIdeas.mockResolvedValue(operation({ id: 'op_accepted' }));
+
+      const result = render();
+      await fillForm();
+      await submit();
+
+      await waitFor(() =>
+        expect(urlOf(result)).toContain('operation=op_accepted'),
+      );
+    });
+
+    /**
+     * Replace, not push. A generation is not a place somebody navigated to, and
+     * pushing would make the back button step through every request they made
+     * before it left the screen.
+     */
+    it('replaces rather than pushes, so the back button leaves the screen', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const result = render();
+
+      await fillForm();
+      await submit();
+
+      await waitFor(() => expect(urlOf(result)).toContain('operation=op_1'));
+
+      // The entry was overwritten rather than added, so the back button leaves
+      // the screen instead of stepping through this session's requests.
+      expect(result.router.state.historyAction).toBe('REPLACE');
+    });
+
+    it('picks up the run named by the address on arrival', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaOperation.mockResolvedValue(
+        operation({ id: 'op_reloaded', status: 'RUNNING' }),
+      );
+
+      render({}, { initialEntries: ['/?operation=op_reloaded'] });
+
+      expect(await screen.findByText('Running')).toBeVisible();
+      expect(getContentIdeaOperation).toHaveBeenCalledWith(
+        organization().id,
+        'op_reloaded',
+        expect.anything(),
+      );
+      // Nothing was bought to get it back.
+      expect(requestContentIdeas).not.toHaveBeenCalled();
+    });
+
+    it('recovers a finished result, not only a running one', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaOperation.mockResolvedValue(
+        succeeded([IDEA], ['brand.voice'], { id: 'op_done' }),
+      );
+
+      render({}, { initialEntries: ['/?operation=op_done'] });
+
+      expect(await screen.findByText(IDEA.title)).toBeVisible();
+      expect(screen.getByText(IDEA.summary)).toBeVisible();
+    });
+
+    /**
+     * An operation id belonging to another organization reads as a 404, which
+     * is deliberately the same answer a non-existent one gets. Either way the
+     * screen must not render it — and must take it out of the address, or a
+     * reload reproduces the same failure forever.
+     */
+    it('shows nothing and clears the address for an operation it cannot read', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaOperation.mockRejectedValue(new ApiError(404, 'NOT_FOUND'));
+
+      const result = render(
+        {},
+        { initialEntries: ['/?operation=op_from_another_org'] },
+      );
+
+      expect(
+        await screen.findByText(/that request could not be found/i),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(urlOf(result)).not.toContain('op_from_another_org'),
+      );
+      expect(screen.getByText(/no ideas requested yet/i)).toBeVisible();
+    });
+
+    /**
+     * A transient failure is not a reason to discard the id. The run is still
+     * out there and still paid for; dropping it from the URL would be losing
+     * it for a 500 that the next reload would have ridden out.
+     */
+    it('keeps the address through a server failure', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaOperation.mockRejectedValue(new ApiError(500, 'INTERNAL'));
+
+      const result = render({}, { initialEntries: ['/?operation=op_kept'] });
+
+      await settle();
+
+      expect(urlOf(result)).toContain('operation=op_kept');
+    });
+  });
+
+  /**
+   * Idempotency across a reload, which the in-memory key could not survive.
+   *
+   * A request that fails in transport may or may not have been accepted — the
+   * backend commits the run and its outbox event in one transaction, so a proxy
+   * timing out after that commit reports a failure for work that will be
+   * billed. The reader's instinct is to reload and try again, and that is
+   * exactly the moment a fresh key buys the ideas twice.
+   */
+  describe('the idempotency key across a reload', () => {
+    const keyOf = (call: number) =>
+      requestContentIdeas.mock.calls[call]?.[2] as string;
+
+    it('reuses the stored key for the same request after a reload', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      requestContentIdeas.mockRejectedValueOnce(new ApiError(502, 'BAD_GATEWAY'));
+
+      const first = render();
+      await fillForm();
+      await submit();
+
+      await waitFor(() => expect(requestContentIdeas).toHaveBeenCalledTimes(1));
+
+      // The reload: everything in memory is gone, only the browser survives.
+      first.unmount();
+      vi.clearAllMocks();
+      requestContentIdeas.mockResolvedValue(operation());
+      getContentIdeaAvailability.mockResolvedValue({
+        available: true,
+        reason: null,
+      });
+
+      render();
+      await fillForm();
+      await submit();
+
+      await waitFor(() => expect(requestContentIdeas).toHaveBeenCalledTimes(1));
+
+      expect(
+        JSON.parse(
+          window.sessionStorage.getItem(
+            `content-idea:pending:${organization().id}`,
+          ) ?? 'null',
+        ),
+      ).toBeNull();
+    });
+
+    /**
+     * And the stored key is *not* reused for a different question. Reusing one
+     * there would still be answered correctly by the backend — it binds the key
+     * to a digest of the body — but it would be answered by creating a second
+     * run, which is the purchase this is avoiding by accident rather than on
+     * purpose.
+     */
+    it('does not reuse the stored key for a materially different request', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      requestContentIdeas.mockRejectedValueOnce(new ApiError(502, 'BAD_GATEWAY'));
+
+      const first = render();
+      await fillForm();
+      await submit();
+
+      await waitFor(() => expect(requestContentIdeas).toHaveBeenCalledTimes(1));
+
+      const abandoned = keyOf(0);
+
+      first.unmount();
+      requestContentIdeas.mockReset();
+      requestContentIdeas.mockResolvedValue(operation());
+
+      render();
+      await userEvent.type(screen.getByLabelText(/^topic$/i), 'Cast iron pans');
+      await userEvent.type(
+        screen.getByLabelText(/^goal$/i),
+        'Sell the autumn range',
+      );
+      await submit();
+
+      await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
+
+      expect(keyOf(0)).not.toBe(abandoned);
+    });
+
+    /**
+     * A refusal the server *chose* ends the submission: no run was created, so
+     * the record must not outlive the page and turn the next honest ask into a
+     * replay of a request that never happened.
+     */
+    it('forgets the key once the server has refused', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      requestContentIdeas.mockRejectedValueOnce(
+        new ApiError(400, 'VALIDATION_ERROR'),
+      );
+
+      render();
+      await fillForm();
+      await submit();
+
+      await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
+
+      expect(
+        window.sessionStorage.getItem(
+          `content-idea:pending:${organization().id}`,
+        ),
+      ).toBeNull();
+    });
+
+    /** A browser that refuses to store anything must still work. */
+    it('still submits when the browser refuses to store the key', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const setItem = vi
+        .spyOn(Storage.prototype, 'setItem')
+        .mockImplementation(() => {
+          throw new Error('storage is blocked');
+        });
+
+      try {
+        render();
+        await fillForm();
+        await submit();
+
+        await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
+        expect(keyOf(0)).toEqual(expect.any(String));
+      } finally {
+        setItem.mockRestore();
+      }
+    });
+  });
+
+  /**
+   * Availability, so the screen says the feature is off *before* somebody
+   * fills a form in rather than after they press the button.
+   */
+  describe('availability', () => {
+    it('offers the form when generation is switched on', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      render();
+
+      expect(
+        await screen.findByRole('button', { name: /generate ideas/i }),
+      ).toBeVisible();
+    });
+
+    it.each([
+      ['agents_disabled', /paused every agent/i],
+      ['content_ideas_disabled', /switched content ideas off/i],
+    ])('says why generation is off when the reason is %s', async (
+      reason,
+      copy,
+    ) => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaAvailability.mockResolvedValue({
+        available: false,
+        reason,
+      });
+
+      render();
+
+      expect(await screen.findByText(copy)).toBeVisible();
+      // And the form is gone, rather than a button that opens onto a 403.
+      expect(
+        screen.queryByRole('button', { name: /generate ideas/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    /**
+     * A readiness check that cannot be read is not a reason to block the
+     * screen. The backend still decides, which is the behavior that existed
+     * before this endpoint did.
+     */
+    it('leaves the form available when availability cannot be read', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaAvailability.mockRejectedValue(new ApiUnavailableError());
+
+      render();
+      await settle();
+
+      expect(
+        screen.getByRole('button', { name: /generate ideas/i }),
+      ).toBeVisible();
+    });
+
+    /**
+     * The race the availability read cannot win: a flag switched off between
+     * the reading and the submission. Acceptance is authoritative, and the
+     * refusal is what reconciles the stale reading.
+     */
+    it('reconciles when the flag is switched off after it reported available', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaAvailability.mockResolvedValueOnce({
+        available: true,
+        reason: null,
+      });
+      requestContentIdeas.mockRejectedValue(
+        new ApiError(403, 'FEATURE_DISABLED'),
+      );
+      getContentIdeaAvailability.mockResolvedValue({
+        available: false,
+        reason: 'content_ideas_disabled',
+      });
+
+      render();
+      await fillForm();
+      await submit();
+
+      // The refusal, and then the corrected reading that follows it.
+      expect(
+        await screen.findByText(/content ideas are switched off/i),
+      ).toBeVisible();
+      expect(
+        await screen.findByText(/switched content ideas off/i),
+      ).toBeVisible();
+      await waitFor(() =>
+        expect(
+          screen.queryByRole('button', { name: /generate ideas/i }),
+        ).not.toBeInTheDocument(),
+      );
+    });
+  });
+
   it('offers a reader nothing to submit', async () => {
     allow('contentIdea:read');
 

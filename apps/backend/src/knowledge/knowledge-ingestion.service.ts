@@ -8,6 +8,14 @@ import { PrismaService } from '../database';
 import { chunkDocument } from './chunking';
 import { isUniqueConstraintViolation } from './prisma-errors';
 import { KNOWLEDGE_DOCUMENT_INGESTED } from './knowledge.events';
+import {
+  decodeCursor,
+  encodeCursor,
+  pageSize,
+  type DocumentCursor,
+} from './knowledge-pagination';
+import type { KnowledgeSpaceSlug } from './knowledge-space.registry';
+import { KnowledgeSpaceService } from './knowledge-space.service';
 import { EMBEDDING_PORT, type EmbeddingPort } from './ports/embedding.port';
 
 export type IngestedDocument = {
@@ -21,6 +29,18 @@ export type IngestedDocument = {
   changed: boolean;
   createdAt: Date;
   updatedAt: Date;
+};
+
+/** One row of a document listing, with the chunk count the screen shows. */
+export type DocumentListItem = {
+  id: string;
+  title: string;
+  sourceUri: string | null;
+  checksum: string;
+  revision: number;
+  createdAt: Date;
+  updatedAt: Date;
+  _count: { chunks: number };
 };
 
 /**
@@ -46,19 +66,18 @@ export class KnowledgeIngestionService {
     private readonly prisma: PrismaService,
     private readonly outbox: OutboxRepository,
     private readonly runtimeConfig: RuntimeConfigResolver,
+    private readonly spaces: KnowledgeSpaceService,
     @Inject(EMBEDDING_PORT) private readonly embeddings: EmbeddingPort,
   ) {}
 
   async ingest(input: {
     organizationId: string;
-    spaceId: string;
+    slug: KnowledgeSpaceSlug;
     title: string;
     sourceUri?: string;
     content: string;
   }): Promise<IngestedDocument> {
-    await this.runtimeConfig.assertFeature('knowledge.enabled', {
-      organizationId: input.organizationId,
-    });
+    await this.spaces.assertWritable(input.organizationId);
 
     const maxBytes = await this.runtimeConfig.setting(
       'knowledge.ingestion_max_document_bytes',
@@ -74,17 +93,6 @@ export class KnowledgeIngestionService {
       });
     }
 
-    const space = await this.prisma.knowledgeSpace.findFirst({
-      where: { id: input.spaceId, organizationId: input.organizationId },
-      select: { id: true },
-    });
-
-    if (space === null) {
-      throw new AppException('NOT_FOUND', {
-        context: { resource: 'knowledgeSpace' },
-      });
-    }
-
     const checksum = digestOf(input.content);
     const chunks = chunkDocument(input.content);
 
@@ -95,22 +103,37 @@ export class KnowledgeIngestionService {
       });
     }
 
-    const existing = await this.prisma.knowledgeDocument.findFirst({
-      where: {
-        organizationId: input.organizationId,
-        spaceId: input.spaceId,
-        title: input.title,
-      },
-      select: {
-        id: true,
-        checksum: true,
-        revision: true,
-        sourceUri: true,
-        createdAt: true,
-        updatedAt: true,
-        _count: { select: { chunks: true } },
-      },
+    /**
+     * The space is looked up, not created, until there is something to put in
+     * it. The taxonomy is code-owned and every slug reaching here is a registry
+     * member, so a missing row means only that this organization has not used
+     * the space yet — and creating one for a submission that then fails
+     * validation would leave a row nothing points at.
+     */
+    const spaceId = await this.spaces.findId({
+      organizationId: input.organizationId,
+      slug: input.slug,
     });
+
+    const existing =
+      spaceId === null
+        ? null
+        : await this.prisma.knowledgeDocument.findFirst({
+            where: {
+              organizationId: input.organizationId,
+              spaceId,
+              title: input.title,
+            },
+            select: {
+              id: true,
+              checksum: true,
+              revision: true,
+              sourceUri: true,
+              createdAt: true,
+              updatedAt: true,
+              _count: { select: { chunks: true } },
+            },
+          });
 
     /**
      * Unchanged text is answered without a write and without an event.
@@ -129,25 +152,45 @@ export class KnowledgeIngestionService {
        */
       const sourceUri = input.sourceUri ?? null;
 
-      if (sourceUri !== existing.sourceUri) {
-        await this.prisma.knowledgeDocument.updateMany({
-          where: { id: existing.id, organizationId: input.organizationId },
-          data: { sourceUri },
-        });
-      }
+      /**
+       * The response describes the row *after* this write, not before it.
+       *
+       * `updatedAt` carries `@updatedAt`, so correcting a `sourceUri` bumps it
+       * — and returning the value read a moment earlier would answer the one
+       * request that changed the row with the timestamp of the change before
+       * it. A client that stores what it is told and uses it to decide whether
+       * its copy is current would then believe its stale copy is the newest,
+       * which is exactly the question this field exists to answer.
+       * `updateManyAndReturn` keeps the scoped-write shape — a document
+       * belonging to another organization still matches nothing — while
+       * reporting what was committed.
+       */
+      const written =
+        sourceUri === existing.sourceUri
+          ? undefined
+          : (
+              await this.prisma.knowledgeDocument.updateManyAndReturn({
+                where: {
+                  id: existing.id,
+                  organizationId: input.organizationId,
+                },
+                data: { sourceUri },
+                select: { sourceUri: true, updatedAt: true },
+              })
+            )[0];
 
       await this.requestEmbeddingRepair(existing.id, input.organizationId);
 
       return {
         id: existing.id,
         title: input.title,
-        sourceUri,
+        sourceUri: written?.sourceUri ?? sourceUri,
         checksum,
         revision: existing.revision,
         chunkCount: existing._count.chunks,
         changed: false,
         createdAt: existing.createdAt,
-        updatedAt: existing.updatedAt,
+        updatedAt: written?.updatedAt ?? existing.updatedAt,
       };
     }
 
@@ -162,17 +205,32 @@ export class KnowledgeIngestionService {
      * already answered as one when a *space* is created twice.
      */
     const document = await this.runIngestion(async (tx) => {
+      /**
+       * The space row is written here, inside the same commit as the document.
+       *
+       * Ensuring it beforehand would leave an empty space behind whenever the
+       * ingestion that motivated it failed — a row in the taxonomy an operator
+       * did not ask for, reported by the listing as configured with nothing in
+       * it. The upsert is idempotent, so a concurrent first ingestion into the
+       * same space is a lost race on the unique index rather than a duplicate.
+       */
+      const { id: ensuredSpaceId } = await this.spaces.ensure({
+        organizationId: input.organizationId,
+        slug: input.slug,
+        tx,
+      });
+
       const saved = await tx.knowledgeDocument.upsert({
         where: {
           organizationId_spaceId_title: {
             organizationId: input.organizationId,
-            spaceId: input.spaceId,
+            spaceId: ensuredSpaceId,
             title: input.title,
           },
         },
         create: {
           organizationId: input.organizationId,
-          spaceId: input.spaceId,
+          spaceId: ensuredSpaceId,
           title: input.title,
           sourceUri: input.sourceUri ?? null,
           checksum,
@@ -203,7 +261,7 @@ export class KnowledgeIngestionService {
       await tx.knowledgeChunk.createMany({
         data: chunks.map((chunk) => ({
           organizationId: input.organizationId,
-          spaceId: input.spaceId,
+          spaceId: ensuredSpaceId,
           documentId: saved.id,
           ordinal: chunk.ordinal,
           content: chunk.content,
@@ -241,24 +299,54 @@ export class KnowledgeIngestionService {
     };
   }
 
-  async list(input: { organizationId: string; spaceId: string }) {
-    return this.prisma.knowledgeDocument.findMany({
+  /**
+   * One bounded page of a space's documents.
+   *
+   * Ordered by `(title, id)` and paged by that same pair, so the sequence is
+   * deterministic and a document ingested mid-read cannot make the reader skip
+   * or repeat a row. The page size is bounded server-side; the cursor names a
+   * position and carries no authority, and the tenant and space predicates stay
+   * in the query — so a cursor minted elsewhere positions over nothing but this
+   * caller's own rows.
+   *
+   * A space this organization has never written to has no row and therefore no
+   * documents. That is an empty page, not a 404: the slug is a registry member,
+   * so it names a space that exists in the taxonomy whether or not anything is
+   * stored in it yet.
+   */
+  async list(input: {
+    organizationId: string;
+    slug: KnowledgeSpaceSlug;
+    cursor?: string;
+    limit?: number;
+  }): Promise<{ items: DocumentListItem[]; nextCursor: string | null }> {
+    const take = pageSize(input.limit);
+    const after =
+      input.cursor === undefined ? null : decodeCursor(input.cursor);
+
+    const spaceId = await this.spaces.findId({
+      organizationId: input.organizationId,
+      slug: input.slug,
+    });
+
+    if (spaceId === null) return { items: [], nextCursor: null };
+
+    /**
+     * One row more than asked for, and it is not returned.
+     *
+     * Whether a next page exists is otherwise unknowable without a second
+     * query or a count, and a `nextCursor` emitted whenever a page came back
+     * full leaves a client fetching one empty page at the end of every
+     * collection whose size divides evenly.
+     */
+    const rows = await this.prisma.knowledgeDocument.findMany({
       where: {
         organizationId: input.organizationId,
-        spaceId: input.spaceId,
+        spaceId,
+        ...(after === null ? {} : afterPosition(after)),
       },
-      orderBy: { title: 'asc' },
-      /**
-       * A hard ceiling rather than a cursor.
-       *
-       * The listing carries a per-row chunk count and the management screen
-       * renders all of it, so an unbounded read turns opening a tab into a
-       * response the size of the space. Deliberately a cap and not paging:
-       * nothing in this milestone consumes a cursor, and a paging contract
-       * with one caller is a contract designed against a guess. It is recorded
-       * as deferred work rather than left implicit.
-       */
-      take: LIST_LIMIT,
+      orderBy: [{ title: 'asc' }, { id: 'asc' }],
+      take: take + 1,
       select: {
         id: true,
         title: true,
@@ -270,6 +358,17 @@ export class KnowledgeIngestionService {
         _count: { select: { chunks: true } },
       },
     });
+
+    const items = rows.slice(0, take);
+    const last = items.at(-1);
+
+    return {
+      items,
+      nextCursor:
+        rows.length > take && last !== undefined
+          ? encodeCursor({ title: last.title, id: last.id })
+          : null,
+    };
   }
 
   /**
@@ -362,8 +461,21 @@ export class KnowledgeIngestionService {
   }
 }
 
-/** The most rows a listing will return. See `list`. */
-const LIST_LIMIT = 200;
+/**
+ * Everything strictly after a cursor position, in `(title, id)` order.
+ *
+ * Written as the disjunction rather than as a Prisma `cursor`/`skip` pair
+ * because that pair is offset paging wearing a cursor's name — it locates the
+ * row and then counts past it, which the row's own deletion breaks.
+ */
+function afterPosition(after: DocumentCursor) {
+  return {
+    OR: [
+      { title: { gt: after.title } },
+      { title: after.title, id: { gt: after.id } },
+    ],
+  };
+}
 
 /** SHA-256 of the text, so an unchanged submission is recognisable. */
 function digestOf(content: string): string {

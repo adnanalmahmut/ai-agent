@@ -15,6 +15,7 @@ import {
   createArchivedOrganizationListFilter,
   createPreferredLanguageValidationHook,
   createSessionDatabaseHooks,
+  createSuperAdminFloorHook,
 } from './auth-hooks';
 import { createAuthMailCallbacks } from './auth-mail';
 import {
@@ -70,6 +71,8 @@ export function createAuth(dependencies: {
 
   const preferredLanguageValidationHook =
     createPreferredLanguageValidationHook();
+
+  const superAdminFloorHook = createSuperAdminFloorHook(prisma);
 
   const options: BetterAuthOptions = {
     database: prismaAdapter(prisma, { provider: 'postgresql' }),
@@ -165,6 +168,7 @@ export function createAuth(dependencies: {
       before: createAuthMiddleware(async (ctx) => {
         await preferredLanguageValidationHook(ctx);
         await archivedOrganizationHook(ctx);
+        await superAdminFloorHook(ctx);
       }),
       after: archivedOrganizationListFilter,
     },

@@ -19,5 +19,12 @@ export {
   contentIdeaOutput,
   CONTENT_IDEA_AGENT_ID,
   CONTENT_IDEA_AGENT_VERSION,
+  CONTENT_IDEA_FORMATS,
+  CONTENT_IDEA_LANGUAGES,
 } from './content-idea';
-export type { ContentIdeaInput, ContentIdeaOutput } from './content-idea';
+export type {
+  ContentIdeaFormat,
+  ContentIdeaInput,
+  ContentIdeaLanguage,
+  ContentIdeaOutput,
+} from './content-idea';

@@ -290,6 +290,33 @@ export type ManagedSecretDescription = {
   usable: boolean;
 };
 
+/** The deliberately small, safe shape exposed by the control-plane history. */
+export type ControlPlaneAuditEntry = {
+  id: string;
+  occurredAt: string;
+  actorUserId: string | null;
+  resource: 'featureFlag' | 'runtimeSetting' | 'managedSecret';
+  action:
+    | 'featureFlag.setPlatformOverride'
+    | 'featureFlag.clearPlatformOverride'
+    | 'featureFlag.setOrganizationOverride'
+    | 'featureFlag.clearOrganizationOverride'
+    | 'runtimeSetting.set'
+    | 'runtimeSetting.reset'
+    | 'managedSecret.configure'
+    | 'managedSecret.rotate'
+    | 'managedSecret.remove';
+  resourceKey: string;
+  organizationId: string | null;
+  before: unknown;
+  after: unknown;
+};
+
+export type ControlPlaneAuditPage = {
+  items: ControlPlaneAuditEntry[];
+  nextCursor: string | null;
+};
+
 const key = (value: string) => encodeURIComponent(value);
 
 export async function listFeatureFlags(
@@ -369,6 +396,22 @@ export async function removeManagedSecret(
 ): Promise<ManagedSecretDescription> {
   return apiRequest(`${CONTROL_PLANE_PATH}/secrets/${key(secretKey)}`, {
     method: 'DELETE',
+  });
+}
+
+/** One bounded page of append-only control-plane history, newest first. */
+export function listControlPlaneAudit(
+  options: { cursor?: string; limit?: number; signal?: AbortSignal } = {},
+): Promise<ControlPlaneAuditPage> {
+  const query = new URLSearchParams();
+
+  if (options.cursor !== undefined) query.set('cursor', options.cursor);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+
+  return apiRequest(`${CONTROL_PLANE_PATH}/audit${suffix}`, {
+    signal: options.signal,
   });
 }
 

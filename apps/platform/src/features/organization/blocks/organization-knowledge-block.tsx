@@ -28,9 +28,8 @@ import {
 } from '@/lib/application-api';
 
 import {
-  createKnowledgeSpace,
+  clearKnowledgeSpace,
   deleteKnowledgeDocument,
-  deleteKnowledgeSpace,
   ingestKnowledgeDocument,
   listKnowledgeDocuments,
   listKnowledgeSpaces,
@@ -123,21 +122,24 @@ export function OrganizationKnowledgeBlock() {
    * The list and the chosen space arrive at different times, and an untagged
    * list renders whichever one landed last: choosing a second space would show
    * the first space's documents beneath the second space's heading until the
-   * fetch returned. Carrying the space id makes that state unrepresentable —
-   * rows are shown only to the space that asked for them.
+   * fetch returned. Carrying the slug makes that state unrepresentable — rows
+   * are shown only to the space that asked for them.
+   *
+   * `nextCursor` rides along for the same reason: a cursor is a position in one
+   * space's ordering and means nothing in another's.
    */
   const [documents, setDocuments] = useState<{
-    spaceId: string;
+    slug: string;
     rows: KnowledgeDocument[];
+    nextCursor: string | null;
   } | null>(null);
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
-  const [slug, setSlug] = useState('');
-  const [spaceName, setSpaceName] = useState('');
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
 
@@ -152,10 +154,21 @@ export function OrganizationKnowledgeBlock() {
         if (!current) return;
 
         setSpaces(loaded);
-        setSelectedSpaceId((selected) =>
-          selected !== null && loaded.some((space) => space.id === selected)
+        setSelectedSlug((selected) =>
+          selected !== null && loaded.some((space) => space.slug === selected)
             ? selected
-            : (loaded[0]?.id ?? null),
+            : /**
+               * The first space that already holds something, falling back to
+               * the first in the taxonomy.
+               *
+               * Every organization gets all eight, so "the first one" would
+               * always be the same space regardless of what they use — and an
+               * operator who has only written brand notes would land on an
+               * empty organization profile every time.
+               */
+              (loaded.find((space) => space.configured)?.slug ??
+              loaded[0]?.slug ??
+              null),
         );
         setFailure(null);
         setIsLoading(false);
@@ -174,17 +187,17 @@ export function OrganizationKnowledgeBlock() {
   }, [organizationId, reloadToken]);
 
   useEffect(() => {
-    if (selectedSpaceId === null) return;
+    if (selectedSlug === null) return;
 
     const controller = new AbortController();
     let current = true;
-    const spaceId = selectedSpaceId;
+    const slug = selectedSlug;
 
-    listKnowledgeDocuments(organizationId, spaceId, controller.signal)
-      .then((loaded) => {
+    listKnowledgeDocuments(organizationId, slug, { signal: controller.signal })
+      .then((page) => {
         if (!current) return;
 
-        setDocuments({ spaceId, rows: loaded });
+        setDocuments({ slug, rows: page.items, nextCursor: page.nextCursor });
         // Otherwise a banner from the space that failed outlives it, sitting
         // above the rows of the space that loaded fine.
         setFailure(null);
@@ -197,15 +210,51 @@ export function OrganizationKnowledgeBlock() {
       current = false;
       controller.abort();
     };
-  }, [organizationId, selectedSpaceId, reloadToken]);
+  }, [organizationId, selectedSlug, reloadToken]);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
   /** Empty until this space's own rows have arrived. */
-  const visibleDocuments =
-    documents !== null && documents.spaceId === selectedSpaceId
-      ? documents.rows
-      : [];
+  const visible =
+    documents !== null && documents.slug === selectedSlug ? documents : null;
+  const visibleDocuments = visible?.rows ?? [];
+
+  /**
+   * Appends the next page rather than replacing the list.
+   *
+   * The cursor is checked against the space it belongs to before it is used: a
+   * position in one space's ordering means nothing in another's, and a stale
+   * click after switching spaces would otherwise page the wrong collection.
+   */
+  const loadMore = useCallback(async () => {
+    if (visible === null || visible.nextCursor === null) return;
+
+    const slug = visible.slug;
+    const cursor = visible.nextCursor;
+
+    setIsLoadingMore(true);
+
+    try {
+      const page = await listKnowledgeDocuments(organizationId, slug, {
+        cursor,
+      });
+
+      setDocuments((previous) =>
+        previous === null || previous.slug !== slug
+          ? previous
+          : {
+              slug,
+              rows: [...previous.rows, ...page.items],
+              nextCursor: page.nextCursor,
+            },
+      );
+      setFailure(null);
+    } catch (thrown: unknown) {
+      setFailure(classify(thrown));
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [organizationId, visible]);
 
   const act = async (work: Work) => {
     setBusy(true);
@@ -225,25 +274,11 @@ export function OrganizationKnowledgeBlock() {
     }
   };
 
-  const submitSpace = async () => {
-    const created = await act(() =>
-      createKnowledgeSpace(organizationId, {
-        slug: slug.trim(),
-        name: spaceName.trim(),
-      }),
-    );
-
-    if (created) {
-      setSlug('');
-      setSpaceName('');
-    }
-  };
-
   const submitDocument = async () => {
-    if (selectedSpaceId === null) return;
+    if (selectedSlug === null) return;
 
     const stored = await act(() =>
-      ingestKnowledgeDocument(organizationId, selectedSpaceId, {
+      ingestKnowledgeDocument(organizationId, selectedSlug, {
         title: title.trim(),
         content,
       }),
@@ -261,7 +296,23 @@ export function OrganizationKnowledgeBlock() {
     }
   };
 
-  const selected = spaces.find((space) => space.id === selectedSpaceId) ?? null;
+  const selected = spaces.find((space) => space.slug === selectedSlug) ?? null;
+
+  /**
+   * The space's name in the reader's language, not the server's.
+   *
+   * The taxonomy is code-owned on both sides, so the slug is the join and the
+   * label is a translation — an operator reading Arabic should not be shown an
+   * English taxonomy just because the column happens to hold one. The slug's
+   * dots are already `use-intl`'s path separator, so `brand.voice` addresses
+   * the nested message without any transformation.
+   *
+   * There is deliberately no fallback to `space.name`. A space with no
+   * translation is a mistake in this repository rather than a state to render
+   * around, and `messages.test.ts` asserts every mirrored slug has copy in both
+   * dictionaries.
+   */
+  const nameOf = (space: KnowledgeSpace) => t(`spaces.name.${space.slug}`);
 
   return (
     <div className="space-y-6">
@@ -291,93 +342,54 @@ export function OrganizationKnowledgeBlock() {
         <>
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">{t('spaces.heading')}</h2>
+            <p className="text-xs text-muted-foreground">
+              {t('spaces.taxonomyHint')}
+            </p>
 
-            {spaces.length === 0 ? (
-              <EmptyState
-                icon={<FileText aria-hidden className="size-5" />}
-                title={t('spaces.empty')}
-                description={t('spaces.emptyHint')}
-              />
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {spaces.map((space) => (
-                  <Button
-                    key={space.id}
-                    size="sm"
-                    variant={
-                      space.id === selectedSpaceId ? 'default' : 'outline'
-                    }
-                    onClick={() => setSelectedSpaceId(space.id)}
-                  >
-                    <bdi>{space.name}</bdi>
-                    <Badge variant="secondary">{space.documentCount}</Badge>
-                  </Button>
-                ))}
-              </div>
-            )}
+            {/*
+              Every space, always. The taxonomy is the application's, so there
+              is no empty state and no create form — what varies between
+              organizations is what is stored in each, which the badge shows.
+            */}
+            <div className="flex flex-wrap gap-2">
+              {spaces.map((space) => (
+                <Button
+                  key={space.slug}
+                  size="sm"
+                  variant={space.slug === selectedSlug ? 'default' : 'outline'}
+                  onClick={() => setSelectedSlug(space.slug)}
+                >
+                  <bdi>{nameOf(space)}</bdi>
+                  <Badge variant="secondary">{space.documentCount}</Badge>
+                </Button>
+              ))}
+            </div>
 
-            {canWrite ? (
-              <Card>
-                <CardContent className="flex flex-wrap items-end gap-3 py-4">
-                  <div className="space-y-1">
-                    <Label htmlFor="knowledge-space-slug">
-                      {t('spaces.slug')}
-                    </Label>
-                    <Input
-                      id="knowledge-space-slug"
-                      value={slug}
-                      disabled={busy}
-                      onChange={(event) => setSlug(event.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="knowledge-space-name">
-                      {t('spaces.name')}
-                    </Label>
-                    <Input
-                      id="knowledge-space-name"
-                      value={spaceName}
-                      disabled={busy}
-                      onChange={(event) => setSpaceName(event.target.value)}
-                    />
-                  </div>
-
-                  <Button
-                    size="sm"
-                    disabled={
-                      busy || slug.trim() === '' || spaceName.trim() === ''
-                    }
-                    onClick={() => void submitSpace()}
-                  >
-                    {t('spaces.create')}
-                  </Button>
-
-                  {selected !== null ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() =>
-                        void act(() =>
-                          deleteKnowledgeSpace(organizationId, selected.id),
-                        )
-                      }
-                    >
-                      <Trash2 aria-hidden className="size-4" />
-                      {t('spaces.delete', { name: selected.name })}
-                    </Button>
-                  ) : null}
-                </CardContent>
-              </Card>
+            {canWrite && selected !== null && selected.documentCount > 0 ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() =>
+                  void act(() =>
+                    clearKnowledgeSpace(organizationId, selected.slug),
+                  )
+                }
+              >
+                <Trash2 aria-hidden className="size-4" />
+                {t('spaces.clear', { name: nameOf(selected) })}
+              </Button>
             ) : null}
           </section>
 
           {selected !== null ? (
             <section className="space-y-3">
               <h2 className="text-sm font-semibold">
-                {t('documents.heading', { space: selected.name })}
+                {t('documents.heading', { space: nameOf(selected) })}
               </h2>
+              <p className="text-xs text-muted-foreground">
+                <bdi>{selected.description}</bdi>
+              </p>
 
               {visibleDocuments.length === 0 ? (
                 <EmptyState
@@ -440,6 +452,26 @@ export function OrganizationKnowledgeBlock() {
                   </Table>
                 </Card>
               )}
+
+              {/*
+                A cursor, not a page number. The server hands back the position
+                of the last row it returned, so a document ingested while
+                somebody is reading cannot make the next page skip or repeat
+                one — which is exactly what an offset would do.
+              */}
+              {visible?.nextCursor !== null && visible !== null ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={isLoadingMore || busy}
+                  onClick={() => void loadMore()}
+                >
+                  {isLoadingMore ? (
+                    <Loader2 aria-hidden className="size-4 animate-spin" />
+                  ) : null}
+                  {t('documents.more')}
+                </Button>
+              ) : null}
 
               {canWrite ? (
                 <Card>

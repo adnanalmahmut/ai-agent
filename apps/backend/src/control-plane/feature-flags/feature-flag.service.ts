@@ -3,6 +3,10 @@ import { Injectable } from '@nestjs/common';
 import { AppException } from '../../core/errors';
 import { PrismaService } from '../../database';
 import {
+  ControlPlaneAuditService,
+  type ControlPlaneAuditState,
+} from '../audit/control-plane-audit.service';
+import {
   FEATURE_FLAGS,
   FEATURE_FLAG_KEYS,
   type FeatureFlagKey,
@@ -54,7 +58,10 @@ export type FeatureFlagState = {
  */
 @Injectable()
 export class FeatureFlagService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: ControlPlaneAuditService,
+  ) {}
 
   /**
    * Resolves one flag.
@@ -184,17 +191,40 @@ export class FeatureFlagService {
     enabled: boolean;
     actorUserId: string;
   }): Promise<FeatureFlagState> {
-    await this.prisma.featureFlagPlatformOverride.upsert({
-      where: { key: input.key },
-      create: {
-        key: input.key,
-        enabled: input.enabled,
-        updatedByUserId: input.actorUserId,
-      },
-      update: {
-        enabled: input.enabled,
-        updatedByUserId: input.actorUserId,
-      },
+    /**
+     * The override and its audit row commit together.
+     *
+     * Read-before-write inside the transaction, because the audit entry records
+     * what the override *was* and reading it outside would be reading a value
+     * another operator may already have replaced — attributing their change to
+     * this one.
+     */
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.featureFlagPlatformOverride.findUnique({
+        where: { key: input.key },
+        select: { enabled: true },
+      });
+
+      await tx.featureFlagPlatformOverride.upsert({
+        where: { key: input.key },
+        create: {
+          key: input.key,
+          enabled: input.enabled,
+          updatedByUserId: input.actorUserId,
+        },
+        update: {
+          enabled: input.enabled,
+          updatedByUserId: input.actorUserId,
+        },
+      });
+
+      await this.audit.record(tx, {
+        action: 'featureFlag.setPlatformOverride',
+        resourceKey: input.key,
+        actorUserId: input.actorUserId,
+        before: overrideState(before),
+        after: { kind: 'featureFlagOverride', enabled: input.enabled },
+      });
     });
 
     return this.resolve(input.key);
@@ -207,12 +237,36 @@ export class FeatureFlagService {
    * default changes: a cleared flag follows the new default, a flag pinned to
    * the old value does not. Operators need to be able to express both.
    */
-  async clearPlatformOverride(key: FeatureFlagKey): Promise<FeatureFlagState> {
-    await this.prisma.featureFlagPlatformOverride.deleteMany({
-      where: { key },
+  async clearPlatformOverride(input: {
+    key: FeatureFlagKey;
+    actorUserId: string;
+  }): Promise<FeatureFlagState> {
+    /**
+     * Clearing is exactly the case a `updatedByUserId` column cannot record:
+     * the row that carried the attribution is the row being deleted, so without
+     * this the fact that somebody removed an override — and what it was —
+     * leaves no trace anywhere.
+     */
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.featureFlagPlatformOverride.findUnique({
+        where: { key: input.key },
+        select: { enabled: true },
+      });
+
+      await tx.featureFlagPlatformOverride.deleteMany({
+        where: { key: input.key },
+      });
+
+      await this.audit.record(tx, {
+        action: 'featureFlag.clearPlatformOverride',
+        resourceKey: input.key,
+        actorUserId: input.actorUserId,
+        before: overrideState(before),
+        after: null,
+      });
     });
 
-    return this.resolve(key);
+    return this.resolve(input.key);
   }
 
   async setOrganizationOverride(input: {
@@ -235,20 +289,41 @@ export class FeatureFlagService {
 
     await this.assertOrganizationExists(input.organizationId);
 
-    await this.prisma.featureFlagOrganizationOverride.upsert({
-      where: {
-        organizationId_key: {
-          organizationId: input.organizationId,
-          key: input.key,
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.featureFlagOrganizationOverride.findUnique({
+        where: {
+          organizationId_key: {
+            organizationId: input.organizationId,
+            key: input.key,
+          },
         },
-      },
-      create: {
-        key: input.key,
+        select: { enabled: true },
+      });
+
+      await tx.featureFlagOrganizationOverride.upsert({
+        where: {
+          organizationId_key: {
+            organizationId: input.organizationId,
+            key: input.key,
+          },
+        },
+        create: {
+          key: input.key,
+          organizationId: input.organizationId,
+          enabled: input.enabled,
+          updatedByUserId: input.actorUserId,
+        },
+        update: { enabled: input.enabled, updatedByUserId: input.actorUserId },
+      });
+
+      await this.audit.record(tx, {
+        action: 'featureFlag.setOrganizationOverride',
+        resourceKey: input.key,
         organizationId: input.organizationId,
-        enabled: input.enabled,
-        updatedByUserId: input.actorUserId,
-      },
-      update: { enabled: input.enabled, updatedByUserId: input.actorUserId },
+        actorUserId: input.actorUserId,
+        before: overrideState(before),
+        after: { kind: 'featureFlagOverride', enabled: input.enabled },
+      });
     });
 
     return this.resolve(input.key, { organizationId: input.organizationId });
@@ -257,13 +332,44 @@ export class FeatureFlagService {
   async clearOrganizationOverride(input: {
     key: FeatureFlagKey;
     organizationId: string;
+    actorUserId: string;
   }): Promise<FeatureFlagState> {
     await this.assertOrganizationExists(input.organizationId);
 
-    await this.prisma.featureFlagOrganizationOverride.deleteMany({
-      where: { organizationId: input.organizationId, key: input.key },
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.featureFlagOrganizationOverride.findUnique({
+        where: {
+          organizationId_key: {
+            organizationId: input.organizationId,
+            key: input.key,
+          },
+        },
+        select: { enabled: true },
+      });
+
+      await tx.featureFlagOrganizationOverride.deleteMany({
+        where: { organizationId: input.organizationId, key: input.key },
+      });
+
+      await this.audit.record(tx, {
+        action: 'featureFlag.clearOrganizationOverride',
+        resourceKey: input.key,
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        before: overrideState(before),
+        after: null,
+      });
     });
 
     return this.resolve(input.key, { organizationId: input.organizationId });
   }
+}
+
+/** An override row as the audit log records it, or null when there was none. */
+function overrideState(
+  row: { enabled: boolean } | null,
+): ControlPlaneAuditState | null {
+  return row === null
+    ? null
+    : { kind: 'featureFlagOverride', enabled: row.enabled };
 }

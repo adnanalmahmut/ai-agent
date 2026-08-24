@@ -23,6 +23,7 @@ export type I18nTranslations = {
         "TOO_MANY_REQUESTS": string;
         "INTERNAL_SERVER_ERROR": string;
         "ACCOUNT_ALREADY_DEACTIVATED": string;
+        "LAST_SUPER_ADMIN": string;
         "ACCOUNT_NOT_DEACTIVATED": string;
         "ORGANIZATION_ALREADY_ARCHIVED": string;
         "ORGANIZATION_NOT_ARCHIVED": string;
