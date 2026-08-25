@@ -11,9 +11,18 @@ import { AUTH_ERROR_CODES } from './features/auth/auth-errors';
 import { INVITATION_FAILURES } from './features/organization/invitation-state';
 import { organizationRoles } from './features/authorization/permissions';
 import { CONTROL_PLANE_ERROR_KINDS } from './features/control-plane/use-control-plane-resource';
-import { FEATURE_FLAG_SOURCES } from './lib/application-api';
+import {
+  CONTROL_PLANE_AUDIT_ACTIONS,
+  FEATURE_FLAG_SOURCES,
+} from './lib/application-api';
 import { CONTENT_IDEA_FAILURES } from './features/organization/content-idea-failures';
-import { CONTENT_IDEA_STATUSES } from './features/organization/organization-api';
+import {
+  CONTENT_IDEA_FORMATS,
+  CONTENT_IDEA_LANGUAGES,
+  CONTENT_IDEA_STATUSES,
+  CONTENT_IDEA_UNAVAILABLE_REASONS,
+  KNOWLEDGE_SPACE_SLUGS,
+} from './features/organization/organization-api';
 
 /**
  * Translation coverage.
@@ -135,6 +144,26 @@ describe('every state the code can reach has copy', () => {
     }
   });
 
+  /**
+   * The audit vocabularies, both halves.
+   *
+   * `use-intl` falls back to the key *path* for a missing message, so an action
+   * or state with no copy renders `ControlPlane.audit.action.<whatever>` in the
+   * table where a phrase should be — a server-supplied string printed verbatim,
+   * which is exactly what the panel's closed projection exists to prevent.
+   */
+  it.each([...CONTROL_PLANE_AUDIT_ACTIONS, 'unknown'])(
+    'ControlPlane.audit.action.%s',
+    (action) => {
+      for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+        expect(
+          valueAt(tree as Tree, `ControlPlane.audit.action.${action}`),
+          `${locale}: ${action}`,
+        ).toBeTruthy();
+      }
+    },
+  );
+
   it.each(FEATURE_FLAG_SOURCES)('ControlPlane.flags.source.%s', (source) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       expect(
@@ -169,6 +198,66 @@ describe('every state the code can reach has copy', () => {
       }
     },
   );
+
+  /**
+   * The formats and languages the contract admits, rendered as translated
+   * badges and options rather than as the enum members themselves. One
+   * arriving with no copy shows its own key path where a word should be.
+   */
+  it.each(CONTENT_IDEA_FORMATS)('ContentIdeas.format.%s', (format) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `ContentIdeas.format.${format}`),
+        `${locale}: ${format}`,
+      ).toBeTruthy();
+    }
+  });
+
+  it.each(CONTENT_IDEA_LANGUAGES)('ContentIdeas.language.%s', (language) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `ContentIdeas.language.${language}`),
+        `${locale}: ${language}`,
+      ).toBeTruthy();
+    }
+  });
+
+  /**
+   * Why generation is off, which is the whole point of the availability read —
+   * a reason with no sentence would tell an operator that something is wrong
+   * and nothing about what.
+   */
+  it.each(CONTENT_IDEA_UNAVAILABLE_REASONS)(
+    'ContentIdeas.unavailable.%s',
+    (reason) => {
+      for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+        expect(
+          valueAt(tree as Tree, `ContentIdeas.unavailable.${reason}`),
+          `${locale}: ${reason}`,
+        ).toBeTruthy();
+      }
+    },
+  );
+
+  /**
+   * Every space in the code-owned taxonomy has a name in both dictionaries.
+   *
+   * The screen renders the translation rather than the `name` the server
+   * returns, with no fallback — an operator reading Arabic should not be shown
+   * an English taxonomy. A ninth space mirrored from the backend without its
+   * two entries fails here rather than rendering a key path.
+   *
+   * The slug's dots are `use-intl`'s path separator, so `brand.voice` already
+   * addresses the nested message without any transformation.
+   */
+  it.each(KNOWLEDGE_SPACE_SLUGS)('Knowledge.spaces.name.%s', (slug) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `Knowledge.spaces.name.${slug}`),
+        `${locale}: ${slug}`,
+      ).toBeTruthy();
+    }
+  });
 
   it.each(Object.keys(organizationRoles))('Organization.roles.%s', (role) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {

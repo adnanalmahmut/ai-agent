@@ -115,6 +115,37 @@ export type RuntimeSetting = Prisma.RuntimeSettingModel
  */
 export type ManagedSecret = Prisma.ManagedSecretModel
 /**
+ * Model ControlPlaneAuditEvent
+ * An append-only record of one control-plane mutation.
+ * 
+ * The control-plane rows themselves carry `updatedByUserId` and `updatedAt`,
+ * which answers "who touched this last" and nothing else. Every question an
+ * operator actually asks after an incident is a question about history: when
+ * was this switched on, who switched it, what was it before, and was it ever
+ * set at all. A last-writer column cannot answer any of them, and clearing an
+ * override deletes the row and the only attribution with it — so the moment
+ * the evidence matters most is the moment it stops existing.
+ * 
+ * Append-only is a property of the code, not of a grant: nothing in the
+ * application updates or deletes a row here, and the read surface is a
+ * paginated listing with no mutations beside it. Deliberately scoped to the
+ * control plane rather than generalized — a business-wide audit framework is a
+ * different feature with different retention, different authorization, and a
+ * much larger surface to get wrong.
+ * 
+ * ## What must never be in it
+ * 
+ * No secret plaintext, no ciphertext, no IV, no auth tag, and no value from a
+ * runtime setting the registry marks as anything other than public. A managed
+ * secret's events carry only whether a slot became configured, was rotated, or
+ * was removed, plus the operator's own non-secret label. That is enforced in
+ * `control-plane-audit.service.ts`, where the safe projection for each
+ * resource is built, and asserted by tests that push a canary credential
+ * through every mutation and search the row, the API response and the log for
+ * it.
+ */
+export type ControlPlaneAuditEvent = Prisma.ControlPlaneAuditEventModel
+/**
  * Model KnowledgeSpace
  * A named collection of documents inside one organization.
  * 

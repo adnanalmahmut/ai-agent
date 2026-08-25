@@ -11,6 +11,7 @@
   "TOO_MANY_REQUESTS": "عدد كبير من الطلبات، يرجى المحاولة لاحقًا",
   "INTERNAL_SERVER_ERROR": "حدث خطأ غير متوقع، يرجى المحاولة لاحقًا",
   "ACCOUNT_ALREADY_DEACTIVATED": "هذا الحساب معطّل بالفعل",
+  "LAST_SUPER_ADMIN": "يجب أن تحتفظ المنصّة بمسؤول أعلى واحد صالح على الأقل. عيّن مسؤولاً آخر قبل إزالة هذا",
   "ACCOUNT_NOT_DEACTIVATED": "هذا الحساب نشط ولا يحتاج إلى استعادة",
   "ORGANIZATION_ALREADY_ARCHIVED": "هذه المؤسسة مؤرشفة بالفعل",
   "ORGANIZATION_NOT_ARCHIVED": "هذه المؤسسة نشطة ولا تحتاج إلى استعادة",

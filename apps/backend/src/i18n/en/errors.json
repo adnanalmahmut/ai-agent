@@ -11,6 +11,7 @@
   "TOO_MANY_REQUESTS": "Too many requests, please try again later",
   "INTERNAL_SERVER_ERROR": "An unexpected error occurred, please try again later",
   "ACCOUNT_ALREADY_DEACTIVATED": "This account is already deactivated",
+  "LAST_SUPER_ADMIN": "The platform must keep at least one usable super administrator. Appoint another one before removing this one",
   "ACCOUNT_NOT_DEACTIVATED": "This account is active and does not need to be restored",
   "ORGANIZATION_ALREADY_ARCHIVED": "This organization is already archived",
   "ORGANIZATION_NOT_ARCHIVED": "This organization is active and does not need to be restored",

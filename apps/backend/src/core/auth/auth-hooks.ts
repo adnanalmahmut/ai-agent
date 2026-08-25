@@ -7,6 +7,12 @@ import {
 import { isAppLocale } from '@repo/i18n-core';
 import type { PrismaService } from '../../database';
 import type { GeoIpService } from '../geoip';
+import {
+  lastSuperAdminApiError,
+  wouldEmptySuperAdmins,
+  type SuperAdminFloorEffect,
+} from './super-admin-floor';
+import { SUPER_ADMIN_ROLE } from './permissions';
 
 /**
  * The two lifecycle invariants Better Auth cannot enforce on its own.
@@ -301,4 +307,106 @@ async function readListResponse(
       : returned;
 
   return Array.isArray(body) ? (body as { id: string }[]) : undefined;
+}
+
+/**
+ * The admin-plugin routes that can make a super administrator unusable.
+ *
+ * An allow-list of *guarded* paths, checked against the plugin's live endpoint
+ * list by a test — so a Better Auth upgrade that adds a route capable of this
+ * fails the build rather than quietly escaping the guard. That is the same
+ * shape as `GUARDED_ORGANIZATION_PATHS` above and for the same reason: the
+ * failure mode of a deny-list is that the next route added is unguarded by
+ * default.
+ *
+ * `/admin/set-user-password` and `/admin/impersonate-user` are deliberately
+ * absent. Neither makes an account unusable — a changed password is still a
+ * password, and impersonation does not touch the target's own ability to sign
+ * in — so guarding them would refuse operations the invariant has no interest
+ * in.
+ */
+export const SUPER_ADMIN_GUARDED_PATHS: Record<string, SuperAdminFloorEffect> =
+  {
+    '/admin/set-role': 'roleChange',
+    '/admin/ban-user': 'ban',
+    '/admin/remove-user': 'delete',
+    /**
+     * The one that is easy to miss. `update-user` writes arbitrary fields of
+     * the user schema, `role` and `banned` among them, so it is a second route
+     * to both of the operations above wearing a different name.
+     */
+    '/admin/update-user': 'roleChange',
+  };
+
+/**
+ * Refuses any request that would leave the platform with no usable super
+ * administrator.
+ *
+ * `hooks.before`, so it also covers `auth.api.*` calls made from inside this
+ * process — the matcher Better Auth hard-codes there is `() => true`.
+ *
+ * This is the courteous half of the invariant, not the authoritative one. Two
+ * administrators demoting each other simultaneously both pass this check,
+ * because it runs in its own transaction and neither can see the other's
+ * uncommitted write; the database trigger installed by
+ * `20260824010000_super_admin_floor` takes an advisory lock and is what makes
+ * the outcome exact. What this adds is a clean 409 with an explanation for the
+ * overwhelmingly common case where nobody is racing.
+ */
+export function createSuperAdminFloorHook(prisma: PrismaService) {
+  return createAuthMiddleware(async (ctx) => {
+    const hook = ctx as unknown as HookContext;
+    const effect = SUPER_ADMIN_GUARDED_PATHS[hook.path];
+
+    if (effect === undefined) return;
+
+    const userId =
+      readStringField(hook.body, 'userId') ??
+      readStringField(hook.query, 'userId');
+
+    if (!userId) return;
+
+    // A request that leaves the account usable is not this hook's business.
+    // Promoting somebody to super_admin arrives on the same route as demoting
+    // them, and refusing it would make appointing a second administrator
+    // impossible whenever there is exactly one.
+    if (!leavesAccountUnusable(hook, effect)) return;
+
+    if (await wouldEmptySuperAdmins(prisma, userId)) {
+      throw lastSuperAdminApiError();
+    }
+  });
+}
+
+/**
+ * Whether this particular request would actually take the account out of the
+ * usable set.
+ *
+ * The route alone does not say: `/admin/set-role` is how a super administrator
+ * is appointed as well as how one is removed, and `/admin/update-user` usually
+ * carries neither field. Reading the payload is what keeps the guard from
+ * refusing the very operation that would make the refusal unnecessary.
+ */
+function leavesAccountUnusable(
+  hook: HookContext,
+  effect: SuperAdminFloorEffect,
+): boolean {
+  if (effect === 'ban' || effect === 'delete') return true;
+
+  const body = (hook.body ?? {}) as Record<string, unknown>;
+  const data = (body.data ?? body) as Record<string, unknown>;
+
+  if (data.banned === true) return true;
+
+  const role = data.role ?? body.role;
+
+  if (role === undefined || role === null) return false;
+  if (typeof role !== 'string' && !Array.isArray(role)) return false;
+
+  // Better Auth accepts a role as a string or an array of them.
+  const names = (Array.isArray(role) ? role : role.split(',')).map((name) =>
+    typeof name === 'string' ? name.trim() : '',
+  );
+
+  return !names.includes(SUPER_ADMIN_ROLE);
 }

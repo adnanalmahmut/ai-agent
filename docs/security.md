@@ -29,6 +29,24 @@ Primary boundaries:
   goes straight to the adapter that needs it. Writing one requires a
   super-admin-only permission that is separate from reading control-plane
   metadata.
+- Control-plane history: mutations append an atomic audit event with only
+  closed, sensitivity-aware before/after projections. The event payload never
+  contains a credential plaintext, ciphertext, IV, authentication tag, or other
+  recoverable credential material; the Platform likewise renders only known
+  safe state shapes. That client-side containment is regression-tested: an
+  audit fixture carrying a recognizable secret canary inside unexpected and
+  hostile `before`/`after` payloads — unknown `kind`, widened known `kind`,
+  nested objects, arrays, bare strings, and markup — must not put the canary
+  into `document.body.innerHTML` or its visible text, while every row still
+  summarises the change from the client's own closed translated vocabulary. The
+  `action` column is projected the same way — `use-intl` renders a missing key as
+  its own key path, so an action this build has no copy for resolves to a
+  fall-through term rather than printing the server's string — and an
+  unparseable `occurredAt` degrades to a dash instead of throwing out of the
+  render and blanking the screen. The identifying columns (`actorUserId`,
+  `resourceKey`, `organizationId`, and the `<time dateTime>` attribute) are
+  rendered verbatim by design, as escaped React text written from closed
+  server-side sets.
 - Agent context: what an agent may read is declared on its definition as a
   `ContextPolicy` naming knowledge spaces by slug, and the slugs are resolved
   against the caller's own organization at assembly time — so a definition
@@ -64,7 +82,26 @@ Primary boundaries:
   in-flight runs — the per-user rate limit bounds one member, and the bill is
   the organization's. The generation call carries an output-token ceiling, a
   wall-clock timeout, and no SDK-level retry, so retry stays with BullMQ where
-  each attempt is recorded against the run.
+  each attempt is recorded against the run. A definition may also declare an
+  `outputContract`, checked after the output schema and before durable success,
+  so a promise about the request/answer pair — `content-idea@1` must return
+  exactly the requested number of ideas — is enforced rather than merely
+  prompted for. A violation is a closed `AgentOutputContractViolation` — a listed
+  code, plus two integers for a count, never a string — and
+  `AgentOutputContractError` composes the message from it, so no provider output
+  can reach a log, BullMQ's `failedReason`, or `AgentRun.lastError`. The type is
+  what enforces that, not a convention. A contract that cannot reach a verdict
+  refuses (`unverifiable`) rather than passing, so the promise cannot switch
+  itself off silently. The class is read by the worker only to choose the word
+  `contract_violation` in its log; the retry classification is unchanged.
+- Browser storage: the Platform's ambiguous-submission record in
+  `sessionStorage` holds only `{ idempotencyKey, requestDigest }`, where the
+  digest is SHA-256 over the canonical normalized request. Sameness across a
+  reload is all the value is ever asked for, so the operator-authored request
+  text — topic, goal, audience, guidance — is never written to a store every
+  script on the origin can read. It is a sameness check between two of this
+  tab's own submissions rather than a secret, so it stays per-tab and is cleared
+  as soon as acceptance or refusal is unambiguous.
 - Knowledge isolation: an organization's chunks are reachable only through a
   query whose `WHERE` carries both `organizationId` and the granted `spaceId`s.
   The predicate is in the statement that ranks, not applied to its results,

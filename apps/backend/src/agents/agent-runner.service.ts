@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { AgentConfigurationError } from './agent-configuration.error';
 import { AgentContextAssembler } from './agent-context.assembler';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
+import { AgentOutputContractError } from './agent-output-contract.error';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import type { AgentRun, AgentRuntimeResult, AgentValue } from './agent.types';
 
@@ -78,6 +79,42 @@ export class AgentRunner {
       // the wrong shape once may well return the right one on the next
       // attempt, so this keeps its retry budget.
       throw new Error('Agent output does not satisfy its declared schema');
+    }
+
+    /**
+     * The second half of the output contract, and the half a schema cannot
+     * state: what the answer must be true of *given the request*.
+     *
+     * `numberOfIdeas` is the motivating case. A request for five ideas that
+     * comes back with four parses perfectly — the array is bounded and every
+     * member is well-formed — and is still the wrong answer to the question the
+     * caller was billed for. Checked here rather than in the handler because
+     * this is the last point before the value is returned for durable storage,
+     * and checked after the schema parse so a contract only ever sees data it
+     * can rely on.
+     *
+     * Not an `AgentConfigurationError`, deliberately, for the same reason a
+     * malformed answer is not one: the count is the model's to get right and its
+     * next attempt may. Classifying it as deterministic would make a miscount
+     * immediately final and spend nothing of the retry budget the failure is
+     * actually eligible for.
+     *
+     * It carries its own class all the same, so the worker can *name* it in a
+     * log without changing how it is retried. Without that, a model that has
+     * started miscounting is indistinguishable from a provider outage or a
+     * timeout — three problems with three different remedies, all reported as
+     * `runtime_error`. The class is application-owned and so is everything in
+     * it: a closed code and, for a count, two integers. Its message is composed
+     * from those, so a contract cannot put the provider's answer into an `Error`
+     * even by accident, because the type will not carry text.
+     */
+    const violation = definition.outputContract?.(
+      parsedInput.data as AgentValue,
+      parsedOutput.data as AgentValue,
+    );
+
+    if (violation !== undefined && violation !== null) {
+      throw new AgentOutputContractError(violation);
     }
 
     return { output: parsedOutput.data as AgentValue };

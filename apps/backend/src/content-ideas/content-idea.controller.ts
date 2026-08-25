@@ -93,6 +93,30 @@ export class ContentIdeaController {
     });
   }
 
+  /**
+   * Declared before `:operationId`, and that ordering is load-bearing.
+   *
+   * Nest matches routes in declaration order, so a parameterised segment
+   * declared first would swallow `/availability` and answer it as a lookup for
+   * an operation with that id — a 404 for a route that exists. A test asserts
+   * this answers, so reordering the file breaks the build rather than the
+   * screen.
+   *
+   * `contentIdea:read` rather than `create`: a member who may see results but
+   * not spend money still needs the screen to explain why nothing is being
+   * generated.
+   */
+  @Get('availability')
+  @RequiresOrganizationPermission({ contentIdea: ['read'] })
+  @ApiOperation({
+    operationId: 'getContentIdeaAvailability',
+    summary: 'Whether this organization may currently generate content ideas',
+  })
+  @ApiParam({ name: 'organizationId' })
+  availability(@Param('organizationId') organizationId: string) {
+    return this.contentIdeas.availability({ organizationId });
+  }
+
   @Get(':operationId')
   @RequiresOrganizationPermission({ contentIdea: ['read'] })
   @ApiOperation({

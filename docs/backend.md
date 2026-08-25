@@ -52,8 +52,13 @@ happens to pay for, so a run that stored whatever came back would make
 execution against the *pinned* version's schema, because a run accepted days
 earlier must be checked against the definition it will actually run with.
 
-`ContextPolicy` names the knowledge spaces an agent may read, by slug, with an
-explicit chunk budget and an explicit character budget. The two are separate
+`ContextPolicy` names the knowledge spaces an agent may read, by registry slug,
+with an explicit chunk budget and an explicit character budget. The slug type is
+the knowledge registry's rather than `string`, so a policy naming a space that
+does not exist is a compile error — it used to be a silent one, because a slug
+nothing resolves and a space with nothing in it are the same observation at
+retrieval time. A composition test asserts the same thing at runtime for any
+definition that reaches the shape through a cast. The two are separate
 because they bound different costs: the first bounds the retrieval, the second
 bounds what is actually sent, which is what a provider bills for and what starts
 displacing the instructions as a corpus grows. Assembly happens in the
@@ -95,6 +100,47 @@ provider does not hold a worker slot until BullMQ reclaims the job, and
 `maxRetries: 0`, because retry belongs to BullMQ where each attempt is recorded
 against the run rather than to an SDK loop that reports three calls as one.
 
+`content-idea@1`'s request contract is `topic` (3–200), `goal` (3–300),
+`language` (`ar` or `en`), optional `audience` (3–200) and `guidance` (≤1000),
+and `numberOfIdeas` (1–10, default 5). It answers with `ideas` — each carrying
+`title`, `hook`, `angle`, `summary`, and a `suggestedFormat` of `carousel`,
+`post`, or `video` — plus `sources` naming the spaces it drew on.
+`numberOfIdeas` is an output guarantee rather than a prompt hint: a definition
+may declare an `outputContract`, checked by `AgentRunner` after the output
+schema parses and before any durable success is written, and this one requires
+the answer to carry *exactly* the requested number of ideas. A wrong count is a
+provider-output failure — a plain error that keeps its BullMQ retry budget, not
+an `AgentConfigurationError` — because a model that miscounted once may count
+correctly on the next attempt. A contract returns a closed
+`AgentOutputContractViolation` (a listed code, plus two integers for a count)
+rather than a string, and `AgentOutputContractError` composes the message: the
+type carries no text, so no provider output can reach a log, `failedReason`, or
+`AgentRun.lastError` even from a future contract that tried. A contract that
+cannot reach a verdict returns `unverifiable`, which is a refusal — "I could not
+check" and "it is fine" are different answers and only one is safe to store. The
+error class exists to be *named*, not to be classified differently: the worker
+reads it only to log `reason: contract_violation` instead of `runtime_error`, so
+a model that has started miscounting is distinguishable from a provider outage
+while being retried identically. `language` is
+the language of the *content*, chosen per request: it is never inferred from the
+Platform's UI locale, because an Arabic-speaking marketer writing English
+campaign copy is the ordinary case rather than the exception. Its context policy
+reads exactly `organization.profile`, `brand.voice`, `audience`, and
+`content.strategy`, with `maxChunks: 12` and `maxCharacters: 12_000`. The four
+spaces it does *not* read are the more interesting half: `brand.identity` is
+positioning and legal claims, `products.services` is specifications most likely
+to be restated as fact in a caption, `design.system` has nothing to say about
+prose, and `faq` holds the organization's most quotable liabilities.
+
+A repository-owned evaluation set
+(`src/agents/definitions/__tests__/content-idea.eval-cases.ts`) drives every case
+through the real runner, assembler, and adapter with three fakes at the edges.
+It measures application-owned behavior — normalization, language and goal
+reaching the prompt, context drawn only from the declared spaces, cross-tenant
+isolation, both budgets binding, and the output being both parsed and contracted
+against the requested idea count before it is stored — and it deliberately
+measures nothing about model quality.
+
 `content-idea@1` (`src/agents/definitions/`) is the first production definition,
 and `src/content-ideas/` is the business surface in front of it: one route to
 request ideas and one to read the operation. Generation is asynchronous because
@@ -103,11 +149,20 @@ operation the caller polls; there is deliberately no synchronous variant.
 Acceptance checks two flags, coarse first: `agents.enabled` is the switch that
 stops every agent at once, and `content_ideas.enabled` is this feature's own.
 It also enforces `agents.max_concurrent_runs_per_organization`, counting the
-organization's `QUEUED` and `RUNNING` runs — a ceiling rather than a semaphore,
-since two accepts racing can both observe room, so the bound is exceeded by at
-most the number of requests in flight at that instant. It is checked after the
-idempotency lookup, so a caller retrying a request that was already accepted is
-never refused at a ceiling they are themselves occupying. The per-user rate
+organization's `QUEUED` and `RUNNING` runs. The bound is **exact**, not
+best-effort: counting and inserting is a read-modify-write, and PostgreSQL's
+default isolation lets two of them interleave — both read the same count, both
+see room, both commit — with nothing afterwards to show for it except a larger
+bill than the operator set. The count and the insert therefore happen inside a
+transaction-scoped advisory lock keyed on the organization
+(`pg_advisory_xact_lock(namespace, hashtext(organizationId))`), so acceptance is
+serialized per tenant and two organizations never block each other. The
+idempotency lookup is repeated inside that lock and *before* the capacity check,
+so a caller retrying a request that was already accepted is answered with their
+run even while the organization is at capacity. Deliberately not a Redis
+semaphore: Redis is disposable coordination here, and a semaphore there would
+grant capacity that stopped matching the durable rows the moment it was
+flushed. The per-user rate
 limit is not a substitute: that bounds one member, and the bill is the
 organization's. Reading is ungated for the same reason knowledge reads are, and
 an `Idempotency-Key` header is required — generation is
@@ -123,6 +178,14 @@ encrypted provider credentials. Every key is registered in code with its schema,
 default and bounds, so the Platform cannot create a setting nothing reads or
 store a value outside the range the application is known to behave across.
 
+Every control-plane mutation appends an audit event in the same PostgreSQL
+transaction as the mutation. Events record actor, time, resource/key,
+organization scope where relevant, action, and a sensitivity-aware safe
+before/after projection; resetting or removing the current value does not erase
+that history. The authorized cursor-paginated read endpoint is operator-only.
+Credential plaintext, ciphertext, IV, authentication tag, and any recoverable
+credential material are excluded at the writer and never returned by the API.
+
 Nothing there is cached. Evaluation is a query per check, deliberately: the
 semantic the flags promise is that disabling a feature stops acceptance of new
 work immediately, and any TTL turns "immediately" into "eventually" precisely
@@ -134,6 +197,28 @@ Both composition roots get the control plane, but only the API gets its
 controller — the worker imports the providers alone, because it resolves a
 provider credential when it executes rather than receiving one in a job payload
 that would sit in Redis and be as stale as the moment it was enqueued.
+
+The knowledge taxonomy is **code-owned**. `knowledge-space.registry.ts` declares
+the eight spaces every organization has — `organization.profile`,
+`brand.identity`, `brand.voice`, `audience`, `products.services`,
+`content.strategy`, `design.system`, `faq` — and there is no route that defines
+a ninth. That is what closes the gap the old free-form slug field left open: an
+agent's `ContextPolicy` is written in code against a slug, so a customer typing
+`brand-voice` where a policy expects `brand.voice` produced a policy that
+retrieved nothing and reported nothing. A caller may now *select* a registered
+space; the row is written on first ingestion, inside that ingestion's own
+transaction. Names and descriptions come from the registry rather than from a
+caller, and the Platform renders a translated name keyed on the slug.
+
+Space listings need no paging: the registry is fixed and small, so the listing
+is structurally bounded and returns all eight annotated with what this
+organization has stored in each. Document listings are keyset-paged on
+`(title, id)` with a server-enforced maximum page size. Offset paging would be
+wrong for a collection written to while it is read — ingesting a document that
+sorts early shifts every later row, so the reader repeats one and skips
+another. A cursor carries a position and no authority: the query keeps its own
+`organizationId` and `spaceId` predicates, so a cursor minted elsewhere can only
+position over rows the caller could already read.
 
 The Knowledge domain (`src/knowledge/`) holds organization-owned reference
 material — spaces, documents, and embedded chunks — and answers one question:
@@ -157,7 +242,11 @@ volume is a provider cost and a limit a caller can exceed is advisory.
 
 Ingestion is content-addressed. A document is identified within its space by
 title, and storing the same text again is recognized by checksum and does no
-work: no new revision, no chunk rewrite, and no embedding event. Text that has
+work: no new revision, no chunk rewrite, and no embedding event. Correcting a
+`sourceUri` on unchanged text is written on its own and the response describes
+the row *after* that write — `updatedAt` carries `@updatedAt`, so answering with
+the value read a moment earlier would report the timestamp of the previous
+change and let a client conclude its stale copy was current. Text that has
 in fact changed increments the document's `revision`, replaces its chunks
 wholesale, and appends one outbox event, all in the transaction that writes the
 document. Chunking is paragraph-first and falls back to sentences and then to a

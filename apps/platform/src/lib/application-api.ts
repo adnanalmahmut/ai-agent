@@ -290,6 +290,50 @@ export type ManagedSecretDescription = {
   usable: boolean;
 };
 
+/** The deliberately small, safe shape exposed by the control-plane history. */
+/**
+ * Every audit action this client knows how to name.
+ *
+ * A listed tuple rather than a bare type union, for two reasons that are the
+ * same reason twice. The screen renders the action through
+ * `t(\`audit.action.${action}\`)`, and `use-intl`'s default fallback for a
+ * missing key is the key *path itself* — so an action this build has no copy for
+ * is rendered verbatim into the DOM rather than refused. Being iterable lets
+ * `messages.test.ts` assert every member has copy in both dictionaries, and lets
+ * the panel recognise a value it does not know instead of printing it.
+ */
+export const CONTROL_PLANE_AUDIT_ACTIONS = [
+  'featureFlag.setPlatformOverride',
+  'featureFlag.clearPlatformOverride',
+  'featureFlag.setOrganizationOverride',
+  'featureFlag.clearOrganizationOverride',
+  'runtimeSetting.set',
+  'runtimeSetting.reset',
+  'managedSecret.configure',
+  'managedSecret.rotate',
+  'managedSecret.remove',
+] as const;
+
+export type ControlPlaneAuditAction =
+  (typeof CONTROL_PLANE_AUDIT_ACTIONS)[number];
+
+export type ControlPlaneAuditEntry = {
+  id: string;
+  occurredAt: string;
+  actorUserId: string | null;
+  resource: 'featureFlag' | 'runtimeSetting' | 'managedSecret';
+  action: ControlPlaneAuditAction;
+  resourceKey: string;
+  organizationId: string | null;
+  before: unknown;
+  after: unknown;
+};
+
+export type ControlPlaneAuditPage = {
+  items: ControlPlaneAuditEntry[];
+  nextCursor: string | null;
+};
+
 const key = (value: string) => encodeURIComponent(value);
 
 export async function listFeatureFlags(
@@ -369,6 +413,22 @@ export async function removeManagedSecret(
 ): Promise<ManagedSecretDescription> {
   return apiRequest(`${CONTROL_PLANE_PATH}/secrets/${key(secretKey)}`, {
     method: 'DELETE',
+  });
+}
+
+/** One bounded page of append-only control-plane history, newest first. */
+export function listControlPlaneAudit(
+  options: { cursor?: string; limit?: number; signal?: AbortSignal } = {},
+): Promise<ControlPlaneAuditPage> {
+  const query = new URLSearchParams();
+
+  if (options.cursor !== undefined) query.set('cursor', options.cursor);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+
+  return apiRequest(`${CONTROL_PLANE_PATH}/audit${suffix}`, {
+    signal: options.signal,
   });
 }
 

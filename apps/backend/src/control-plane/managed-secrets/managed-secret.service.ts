@@ -6,6 +6,10 @@ import { encryptionConfig } from '../../config';
 import { AppException } from '../../core/errors';
 import { PrismaService } from '../../database';
 import {
+  ControlPlaneAuditService,
+  type ControlPlaneAuditState,
+} from '../audit/control-plane-audit.service';
+import {
   MANAGED_SECRET_KEYS,
   type ManagedSecretKey,
   managedSecretDefinition,
@@ -66,6 +70,7 @@ export type ManagedSecretDescription = {
 export class ManagedSecretService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly audit: ControlPlaneAuditService,
     @Inject(encryptionConfig.KEY)
     private readonly encryption: ConfigType<typeof encryptionConfig>,
     private readonly logger: PinoLogger,
@@ -139,29 +144,83 @@ export class ManagedSecretService {
 
     const sealed = sealSecret(input.value, this.encryption.masterKey);
 
-    await this.prisma.managedSecret.upsert({
-      where: { key: input.key },
-      create: {
-        key: input.key,
-        label: input.label ?? null,
-        ...sealed,
-        updatedByUserId: input.actorUserId,
-      },
-      update: {
-        ...(input.label === undefined ? {} : { label: input.label }),
-        ...sealed,
-        lastRotatedAt: new Date(),
-        updatedByUserId: input.actorUserId,
-      },
+    await this.prisma.$transaction(async (tx) => {
+      /**
+       * The audit needs only configuration state and cipher algorithm. A bare
+       * read would pull credential material — or even an operator-supplied
+       * label that might have been misused to hold it — into scope beside the
+       * audit payload, so neither is selected here.
+       */
+      const before = await tx.managedSecret.findUnique({
+        where: { key: input.key },
+        select: { algorithm: true },
+      });
+
+      await tx.managedSecret.upsert({
+        where: { key: input.key },
+        create: {
+          key: input.key,
+          label: input.label ?? null,
+          ...sealed,
+          updatedByUserId: input.actorUserId,
+        },
+        update: {
+          ...(input.label === undefined ? {} : { label: input.label }),
+          ...sealed,
+          lastRotatedAt: new Date(),
+          updatedByUserId: input.actorUserId,
+        },
+      });
+
+      /**
+       * Configuring and rotating are distinct events even though they are one
+       * operation. "This slot has never held a credential" and "the credential
+       * in this slot was replaced" are different answers to the question an
+       * incident actually asks, and collapsing them would lose the first.
+       */
+      await this.audit.record(tx, {
+        action:
+          before === null ? 'managedSecret.configure' : 'managedSecret.rotate',
+        resourceKey: input.key,
+        actorUserId: input.actorUserId,
+        before: slotState(before),
+        after: {
+          kind: 'managedSecretSlot',
+          configured: true,
+          algorithm: sealed.algorithm,
+        },
+      });
     });
 
     return this.describe(input.key);
   }
 
-  async remove(key: ManagedSecretKey): Promise<ManagedSecretDescription> {
-    await this.prisma.managedSecret.deleteMany({ where: { key } });
+  async remove(input: {
+    key: ManagedSecretKey;
+    actorUserId: string;
+  }): Promise<ManagedSecretDescription> {
+    await this.prisma.$transaction(async (tx) => {
+      const before = await tx.managedSecret.findUnique({
+        where: { key: input.key },
+        select: { algorithm: true },
+      });
 
-    return this.describe(key);
+      await tx.managedSecret.deleteMany({ where: { key: input.key } });
+
+      await this.audit.record(tx, {
+        action: 'managedSecret.remove',
+        resourceKey: input.key,
+        actorUserId: input.actorUserId,
+        before: slotState(before),
+        after: {
+          kind: 'managedSecretSlot',
+          configured: false,
+          algorithm: null,
+        },
+      });
+    });
+
+    return this.describe(input.key);
   }
 
   /**
@@ -230,4 +289,23 @@ export class ManagedSecretService {
   private currentFingerprint(): string {
     return fingerprintKey(this.encryption.masterKey);
   }
+}
+
+/**
+ * A credential slot as the audit log records it.
+ *
+ * Two non-secret facts and no third. `ControlPlaneAuditState` has no member
+ * a plaintext or a ciphertext could occupy, so this cannot be widened at a call
+ * site — the type is the containment, not this function's discipline.
+ */
+function slotState(
+  row: { algorithm: string } | null,
+): ControlPlaneAuditState | null {
+  return row === null
+    ? null
+    : {
+        kind: 'managedSecretSlot',
+        configured: true,
+        algorithm: row.algorithm,
+      };
 }

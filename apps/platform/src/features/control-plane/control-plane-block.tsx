@@ -13,13 +13,14 @@ import { PageHeader } from '@/components/page-header';
 import { useGlobalPermission } from '@/features/authorization/use-permissions';
 
 import { FeatureFlagsPanel } from './feature-flags-panel';
+import { AuditPanel } from './audit-panel';
 import { ManagedSecretsPanel } from './managed-secrets-panel';
 import { RuntimeSettingsPanel } from './runtime-settings-panel';
 
 /**
  * The operator's view of the control plane.
  *
- * Three resources on one page because they are one job: an operator turning a
+ * Four resources on one page because they are one job: an operator turning a
  * feature on usually has to set a limit and store a credential in the same
  * sitting, and splitting them across three routes would make that three
  * navigations. Tabs rather than three stacked tables so each panel loads only
@@ -59,6 +60,7 @@ export function ControlPlaneBlock() {
           <TabsTrigger value="flags">{t('flags.tab')}</TabsTrigger>
           <TabsTrigger value="settings">{t('settings.tab')}</TabsTrigger>
           <TabsTrigger value="secrets">{t('secrets.tab')}</TabsTrigger>
+          <TabsTrigger value="audit">{t('audit.tab')}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="flags">
@@ -71,6 +73,10 @@ export function ControlPlaneBlock() {
 
         <TabsContent value="secrets">
           <ManagedSecretsPanel />
+        </TabsContent>
+
+        <TabsContent value="audit">
+          <AuditPanel />
         </TabsContent>
       </Tabs>
     </div>

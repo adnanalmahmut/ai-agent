@@ -1,15 +1,21 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { UnrecoverableError, type Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
+import { z } from 'zod';
 
 import { AgentConfigurationError } from '../agent-configuration.error';
+import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import {
   AgentExecutionHandler,
   type AgentExecutionJob,
 } from '../agent-execution.handler';
 import type { AgentRunService } from '../agent-run.service';
-import type { AgentRunner } from '../agent-runner.service';
-import type { AgentRun } from '../agent.types';
+import { AgentRunner } from '../agent-runner.service';
+import type {
+  AgentDefinition,
+  AgentOutputContract,
+  AgentRun,
+} from '../agent.types';
 
 const run: AgentRun = {
   id: 'run-1',
@@ -454,5 +460,121 @@ describe('AgentExecutionHandler', () => {
         expect.any(String),
       );
     });
+  });
+});
+
+/**
+ * The two halves wired together, because each is green while the seam is wrong.
+ *
+ * `agent-runner.spec.ts` proves a contract violation is not an
+ * `AgentConfigurationError`; the block above proves the handler keeps an
+ * ordinary failure retryable. Neither says what happens to a *contract
+ * violation* at the handler — and that is the claim that costs money: classified
+ * as deterministic it becomes final on first sight, and a model that would have
+ * counted correctly on attempt two never gets one.
+ *
+ * So this composes the real `AgentRunner` with a definition that carries a
+ * contract, and asserts the outcome the worker actually produces.
+ */
+describe('a declared output contract violation, through the worker', () => {
+  const contractedDefinition = {
+    id: 'test-agent',
+    version: 1,
+    runtime: 'mastra',
+    instructions: 'Answer test requests.',
+    model: 'test/provider-model',
+    input: z.object({ wanted: z.number() }),
+    output: z.object({ items: z.array(z.string()) }).strict(),
+    outputContract: ((input, output) => {
+      const expected = (input as { wanted: number }).wanted;
+      const received = (output as { items: string[] }).items.length;
+
+      return received === expected
+        ? null
+        : { code: 'count_mismatch', expected, received };
+    }) satisfies AgentOutputContract,
+  } as AgentDefinition;
+
+  /** The real runner, a stub runtime, and no context policy to assemble. */
+  const realRunner = (providerOutput: unknown) =>
+    new AgentRunner(
+      new AgentDefinitionRegistry([contractedDefinition]),
+      {
+        resolve: jest.fn(() => ({
+          name: 'mastra',
+          run: () => Promise.resolve({ output: providerOutput as never }),
+        })),
+      } as never,
+      { assemble: () => Promise.resolve([]) } as never,
+    );
+
+  const contractedRun: AgentRun = { ...run, input: { wanted: 3 } };
+
+  it('is retried rather than made final, and named as its own reason', async () => {
+    const { runs, warn } = harness();
+    runs.claimExecutionAttempt.mockResolvedValue(contractedRun);
+    runs.recordExecutionFailure.mockResolvedValue(true);
+
+    const handlerWithRealRunner = new AgentExecutionHandler(
+      runs as unknown as AgentRunService,
+      realRunner({ items: ['only', 'two'] }),
+      { warn } as unknown as PinoLogger,
+    );
+
+    const error = await handlerWithRealRunner
+      .handle(job(0, 3))
+      .catch((thrown: unknown) => thrown);
+
+    // Not final: the budget exists for conditions that can change, and a
+    // miscount is one.
+    expect(error).not.toBeInstanceOf(UnrecoverableError);
+    expect(runs.recordExecutionFailure).toHaveBeenCalledWith(
+      contractedRun.id,
+      contractedRun.attemptCount,
+      'Agent execution failed',
+      false,
+    );
+    /**
+     * `contract_violation`, not `runtime_error`. Every attempt writes and
+     * rethrows the same constant, so this word is the only thing that tells an
+     * operator a model has started miscounting rather than a provider having
+     * gone down — and the two have different remedies. It is still retried:
+     * naming the failure and classifying it are separate decisions.
+     */
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'contract_violation', final: false }),
+      expect.any(String),
+    );
+
+    // And nothing about the violation itself reached the durable column, the
+    // log, or the value BullMQ records as `failedReason` — the reason is one of
+    // the handler's own literals, not the error's message.
+    expect((error as Error).message).toBe('Agent execution failed');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('count_mismatch');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('expected 3');
+    expect(runs.markExecutionSucceeded).not.toHaveBeenCalled();
+  });
+
+  it('records a satisfied contract as a success', async () => {
+    const { runs } = harness();
+    runs.claimExecutionAttempt.mockResolvedValue(contractedRun);
+    runs.markExecutionSucceeded.mockResolvedValue(true);
+
+    const handlerWithRealRunner = new AgentExecutionHandler(
+      runs as unknown as AgentRunService,
+      realRunner({ items: ['a', 'b', 'c'] }),
+      { warn: jest.fn() } as unknown as PinoLogger,
+    );
+
+    await expect(
+      handlerWithRealRunner.handle(job(0, 3)),
+    ).resolves.toBeUndefined();
+
+    expect(runs.markExecutionSucceeded).toHaveBeenCalledWith(
+      contractedRun.id,
+      contractedRun.attemptCount,
+      { items: ['a', 'b', 'c'] },
+    );
+    expect(runs.recordExecutionFailure).not.toHaveBeenCalled();
   });
 });

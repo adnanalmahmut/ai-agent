@@ -7,8 +7,10 @@ import {
   jest,
 } from '@jest/globals';
 
+import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
 import { AppException } from '../../../core/errors';
 import type { PrismaService } from '../../../database';
+import { Prisma } from '../../../generated/prisma/client';
 import type {
   FeatureFlagDefinition,
   FeatureFlagKey,
@@ -73,6 +75,7 @@ beforeAll(async () => {
 const flag = (key: SpecFlag) => key as unknown as FeatureFlagKey;
 
 const ORGANIZATION_ID = 'org-spec-1';
+const ACTOR_ID = 'user-1';
 
 type Override = { enabled: boolean } | null;
 
@@ -92,6 +95,15 @@ describe('FeatureFlagService', () => {
   const organizationRecordFindUnique =
     jest.fn<(args: unknown) => Promise<{ id: string } | null>>();
 
+  /**
+   * The audit write, captured rather than stubbed away.
+   *
+   * The real `ControlPlaneAuditService` is constructed over this fake, so what
+   * these tests observe is the projection the service actually builds — not a
+   * double's idea of it.
+   */
+  const auditCreate = jest.fn<(args: unknown) => Promise<unknown>>();
+
   const prisma = {
     featureFlagPlatformOverride: {
       findUnique: platformFindUnique,
@@ -104,7 +116,20 @@ describe('FeatureFlagService', () => {
       deleteMany: organizationDeleteMany,
     },
     organization: { findUnique: organizationRecordFindUnique },
+    controlPlaneAuditEvent: { create: auditCreate },
+    /**
+     * The same client, handed back as the transaction client.
+     *
+     * These are unit tests over a fake, so there is no real transaction to
+     * open; what matters for them is that the service performs its
+     * read-before-write and its audit write against one client. That the two
+     * genuinely commit together is an e2e assertion, against PostgreSQL.
+     */
+    $transaction: (work: (tx: unknown) => Promise<unknown>) => work(prisma),
   } as unknown as PrismaService;
+
+  const auditRow = () =>
+    (auditCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> })?.data;
 
   let service: InstanceType<typeof FeatureFlagService>;
 
@@ -118,8 +143,12 @@ describe('FeatureFlagService', () => {
     organizationRecordFindUnique
       .mockReset()
       .mockResolvedValue({ id: ORGANIZATION_ID });
+    auditCreate.mockReset().mockResolvedValue({});
 
-    service = new FeatureFlagService(prisma);
+    service = new FeatureFlagService(
+      prisma,
+      new ControlPlaneAuditService(prisma),
+    );
   });
 
   /**
@@ -462,9 +491,10 @@ describe('FeatureFlagService', () => {
     it('clears the override by deleting the row, leaving the code default in charge', async () => {
       platformFindUnique.mockResolvedValue(null);
 
-      const state = await service.clearPlatformOverride(
-        flag('spec.default_off'),
-      );
+      const state = await service.clearPlatformOverride({
+        key: flag('spec.default_off'),
+        actorUserId: ACTOR_ID,
+      });
 
       expect(platformDeleteMany).toHaveBeenCalledWith({
         where: { key: 'spec.default_off' },
@@ -481,6 +511,7 @@ describe('FeatureFlagService', () => {
       const state = await service.clearOrganizationOverride({
         key: flag('spec.default_off'),
         organizationId: ORGANIZATION_ID,
+        actorUserId: ACTOR_ID,
       });
 
       expect(organizationDeleteMany).toHaveBeenCalledWith({
@@ -596,6 +627,128 @@ describe('FeatureFlagService', () => {
         update: { enabled: true, updatedByUserId: 'user-1' },
       });
       expect(state).toMatchObject({ enabled: true, source: 'organization' });
+    });
+  });
+
+  /**
+   * Clearing an override is the case a `updatedByUserId` column structurally
+   * cannot record: the row carrying the attribution is the row being deleted.
+   * That is the whole reason this log exists, so it is what these assert.
+   */
+  describe('audit', () => {
+    it('records what a platform override was before it changed', async () => {
+      platformFindUnique.mockResolvedValue({ enabled: false });
+
+      await service.setPlatformOverride({
+        key: flag('spec.default_off'),
+        enabled: true,
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditRow()).toMatchObject({
+        action: 'featureFlag.setPlatformOverride',
+        resource: 'featureFlag',
+        resourceKey: 'spec.default_off',
+        actorUserId: ACTOR_ID,
+        before: { kind: 'featureFlagOverride', enabled: false },
+        after: { kind: 'featureFlagOverride', enabled: true },
+      });
+    });
+
+    it('distinguishes a first override from a change to one', async () => {
+      platformFindUnique.mockResolvedValue(null);
+
+      await service.setPlatformOverride({
+        key: flag('spec.default_off'),
+        enabled: true,
+        actorUserId: ACTOR_ID,
+      });
+
+      // SQL NULL rather than the JSON value `null`: there was no override, as
+      // distinct from an override whose value was null.
+      expect(auditRow()?.before).toBe(Prisma.DbNull);
+    });
+
+    it('records the value a cleared platform override had', async () => {
+      platformFindUnique.mockResolvedValue({ enabled: true });
+
+      await service.clearPlatformOverride({
+        key: flag('spec.default_off'),
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditRow()).toMatchObject({
+        action: 'featureFlag.clearPlatformOverride',
+        before: { kind: 'featureFlagOverride', enabled: true },
+      });
+      expect(auditRow()?.after).toBe(Prisma.DbNull);
+    });
+
+    it('records the organization an override applied to', async () => {
+      organizationFindUnique.mockResolvedValue(null);
+
+      await service.setOrganizationOverride({
+        key: flag('spec.default_off'),
+        organizationId: ORGANIZATION_ID,
+        enabled: true,
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditRow()).toMatchObject({
+        action: 'featureFlag.setOrganizationOverride',
+        organizationId: ORGANIZATION_ID,
+        after: { kind: 'featureFlagOverride', enabled: true },
+      });
+    });
+
+    it('records a cleared organization override against its organization', async () => {
+      organizationFindUnique.mockResolvedValue({ enabled: true });
+
+      await service.clearOrganizationOverride({
+        key: flag('spec.default_off'),
+        organizationId: ORGANIZATION_ID,
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditRow()).toMatchObject({
+        action: 'featureFlag.clearOrganizationOverride',
+        organizationId: ORGANIZATION_ID,
+        before: { kind: 'featureFlagOverride', enabled: true },
+      });
+    });
+
+    /**
+     * A refused mutation must leave no trace saying it happened. Both refusals
+     * are covered because they fail at different points — one before any
+     * database work, one after an organization lookup — and a log written in
+     * the wrong place would catch only one.
+     */
+    it('writes nothing when an organization override is refused as out of scope', async () => {
+      await expect(
+        service.setOrganizationOverride({
+          key: flag('spec.platform_only'),
+          organizationId: ORGANIZATION_ID,
+          enabled: true,
+          actorUserId: ACTOR_ID,
+        }),
+      ).rejects.toBeInstanceOf(AppException);
+
+      expect(auditCreate).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing when the organization does not exist', async () => {
+      organizationRecordFindUnique.mockResolvedValue(null);
+
+      await expect(
+        service.setOrganizationOverride({
+          key: flag('spec.default_off'),
+          organizationId: 'org-missing',
+          enabled: true,
+          actorUserId: ACTOR_ID,
+        }),
+      ).rejects.toBeInstanceOf(AppException);
+
+      expect(auditCreate).not.toHaveBeenCalled();
     });
   });
 });

@@ -9,6 +9,7 @@ import {
 } from '@repo/ui';
 import { Lightbulb, Loader2, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -20,11 +21,22 @@ import {
   isUnreadable,
   type ContentIdeaFailure,
 } from '../content-idea-failures';
+import {
+  clearPendingSubmission,
+  keyForSubmission,
+  writePendingSubmission,
+  type PendingSubmission,
+} from '../content-idea-submission';
 
 import {
+  CONTENT_IDEA_LANGUAGES,
+  getContentIdeaAvailability,
   getContentIdeaOperation,
   requestContentIdeas,
+  type ContentIdeaAvailability,
+  type ContentIdeaLanguage,
   type ContentIdeaOperation,
+  type ContentIdeaRequest,
 } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
 
@@ -46,13 +58,14 @@ const POLL_INTERVAL_MS = 2_000;
  * that, and retries are BullMQ's business rather than something a browser tab
  * should be waiting through.
  *
- * Giving up is not cancelling — the run continues and is paid for — but it is
- * not recoverable either. The operation id lives only in this component's
- * state: there is no URL parameter, nothing stored, and no list endpoint to
- * find it again from. Leaving the screen loses it, which is what the copy now
- * says.
+ * Giving up is no longer losing it. The operation id is in the URL, so the run
+ * is recoverable by reloading, by returning to the link, or by pressing resume
+ * — which is what the copy now says.
  */
 const POLL_TIMEOUT_MS = 180_000;
+
+/** The query parameter the operation is carried in. */
+const OPERATION_PARAM = 'operation';
 
 /**
  * Why polling stopped, when it stopped early.
@@ -82,25 +95,55 @@ const TERMINAL: ReadonlyArray<ContentIdeaOperation['status']> = [
  * unreachable, rather than teaching the shared client a third details shape
  * for a case a form should not produce.
  */
-const LIMITS = { topic: 200, audience: 200, guidance: 1_000, count: 10 };
+const LIMITS = {
+  topic: 200,
+  goal: 300,
+  audience: 200,
+  guidance: 1_000,
+  numberOfIdeas: 10,
+};
+
+type FormState = {
+  topic: string;
+  goal: string;
+  language: ContentIdeaLanguage;
+  audience: string;
+  guidance: string;
+  numberOfIdeas: number;
+};
+
+const EMPTY_FORM: FormState = {
+  topic: '',
+  goal: '',
+  /**
+   * English by default, and *not* the reader's UI locale.
+   *
+   * The content language and the language somebody reads menus in are
+   * different questions. Defaulting one from the other would make an
+   * Arabic-reading marketer who plans English campaigns fight the form on every
+   * request — and would make the default invisible, since the field would
+   * appear to have been chosen when it had only been inherited.
+   */
+  language: 'en',
+  audience: '',
+  guidance: '',
+  numberOfIdeas: 5,
+};
 
 /**
  * A form the request schema would accept, before the server is asked.
  *
- * `count` is checked too: the number input's `min` and `max` bound the
- * stepper's arrows and nothing else, so a typed `0` or an emptied field would
- * otherwise be submitted and come back a 400 the operator has to read.
+ * `audience` is optional and bounded only when present, matching the contract:
+ * an organization that has described its audience in its knowledge base should
+ * not have to retype it, while a one-character answer is a slip rather than an
+ * answer.
  */
-const isSubmittable = (input: {
-  topic: string;
-  audience: string;
-  guidance: string;
-  count: number;
-}) =>
-  within(input.topic, 3, LIMITS.topic) &&
-  within(input.audience, 3, LIMITS.audience) &&
-  within(input.guidance, 0, LIMITS.guidance) &&
-  isCount(input.count);
+const isSubmittable = (form: FormState) =>
+  within(form.topic, 3, LIMITS.topic) &&
+  within(form.goal, 3, LIMITS.goal) &&
+  (form.audience.trim() === '' || within(form.audience, 3, LIMITS.audience)) &&
+  within(form.guidance, 0, LIMITS.guidance) &&
+  isCount(form.numberOfIdeas);
 
 /**
  * Both bounds are written with `>=` rather than one of each.
@@ -118,7 +161,17 @@ const within = (value: string, least: number, most: number) => {
 };
 
 const isCount = (value: number) =>
-  Number.isInteger(value) && value >= 1 && LIMITS.count >= value;
+  Number.isInteger(value) && value >= 1 && LIMITS.numberOfIdeas >= value;
+
+/** The form as the request contract wants it: trimmed, with blanks omitted. */
+const toRequest = (form: FormState): ContentIdeaRequest => ({
+  topic: form.topic.trim(),
+  goal: form.goal.trim(),
+  language: form.language,
+  ...(form.audience.trim() === '' ? {} : { audience: form.audience.trim() }),
+  ...(form.guidance.trim() === '' ? {} : { guidance: form.guidance.trim() }),
+  numberOfIdeas: form.numberOfIdeas,
+});
 
 /**
  * Asking the organization's agent for content ideas.
@@ -128,6 +181,21 @@ const isCount = (value: number) =>
  * an operation that is queued, then running, then either an answer or a
  * failure — never a spinner that implies the answer is one moment away when it
  * is a provider call that might not come back.
+ *
+ * ## The operation lives in the URL
+ *
+ * `?operation=<id>` rather than component state. A billed run whose id existed
+ * only in a closure was lost by a reload, a navigation, or a crash — and the
+ * only recovery a reader would think of is asking again, which buys the answer
+ * twice. In the URL it survives all three, it can be sent to a colleague, and
+ * the back button does what it looks like it does.
+ *
+ * ## Availability is advisory
+ *
+ * The screen asks whether generation is switched on so it can say so before
+ * somebody fills a form in. Acceptance re-evaluates both flags regardless, and
+ * a `FEATURE_DISABLED` answer refreshes this reading — the server decides, the
+ * screen only avoids wasting the reader's time.
  *
  * Every control is gated on the reader's membership **in this organization**,
  * and none of those gates is a boundary: the backend re-derives the same
@@ -157,15 +225,18 @@ export function OrganizationContentIdeasBlock({
 }: { pollIntervalMs?: number; pollTimeoutMs?: number } = {}) {
   const t = useTranslations('ContentIdeas');
   const { organization, viewer } = useOrganizationContext();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const canCreate = useOrganizationRolePermission(viewer.member?.role, {
     contentIdea: ['create'],
   });
 
-  const [topic, setTopic] = useState('');
-  const [audience, setAudience] = useState('');
-  const [guidance, setGuidance] = useState('');
-  const [count, setCount] = useState(5);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const field = useCallback(
+    <K extends keyof FormState>(key: K, value: FormState[K]) =>
+      setForm((previous) => ({ ...previous, [key]: value })),
+    [],
+  );
 
   /**
    * Tagged with the organization it belongs to, rather than a bare operation.
@@ -184,21 +255,24 @@ export function OrganizationContentIdeasBlock({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [failure, setFailure] = useState<ContentIdeaFailure | null>(null);
   const [stopped, setStopped] = useState<Stopped | null>(null);
+  const [availability, setAvailability] =
+    useState<ContentIdeaAvailability | null>(null);
 
   /**
-   * The key for the submission in flight, kept across a retry.
+   * The key for the submission in flight, kept across a retry *and* a reload.
    *
-   * Generation is billed and is not naturally idempotent. A request that fails
-   * in transport may or may not have been accepted, so retrying it with a new
-   * key would buy a second answer to the same question; retrying with the same
-   * key gets whichever run the server already has. It is cleared once the
-   * server has *decided* — a success or a refusal both mean this submission is
-   * over — so the next ask is a new purchase rather than a duplicate of the
-   * last one.
+   * The ref is the fast path within one page view; `content-idea-submission.ts`
+   * is what makes it survive the tab being reloaded, which is the case that
+   * matters — a request that failed in transport may or may not have been
+   * accepted, and the reader's instinct after a failure is to reload and try
+   * again.
    */
-  const pendingKey = useRef<string | null>(null);
+  const pendingKey = useRef<PendingSubmission | null>(null);
 
   const organizationId = organization.id;
+
+  /** The operation this screen is about, named by the URL. */
+  const routeOperationId = searchParams.get(OPERATION_PARAM);
 
   /** Only ever this organization's. */
   const operation =
@@ -211,18 +285,112 @@ export function OrganizationContentIdeasBlock({
         | ((held: ContentIdeaOperation | null) => ContentIdeaOperation),
     ) =>
       setHeld((previous) => {
-        const held =
+        const current =
           previous !== null && previous.organizationId === organizationId
             ? previous.run
             : null;
 
         return {
           organizationId,
-          run: typeof next === 'function' ? next(held) : next,
+          run: typeof next === 'function' ? next(current) : next,
         };
       }),
     [organizationId],
   );
+
+  /**
+   * Puts the operation in the URL, replacing rather than pushing.
+   *
+   * Replace, because a generation is not a place somebody navigated to — a
+   * push would make the back button step through every request they made in
+   * this session before leaving the screen.
+   */
+  const putOperationInRoute = useCallback(
+    (operationId: string | null) =>
+      setSearchParams(
+        (previous) => {
+          const next = new URLSearchParams(previous);
+
+          if (operationId === null) next.delete(OPERATION_PARAM);
+          else next.set(OPERATION_PARAM, operationId);
+
+          return next;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
+
+  /**
+   * Whether generation is switched on, read once per organization.
+   *
+   * Not gated on the reader's permission: a member who may not spend still
+   * needs the screen to explain why nothing is being generated.
+   */
+  useEffect(() => {
+    const controller = new AbortController();
+    let current = true;
+
+    getContentIdeaAvailability(organizationId, controller.signal)
+      .then((next) => {
+        if (current) setAvailability(next);
+      })
+      .catch(() => {
+        /**
+         * A readiness check that cannot be read is not a reason to block the
+         * screen. The form stays available and the backend decides, which is
+         * the same outcome as before this endpoint existed.
+         */
+        if (current) setAvailability(null);
+      });
+
+    return () => {
+      current = false;
+      controller.abort();
+    };
+  }, [organizationId]);
+
+  /**
+   * Recovers the operation named by the URL.
+   *
+   * This is what makes a reload return to the same run rather than to an empty
+   * form. It reads once per id: the polling effect below takes over while the
+   * run is unfinished, and re-reading here on every render would double the
+   * request rate for no new information.
+   *
+   * A 404 — no such operation, or one belonging to another organization — is
+   * both reported and *corrected*: the stale id is taken out of the URL, so a
+   * reload does not reproduce the same failure forever.
+   */
+  useEffect(() => {
+    if (routeOperationId === null) return;
+    if (operation?.id === routeOperationId) return;
+
+    const controller = new AbortController();
+    let current = true;
+
+    getContentIdeaOperation(organizationId, routeOperationId, controller.signal)
+      .then((next) => {
+        if (!current) return;
+
+        setFailure(null);
+        setStopped(null);
+        setHeld({ organizationId, run: next });
+      })
+      .catch((thrown: unknown) => {
+        if (!current || controller.signal.aborted) return;
+
+        if (!isUnreadable(thrown)) return;
+
+        setFailure(classify(thrown));
+        putOperationInRoute(null);
+      });
+
+    return () => {
+      current = false;
+      controller.abort();
+    };
+  }, [organizationId, routeOperationId, operation?.id, putOperationInRoute]);
 
   const operationId = operation?.id ?? null;
 
@@ -264,8 +432,10 @@ export function OrganizationContentIdeasBlock({
            * the cleanup, which no test can open deterministically. Removing it
            * costs a flicker and a reset deadline rather than a wrong answer.
            */
-          setOperation((held) =>
-            held !== null && TERMINAL.includes(held.status) ? held : next,
+          setOperation((previous) =>
+            previous !== null && TERMINAL.includes(previous.status)
+              ? previous
+              : next,
           );
         })
         .catch((thrown: unknown) => {
@@ -274,8 +444,9 @@ export function OrganizationContentIdeasBlock({
           /**
            * A poll that fails is not the same event as a request that fails.
            * Only the server answering about this operation ends the watch;
-           * anything transient is ridden out, because the next tick recovers
-           * and the give-up timeout is the backstop.
+           * anything transient — a 429 from this tab's own polling, a 5xx from
+           * an instance being rolled — is ridden out, because the next tick
+           * recovers and the give-up timeout is the backstop.
            */
           if (!isUnreadable(thrown)) return;
 
@@ -309,7 +480,7 @@ export function OrganizationContentIdeasBlock({
   ]);
 
   const submit = useCallback(async () => {
-    if (!isSubmittable({ topic, audience, guidance, count })) return;
+    if (!isSubmittable(form)) return;
 
     setIsSubmitting(true);
     setFailure(null);
@@ -324,29 +495,42 @@ export function OrganizationContentIdeasBlock({
      * would still be billed, and its ideas would never be shown.
      */
     setHeld(null);
+    putOperationInRoute(null);
+
+    const request = toRequest(form);
 
     try {
       /**
-       * Inside the try, because `crypto.randomUUID` is absent outside a secure
-       * context. Thrown out here it would escape the click handler before
-       * anything could be shown, leaving a button that does nothing and says
-       * nothing.
+       * Inside the try, because `crypto.randomUUID` and `crypto.subtle` are
+       * both absent outside a secure context. Thrown out here either would
+       * escape the click handler before anything could be shown, leaving a
+       * button that does nothing and says nothing.
+       *
+       * The stored key is reused only for the *same* request. A materially
+       * different one — an edited topic, a different language — is a new
+       * purchase and gets a new key, which is what somebody pressing the button
+       * a second time on purpose expects.
        */
-      pendingKey.current ??= crypto.randomUUID();
-
-      const accepted = await requestContentIdeas(
+      const pending = await keyForSubmission(
         organizationId,
-        {
-          topic: topic.trim(),
-          audience: audience.trim(),
-          ...(guidance.trim() === '' ? {} : { guidance: guidance.trim() }),
-          count,
-        },
+        request,
+        () => crypto.randomUUID(),
         pendingKey.current,
       );
 
+      pendingKey.current = pending;
+      writePendingSubmission(organizationId, pending);
+
+      const accepted = await requestContentIdeas(
+        organizationId,
+        request,
+        pending.idempotencyKey,
+      );
+
       pendingKey.current = null;
+      clearPendingSubmission(organizationId);
       setOperation(accepted);
+      putOperationInRoute(accepted.id);
     } catch (thrown: unknown) {
       /**
        * The key survives everything that leaves acceptance unknown.
@@ -361,21 +545,52 @@ export function OrganizationContentIdeasBlock({
        * because the durable key finds the run if there is one and creates it
        * once if there is not.
        */
-      if (isDecided(thrown)) pendingKey.current = null;
+      if (isDecided(thrown)) {
+        pendingKey.current = null;
+        clearPendingSubmission(organizationId);
+      }
 
-      setFailure(classify(thrown));
+      const classified = classify(thrown);
+
+      setFailure(classified);
+
+      /**
+       * A refusal for a feature that is off is also news about availability.
+       *
+       * The reading this screen loaded may be minutes old, and an operator can
+       * switch a flag between the two. Reconciling here is what stops the
+       * screen from continuing to offer a button the server has just refused.
+       */
+      if (classified.kind === 'disabled') {
+        getContentIdeaAvailability(organizationId)
+          .then(setAvailability)
+          .catch(() => undefined);
+      }
     } finally {
       setIsSubmitting(false);
     }
-  }, [organizationId, topic, audience, guidance, count, setOperation]);
+  }, [organizationId, form, setOperation, putOperationInRoute]);
 
   const ideas = operation?.output?.ideas ?? [];
   const sources = operation?.output?.sources ?? [];
   const isBusy = isSubmitting || isPending;
+  const isUnavailable = availability !== null && !availability.available;
+  const canSubmit = canCreate && !isUnavailable;
 
   return (
     <div className="space-y-6">
       <PageHeader title={t('title')} description={t('description')} />
+
+      {isUnavailable ? (
+        <Card>
+          <CardContent className="space-y-1 py-4 text-sm">
+            <p>{t('unavailable.title')}</p>
+            <p className="text-xs text-muted-foreground">
+              {t(`unavailable.${availability.reason ?? 'agents_disabled'}`)}
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {failure !== null ? (
         <Card>
@@ -395,7 +610,7 @@ export function OrganizationContentIdeasBlock({
         </Card>
       ) : null}
 
-      {canCreate ? (
+      {canSubmit ? (
         <Card>
           <CardContent className="space-y-4 py-4">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -404,10 +619,47 @@ export function OrganizationContentIdeasBlock({
                 <Input
                   id="content-idea-topic"
                   maxLength={LIMITS.topic}
-                  value={topic}
+                  value={form.topic}
                   disabled={isBusy}
-                  onChange={(event) => setTopic(event.target.value)}
+                  onChange={(event) => field('topic', event.target.value)}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="content-idea-goal">{t('form.goal')}</Label>
+                <Input
+                  id="content-idea-goal"
+                  maxLength={LIMITS.goal}
+                  value={form.goal}
+                  disabled={isBusy}
+                  onChange={(event) => field('goal', event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="content-idea-language">
+                  {t('form.language')}
+                </Label>
+                <select
+                  id="content-idea-language"
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-2xs outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                  value={form.language}
+                  disabled={isBusy}
+                  onChange={(event) =>
+                    field('language', event.target.value as ContentIdeaLanguage)
+                  }
+                >
+                  {CONTENT_IDEA_LANGUAGES.map((language) => (
+                    <option key={language} value={language}>
+                      {t(`language.${language}`)}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground">
+                  {t('form.languageHint')}
+                </p>
               </div>
 
               <div className="space-y-1">
@@ -417,9 +669,9 @@ export function OrganizationContentIdeasBlock({
                 <Input
                   id="content-idea-audience"
                   maxLength={LIMITS.audience}
-                  value={audience}
+                  value={form.audience}
                   disabled={isBusy}
-                  onChange={(event) => setAudience(event.target.value)}
+                  onChange={(event) => field('audience', event.target.value)}
                 />
               </div>
             </div>
@@ -431,9 +683,9 @@ export function OrganizationContentIdeasBlock({
               <Textarea
                 id="content-idea-guidance"
                 maxLength={LIMITS.guidance}
-                value={guidance}
+                value={form.guidance}
                 disabled={isBusy}
-                onChange={(event) => setGuidance(event.target.value)}
+                onChange={(event) => field('guidance', event.target.value)}
               />
             </div>
 
@@ -444,19 +696,19 @@ export function OrganizationContentIdeasBlock({
                   id="content-idea-count"
                   type="number"
                   min={1}
-                  max={LIMITS.count}
+                  max={LIMITS.numberOfIdeas}
                   className="w-24"
-                  value={count}
+                  value={form.numberOfIdeas}
                   disabled={isBusy}
-                  onChange={(event) => setCount(Number(event.target.value))}
+                  onChange={(event) =>
+                    field('numberOfIdeas', Number(event.target.value))
+                  }
                 />
               </div>
 
               <Button
                 size="sm"
-                disabled={
-                  isBusy || !isSubmittable({ topic, audience, guidance, count })
-                }
+                disabled={isBusy || !isSubmittable(form)}
                 onClick={() => void submit()}
               >
                 {isBusy ? (
@@ -532,12 +784,23 @@ export function OrganizationContentIdeasBlock({
                         <bdi>{idea.title}</bdi>
                       </p>
                       <Badge variant="outline">
-                        <bdi>{idea.format}</bdi>
+                        {t(`format.${idea.suggestedFormat}`)}
                       </Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      <bdi>{idea.angle}</bdi>
+
+                    <p className="text-sm font-medium">
+                      <bdi>{idea.hook}</bdi>
                     </p>
+
+                    <div className="space-y-1 text-sm text-muted-foreground">
+                      <p>
+                        <span className="font-medium">{t('result.angle')}</span>{' '}
+                        <bdi>{idea.angle}</bdi>
+                      </p>
+                      <p>
+                        <bdi>{idea.summary}</bdi>
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -558,7 +821,7 @@ export function OrganizationContentIdeasBlock({
         <EmptyState
           icon={<Lightbulb aria-hidden className="size-5" />}
           title={t('result.none')}
-          description={canCreate ? t('result.noneHint') : t('result.readOnly')}
+          description={canSubmit ? t('result.noneHint') : t('result.readOnly')}
         />
       )}
     </div>

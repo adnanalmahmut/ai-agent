@@ -513,12 +513,11 @@ on any PR touching compose or images.
   not fail but stalls and retries forever. `worker-composition.spec.ts` now
   asserts a registered handler for every routable event type.
 
-- 2026-08-23: Deferred with reason. Knowledge listings are capped at 200 rows
-  rather than paged: nothing in this milestone consumes a cursor, and a paging
-  contract with one caller is designed against a guess. Also deferred: a
-  literal parity check between the backend and Platform permission catalogs —
-  both are now asserted totally against their own catalogs, but nothing
-  compares the two, and a cross-app import fights both tsconfigs.
+- 2026-08-23: Superseded by the hardening remediation. Knowledge listings now
+  use a bounded, stable cursor scoped to both organization and canonical space;
+  the Platform consumes later pages. Cursor misuse across either scope is a
+  refusal and cannot change the query predicate. The permission-catalog note
+  remains historical and does not affect that pagination contract.
 
 - 2026-08-23: One surviving mutant, recorded rather than papered over. The
   embedding handler's page cursor is `ordinal > after`; changing it to `>=`
@@ -540,17 +539,12 @@ on any PR touching compose or images.
   the per-feature flag, so the coarse switch is the coarse switch. Found by
   review against this plan's own acceptance criteria, which name both flags.
 
-- 2026-08-24: `agents.max_concurrent_runs_per_organization` was likewise
-  declared and enforced nowhere. It is now checked at acceptance, *after* the
-  idempotency lookup: a caller retrying a request that was already accepted is
-  part of the count they would be refused by, and refusing them would strand a
-  run whose id they no longer hold. It is a ceiling and not a semaphore — two
-  accepts racing can both see room — because making it exact needs a lock or a
-  serializable transaction on every request to tighten a spend control by one
-  or two runs. The per-user rate limit was left at 20 per five minutes rather
-  than raised: it bounds one member, the new ceiling bounds the bill, and
-  loosening a production limit to fit a test suite is the wrong direction. The
-  suite spreads its requests across members instead.
+- 2026-08-24: Superseded by the hardening remediation. The organization run
+  ceiling is exact: acceptance takes a transaction-scoped PostgreSQL advisory
+  lock keyed by organization around the repeated idempotency check, in-flight
+  count, run creation, and outbox intent. Different organizations do not block
+  each other, and an accepted idempotent retry wins before capacity refusal.
+  The per-user rate limit remains independent of that durable spend control.
 
 - 2026-08-24: The generation call is now bounded. Everything entering a prompt
   was capped and nothing capped what came back, though tokens are billed before
@@ -690,14 +684,40 @@ on any PR touching compose or images.
   cleanup, and no test opens it deterministically. Kept, because losing it costs
   a flicker and a reset deadline, and documented as belt and braces.
 
-- 2026-08-24: Deferred with reason. The Platform has no browser E2E harness —
-  no Playwright or Cypress in the workspace — so this layer's integration
-  coverage is the block rendered against the real dictionaries with the API
-  module stubbed at its only network boundary, plus the tab/route join against
-  the real route tree and the anonymous-redirect case in the router suite. Also
-  deferred: recovering an operation after a reload, which needs either a URL
-  parameter or a list endpoint the backend does not have; the copy now says
-  plainly that leaving the screen loses track of the run.
+- 2026-08-24: Superseded by the hardening remediation. A minimal Chromium
+  Playwright smoke harness now exercises the real Platform route against a
+  deterministic API boundary: final form fields and idempotency header,
+  queued-to-succeeded rendering, URL operation recovery after reload,
+  proactively disabled availability, and resilient polling through transient
+  429/5xx responses. The browser tests run in CI. Operation identity lives in
+  URL state and ambiguous submissions preserve their idempotency identity in
+  session storage, so reload no longer loses a paid operation.
+
+## Hardening remediation
+
+The incremental remediation finalizes the unmerged `content-idea@1` contract
+and closes the operating gaps found across PR30–PR36. The request has `topic`,
+`goal`, `language`, optional `audience`/`guidance`, and `numberOfIdeas`; its
+strict output is parsed before durable success, and the requested
+`numberOfIdeas` is enforced exactly as a declared output contract on the same
+path — a wrong count is a retryable provider-output failure. Knowledge spaces are a
+code-owned eight-space registry, while the agent's context policy is exactly
+`organization.profile`, `brand.voice`, `audience`, and `content.strategy`
+within 12 chunks and 12,000 characters. The deterministic evaluation fixture
+exercises application behavior and isolation, not subjective model quality.
+
+Control-plane mutations now append a safe, atomically written audit event that
+survives reset/deletion. Audit values are sensitivity-aware projections and
+never contain credential material. PostgreSQL also enforces the last usable
+super-admin floor and serializes exact per-organization run acceptance. The
+knowledge ingestion path returns the committed `updatedAt` after a source-URI
+only update without rewriting chunks or incrementing revision. The Platform
+adds audit history, canonical-space selection, cursor pagination, availability
+readiness, reloadable operation state, and browser smoke coverage. The audit
+tab renders only a closed safe projection and is regression-tested against
+hostile `before`/`after` payloads carrying a secret canary. The reloadable
+submission identity in session storage keeps an idempotency key beside a
+SHA-256 digest of the canonical request, never the request text.
 
 ## Blockers
 

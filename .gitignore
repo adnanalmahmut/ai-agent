@@ -31,6 +31,12 @@ out/
 # coverage
 coverage/
 
+# browser smoke artifacts — Playwright writes traces and screenshots for a
+# failed run, which are diagnostic output rather than repository content
+test-results/
+playwright-report/
+.playwright/
+
 # misc
 *.tsbuildinfo
 .DS_Store

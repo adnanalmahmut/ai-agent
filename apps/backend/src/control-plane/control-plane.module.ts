@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { DatabaseModule } from '../database';
+import { ControlPlaneAuditService } from './audit/control-plane-audit.service';
 import { ControlPlaneController } from './control-plane.controller';
 import { FeatureFlagService } from './feature-flags/feature-flag.service';
 import { ManagedSecretService } from './managed-secrets/managed-secret.service';
@@ -27,12 +28,14 @@ import { RuntimeSettingService } from './runtime-settings/runtime-setting.servic
 @Module({
   imports: [DatabaseModule],
   providers: [
+    ControlPlaneAuditService,
     FeatureFlagService,
     RuntimeSettingService,
     ManagedSecretService,
     RuntimeConfigResolver,
   ],
   exports: [
+    ControlPlaneAuditService,
     FeatureFlagService,
     RuntimeSettingService,
     ManagedSecretService,

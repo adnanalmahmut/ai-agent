@@ -208,6 +208,10 @@ jobs:
     name: platform
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      # Public build metadata validated by `src/config/public.ts`. The
+      # production Docker build requires the same value explicitly.
+      VITE_APP_NAME: AI Agents
 
     steps:
       - name: Check out
@@ -242,6 +246,28 @@ jobs:
 
       - name: Build
         run: pnpm --filter platform run build
+
+      # The smoke fixture intercepts every API call, so this needs neither the
+      # backend service container nor a provider credential. It does need a
+      # real Chromium: reload, URL state and sessionStorage are browser facts.
+      - name: Install Chromium for browser smoke
+        run: pnpm --filter platform exec playwright install --with-deps chromium
+
+      - name: Browser smoke tests
+        env:
+          PLATFORM_E2E_EXTERNAL_SERVER: 'true'
+          PLATFORM_E2E_PORT: '43173'
+        run: |
+          pnpm --dir apps/platform exec vite preview --host 127.0.0.1 --port "$PLATFORM_E2E_PORT" --strictPort &
+          platform_preview_pid=$!
+          trap 'kill "$platform_preview_pid" 2>/dev/null || true' EXIT
+          attempts=0
+          until curl --fail --silent --show-error "http://127.0.0.1:${PLATFORM_E2E_PORT}/platform/" >/dev/null; do
+            attempts=$((attempts + 1))
+            [ "$attempts" -lt 30 ] || exit 1
+            sleep 1
+          done
+          pnpm --filter platform run test:e2e
 
   containers:
     name: containers

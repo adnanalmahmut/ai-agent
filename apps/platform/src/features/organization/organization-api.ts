@@ -72,13 +72,55 @@ export function listArchivedOrganizations(
  * answered about the organization it names.
  */
 
+/**
+ * The canonical taxonomy, mirrored from the backend registry.
+ *
+ * A mirror rather than an import: the two applications do not share a module,
+ * and the alternative — deriving the list from whatever the server returned —
+ * would make the message test unable to say anything, since a missing
+ * translation would only surface for an organization whose server happened to
+ * return that space. Held here, the test asserts copy for all eight and a
+ * ninth added to the backend fails the build the moment it is mirrored.
+ *
+ * The dots are load-bearing twice over: they are the slug the server addresses
+ * a space by, and — because `use-intl` reserves `.` as its path separator —
+ * they are also the nesting of the message that names it.
+ */
+export const KNOWLEDGE_SPACE_SLUGS = [
+  'organization.profile',
+  'brand.identity',
+  'brand.voice',
+  'audience',
+  'products.services',
+  'content.strategy',
+  'design.system',
+  'faq',
+] as const;
+
+export type KnowledgeSpaceSlug = (typeof KNOWLEDGE_SPACE_SLUGS)[number];
+
+/**
+ * A knowledge space, as the application defines it.
+ *
+ * There is no `id` and no create call, and both absences are the design. The
+ * taxonomy is code-owned on the backend: the same eight spaces exist for every
+ * organization, addressed by slug, and a row appears only when something is
+ * ingested into one. A customer cannot invent a space, so the client has
+ * nothing to name and no identifier to carry.
+ *
+ * `name` and `description` come back from the server for completeness, but the
+ * screen renders a translated name keyed on the slug instead — an operator
+ * reading Arabic should not be shown an English taxonomy.
+ */
 export type KnowledgeSpace = {
-  id: string;
   slug: string;
   name: string;
+  description: string;
+  /** False until this organization has stored something in it. */
+  configured: boolean;
   documentCount: number;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 };
 
 export type KnowledgeDocument = {
@@ -90,6 +132,18 @@ export type KnowledgeDocument = {
   createdAt: string;
   updatedAt: string;
   _count: { chunks: number };
+};
+
+/**
+ * One page of documents.
+ *
+ * `nextCursor` is null on the last page and is the only way to ask for the
+ * next one — the client never computes an offset, because an offset is wrong
+ * the moment a document is ingested while somebody is paging.
+ */
+export type KnowledgeDocumentPage = {
+  items: KnowledgeDocument[];
+  nextCursor: string | null;
 };
 
 /** What ingestion answers, including whether the text was new. */
@@ -111,48 +165,51 @@ export function listKnowledgeSpaces(
   return apiRequest(`${knowledgeBase(organizationId)}/spaces`, { signal });
 }
 
-export function createKnowledgeSpace(
+/**
+ * Empties a space: its documents and their chunks go with it.
+ *
+ * The space itself does not disappear — it is a registry entry and still
+ * appears in the listing, now with nothing in it.
+ */
+export function clearKnowledgeSpace(
   organizationId: string,
-  space: { slug: string; name: string },
-): Promise<KnowledgeSpace> {
-  return apiRequest(`${knowledgeBase(organizationId)}/spaces`, {
-    method: 'POST',
-    body: space,
-  });
-}
-
-export function deleteKnowledgeSpace(
-  organizationId: string,
-  spaceId: string,
-): Promise<{ id: string }> {
+  slug: string,
+): Promise<{ slug: string }> {
   return apiRequest(
-    `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(spaceId)}`,
+    `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(slug)}`,
     { method: 'DELETE' },
   );
 }
 
 export function listKnowledgeDocuments(
   organizationId: string,
-  spaceId: string,
-  signal?: AbortSignal,
-): Promise<KnowledgeDocument[]> {
+  slug: string,
+  options: { cursor?: string; limit?: number; signal?: AbortSignal } = {},
+): Promise<KnowledgeDocumentPage> {
+  const query = new URLSearchParams();
+
+  if (options.cursor !== undefined) query.set('cursor', options.cursor);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+
   return apiRequest(
     `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(
-      spaceId,
-    )}/documents`,
-    { signal },
+      slug,
+    )}/documents${suffix}`,
+    { signal: options.signal },
   );
 }
 
 /** `PUT`, because a document is addressed by title and re-submitting is a replace. */
 export function ingestKnowledgeDocument(
   organizationId: string,
-  spaceId: string,
+  slug: string,
   document: { title: string; sourceUri?: string; content: string },
 ): Promise<IngestedDocument> {
   return apiRequest(
     `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(
-      spaceId,
+      slug,
     )}/documents`,
     { method: 'PUT', body: document },
   );
@@ -181,17 +238,45 @@ export function deleteKnowledgeDocument(
  * synchronous variant to reach for.
  */
 
+/**
+ * What a caller asks for.
+ *
+ * `language` is the language of the *content* being planned, and is chosen per
+ * request rather than read from the reader's UI locale. An Arabic-speaking
+ * marketer writing English campaign copy is the ordinary case, and inferring
+ * the content language from the language somebody reads menus in would make
+ * that case unreachable.
+ */
+export const CONTENT_IDEA_LANGUAGES = ['ar', 'en'] as const;
+
+export type ContentIdeaLanguage = (typeof CONTENT_IDEA_LANGUAGES)[number];
+
+/**
+ * The formats an idea may be proposed in, mirroring the backend enum exactly.
+ *
+ * A value rather than only a union, so the message test can assert this screen
+ * has a word for each one. A format arriving with no copy would render its own
+ * key path where a badge should be.
+ */
+export const CONTENT_IDEA_FORMATS = ['carousel', 'post', 'video'] as const;
+
+export type ContentIdeaFormat = (typeof CONTENT_IDEA_FORMATS)[number];
+
 export type ContentIdeaRequest = {
   topic: string;
-  audience: string;
+  goal: string;
+  language: ContentIdeaLanguage;
+  audience?: string;
   guidance?: string;
-  count: number;
+  numberOfIdeas: number;
 };
 
 export type ContentIdea = {
   title: string;
+  hook: string;
   angle: string;
-  format: string;
+  summary: string;
+  suggestedFormat: ContentIdeaFormat;
 };
 
 /** What the agent returns, once it has returned. */
@@ -225,8 +310,45 @@ export type ContentIdeaOperation = {
   completedAt: string | null;
 };
 
+/**
+ * Why generation is or is not available to this organization right now.
+ *
+ * A product answer rather than a control-plane one: an ordinary member holds no
+ * platform permission, and the screen needs to know whether the button will
+ * work — not how the platform is configured.
+ */
+export const CONTENT_IDEA_UNAVAILABLE_REASONS = [
+  'agents_disabled',
+  'content_ideas_disabled',
+] as const;
+
+export type ContentIdeaUnavailableReason =
+  (typeof CONTENT_IDEA_UNAVAILABLE_REASONS)[number];
+
+export type ContentIdeaAvailability = {
+  available: boolean;
+  reason: ContentIdeaUnavailableReason | null;
+};
+
 const contentIdeasBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/content-ideas`;
+
+/**
+ * Advisory, and the screen treats it that way.
+ *
+ * A flag can be switched off between this read and the submission that follows
+ * it, so acceptance stays authoritative. This exists so the common case does
+ * not require filling in a form and pressing a button to discover the feature
+ * is off.
+ */
+export function getContentIdeaAvailability(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<ContentIdeaAvailability> {
+  return apiRequest(`${contentIdeasBase(organizationId)}/availability`, {
+    signal,
+  });
+}
 
 /**
  * The key is a parameter, not something generated here.

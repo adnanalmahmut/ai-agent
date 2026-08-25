@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { QUEUE_NAMES, type QueueJobHandler } from '../core/queue';
 import { isAgentConfigurationError } from './agent-configuration.error';
+import { isAgentOutputContractError } from './agent-output-contract.error';
 import { AgentRunService } from './agent-run.service';
 import { AgentRunner } from './agent-runner.service';
 import { AGENT_EXECUTION_FAILED, type AgentRuntimeResult } from './agent.types';
@@ -49,6 +50,18 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
        */
       const deterministic = isAgentConfigurationError(error);
 
+      /**
+       * Read for the log line and nothing else.
+       *
+       * A contract violation is retried exactly like any other provider failure
+       * — it is deliberately not an `AgentConfigurationError` — so this does not
+       * appear in `deterministic` above. What it changes is the word an operator
+       * reads: every attempt persists and rethrows the same constant, so without
+       * this a model that has started miscounting looks identical to a provider
+       * outage, and only one of the two is fixed by switching the feature off.
+       */
+      const contractViolation = isAgentOutputContractError(error);
+
       const attempts = job.opts.attempts ?? 1;
 
       /**
@@ -80,7 +93,7 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
           agentVersion: run.agentVersion,
           attemptCount: run.attemptCount,
           attemptsStarted: job.attemptsStarted,
-          reason: reasonFor(deterministic, recorded),
+          reason: reasonFor(deterministic, contractViolation, recorded),
           final,
         },
         'Agent execution attempt failed',
@@ -172,11 +185,27 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
  * A failed durable write outranks the classification: whatever went wrong with
  * the execution, the fact worth reporting is that this delivery no longer owns
  * the run and its outcome belongs to somebody else.
+ *
+ * `contract_violation` is a *retryable* failure that happens to be nameable, so
+ * it sits beside `runtime_error` rather than beside `configuration_error`. The
+ * distinction is worth a word because the remedy differs: a provider outage
+ * comes right on its own, while an answer that keeps failing its declared
+ * contract spends the whole attempt budget on paid calls and delivers nothing.
+ *
+ * Every value here is a literal chosen at this call site from
+ * application-owned booleans. Nothing about the caught error is read except its
+ * class, so a failing provider cannot choose the word an operator sees.
  */
 function reasonFor(
   deterministic: boolean,
+  contractViolation: boolean,
   recorded: boolean,
-): 'claim_lost' | 'configuration_error' | 'runtime_error' {
+):
+  | 'claim_lost'
+  | 'configuration_error'
+  | 'contract_violation'
+  | 'runtime_error' {
   if (!recorded) return 'claim_lost';
-  return deterministic ? 'configuration_error' : 'runtime_error';
+  if (deterministic) return 'configuration_error';
+  return contractViolation ? 'contract_violation' : 'runtime_error';
 }

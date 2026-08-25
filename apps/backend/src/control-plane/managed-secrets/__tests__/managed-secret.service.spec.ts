@@ -12,6 +12,8 @@ import type { PinoLogger } from 'nestjs-pino';
 import type { encryptionConfig } from '../../../config';
 import { AppException } from '../../../core/errors';
 import type { PrismaService } from '../../../database';
+import { Prisma } from '../../../generated/prisma/client';
+import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
 import { ManagedSecretService } from '../managed-secret.service';
 import {
   SECRET_ALGORITHM,
@@ -54,6 +56,8 @@ const encryption: ConfigType<typeof encryptionConfig> = {
 const CANARY = 'sk-CANARY-do-not-log-0000000000';
 
 const KEY = 'openai.api_key' as const;
+
+const ACTOR_ID = 'user-operator-1';
 
 const UPDATED_AT = new Date('2026-02-01T00:00:00.000Z');
 const ROTATED_AT = new Date('2026-02-02T00:00:00.000Z');
@@ -122,9 +126,26 @@ describe('ManagedSecretService', () => {
   const upsert = jest.fn<(args: unknown) => Promise<unknown>>();
   const deleteMany = jest.fn<(args: unknown) => Promise<{ count: number }>>();
 
+  /**
+   * The audit write, captured rather than stubbed away.
+   *
+   * The real `ControlPlaneAuditService` is constructed over this fake, so the
+   * canary assertions below search the payload the service actually builds.
+   */
+  const auditCreate = jest.fn<(args: unknown) => Promise<unknown>>();
+
   const prisma = {
     managedSecret: { findMany, findUnique, upsert, deleteMany },
+    controlPlaneAuditEvent: { create: auditCreate },
+    /** One client for both writes; that they commit together is an e2e claim. */
+    $transaction: (work: (tx: unknown) => Promise<unknown>) => work(prisma),
   } as unknown as PrismaService;
+
+  /** Everything the audit log was handed, as one searchable string. */
+  const auditedText = () => JSON.stringify(auditCreate.mock.calls);
+
+  const auditRow = () =>
+    (auditCreate.mock.calls[0]?.[0] as { data: Record<string, unknown> })?.data;
 
   const warn = jest.fn<(...args: unknown[]) => void>();
   const logger = { warn } as unknown as PinoLogger;
@@ -156,6 +177,7 @@ describe('ManagedSecretService', () => {
     upsert.mockReset().mockResolvedValue({});
     deleteMany.mockReset().mockResolvedValue({ count: 1 });
     warn.mockReset();
+    auditCreate.mockReset().mockResolvedValue({});
 
     consoleCalls = [];
     for (const method of consoleSpies) {
@@ -164,7 +186,12 @@ describe('ManagedSecretService', () => {
       });
     }
 
-    service = new ManagedSecretService(prisma, encryption, logger);
+    service = new ManagedSecretService(
+      prisma,
+      new ControlPlaneAuditService(prisma),
+      encryption,
+      logger,
+    );
   });
 
   afterEach(() => {
@@ -383,7 +410,10 @@ describe('ManagedSecretService', () => {
 
   describe('remove', () => {
     it('deletes the row and reports the slot as unconfigured', async () => {
-      const description = await service.remove(KEY);
+      const description = await service.remove({
+        key: KEY,
+        actorUserId: ACTOR_ID,
+      });
 
       expect(deleteMany).toHaveBeenCalledWith({ where: { key: KEY } });
       expect(description).toMatchObject({ configured: false, usable: false });
@@ -609,6 +639,88 @@ describe('ManagedSecretService', () => {
 
       expect(JSON.stringify(described)).not.toContain('CANARY');
       expect(consoleCalls).toEqual([]);
+    });
+  });
+
+  /**
+   * The audit log is a new place a credential could end up, and unlike the
+   * process log it has a read surface — every `controlPlane:read` holder can
+   * page through it. The canary is pushed through every mutation and the whole
+   * payload is searched, rather than asserting on the fields the projection
+   * happens to build today.
+   */
+  describe('audit', () => {
+    it('records a first configuration without any credential material', async () => {
+      findUnique.mockResolvedValue(null);
+
+      await service.set({
+        key: KEY,
+        value: CANARY,
+        label: 'primary account',
+        actorUserId: ACTOR_ID,
+      });
+
+      expect(auditedText()).not.toContain(CANARY);
+      // Every fragment of the sealed row, by name. A projection that spread the
+      // row instead of naming three columns would fail here rather than in
+      // production.
+      for (const field of ['ciphertext', 'iv', 'authTag', 'keyFingerprint']) {
+        expect(auditRow()).not.toHaveProperty(`after.${field}`);
+      }
+
+      expect(auditRow()).toMatchObject({
+        action: 'managedSecret.configure',
+        resource: 'managedSecret',
+        resourceKey: KEY,
+        actorUserId: ACTOR_ID,
+        after: { kind: 'managedSecretSlot', configured: true },
+      });
+      expect(auditRow()?.before).toBe(Prisma.DbNull);
+    });
+
+    /**
+     * Rotation is a distinct action from first configuration even though it is
+     * the same call. "This slot has never held a credential" is the fact an
+     * incident asks about, and collapsing the two would lose it.
+     */
+    it('records a rotation as a rotation', async () => {
+      findUnique.mockResolvedValue(
+        metadataRow({ label: 'primary account' }) as never,
+      );
+
+      await service.set({ key: KEY, value: CANARY, actorUserId: ACTOR_ID });
+
+      expect(auditedText()).not.toContain(CANARY);
+      expect(auditRow()).toMatchObject({
+        action: 'managedSecret.rotate',
+        before: { kind: 'managedSecretSlot', configured: true },
+        after: { kind: 'managedSecretSlot', configured: true },
+      });
+    });
+
+    it('records a removal as leaving the slot unconfigured', async () => {
+      findUnique.mockResolvedValue(metadataRow() as never);
+
+      await service.remove({ key: KEY, actorUserId: ACTOR_ID });
+
+      expect(auditedText()).not.toContain(CANARY);
+      expect(auditRow()).toMatchObject({
+        action: 'managedSecret.remove',
+        after: { kind: 'managedSecretSlot', configured: false },
+      });
+    });
+
+    /**
+     * A refused credential must leave no trace saying it was configured. The
+     * value is refused before anything is sealed, so an audit row here would
+     * report a configuration that never happened.
+     */
+    it('writes nothing when the credential is refused', async () => {
+      await expect(
+        service.set({ key: KEY, value: 'not-a-key', actorUserId: ACTOR_ID }),
+      ).rejects.toBeInstanceOf(AppException);
+
+      expect(auditCreate).not.toHaveBeenCalled();
     });
   });
 });

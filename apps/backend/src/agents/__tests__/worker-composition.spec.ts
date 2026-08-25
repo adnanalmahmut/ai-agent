@@ -26,6 +26,11 @@ import {
   AUTHENTICATABLE_PROVIDERS,
   MastraRuntime,
 } from '../runtime/mastra/mastra.runtime';
+import {
+  KNOWLEDGE_SPACE_SLUGS,
+  isKnowledgeSpaceSlug,
+} from '../../knowledge/knowledge-space.registry';
+import type { AgentDefinition } from '../agent.types';
 import { PRODUCTION_AGENT_DEFINITIONS } from '../definitions';
 import {
   CONTENT_IDEA_AGENT_ID,
@@ -157,7 +162,113 @@ describe('WorkerModule agent composition', () => {
       );
     }
   });
+
+  /**
+   * Every space a definition claims to read must exist in the taxonomy.
+   *
+   * The compiler already enforces this — `ContextPolicy.spaceSlugs` is typed as
+   * `KnowledgeSpaceSlug[]` — and this asserts it again at runtime for the one
+   * case the compiler cannot see: a definition constructed through a cast, or
+   * one whose slug was correct when written and whose registry entry has since
+   * been removed in a change that used `as` to make the file compile.
+   *
+   * The failure mode it guards is silent, which is why it is worth a second
+   * check. A policy naming a slug nothing resolves is not an error at runtime:
+   * `resolveSlugs` returns nothing, the assembler returns no passages, and the
+   * agent answers ungrounded — indistinguishable from an organization that has
+   * stored nothing. Nobody reports it, because the feature appears to work.
+   */
+  it('names only knowledge spaces the registry defines', () => {
+    const policies = PRODUCTION_AGENT_DEFINITIONS.filter(
+      (definition) => definition.contextPolicy !== undefined,
+    );
+
+    // Not vacuous: at least one shipped definition actually reads knowledge.
+    expect(policies.length).toBeGreaterThan(0);
+
+    for (const definition of policies) {
+      const policy = definition.contextPolicy!;
+
+      expect(policy.spaceSlugs.length).toBeGreaterThan(0);
+
+      for (const slug of policy.spaceSlugs) {
+        expect(isKnowledgeSpaceSlug(slug)).toBe(true);
+        expect(KNOWLEDGE_SPACE_SLUGS).toContain(slug);
+      }
+
+      // A policy naming one space twice retrieves nothing extra and reads as a
+      // wider grant than it is.
+      expect(new Set(policy.spaceSlugs).size).toBe(policy.spaceSlugs.length);
+
+      // Both budgets bind, and neither is zero — a policy that declared spaces
+      // and a budget of nothing would resolve them and then discard every
+      // passage, which is the same silent emptiness in a different place.
+      expect(policy.maxChunks).toBeGreaterThan(0);
+      expect(policy.maxCharacters).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * A definition that promises a *number* of results carries the contract that
+   * enforces it.
+   *
+   * The count is what a caller is billed against, and a schema cannot check it
+   * — it never sees the request. So the enforcement lives in an optional field,
+   * and an optional field is one that can be dropped in a refactor or forgotten
+   * on the next agent. The eval suite would catch it being unwired from
+   * `content-idea@1`; nothing would catch a second counting agent shipping
+   * without one, which is what this covers.
+   *
+   * A count field is recognised by asking the input schema, not by naming
+   * definitions here — a list restated in a test agrees with itself forever.
+   */
+  it('gives every definition that accepts a result count a contract to enforce it', () => {
+    const counting = PRODUCTION_AGENT_DEFINITIONS.filter((definition) =>
+      acceptsACount(definition),
+    );
+
+    // Not vacuous: at least one shipped definition takes a count.
+    expect(counting.length).toBeGreaterThan(0);
+
+    // The pair, so a failure names which definition is missing one.
+    expect(
+      counting.map((definition) => [
+        `${definition.id}@${definition.version}`,
+        typeof definition.outputContract,
+      ]),
+    ).toEqual(
+      counting.map((definition) => [
+        `${definition.id}@${definition.version}`,
+        'function',
+      ]),
+    );
+  });
 });
+
+/**
+ * Whether a definition's input schema has a field naming how many results are
+ * wanted.
+ *
+ * Asked of the schema by parsing a probe, so it stays true of a definition
+ * nobody thought to add to a list. A schema that accepts the probe *without*
+ * the count field and rejects it *with* one does not take a count; the reverse
+ * does.
+ */
+function acceptsACount(definition: AgentDefinition): boolean {
+  const shape: unknown = (
+    definition.input as unknown as { shape?: Record<string, unknown> }
+  ).shape;
+
+  if (typeof shape !== 'object' || shape === null) return false;
+
+  return Object.keys(shape).some((field) => COUNT_FIELDS.has(field));
+}
+
+/**
+ * The field names that mean "how many results". One today; listed rather than
+ * pattern-matched so adding a synonym is a deliberate edit.
+ */
+const COUNT_FIELDS = new Set(['numberOfIdeas', 'numberOfResults', 'count']);
 
 /**
  * The absence half of the composition, asserted statically.

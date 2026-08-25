@@ -1,5 +1,15 @@
 import type { ZodType } from 'zod';
 
+/**
+ * Imported from the leaf registry module rather than the Knowledge barrel.
+ *
+ * The barrel exports services and Nest modules, and this file is the agents'
+ * type vocabulary — pulling the barrel in would make every consumer of an agent
+ * type depend transitively on the storage adapters. The registry is a plain
+ * table with no imports of its own.
+ */
+import type { KnowledgeSpaceSlug } from '../knowledge/knowledge-space.registry';
+
 export const AGENT_RUN_STATUSES = [
   'QUEUED',
   'RUNNING',
@@ -123,6 +133,20 @@ export type AgentDefinition = {
   input: ZodType;
   output: ZodType;
   /**
+   * What the parsed answer must additionally be true of, given the request.
+   *
+   * Separate from `output` because a Zod schema never sees the input, and the
+   * claims worth making here are about the pair — most obviously that an agent
+   * asked for N results returned exactly N. Absent means the schema is the
+   * whole contract.
+   *
+   * Checked after the output schema and before any durable success is written,
+   * and a violation keeps the retry budget: a model that miscounted once may
+   * well count correctly on the next attempt, which is the opposite of a
+   * configuration failure.
+   */
+  outputContract?: AgentOutputContract;
+  /**
    * Which knowledge this agent may see. Absent means none at all.
    *
    * Declared on the definition rather than chosen per request, because it is
@@ -135,6 +159,69 @@ export type AgentDefinition = {
 };
 
 /**
+ * Everything a contract is allowed to say about a violation.
+ *
+ * A closed union and two integers, not a string, for exactly the reason
+ * `AgentFailureDiagnostic` above is a union of literals: the violation is
+ * rendered into an `Error` message, and a `string` return would let a future
+ * contract compose that message out of the provider's own answer — a plausible
+ * "unexpected format \"${answer.suggestedFormat}\"" is one line, passes review as
+ * a count-like message, and puts model output one `logger.warn({ err })` away
+ * from Redis. Numbers cannot smuggle text, and a code has to be added here to
+ * exist, which makes widening the vocabulary a reviewable act rather than an
+ * invisible one.
+ */
+export const AGENT_OUTPUT_CONTRACT_VIOLATIONS = [
+  'count_mismatch',
+  'unverifiable',
+] as const;
+
+export type AgentOutputContractViolationCode =
+  (typeof AGENT_OUTPUT_CONTRACT_VIOLATIONS)[number];
+
+export type AgentOutputContractViolation =
+  | {
+      code: 'count_mismatch';
+      /** What the request asked for. Application-owned, never provider-derived. */
+      expected: number;
+      /** What the answer carried. A count of the application's own parsed value. */
+      received: number;
+    }
+  /**
+   * The contract could not reach a verdict.
+   *
+   * A violation rather than a pass, because "I could not check" and "it is
+   * fine" are different answers and only one of them is safe to store. A
+   * contract that recovers its types by re-parsing has an impossible branch
+   * — the runner only calls it with data its own schemas accepted — and
+   * returning `null` there would make the impossible branch a silent
+   * fail-open: the promise stops being enforced and nothing says so. This
+   * makes it a retryable failure instead.
+   */
+  | { code: 'unverifiable' };
+
+/**
+ * A cross-check between what was asked for and what came back.
+ *
+ * The output schema is a statement about shape alone: it cannot know that a
+ * request for five ideas came back with four, because the request is not in
+ * scope when a schema parses a response. Some agents nonetheless promise
+ * something about the *relationship* between the two, and that promise is a
+ * business contract rather than a prompt hint — a caller who asked for five and
+ * was billed for four received the wrong answer, however well-formed it was.
+ *
+ * Returns the violation, or `null` when the pair is fine.
+ *
+ * Both arguments arrive already parsed by the definition's own schemas, so an
+ * implementation may re-parse them to recover its types and can rely on that
+ * re-parse succeeding.
+ */
+export type AgentOutputContract = (
+  input: AgentValue,
+  output: AgentValue,
+) => AgentOutputContractViolation | null;
+
+/**
  * The knowledge an agent is allowed to be given, and how much of it.
  *
  * Spaces are named by slug because a slug is readable in code review and in a
@@ -143,13 +230,21 @@ export type AgentDefinition = {
  * space here grants nothing across a tenant boundary — a slug that does not
  * exist for that organization simply contributes no passages.
  *
+ * The slug type is the *registry's*, not `string`. That is the difference
+ * between a policy that is wrong and a policy that does not compile: a typo, or
+ * a space removed from the taxonomy, used to produce a policy that resolved to
+ * nothing and reported nothing, because "no such space" and "an empty space"
+ * are the same observation at retrieval time. Now it is a type error, and a
+ * composition test asserts the same thing at runtime for anything that reaches
+ * this shape without passing through the compiler.
+ *
  * Both budgets are required, and they are separate because they bound
  * different costs. `maxChunks` bounds the retrieval; `maxCharacters` bounds
  * what is actually sent, which is what the provider bills for and what
  * displaces the instructions if it grows.
  */
 export type ContextPolicy = {
-  spaceSlugs: readonly string[];
+  spaceSlugs: readonly KnowledgeSpaceSlug[];
   maxChunks: number;
   maxCharacters: number;
 };

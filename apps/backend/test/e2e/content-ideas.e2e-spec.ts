@@ -8,7 +8,12 @@ import {
   it,
 } from '@jest/globals';
 
-import { CONTENT_IDEA_AGENT_ID } from '../../src/agents';
+import { Client } from 'pg';
+
+import {
+  AGENT_RUN_CAPACITY_LOCK,
+  CONTENT_IDEA_AGENT_ID,
+} from '../../src/agents';
 import {
   FeatureFlagService,
   RuntimeSettingService,
@@ -21,6 +26,17 @@ import {
   type Harness,
   type TestUser,
 } from '../support/auth-harness';
+
+/**
+ * The actor recorded on control-plane writes this harness makes.
+ *
+ * The audit log records who changed a flag, and these setups change flags — so
+ * every call has to name somebody. A fixed non-user id rather than a session
+ * user: the events are the harness's own, and attributing them to a test member
+ * would put rows in the log that read as though a member of the organization
+ * had reached the operator surface.
+ */
+const CONTROL_PLANE_ACTOR = 'e2e-harness';
 
 /**
  * The content-idea business surface, against the real application.
@@ -51,13 +67,17 @@ type Operation = {
 
 const dataOf = <T>(body: unknown): T => (body as { data: T }).data;
 
+type Availability = { available: boolean; reason: string | null };
+
 /** Both gates acceptance checks, coarse first. */
 const ENABLED_FLAGS = ['agents.enabled', 'content_ideas.enabled'] as const;
 
 const REQUEST = {
   topic: 'Electric kettles',
+  goal: 'Sell the autumn range before December',
+  language: 'en',
   audience: 'Home cooks',
-  count: 3,
+  numberOfIdeas: 3,
 };
 
 describe('content ideas', () => {
@@ -77,6 +97,16 @@ describe('content ideas', () => {
    */
   let spender: TestUser;
   let secondSpender: TestUser;
+  /**
+   * A third, for the requests that are *refused*.
+   *
+   * A refusal still costs a token against the per-user budget, and the
+   * validation table below sends one per malformed body — so growing that
+   * table would silently spend the owner's allowance and fail a later test with
+   * a 429 that has nothing to do with what it asserts. Whose session sends a
+   * request that is going to be refused is not part of what those cases claim.
+   */
+  let rejector: TestUser;
   let outsider: TestUser;
   let superAdmin: TestUser;
   let organizationId: string;
@@ -129,6 +159,9 @@ describe('content ideas', () => {
       .post(base(organization), body)
       .set('idempotency-key', key);
 
+  // The real Better Auth flow deliberately creates eight independently signed
+  // in users. Password hashing can exceed Jest's generic five-second hook
+  // budget on a loaded CI worker; this is setup cost, not a product retry.
   beforeAll(async () => {
     harness = await createHarness();
 
@@ -137,6 +170,7 @@ describe('content ideas', () => {
     member = await createUser(harness);
     spender = await createUser(harness);
     secondSpender = await createUser(harness);
+    rejector = await createUser(harness);
     outsider = await createUser(harness);
     superAdmin = await createUser(harness, { role: 'super_admin' });
 
@@ -147,6 +181,7 @@ describe('content ideas', () => {
     await addMember(member, 'member', organizationId, owner);
     await addMember(spender, 'admin', organizationId, owner);
     await addMember(secondSpender, 'admin', organizationId, owner);
+    await addMember(rejector, 'admin', organizationId, owner);
 
     /**
      * Enabled per organization, not platform-wide.
@@ -172,12 +207,13 @@ describe('content ideas', () => {
         });
       }
     }
-  });
+  }, 30_000);
 
   afterAll(async () => {
     for (const key of ENABLED_FLAGS) {
       for (const target of [organizationId, otherOrganizationId]) {
         await harness.app.get(FeatureFlagService).clearOrganizationOverride({
+          actorUserId: CONTROL_PLANE_ACTOR,
           key,
           organizationId: target,
         });
@@ -256,8 +292,14 @@ describe('content ideas', () => {
 
     it('stores the validated input rather than the raw body', async () => {
       const operation = dataOf<Operation>(
-        (await request(owner, { topic: '  Kettles  ', audience: 'Cooks' }))
-          .body,
+        (
+          await request(owner, {
+            topic: '  Kettles  ',
+            goal: '  Book demos  ',
+            language: 'ar',
+            audience: 'Cooks',
+          })
+        ).body,
       );
 
       const run = await harness.prisma.agentRun.findUniqueOrThrow({
@@ -267,17 +309,26 @@ describe('content ideas', () => {
       // Trimmed, and the default applied — the run executes what was parsed.
       expect(run.input).toEqual({
         topic: 'Kettles',
+        goal: 'Book demos',
+        language: 'ar',
         audience: 'Cooks',
-        count: 5,
+        numberOfIdeas: 5,
       });
     });
 
     it.each([
-      ['no topic', { audience: 'Home cooks' }],
-      ['a count beyond the contract', { ...REQUEST, count: 99 }],
+      ['no topic', { goal: 'Sell more', language: 'en' }],
+      ['no goal', { topic: 'Kettles', language: 'en' }],
+      ['no language', { topic: 'Kettles', goal: 'Sell more' }],
+      ['an unsupported language', { ...REQUEST, language: 'fr' }],
+      ['a count beyond the contract', { ...REQUEST, numberOfIdeas: 99 }],
+      [
+        'the old field name',
+        { ...REQUEST, numberOfIdeas: undefined, count: 3 },
+      ],
       ['an unrecognized field', { ...REQUEST, model: 'gpt-5' }],
     ])('refuses %s', async (_name, body) => {
-      const response = await request(owner, body);
+      const response = await request(rejector, body);
 
       expect(response.status).toBe(400);
     });
@@ -358,7 +409,13 @@ describe('content ideas', () => {
         (
           await request(
             owner,
-            { topic: 'Kettles', audience: 'Cooks', count: 3 },
+            {
+              topic: 'Kettles',
+              goal: 'Sell more',
+              language: 'en',
+              audience: 'Cooks',
+              numberOfIdeas: 3,
+            },
             key,
           )
         ).body,
@@ -367,7 +424,13 @@ describe('content ideas', () => {
         (
           await request(
             owner,
-            { count: 3, audience: 'Cooks', topic: 'Kettles' },
+            {
+              numberOfIdeas: 3,
+              audience: 'Cooks',
+              language: 'en',
+              goal: 'Sell more',
+              topic: 'Kettles',
+            },
             key,
           )
         ).body,
@@ -599,6 +662,117 @@ describe('content ideas', () => {
         expect(response.status).toBe(201);
       });
     });
+
+    /**
+     * The readiness surface the screen loads before it shows a form.
+     *
+     * Without it the only way to learn the feature is off is to fill the form
+     * in and press the button — which is how an operator concludes the product
+     * is broken. What it must *not* be is the control-plane API: an ordinary
+     * member holds no platform permission, and handing them one so a screen can
+     * grey out a button would trade a small UX problem for a large
+     * authorization one.
+     */
+    describe('availability', () => {
+      const availability = (user: TestUser, target = organizationId) =>
+        as(harness, user).get(`${base(target)}/availability`);
+
+      it('reports available when both switches are on', async () => {
+        const response = await availability(orgAdmin);
+
+        expect(response.status).toBe(200);
+        expect(dataOf<Availability>(response.body)).toEqual({
+          available: true,
+          reason: null,
+        });
+      });
+
+      it('names the per-feature switch when it is the one that is off', async () => {
+        await withFlag('content_ideas.enabled', false, async () => {
+          expect(
+            dataOf<Availability>((await availability(orgAdmin)).body),
+          ).toEqual({ available: false, reason: 'content_ideas_disabled' });
+        });
+      });
+
+      /**
+       * The coarse switch is named first when both are off, matching the order
+       * acceptance checks them in — so the screen and the refusal agree about
+       * which control an operator has to touch.
+       */
+      it('names the coarse switch when it is off', async () => {
+        await withFlag('agents.enabled', false, async () => {
+          expect(
+            dataOf<Availability>((await availability(orgAdmin)).body),
+          ).toEqual({ available: false, reason: 'agents_disabled' });
+        });
+      });
+
+      it('names the coarse switch when both are off', async () => {
+        await withFlag('agents.enabled', false, async () => {
+          await withFlag('content_ideas.enabled', false, async () => {
+            expect(
+              dataOf<Availability>((await availability(orgAdmin)).body).reason,
+            ).toBe('agents_disabled');
+          });
+        });
+      });
+
+      /**
+       * Readable by a member who may not spend. The screen has to explain why
+       * nothing is being generated to everyone looking at it, not only to the
+       * people who could have generated it.
+       */
+      it('is readable by a plain member', async () => {
+        expect((await availability(member)).status).toBe(200);
+      });
+
+      it('tells a non-member nothing', async () => {
+        expect((await availability(outsider)).status).toBe(404);
+        expect((await availability(superAdmin)).status).toBe(404);
+      });
+
+      it('answers for the organization in the path', async () => {
+        expect((await availability(owner, otherOrganizationId)).status).toBe(
+          404,
+        );
+      });
+
+      /**
+       * The route is declared before `:operationId`, and Nest matches in
+       * declaration order — so a parameterised segment moved above it would
+       * swallow this path and answer it as a lookup for an operation called
+       * "availability". Pinned here because the failure is a 404 on a route
+       * that exists, which reads as the feature being missing.
+       */
+      it('is not shadowed by the operation lookup', async () => {
+        const response = await availability(orgAdmin);
+
+        expect(response.status).toBe(200);
+        expect(response.body).not.toMatchObject({
+          error: { code: 'NOT_FOUND' },
+        });
+      });
+
+      /**
+       * Availability is advisory and acceptance is authoritative. A flag
+       * switched off between the two must produce a refusal, not a run — the
+       * screen's answer is stale by construction and must never be what
+       * decides.
+       */
+      it('does not authorize a request when the flag changes after it was read', async () => {
+        expect(
+          dataOf<Availability>((await availability(orgAdmin)).body).available,
+        ).toBe(true);
+
+        await withFlag('content_ideas.enabled', false, async () => {
+          const refused = await request(orgAdmin);
+
+          expect(refused.status).toBe(403);
+          expect(errorBody(refused).errorCode).toBe('FEATURE_DISABLED');
+        });
+      });
+    });
   });
 
   /**
@@ -618,9 +792,10 @@ describe('content ideas', () => {
       });
 
     const clearCeiling = () =>
-      harness.app
-        .get(RuntimeSettingService)
-        .reset('agents.max_concurrent_runs_per_organization');
+      harness.app.get(RuntimeSettingService).reset({
+        key: 'agents.max_concurrent_runs_per_organization',
+        actorUserId: CONTROL_PLANE_ACTOR,
+      });
 
     afterEach(clearCeiling);
 
@@ -632,6 +807,159 @@ describe('content ideas', () => {
       const refused = await request(spender);
       expect(refused.status).toBe(429);
       expect(errorBody(refused).errorCode).toBe('TOO_MANY_REQUESTS');
+    });
+
+    /**
+     * The ceiling is exact, not best-effort.
+     *
+     * Counting in-flight runs and then inserting one is a read-modify-write,
+     * and under PostgreSQL's default isolation two of them interleave freely:
+     * both read one, both see room, both commit, and an organization limited to
+     * one run has two. Nothing about that is visible afterwards — the runs look
+     * ordinary and the bill is simply larger than the operator set.
+     *
+     * Two different members with two different keys, dispatched together, so
+     * neither the idempotency short-circuit nor the per-user limiter can be
+     * what produces the refusal. Exactly one accept and exactly one 429 is the
+     * claim, and the durable row count is checked as well: an assertion on
+     * status codes alone would pass for an implementation that answered 429
+     * *after* committing the second run.
+     */
+    it('accepts exactly one of two simultaneous requests at a limit of one', async () => {
+      await setCeiling(1);
+
+      const [first, second] = await Promise.all([
+        request(spender, REQUEST, freshKey()),
+        request(secondSpender, REQUEST, freshKey()),
+      ]);
+
+      const statuses = [first.status, second.status].sort();
+
+      expect(statuses).toEqual([201, 429]);
+      expect(errorBody(first.status === 429 ? first : second).errorCode).toBe(
+        'TOO_MANY_REQUESTS',
+      );
+
+      expect(
+        await harness.prisma.agentRun.count({
+          where: {
+            organizationId,
+            status: { in: ['QUEUED', 'RUNNING'] },
+          },
+        }),
+      ).toBe(1);
+    });
+
+    /**
+     * The deterministic proof that the lock exists and is keyed on the
+     * organization.
+     *
+     * Two requests dispatched with `Promise.all` through supertest do not
+     * reliably overlap at the database — the event loop and the connection pool
+     * can finish the first transaction before the second opens one — so the
+     * pair test above is a functional check rather than a proof: it passes with
+     * or without the lock. Removing the lock and watching it stay green is
+     * exactly how that was discovered.
+     *
+     * This holds the lock from outside on a dedicated connection, which is not
+     * probabilistic. Acceptance for this organization cannot proceed while it
+     * is held, acceptance for another proceeds immediately, and releasing it
+     * lets the blocked request through. Together with the counting assertions
+     * above, that is the whole of the exactness claim: the count and the insert
+     * happen inside a lock nothing else for this tenant can hold at the same
+     * time.
+     */
+    it('serializes acceptance per organization on an advisory lock', async () => {
+      await setCeiling(5);
+
+      const holder = new Client({ connectionString: process.env.DATABASE_URL });
+      await holder.connect();
+
+      try {
+        await holder.query('BEGIN');
+        await holder.query('SELECT pg_advisory_xact_lock($1, hashtext($2))', [
+          AGENT_RUN_CAPACITY_LOCK,
+          organizationId,
+        ]);
+
+        const blocked = request(spender, REQUEST, freshKey());
+
+        // It must still be waiting. A generous window: the assertion is that it
+        // does *not* settle, so a slow machine makes this more reliable rather
+        // than less.
+        const settled = Symbol('settled');
+        const raced = await Promise.race([
+          blocked.then(() => settled),
+          new Promise((resolve) => setTimeout(resolve, 1_500)),
+        ]);
+
+        expect(raced).not.toBe(settled);
+
+        // And the lock is this organization's alone.
+        const other = await request(
+          outsider,
+          REQUEST,
+          freshKey(),
+          otherOrganizationId,
+        );
+
+        expect(other.status).toBe(201);
+
+        await holder.query('COMMIT');
+
+        expect((await blocked).status).toBe(201);
+      } finally {
+        await holder.query('ROLLBACK').catch(() => undefined);
+        await holder.end();
+      }
+    }, 20_000);
+
+    /**
+     * And the lock is per organization, so one tenant's acceptance cannot be
+     * blocked by another's.
+     *
+     * Both are dispatched together at a limit of one each. If the lock were
+     * global rather than keyed on the organization the two would serialize —
+     * which is still correct, so this asserts the outcome rather than the
+     * timing: both are accepted, because neither is part of the other's count.
+     */
+    it('does not let one organization ceiling refuse another', async () => {
+      await setCeiling(1);
+
+      const [ours, theirs] = await Promise.all([
+        request(spender, REQUEST, freshKey()),
+        request(outsider, REQUEST, freshKey(), otherOrganizationId),
+      ]);
+
+      expect(ours.status).toBe(201);
+      expect(theirs.status).toBe(201);
+    });
+
+    /**
+     * The retry path, under contention.
+     *
+     * The accepted key is answered with its run even while the organization is
+     * at capacity — and now that the check happens inside a lock, the lookup
+     * that makes that true has to happen inside it too. An implementation that
+     * took the lock and then checked capacity before the key would refuse a
+     * retry it had already been paid for.
+     */
+    it('still answers an accepted key while a competing request is refused', async () => {
+      await setCeiling(1);
+
+      const key = freshKey();
+      const first = dataOf<Operation>(
+        (await request(spender, REQUEST, key)).body,
+      );
+
+      const [retry, competitor] = await Promise.all([
+        request(spender, REQUEST, key),
+        request(secondSpender, REQUEST, freshKey()),
+      ]);
+
+      expect(retry.status).toBe(201);
+      expect(dataOf<Operation>(retry.body).id).toBe(first.id);
+      expect(competitor.status).toBe(429);
     });
 
     /**
