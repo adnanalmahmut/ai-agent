@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import { AgentConfigurationError } from '../agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
+import { AgentOutputContractError } from '../agent-output-contract.error';
 import type { AgentRuntime } from '../agent-runtime';
 import type { AgentDefinition, AgentOutputContract } from '../agent.types';
 import { AgentRuntimeRegistry } from '../agent-runtime.registry';
@@ -510,6 +511,52 @@ describe('the declared output contract', () => {
     await expect(runWanting(runner, 3, 'message-agent')).rejects.toThrow(
       /^Agent output does not satisfy its declared contract: count_mismatch \(expected 3, received 0\)$/,
     );
+  });
+
+  /**
+   * "I could not check" is not "it is fine".
+   *
+   * A contract that recovers its types by re-parsing has a branch the runner's
+   * own guarantees make unreachable — and the day a schema grows a transform
+   * whose output no longer satisfies it, that branch is the whole promise
+   * quietly switching itself off. It is a refusal, and a retryable one.
+   */
+  it('refuses an answer a contract could not verify', async () => {
+    const runner = runnerReturning(
+      { items: ['a', 'b', 'c'] },
+      {
+        ...countingDefinition,
+        id: 'unverifiable-agent',
+        outputContract: (() => ({
+          code: 'unverifiable',
+        })) satisfies AgentOutputContract,
+      },
+    );
+
+    const attempt = runWanting(runner, 3, 'unverifiable-agent');
+
+    await expect(attempt).rejects.toThrow(
+      /^Agent output does not satisfy its declared contract: unverifiable$/,
+    );
+    await expect(attempt).rejects.not.toBeInstanceOf(AgentConfigurationError);
+  });
+
+  /**
+   * A class of its own, and the one thing it is *not*.
+   *
+   * The class exists so the worker can name the failure in a log without
+   * changing how it is retried — so both halves are asserted here, because
+   * making it an `AgentConfigurationError` would be the natural-looking tidy-up
+   * and would end the run on first sight.
+   */
+  it('carries its own class, which is not the deterministic one', async () => {
+    const attempt = runWanting(runnerReturning({ items: [] }), 3);
+
+    await expect(attempt).rejects.toBeInstanceOf(AgentOutputContractError);
+    await expect(attempt).rejects.not.toBeInstanceOf(AgentConfigurationError);
+    await expect(attempt).rejects.toMatchObject({
+      violation: { code: 'count_mismatch', expected: 3, received: 0 },
+    });
   });
 
   /**

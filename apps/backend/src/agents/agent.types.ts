@@ -171,18 +171,34 @@ export type AgentDefinition = {
  * exist, which makes widening the vocabulary a reviewable act rather than an
  * invisible one.
  */
-export const AGENT_OUTPUT_CONTRACT_VIOLATIONS = ['count_mismatch'] as const;
+export const AGENT_OUTPUT_CONTRACT_VIOLATIONS = [
+  'count_mismatch',
+  'unverifiable',
+] as const;
 
 export type AgentOutputContractViolationCode =
   (typeof AGENT_OUTPUT_CONTRACT_VIOLATIONS)[number];
 
-export type AgentOutputContractViolation = {
-  code: AgentOutputContractViolationCode;
-  /** What the request asked for. Application-owned, never provider-derived. */
-  expected: number;
-  /** What the answer carried. A count of the application's own parsed value. */
-  received: number;
-};
+export type AgentOutputContractViolation =
+  | {
+      code: 'count_mismatch';
+      /** What the request asked for. Application-owned, never provider-derived. */
+      expected: number;
+      /** What the answer carried. A count of the application's own parsed value. */
+      received: number;
+    }
+  /**
+   * The contract could not reach a verdict.
+   *
+   * A violation rather than a pass, because "I could not check" and "it is
+   * fine" are different answers and only one of them is safe to store. A
+   * contract that recovers its types by re-parsing has an impossible branch
+   * — the runner only calls it with data its own schemas accepted — and
+   * returning `null` there would make the impossible branch a silent
+   * fail-open: the promise stops being enforced and nothing says so. This
+   * makes it a retryable failure instead.
+   */
+  | { code: 'unverifiable' };
 
 /**
  * A cross-check between what was asked for and what came back.

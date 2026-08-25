@@ -510,7 +510,7 @@ describe('a declared output contract violation, through the worker', () => {
 
   const contractedRun: AgentRun = { ...run, input: { wanted: 3 } };
 
-  it('is retried rather than made final, and reported as a runtime error', async () => {
+  it('is retried rather than made final, and named as its own reason', async () => {
     const { runs, warn } = harness();
     runs.claimExecutionAttempt.mockResolvedValue(contractedRun);
     runs.recordExecutionFailure.mockResolvedValue(true);
@@ -534,15 +534,24 @@ describe('a declared output contract violation, through the worker', () => {
       'Agent execution failed',
       false,
     );
+    /**
+     * `contract_violation`, not `runtime_error`. Every attempt writes and
+     * rethrows the same constant, so this word is the only thing that tells an
+     * operator a model has started miscounting rather than a provider having
+     * gone down — and the two have different remedies. It is still retried:
+     * naming the failure and classifying it are separate decisions.
+     */
     expect(warn).toHaveBeenCalledWith(
-      expect.objectContaining({ reason: 'runtime_error', final: false }),
+      expect.objectContaining({ reason: 'contract_violation', final: false }),
       expect.any(String),
     );
 
-    // And nothing about the violation reached the durable column, the log, or
-    // the value BullMQ records as `failedReason`.
+    // And nothing about the violation itself reached the durable column, the
+    // log, or the value BullMQ records as `failedReason` — the reason is one of
+    // the handler's own literals, not the error's message.
     expect((error as Error).message).toBe('Agent execution failed');
     expect(JSON.stringify(warn.mock.calls)).not.toContain('count_mismatch');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('expected 3');
     expect(runs.markExecutionSucceeded).not.toHaveBeenCalled();
   });
 

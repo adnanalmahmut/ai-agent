@@ -87,10 +87,13 @@ Primary boundaries:
   so a promise about the request/answer pair — `content-idea@1` must return
   exactly the requested number of ideas — is enforced rather than merely
   prompted for. A violation is a closed `AgentOutputContractViolation` — a listed
-  code and two integers, never a string — and the runner composes the error
-  message from it, so no provider output can reach a log, BullMQ's
-  `failedReason`, or `AgentRun.lastError`. The type is what enforces that, not a
-  convention.
+  code, plus two integers for a count, never a string — and
+  `AgentOutputContractError` composes the message from it, so no provider output
+  can reach a log, BullMQ's `failedReason`, or `AgentRun.lastError`. The type is
+  what enforces that, not a convention. A contract that cannot reach a verdict
+  refuses (`unverifiable`) rather than passing, so the promise cannot switch
+  itself off silently. The class is read by the worker only to choose the word
+  `contract_violation` in its log; the retry classification is unchanged.
 - Browser storage: the Platform's ambiguous-submission record in
   `sessionStorage` holds only `{ idempotencyKey, requestDigest }`, where the
   digest is SHA-256 over the canonical normalized request. Sameness across a

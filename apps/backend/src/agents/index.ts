@@ -1,4 +1,8 @@
 export { AGENT_RUN_CAPACITY_LOCK, AgentRunService } from './agent-run.service';
+export {
+  AgentOutputContractError,
+  isAgentOutputContractError,
+} from './agent-output-contract.error';
 export type { AgentRuntime } from './agent-runtime';
 export type {
   AgentDefinition,

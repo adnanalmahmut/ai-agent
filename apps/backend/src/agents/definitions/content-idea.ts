@@ -123,9 +123,12 @@ export type ContentIdeaOutput = z.infer<typeof contentIdeaOutput>;
  *
  * Both values are re-parsed rather than asserted, in keeping with the rest of
  * this file. The runner only calls a contract with data its own schemas have
- * already accepted, so neither parse can fail in practice; returning `null` on
- * the impossible branch keeps this function from inventing a second opinion
- * about shape, which is the schema layer's job and is already enforced above.
+ * already accepted, so neither parse can fail in practice — but the impossible
+ * branch reports `unverifiable` rather than `null`, because `null` means "this
+ * is fine" and a check that could not run has not established that. Returning
+ * it would make the branch a silent fail-open the day either schema grows a
+ * transform whose output no longer satisfies it, which is the ordinary way to
+ * normalize in Zod. Refusing is retryable and visible; passing is neither.
  *
  * Re-parsing the request is also what makes the *defaulted* count the contracted
  * one: a request that omitted `numberOfIdeas` is contracted against five rather
@@ -142,7 +145,7 @@ export const contentIdeaOutputContract: AgentOutputContract = (
   const request = contentIdeaInput.safeParse(input);
   const answer = contentIdeaOutput.safeParse(output);
 
-  if (!request.success || !answer.success) return null;
+  if (!request.success || !answer.success) return { code: 'unverifiable' };
 
   const expected = request.data.numberOfIdeas;
   const received = answer.data.ideas.length;

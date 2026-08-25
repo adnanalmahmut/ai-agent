@@ -118,8 +118,12 @@ export class ControlPlaneAuditService {
    * `before` and `after` are both nullable and both meaningful when null:
    * absent `before` means the resource had no stored state, absent `after`
    * means it no longer has one. A pair of nulls would be a no-op nobody should
-   * be recording, and is not refused here only because there is no path that
-   * produces it.
+   * be recording, and the callers that could produce one — clearing an override
+   * or resetting a setting that was never stored — return before reaching here
+   * rather than appending an event for a change that did not happen. It is not
+   * refused here as well because a caller that has decided something happened
+   * is better trusted than second-guessed: this class appends, and the decision
+   * about whether there was a change belongs to the service that made it.
    */
   async record(
     tx: AuditWriter,

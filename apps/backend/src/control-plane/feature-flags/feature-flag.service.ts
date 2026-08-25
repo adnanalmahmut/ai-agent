@@ -257,6 +257,15 @@ export class FeatureFlagService {
         where: { key: input.key },
       });
 
+      /**
+       * Nothing stored means nothing was cleared, and an append-only history
+       * must not carry an event for a change that did not happen. The Platform
+       * disables the button when there is no override, but the API is the
+       * authority and has no such guard — a script, or a double-click that
+       * races the disabled state, reaches here with `before` already null.
+       */
+      if (before === null) return;
+
       await this.audit.record(tx, {
         action: 'featureFlag.clearPlatformOverride',
         resourceKey: input.key,
@@ -350,6 +359,9 @@ export class FeatureFlagService {
       await tx.featureFlagOrganizationOverride.deleteMany({
         where: { organizationId: input.organizationId, key: input.key },
       });
+
+      // Same no-op as the platform clear above: no stored override, no event.
+      if (before === null) return;
 
       await this.audit.record(tx, {
         action: 'featureFlag.clearOrganizationOverride',

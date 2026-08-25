@@ -138,8 +138,9 @@ understanding the database state.
   organization's `agents.max_concurrent_runs_per_organization` slots across the
   backoff, and then lands `FAILED` with nothing delivered. A model that has
   started consistently miscounting therefore shows up as a spend multiplier
-  rather than as an error rate. Read the worker's `reason: runtime_error`
-  warnings for the affected `agentId`/`agentVersion`; the mitigation is the
+  rather than as an error rate. The worker names it: `reason:
+  contract_violation` is a contract failure, `runtime_error` is anything else —
+  filter on the affected `agentId`/`agentVersion`. The mitigation is the
   per-feature flag or `agents.enabled`, not a retry.
 - Bad release: use application rollback only when schema remains compatible.
 - Suspected credential exposure: revoke at the owning boundary, replace the VPS

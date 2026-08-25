@@ -30,6 +30,7 @@ import {
   KNOWLEDGE_SPACE_SLUGS,
   isKnowledgeSpaceSlug,
 } from '../../knowledge/knowledge-space.registry';
+import type { AgentDefinition } from '../agent.types';
 import { PRODUCTION_AGENT_DEFINITIONS } from '../definitions';
 import {
   CONTENT_IDEA_AGENT_ID,
@@ -206,7 +207,68 @@ describe('WorkerModule agent composition', () => {
       expect(policy.maxCharacters).toBeGreaterThan(0);
     }
   });
+
+  /**
+   * A definition that promises a *number* of results carries the contract that
+   * enforces it.
+   *
+   * The count is what a caller is billed against, and a schema cannot check it
+   * — it never sees the request. So the enforcement lives in an optional field,
+   * and an optional field is one that can be dropped in a refactor or forgotten
+   * on the next agent. The eval suite would catch it being unwired from
+   * `content-idea@1`; nothing would catch a second counting agent shipping
+   * without one, which is what this covers.
+   *
+   * A count field is recognised by asking the input schema, not by naming
+   * definitions here — a list restated in a test agrees with itself forever.
+   */
+  it('gives every definition that accepts a result count a contract to enforce it', () => {
+    const counting = PRODUCTION_AGENT_DEFINITIONS.filter((definition) =>
+      acceptsACount(definition),
+    );
+
+    // Not vacuous: at least one shipped definition takes a count.
+    expect(counting.length).toBeGreaterThan(0);
+
+    // The pair, so a failure names which definition is missing one.
+    expect(
+      counting.map((definition) => [
+        `${definition.id}@${definition.version}`,
+        typeof definition.outputContract,
+      ]),
+    ).toEqual(
+      counting.map((definition) => [
+        `${definition.id}@${definition.version}`,
+        'function',
+      ]),
+    );
+  });
 });
+
+/**
+ * Whether a definition's input schema has a field naming how many results are
+ * wanted.
+ *
+ * Asked of the schema by parsing a probe, so it stays true of a definition
+ * nobody thought to add to a list. A schema that accepts the probe *without*
+ * the count field and rejects it *with* one does not take a count; the reverse
+ * does.
+ */
+function acceptsACount(definition: AgentDefinition): boolean {
+  const shape: unknown = (
+    definition.input as unknown as { shape?: Record<string, unknown> }
+  ).shape;
+
+  if (typeof shape !== 'object' || shape === null) return false;
+
+  return Object.keys(shape).some((field) => COUNT_FIELDS.has(field));
+}
+
+/**
+ * The field names that mean "how many results". One today; listed rather than
+ * pattern-matched so adding a synonym is a deliberate edit.
+ */
+const COUNT_FIELDS = new Set(['numberOfIdeas', 'numberOfResults', 'count']);
 
 /**
  * The absence half of the composition, asserted statically.

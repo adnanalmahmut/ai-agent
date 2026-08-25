@@ -203,11 +203,19 @@ export class RuntimeSettingService {
 
       await tx.runtimeSetting.deleteMany({ where: { key: input.key } });
 
+      /**
+       * A key with no stored row was already at its code default, so this reset
+       * changed nothing and there is nothing to append. Recording it would put
+       * a "reset runtime setting" event in the history of a setting nobody had
+       * ever set — and the audit log is the artefact an incident review trusts.
+       */
+      if (before === null) return;
+
       await this.audit.record(tx, {
         action: 'runtimeSetting.reset',
         resourceKey: input.key,
         actorUserId: input.actorUserId,
-        before: before === null ? null : settingState(definition, before.value),
+        before: settingState(definition, before.value),
         after: null,
       });
     });

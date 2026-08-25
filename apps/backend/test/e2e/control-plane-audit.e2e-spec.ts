@@ -164,6 +164,55 @@ describe('Control plane audit (e2e)', () => {
       });
     });
 
+    /**
+     * A clear that cleared nothing is not a change, and an append-only history
+     * must not say it was one.
+     *
+     * The Platform disables the button when there is no override, but the API
+     * is the authority and has no such guard: a script, a retried request, or a
+     * double-click that races the disabled state reaches the endpoint with
+     * nothing stored. Appending there would put a `before: null, after: null`
+     * event in the log — an assertion that this operator cleared an override,
+     * readable in the audit tab as "No stored state → No stored state" — and
+     * the audit log is the artefact an incident review trusts.
+     */
+    it('appends nothing when the clear had nothing to clear', async () => {
+      await as(harness, superAdmin)
+        .del(`${BASE}/feature-flags/${FLAG}`)
+        .expect(200);
+      await as(harness, superAdmin)
+        .del(`${BASE}/feature-flags/${FLAG}/organizations/${organizationId}`)
+        .expect(200);
+      await as(harness, superAdmin)
+        .del(`${BASE}/settings/${SETTING}`)
+        .expect(200);
+
+      expect(await rowsFor(FLAG)).toHaveLength(0);
+      expect(await rowsFor(SETTING)).toHaveLength(0);
+    });
+
+    /**
+     * And the same endpoint still records the clear that *did* clear something,
+     * so the guard above cannot be satisfied by never recording a clear at all.
+     */
+    it('still appends the second clear when the first stored something', async () => {
+      await as(harness, superAdmin)
+        .put(`${BASE}/feature-flags/${FLAG}`, { enabled: true })
+        .expect(200);
+      await as(harness, superAdmin)
+        .del(`${BASE}/feature-flags/${FLAG}`)
+        .expect(200);
+      // The repeat: idempotent for the caller, and silent in the history.
+      await as(harness, superAdmin)
+        .del(`${BASE}/feature-flags/${FLAG}`)
+        .expect(200);
+
+      expect((await rowsFor(FLAG)).map((row) => row.action)).toEqual([
+        'featureFlag.setPlatformOverride',
+        'featureFlag.clearPlatformOverride',
+      ]);
+    });
+
     it('records the organization an override applied to', async () => {
       await as(harness, superAdmin)
         .put(`${BASE}/feature-flags/${FLAG}/organizations/${organizationId}`, {

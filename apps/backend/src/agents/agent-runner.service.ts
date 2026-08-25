@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { AgentConfigurationError } from './agent-configuration.error';
 import { AgentContextAssembler } from './agent-context.assembler';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
+import { AgentOutputContractError } from './agent-output-contract.error';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import type { AgentRun, AgentRuntimeResult, AgentValue } from './agent.types';
 
@@ -92,16 +93,20 @@ export class AgentRunner {
      * and checked after the schema parse so a contract only ever sees data it
      * can rely on.
      *
-     * A plain `Error`, deliberately, for the same reason a malformed answer is
-     * one: the count is the model's to get right and its next attempt may.
-     * `AgentConfigurationError` would make a miscount immediately final and
-     * spend nothing of the retry budget the failure is actually eligible for.
+     * Not an `AgentConfigurationError`, deliberately, for the same reason a
+     * malformed answer is not one: the count is the model's to get right and its
+     * next attempt may. Classifying it as deterministic would make a miscount
+     * immediately final and spend nothing of the retry budget the failure is
+     * actually eligible for.
      *
-     * The message is assembled *here*, from a closed code and two integers, so
-     * a contract cannot compose it out of the provider's answer even by
-     * accident — the type will not carry text. Nothing from this message reaches
-     * an operator surface either: `AgentExecutionHandler` persists and rethrows
-     * its own constant.
+     * It carries its own class all the same, so the worker can *name* it in a
+     * log without changing how it is retried. Without that, a model that has
+     * started miscounting is indistinguishable from a provider outage or a
+     * timeout — three problems with three different remedies, all reported as
+     * `runtime_error`. The class is application-owned and so is everything in
+     * it: a closed code and, for a count, two integers. Its message is composed
+     * from those, so a contract cannot put the provider's answer into an `Error`
+     * even by accident, because the type will not carry text.
      */
     const violation = definition.outputContract?.(
       parsedInput.data as AgentValue,
@@ -109,9 +114,7 @@ export class AgentRunner {
     );
 
     if (violation !== undefined && violation !== null) {
-      throw new Error(
-        `Agent output does not satisfy its declared contract: ${violation.code} (expected ${violation.expected}, received ${violation.received})`,
-      );
+      throw new AgentOutputContractError(violation);
     }
 
     return { output: parsedOutput.data as AgentValue };

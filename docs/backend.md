@@ -112,10 +112,16 @@ the answer to carry *exactly* the requested number of ideas. A wrong count is a
 provider-output failure — a plain error that keeps its BullMQ retry budget, not
 an `AgentConfigurationError` — because a model that miscounted once may count
 correctly on the next attempt. A contract returns a closed
-`AgentOutputContractViolation` (a listed code plus two integers) rather than a
-string, and the runner composes the message: the type carries no text, so no
-provider output can reach a log, `failedReason`, or `AgentRun.lastError` even
-from a future contract that tried. `language` is
+`AgentOutputContractViolation` (a listed code, plus two integers for a count)
+rather than a string, and `AgentOutputContractError` composes the message: the
+type carries no text, so no provider output can reach a log, `failedReason`, or
+`AgentRun.lastError` even from a future contract that tried. A contract that
+cannot reach a verdict returns `unverifiable`, which is a refusal — "I could not
+check" and "it is fine" are different answers and only one is safe to store. The
+error class exists to be *named*, not to be classified differently: the worker
+reads it only to log `reason: contract_violation` instead of `runtime_error`, so
+a model that has started miscounting is distinguishable from a provider outage
+while being retried identically. `language` is
 the language of the *content*, chosen per request: it is never inferred from the
 Platform's UI locale, because an Arabic-speaking marketer writing English
 campaign copy is the ordinary case rather than the exception. Its context policy
