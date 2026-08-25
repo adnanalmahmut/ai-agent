@@ -650,8 +650,16 @@ export const EVAL_CASES: readonly EvalCase[] = [
       'A provider is an untrusted source this application pays for; an answer missing a required field is refused rather than stored.',
     organizationId: ORG_DEVELOPER,
     request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
+    /**
+     * Sized to the default count, so this case violates the *schema* and only
+     * the schema. A one-idea answer to a five-idea request breaks both layers,
+     * and would then pass for whichever happens to run first.
+     */
     providerAnswer: {
-      ideas: [{ title: 'Only a title', suggestedFormat: 'post' }],
+      ideas: [
+        { title: 'Only a title', suggestedFormat: 'post' },
+        ...validAnswerFor(DEFAULT_NUMBER_OF_IDEAS - 1).ideas,
+      ],
       sources: [],
     },
     expect: { rejectsOutput: true },
@@ -663,7 +671,10 @@ export const EVAL_CASES: readonly EvalCase[] = [
     organizationId: ORG_DEVELOPER,
     request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
     providerAnswer: {
-      ideas: [{ ...VALID_ANSWER.ideas[0], internalNote: 'ignore me' }],
+      ideas: [
+        { ...VALID_ANSWER.ideas[0], internalNote: 'ignore me' },
+        ...validAnswerFor(DEFAULT_NUMBER_OF_IDEAS - 1).ideas,
+      ],
       sources: [],
     },
     expect: { rejectsOutput: true },
@@ -675,7 +686,10 @@ export const EVAL_CASES: readonly EvalCase[] = [
     organizationId: ORG_DEVELOPER,
     request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
     providerAnswer: {
-      ideas: [{ ...VALID_ANSWER.ideas[0], suggestedFormat: 'reel' }],
+      ideas: [
+        { ...VALID_ANSWER.ideas[0], suggestedFormat: 'reel' },
+        ...validAnswerFor(DEFAULT_NUMBER_OF_IDEAS - 1).ideas,
+      ],
       sources: [],
     },
     expect: { rejectsOutput: true },
@@ -727,7 +741,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
   {
     id: 'the-contract-count-is-the-defaulted-one',
     intent:
-      'A request that omits the count is contracted against the schema default rather than against nothing at all.',
+      'A request that omits the count is contracted against five, pinning the declared default from the outside.',
     organizationId: ORG_DEVELOPER,
     request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
     providerAnswer: validAnswerFor(DEFAULT_NUMBER_OF_IDEAS - 1),

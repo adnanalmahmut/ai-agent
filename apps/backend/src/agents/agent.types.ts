@@ -159,6 +159,32 @@ export type AgentDefinition = {
 };
 
 /**
+ * Everything a contract is allowed to say about a violation.
+ *
+ * A closed union and two integers, not a string, for exactly the reason
+ * `AgentFailureDiagnostic` above is a union of literals: the violation is
+ * rendered into an `Error` message, and a `string` return would let a future
+ * contract compose that message out of the provider's own answer — a plausible
+ * "unexpected format \"${answer.suggestedFormat}\"" is one line, passes review as
+ * a count-like message, and puts model output one `logger.warn({ err })` away
+ * from Redis. Numbers cannot smuggle text, and a code has to be added here to
+ * exist, which makes widening the vocabulary a reviewable act rather than an
+ * invisible one.
+ */
+export const AGENT_OUTPUT_CONTRACT_VIOLATIONS = ['count_mismatch'] as const;
+
+export type AgentOutputContractViolationCode =
+  (typeof AGENT_OUTPUT_CONTRACT_VIOLATIONS)[number];
+
+export type AgentOutputContractViolation = {
+  code: AgentOutputContractViolationCode;
+  /** What the request asked for. Application-owned, never provider-derived. */
+  expected: number;
+  /** What the answer carried. A count of the application's own parsed value. */
+  received: number;
+};
+
+/**
  * A cross-check between what was asked for and what came back.
  *
  * The output schema is a statement about shape alone: it cannot know that a
@@ -168,11 +194,7 @@ export type AgentDefinition = {
  * business contract rather than a prompt hint — a caller who asked for five and
  * was billed for four received the wrong answer, however well-formed it was.
  *
- * Returns the reason the pair is unacceptable, or `null` when it is fine. The
- * reason is developer-facing and must be composed only from application-owned
- * values — counts, field names — never from provider text, because it becomes
- * an `Error` message and the containment design rests on no provider output
- * reaching a log, a queue failure reason, or `AgentRun.lastError`.
+ * Returns the violation, or `null` when the pair is fine.
  *
  * Both arguments arrive already parsed by the definition's own schemas, so an
  * implementation may re-parse them to recover its types and can rely on that
@@ -181,7 +203,7 @@ export type AgentDefinition = {
 export type AgentOutputContract = (
   input: AgentValue,
   output: AgentValue,
-) => string | null;
+) => AgentOutputContractViolation | null;
 
 /**
  * The knowledge an agent is allowed to be given, and how much of it.

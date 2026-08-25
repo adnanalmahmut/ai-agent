@@ -38,7 +38,15 @@ Primary boundaries:
   hostile `before`/`after` payloads — unknown `kind`, widened known `kind`,
   nested objects, arrays, bare strings, and markup — must not put the canary
   into `document.body.innerHTML` or its visible text, while every row still
-  summarises the change from the client's own closed translated vocabulary.
+  summarises the change from the client's own closed translated vocabulary. The
+  `action` column is projected the same way — `use-intl` renders a missing key as
+  its own key path, so an action this build has no copy for resolves to a
+  fall-through term rather than printing the server's string — and an
+  unparseable `occurredAt` degrades to a dash instead of throwing out of the
+  render and blanking the screen. The identifying columns (`actorUserId`,
+  `resourceKey`, `organizationId`, and the `<time dateTime>` attribute) are
+  rendered verbatim by design, as escaped React text written from closed
+  server-side sets.
 - Agent context: what an agent may read is declared on its definition as a
   `ContextPolicy` naming knowledge spaces by slug, and the slugs are resolved
   against the caller's own organization at assembly time — so a definition
@@ -78,8 +86,11 @@ Primary boundaries:
   `outputContract`, checked after the output schema and before durable success,
   so a promise about the request/answer pair — `content-idea@1` must return
   exactly the requested number of ideas — is enforced rather than merely
-  prompted for. Violation messages carry application-owned counts only, so no
-  provider text reaches a log or `AgentRun.lastError`.
+  prompted for. A violation is a closed `AgentOutputContractViolation` — a listed
+  code and two integers, never a string — and the runner composes the error
+  message from it, so no provider output can reach a log, BullMQ's
+  `failedReason`, or `AgentRun.lastError`. The type is what enforces that, not a
+  convention.
 - Browser storage: the Platform's ambiguous-submission record in
   `sessionStorage` holds only `{ idempotencyKey, requestDigest }`, where the
   digest is SHA-256 over the canonical normalized request. Sameness across a

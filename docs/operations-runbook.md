@@ -131,6 +131,16 @@ understanding the database state.
   work accumulates durably; recover Redis/worker and monitor outbox drainage.
 - PostgreSQL failure: stop writes/traffic, preserve failed state, use the last
   verified restore evidence, and follow the recovery runbook.
+- Agent runs failing with `Agent execution failed` and no configuration change:
+  a provider answering in the wrong shape *or* with the wrong number of results
+  is a retryable failure, so it spends the run's whole queue attempt budget
+  (`QUEUE_JOB_ATTEMPTS`, default 3) in paid provider calls, holds one of the
+  organization's `agents.max_concurrent_runs_per_organization` slots across the
+  backoff, and then lands `FAILED` with nothing delivered. A model that has
+  started consistently miscounting therefore shows up as a spend multiplier
+  rather than as an error rate. Read the worker's `reason: runtime_error`
+  warnings for the affected `agentId`/`agentVersion`; the mitigation is the
+  per-feature flag or `agents.enabled`, not a retry.
 - Bad release: use application rollback only when schema remains compatible.
 - Suspected credential exposure: revoke at the owning boundary, replace the VPS
   runtime file/key, and redeploy; do not paste evidence containing secret values.

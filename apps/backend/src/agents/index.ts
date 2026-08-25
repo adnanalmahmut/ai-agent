@@ -3,6 +3,8 @@ export type { AgentRuntime } from './agent-runtime';
 export type {
   AgentDefinition,
   AgentOutputContract,
+  AgentOutputContractViolation,
+  AgentOutputContractViolationCode,
   AgentRun,
   AgentRunStatus,
   AgentRuntimeName,
@@ -11,7 +13,11 @@ export type {
   AgentValue,
   CreateAgentRun,
 } from './agent.types';
-export { AGENT_RUN_STATUSES, AGENT_RUNTIME_NAMES } from './agent.types';
+export {
+  AGENT_OUTPUT_CONTRACT_VIOLATIONS,
+  AGENT_RUN_STATUSES,
+  AGENT_RUNTIME_NAMES,
+} from './agent.types';
 export { AgentsModule } from './agents.module';
 export type { AgentContextPassage, ContextPolicy } from './agent.types';
 export {

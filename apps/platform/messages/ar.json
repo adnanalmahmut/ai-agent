@@ -849,25 +849,26 @@
         "settingChanged": "تغيّر الإعداد",
         "redacted": "محجوب",
         "configured": "مُعدّ",
-      "notConfigured": "غير مُعدّ"
-    },
-    "action": {
-      "featureFlag": {
-        "setPlatformOverride": "ضبط تجاوز المنصة",
-        "clearPlatformOverride": "إزالة تجاوز المنصة",
-        "setOrganizationOverride": "ضبط تجاوز المنظمة",
-        "clearOrganizationOverride": "إزالة تجاوز المنظمة"
+        "notConfigured": "غير مُعدّ"
       },
-      "runtimeSetting": {
-        "set": "ضبط إعداد وقت التشغيل",
-        "reset": "إعادة ضبط إعداد وقت التشغيل"
-      },
-      "managedSecret": {
-        "configure": "إعداد بيانات الاعتماد",
-        "rotate": "تدوير بيانات الاعتماد",
-        "remove": "إزالة بيانات الاعتماد"
+      "action": {
+        "featureFlag": {
+          "setPlatformOverride": "ضبط تجاوز المنصة",
+          "clearPlatformOverride": "إزالة تجاوز المنصة",
+          "setOrganizationOverride": "ضبط تجاوز المنظمة",
+          "clearOrganizationOverride": "إزالة تجاوز المنظمة"
+        },
+        "runtimeSetting": {
+          "set": "ضبط إعداد وقت التشغيل",
+          "reset": "إعادة ضبط إعداد وقت التشغيل"
+        },
+        "managedSecret": {
+          "configure": "إعداد بيانات الاعتماد",
+          "rotate": "تدوير بيانات الاعتماد",
+          "remove": "إزالة بيانات الاعتماد"
+        },
+        "unknown": "تغيير آخر"
       }
-    }
     }
   },
   "Knowledge": {

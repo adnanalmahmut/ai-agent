@@ -849,25 +849,26 @@
         "settingChanged": "Setting changed",
         "redacted": "Redacted",
         "configured": "Configured",
-      "notConfigured": "Not configured"
-    },
-    "action": {
-      "featureFlag": {
-        "setPlatformOverride": "Set platform override",
-        "clearPlatformOverride": "Cleared platform override",
-        "setOrganizationOverride": "Set organization override",
-        "clearOrganizationOverride": "Cleared organization override"
+        "notConfigured": "Not configured"
       },
-      "runtimeSetting": {
-        "set": "Set runtime setting",
-        "reset": "Reset runtime setting"
-      },
-      "managedSecret": {
-        "configure": "Configured credential",
-        "rotate": "Rotated credential",
-        "remove": "Removed credential"
+      "action": {
+        "featureFlag": {
+          "setPlatformOverride": "Set platform override",
+          "clearPlatformOverride": "Cleared platform override",
+          "setOrganizationOverride": "Set organization override",
+          "clearOrganizationOverride": "Cleared organization override"
+        },
+        "runtimeSetting": {
+          "set": "Set runtime setting",
+          "reset": "Reset runtime setting"
+        },
+        "managedSecret": {
+          "configure": "Configured credential",
+          "rotate": "Rotated credential",
+          "remove": "Removed credential"
+        },
+        "unknown": "Other change"
       }
-    }
     }
   },
   "Knowledge": {

@@ -255,6 +255,32 @@ const requestedCount = (request: unknown): number => {
 const answerFor = (testCase: EvalCase): unknown =>
   testCase.providerAnswer ?? validAnswerFor(requestedCount(testCase.request));
 
+/** How many ideas an answer actually carries, for the count assertions. */
+const ideaCountOf = (answer: unknown): number => {
+  const ideas = (answer as { ideas?: unknown }).ideas;
+
+  return Array.isArray(ideas) ? ideas.length : 0;
+};
+
+/**
+ * Every human-readable string in an answer.
+ *
+ * Used only in the negative: none of it may appear in the reason a contract
+ * violation is reported with. These are the strings a model authored, and they
+ * are the ones that must not travel to a log.
+ */
+const proseOf = (answer: unknown): string[] => {
+  const ideas = (answer as { ideas?: unknown }).ideas;
+
+  if (!Array.isArray(ideas)) return [];
+
+  return ideas.flatMap((idea) =>
+    Object.values(idea as Record<string, unknown>).filter(
+      (value): value is string => typeof value === 'string',
+    ),
+  );
+};
+
 describe('content-idea@1 evaluation', () => {
   let harness: Harness;
 
@@ -326,10 +352,32 @@ describe('content-idea@1 evaluation', () => {
            * The answer parsed and was still refused, which is the whole point
            * of the layer: `numberOfIdeas` is a business contract the schema
            * cannot state, because a schema never sees the request.
+           *
+           * The *whole* message is pinned, not a substring, and the answer's own
+           * prose is asserted absent from it. That is the containment claim
+           * rather than a formatting preference: a substring match would stay
+           * green while a contract appended the model's titles and summaries to
+           * the reason, which is how provider output reaches a log.
            */
+          const expected = requestedCount(testCase.request);
+          const received = ideaCountOf(answerFor(testCase));
+
           await expect(attempt).rejects.toThrow(
-            'does not satisfy its declared contract',
+            new RegExp(
+              `^Agent output does not satisfy its declared contract: count_mismatch \\(expected ${expected}, received ${received}\\)$`,
+            ),
           );
+
+          const reason = await attempt.then(
+            () => '',
+            (error: unknown) =>
+              error instanceof Error ? error.message : String(error),
+          );
+
+          for (const prose of proseOf(answerFor(testCase))) {
+            expect(reason).not.toContain(prose);
+          }
+
           expect(generate).toHaveBeenCalled();
 
           return;

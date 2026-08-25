@@ -262,6 +262,32 @@ describe('keyForSubmission', () => {
   });
 
   /**
+   * The precedence rule, with both records present — which is the only
+   * arrangement that can prove it.
+   *
+   * The stored record is the one that survived a reload, so it is the
+   * authoritative of the two. With only one present at a time the loop can be
+   * written in either order and nothing notices, which is exactly how a
+   * documented rule becomes a comment about code that does something else.
+   */
+  it('prefers the stored record over the in-memory one', async () => {
+    const requestDigest = await digestOf(REQUEST);
+
+    writePendingSubmission('org_1', {
+      idempotencyKey: 'key_from_storage',
+      requestDigest,
+    });
+
+    const reused = await keyForSubmission('org_1', REQUEST, mint, {
+      idempotencyKey: 'key_from_memory',
+      requestDigest,
+    });
+
+    expect(reused.idempotencyKey).toBe('key_from_storage');
+    expect(minted).toBe(0);
+  });
+
+  /**
    * The in-memory fallback is checked *after* the stored record, because the
    * stored one is what survived the reload and is therefore the authoritative
    * of the two.
@@ -322,6 +348,32 @@ describe('keyForSubmission', () => {
     await expect(
       keyForSubmission('org_1', REQUEST, mint),
     ).resolves.toMatchObject({ idempotencyKey: 'key_1' });
+  });
+
+  /**
+   * A digest that cannot be computed is a failed submission, not a silent
+   * fallback to storing the request.
+   *
+   * `crypto.subtle` is absent outside a secure context, exactly like
+   * `crypto.randomUUID` — so this rejects rather than degrading, and the caller
+   * is responsible for showing it. The alternative that must never appear is a
+   * fallback that persists the plaintext when the digest is unavailable.
+   */
+  it('rejects rather than degrading when the digest cannot be computed', async () => {
+    const digest = vi
+      .spyOn(crypto.subtle, 'digest')
+      .mockRejectedValue(new Error('SubtleCrypto is unavailable'));
+
+    try {
+      await expect(keyForSubmission('org_1', REQUEST, mint)).rejects.toThrow(
+        'SubtleCrypto is unavailable',
+      );
+
+      expect(storageDump()).toBe('');
+      expect(minted).toBe(0);
+    } finally {
+      digest.mockRestore();
+    }
   });
 
   /** A browser configured to block site data must still be able to submit. */

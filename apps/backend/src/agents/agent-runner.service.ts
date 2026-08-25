@@ -97,10 +97,11 @@ export class AgentRunner {
      * `AgentConfigurationError` would make a miscount immediately final and
      * spend nothing of the retry budget the failure is actually eligible for.
      *
-     * The violation text is the contract's, which is required to compose it
-     * from application-owned values only. Nothing from the provider's answer
-     * reaches it, and nothing from this message reaches an operator surface —
-     * `AgentExecutionHandler` throws its own constant.
+     * The message is assembled *here*, from a closed code and two integers, so
+     * a contract cannot compose it out of the provider's answer even by
+     * accident — the type will not carry text. Nothing from this message reaches
+     * an operator surface either: `AgentExecutionHandler` persists and rethrows
+     * its own constant.
      */
     const violation = definition.outputContract?.(
       parsedInput.data as AgentValue,
@@ -109,7 +110,7 @@ export class AgentRunner {
 
     if (violation !== undefined && violation !== null) {
       throw new Error(
-        `Agent output does not satisfy its declared contract: ${violation}`,
+        `Agent output does not satisfy its declared contract: ${violation.code} (expected ${violation.expected}, received ${violation.received})`,
       );
     }
 

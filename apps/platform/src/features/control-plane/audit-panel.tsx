@@ -16,6 +16,7 @@ import { useLocale, useTranslations } from 'use-intl';
 import {
   ApiError,
   ApiUnavailableError,
+  CONTROL_PLANE_AUDIT_ACTIONS,
   listControlPlaneAudit,
   type ControlPlaneAuditEntry,
 } from '@/lib/application-api';
@@ -54,6 +55,46 @@ function stateSummary(state: unknown, t: ReturnType<typeof useTranslations>) {
   }
 
   return t('audit.state.changed');
+}
+
+/** The actions this build has copy for, as a set, for the recognition check. */
+const KNOWN_ACTIONS: ReadonlySet<string> = new Set(CONTROL_PLANE_AUDIT_ACTIONS);
+
+/**
+ * The action, named from the client's own vocabulary or not at all.
+ *
+ * `t()` does not throw on a missing key: `use-intl` reports it and falls back to
+ * the key *path*, which for a server-supplied action means rendering that string
+ * verbatim. The action is a closed union on the wire and every member is a
+ * literal in this repository, so this can only fire after a backend adds one —
+ * but the whole point of the panel is that a widened server projection must not
+ * become a DOM write. Recognised first, translated second.
+ */
+function actionLabel(
+  action: string,
+  t: ReturnType<typeof useTranslations>,
+): string {
+  if (!KNOWN_ACTIONS.has(action)) return t('audit.action.unknown');
+
+  return t(`audit.action.${action}`);
+}
+
+/**
+ * The timestamp, or a dash.
+ *
+ * `Intl.DateTimeFormat.prototype.format` throws `RangeError` on an invalid
+ * date, and this call sits in the render body inside `items.map` — so one
+ * unparseable `occurredAt` would take down the entire control-plane screen
+ * through the route error boundary rather than blanking one cell. The column is
+ * a convenience; the rest of the row is the audit record.
+ */
+function occurredAtLabel(
+  occurredAt: string,
+  formatter: Intl.DateTimeFormat,
+): string {
+  const date = new Date(occurredAt);
+
+  return Number.isNaN(date.getTime()) ? '—' : formatter.format(date);
 }
 
 function failureOf(error: unknown): LoadFailure {
@@ -172,13 +213,15 @@ export function AuditPanel() {
             <TableRow key={event.id}>
               <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                 <time dateTime={event.occurredAt}>
-                  {formatter.format(new Date(event.occurredAt))}
+                  {occurredAtLabel(event.occurredAt, formatter)}
                 </time>
               </TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground">
                 {event.actorUserId ?? t('audit.systemActor')}
               </TableCell>
-              <TableCell className="text-sm">{t(`audit.action.${event.action}`)}</TableCell>
+              <TableCell className="text-sm">
+                {actionLabel(event.action, t)}
+              </TableCell>
               <TableCell className="font-mono text-xs">{event.resourceKey}</TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground">
                 {event.organizationId ?? t('audit.platformScope')}

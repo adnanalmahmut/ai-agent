@@ -448,12 +448,12 @@ describe('the declared output contract', () => {
     input: z.object({ wanted: z.number() }),
     output: z.object({ items: z.array(z.string()) }).strict(),
     outputContract: ((input, output) => {
-      const wanted = (input as { wanted: number }).wanted;
-      const produced = (output as { items: string[] }).items.length;
+      const expected = (input as { wanted: number }).wanted;
+      const received = (output as { items: string[] }).items.length;
 
-      return produced === wanted
+      return received === expected
         ? null
-        : `requested ${wanted} items, received ${produced}`;
+        : { code: 'count_mismatch', expected, received };
     }) satisfies AgentOutputContract,
   } as const;
 
@@ -471,7 +471,7 @@ describe('the declared output contract', () => {
   const runWanting = (
     runner: ReturnType<typeof runnerReturning>,
     wanted: number,
-    agentId = countingDefinition.id,
+    agentId: string = countingDefinition.id,
   ) =>
     runner.run({
       agentId,
@@ -485,7 +485,30 @@ describe('the declared output contract', () => {
     await expect(
       runWanting(runnerReturning({ items: ['a', 'b'] }), 3),
     ).rejects.toThrow(
-      'Agent output does not satisfy its declared contract: requested 3 items, received 2',
+      'Agent output does not satisfy its declared contract: count_mismatch (expected 3, received 2)',
+    );
+  });
+
+  /**
+   * The message is the runner's, assembled from the violation's code and its two
+   * integers. Asserted because it is the containment claim: a contract cannot
+   * put provider text into an `Error` even if it wants to, since the violation
+   * type carries no string at all.
+   */
+  it('composes the message itself, from a code and two integers', async () => {
+    const outputContract = jest.fn<AgentOutputContract>(() => ({
+      code: 'count_mismatch',
+      expected: 3,
+      received: 0,
+    }));
+
+    const runner = runnerReturning(
+      { items: [] },
+      { ...countingDefinition, id: 'message-agent', outputContract },
+    );
+
+    await expect(runWanting(runner, 3, 'message-agent')).rejects.toThrow(
+      /^Agent output does not satisfy its declared contract: count_mismatch \(expected 3, received 0\)$/,
     );
   });
 
@@ -497,7 +520,7 @@ describe('the declared output contract', () => {
   it('refuses an answer that overshoots the contract', async () => {
     await expect(
       runWanting(runnerReturning({ items: ['a', 'b', 'c', 'd'] }), 3),
-    ).rejects.toThrow('requested 3 items, received 4');
+    ).rejects.toThrow('count_mismatch (expected 3, received 4)');
   });
 
   it('stores an answer that satisfies it', async () => {
@@ -516,9 +539,15 @@ describe('the declared output contract', () => {
    * budget the failure is eligible for.
    */
   it('keeps its retry budget', async () => {
-    await expect(
-      runWanting(runnerReturning({ items: [] }), 3),
-    ).rejects.not.toBeInstanceOf(AgentConfigurationError);
+    const attempt = runWanting(runnerReturning({ items: [] }), 3);
+
+    // Both halves. The negative alone is satisfied by any rejection that is not
+    // that class — including a `TypeError` from an unrelated regression in the
+    // runner — so it would pass while proving nothing.
+    await expect(attempt).rejects.toThrow(
+      'does not satisfy its declared contract',
+    );
+    await expect(attempt).rejects.not.toBeInstanceOf(AgentConfigurationError);
   });
 
   /**
@@ -535,10 +564,12 @@ describe('the declared output contract', () => {
       outputContract: ((input, output) => {
         seen.push(input);
 
-        return (output as { items: string[] }).items.length ===
-          (input as { wanted: number }).wanted
+        const expected = (input as { wanted: number }).wanted;
+        const received = (output as { items: string[] }).items.length;
+
+        return received === expected
           ? null
-          : 'count mismatch';
+          : { code: 'count_mismatch', expected, received };
       }) satisfies AgentOutputContract,
     } as const;
 

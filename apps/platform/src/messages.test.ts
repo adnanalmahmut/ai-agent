@@ -11,7 +11,10 @@ import { AUTH_ERROR_CODES } from './features/auth/auth-errors';
 import { INVITATION_FAILURES } from './features/organization/invitation-state';
 import { organizationRoles } from './features/authorization/permissions';
 import { CONTROL_PLANE_ERROR_KINDS } from './features/control-plane/use-control-plane-resource';
-import { FEATURE_FLAG_SOURCES } from './lib/application-api';
+import {
+  CONTROL_PLANE_AUDIT_ACTIONS,
+  FEATURE_FLAG_SOURCES,
+} from './lib/application-api';
 import { CONTENT_IDEA_FAILURES } from './features/organization/content-idea-failures';
 import {
   CONTENT_IDEA_FORMATS,
@@ -140,6 +143,26 @@ describe('every state the code can reach has copy', () => {
       ).toBeTruthy();
     }
   });
+
+  /**
+   * The audit vocabularies, both halves.
+   *
+   * `use-intl` falls back to the key *path* for a missing message, so an action
+   * or state with no copy renders `ControlPlane.audit.action.<whatever>` in the
+   * table where a phrase should be — a server-supplied string printed verbatim,
+   * which is exactly what the panel's closed projection exists to prevent.
+   */
+  it.each([...CONTROL_PLANE_AUDIT_ACTIONS, 'unknown'])(
+    'ControlPlane.audit.action.%s',
+    (action) => {
+      for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+        expect(
+          valueAt(tree as Tree, `ControlPlane.audit.action.${action}`),
+          `${locale}: ${action}`,
+        ).toBeTruthy();
+      }
+    },
+  );
 
   it.each(FEATURE_FLAG_SOURCES)('ControlPlane.flags.source.%s', (source) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {

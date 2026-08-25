@@ -1288,6 +1288,38 @@ describe('the content ideas screen', () => {
       expect(dump).not.toContain('Warm the list before launch');
     });
 
+    /**
+     * A browser with no `crypto.subtle` must say so, not present a dead button.
+     *
+     * The digest is computed inside the submit handler's `try` for exactly this
+     * reason — `crypto.subtle` is absent outside a secure context, like
+     * `crypto.randomUUID` beside it — and the comment claiming so is worth
+     * nothing without a test that drives the throw. Nothing was purchased, and
+     * the reader is told.
+     */
+    it('reports a failure when the request digest cannot be computed', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const digest = vi
+        .spyOn(crypto.subtle, 'digest')
+        .mockRejectedValue(new Error('SubtleCrypto is unavailable'));
+
+      try {
+        render();
+        await fillForm();
+        await submit();
+
+        expect(await screen.findByText(/something went wrong/i)).toBeVisible();
+        expect(requestContentIdeas).not.toHaveBeenCalled();
+        // And the button is offered again rather than left spinning.
+        expect(
+          screen.getByRole('button', { name: /generate ideas/i }),
+        ).toBeEnabled();
+      } finally {
+        digest.mockRestore();
+      }
+    });
+
     /** A browser that refuses to store anything must still work. */
     it('still submits when the browser refuses to store the key', async () => {
       allow('contentIdea:create', 'contentIdea:read');

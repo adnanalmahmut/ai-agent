@@ -127,9 +127,13 @@ export type ContentIdeaOutput = z.infer<typeof contentIdeaOutput>;
  * the impossible branch keeps this function from inventing a second opinion
  * about shape, which is the schema layer's job and is already enforced above.
  *
- * The message is counts and nothing else. It becomes an `Error` message, and
- * copying any part of the provider's answer into it would put model output on a
- * path that ends in a log.
+ * Re-parsing the request is also what makes the *defaulted* count the contracted
+ * one: a request that omitted `numberOfIdeas` is contracted against five rather
+ * than against `undefined`.
+ *
+ * What it returns is a code and two integers — the violation type carries no
+ * text at all, so no part of the provider's answer can travel out of here on
+ * the way to an `Error` message.
  */
 export const contentIdeaOutputContract: AgentOutputContract = (
   input,
@@ -140,12 +144,12 @@ export const contentIdeaOutputContract: AgentOutputContract = (
 
   if (!request.success || !answer.success) return null;
 
-  const requested = request.data.numberOfIdeas;
-  const produced = answer.data.ideas.length;
+  const expected = request.data.numberOfIdeas;
+  const received = answer.data.ideas.length;
 
-  if (produced === requested) return null;
+  if (received === expected) return null;
 
-  return `requested ${requested} ideas, received ${produced}`;
+  return { code: 'count_mismatch', expected, received };
 };
 
 /**
