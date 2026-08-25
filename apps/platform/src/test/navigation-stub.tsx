@@ -76,8 +76,22 @@ export const useRevalidate = () => revalidateSpy;
  * to catch.
  */
 export const useAppLocale = (): AppLocale => useLocale() as AppLocale;
+/**
+ * Where the reader currently is, settable by a test.
+ *
+ * A hardcoded `/` matches no navigation target, which makes any assertion about
+ * *which* link is current pass whatever the component decided — including
+ * "none" and "several". A component that highlights the wrong tab, or two of
+ * them, is only observable from a pathname that actually matches one.
+ */
+let pathname = '/';
+
+export function stubLocation(at: string): void {
+  pathname = at;
+}
+
 export const useAppLocation = () => ({
-  pathname: '/',
+  pathname,
   search: '',
   hash: '',
 });
@@ -85,4 +99,5 @@ export const useAppLocation = () => ({
 export function resetNavigationStub() {
   navigateSpy.mockReset();
   revalidateSpy.mockReset();
+  pathname = '/';
 }

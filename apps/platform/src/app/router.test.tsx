@@ -88,6 +88,17 @@ describe('an anonymous visitor', () => {
     ['/en/design-system', '/en/sign-in?returnTo=%2Fdesign-system'],
     // A route nobody has written yet is already covered: private by placement.
     ['/en/organizations/org_1/members', '/en/sign-in?returnTo=%2Forganizations%2Forg_1%2Fmembers'],
+    /**
+     * Named explicitly rather than left to the placement argument above,
+     * because this one asks an agent to spend the platform's provider
+     * credential. A tab added to the wrong branch of the tree would be a
+     * billed endpoint reachable by an anonymous visitor, and the redirect is
+     * the only thing between the two.
+     */
+    [
+      '/en/organizations/org_1/content-ideas',
+      '/en/sign-in?returnTo=%2Forganizations%2Forg_1%2Fcontent-ideas',
+    ],
   ])('is sent from %s to %s', async (from, expected) => {
     expect(await settledAt(visit(from))).toBe(expected);
   });

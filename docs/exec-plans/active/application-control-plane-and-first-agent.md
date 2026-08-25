@@ -617,6 +617,88 @@ on any PR touching compose or images.
   of it. Five mutants against those paths, all killed, including the one that
   returns the provider's payload instead of the schema's product.
 
+- 2026-08-24: PR7's polling stops only when the server has answered about the
+  operation — 401, 403, 404. The first version stopped on any refusal, which
+  reads as caution and is the opposite. The read shares the route's own
+  rate-limit budget, so a second tab watching one run exhausts it; treating that
+  429 as a refusal ended the watch on a run that was still executing and then
+  showed copy inviting the resubmission that pays for a second one. A 5xx is an
+  instance being rolled. Both are ridden out now, with the give-up timeout as
+  the backstop, because reporting a run as still running is true and a wrong
+  refusal is not.
+
+- 2026-08-24: A new submission drops the operation it supersedes. Not tidiness:
+  clearing the stopped flag restarts the poll, and while the request is in
+  flight the only operation to poll is the previous one — whose read may fail
+  again and stop the watch a second time, so the run being asked for arrives
+  already-stopped and is never watched. Billed, executed, never shown. Found by
+  review, not by a test, and now pinned by one.
+
+- 2026-08-24: The idempotency key survives a 5xx and a 408, not only a
+  transport failure. The first version's comment claimed any answer from the
+  server meant the submission was decided, which is true of 4xx and false of a
+  gateway timeout: acceptance commits the run and its outbox event in one
+  transaction, so a proxy giving up after that commit reports failure for work
+  that will be billed. Keeping the key is safe either way — it finds the run if
+  there is one and creates it once if there is not.
+
+- 2026-08-24: The give-up screen was dead code. `gaveUp && isPending` cannot be
+  satisfied, because `isPending` already requires `!gaveUp`, so an abandoned run
+  showed its last-seen status — "Queued" — and the copy written for it was
+  unreachable. The flag also conflated two situations wanting different screens:
+  waiting too long leaves a run worth resuming, while a refusal means the server
+  will not answer about it again and offering to keep waiting is a button that
+  cannot work. It is a reason now, and the timeout is a parameter so the screen
+  is reachable from a test at all.
+
+- 2026-08-24: Copy that promised what the feature does not do. "Reopening this
+  tab will pick it up" was false — the operation id lives only in component
+  state, there is no URL parameter and no list endpoint to recover it from — and
+  "You will see the results here" was false for a reader who cannot submit, for
+  the same reason. Both corrected in English and Arabic, and the code comment
+  and `docs/frontend.md` corrected with them rather than left contradicting the
+  screen.
+
+- 2026-08-24: The form enforces the schema's upper bounds itself. A 400 from
+  this endpoint is a dead end for the operator: the global validation pipe
+  answers with a field-error array, which this application's error reader does
+  not accept, so the screen can only say the request was refused without naming
+  the field or the limit. Teaching the shared client a third details shape for a
+  case a form should not produce was rejected; `maxLength` plus the bounds in
+  the submit gate makes it unreachable instead.
+
+- 2026-08-24: The failure taxonomy moved out of the component, following
+  `invitation-state.ts` and `organization-errors.ts`. Exporting a constant from
+  a component file is a fast-refresh warning `pnpm lint` catches, and the move
+  turned `classify` and the two retry predicates into pure functions worth
+  testing directly — which is where the 401 branch and the catch-all are
+  covered, since neither is reachable by clicking. Five mutants against them,
+  all killed.
+
+- 2026-08-24: Fake timers are unusable in this Platform suite. `userEvent`
+  awaits a real delay a faked clock never reaches, so every interaction hangs —
+  confirmed with an isolated reproduction rather than assumed. The poll interval
+  and the give-up timeout are therefore parameters defaulting to the product
+  values, and the default cadence has an assertion of its own so the one number
+  no injected test touches is not the one that silently changes.
+
+- 2026-08-24: One surviving mutant, recorded rather than papered over. The
+  poll's monotonic guard — refusing to write a non-terminal status over a
+  terminal one — cannot be reached by a test: storing a terminal status tears
+  the effect down and its `current` flag already blocks anything that lands
+  afterwards. The window it closes is between that store and React running the
+  cleanup, and no test opens it deterministically. Kept, because losing it costs
+  a flicker and a reset deadline, and documented as belt and braces.
+
+- 2026-08-24: Deferred with reason. The Platform has no browser E2E harness —
+  no Playwright or Cypress in the workspace — so this layer's integration
+  coverage is the block rendered against the real dictionaries with the API
+  module stubbed at its only network boundary, plus the tab/route join against
+  the real route tree and the anonymous-redirect case in the router suite. Also
+  deferred: recovering an operation after a reload, which needs either a URL
+  parameter or a list endpoint the backend does not have; the copy now says
+  plainly that leaving the screen loses track of the run.
+
 ## Blockers
 
 None currently.

@@ -36,6 +36,8 @@ export const ORGANIZATION_ROUTES = {
     `/organizations/${encodeURIComponent(id)}/invitations`,
   knowledge: (id: string) =>
     `/organizations/${encodeURIComponent(id)}/knowledge`,
+  contentIdeas: (id: string) =>
+    `/organizations/${encodeURIComponent(id)}/content-ideas`,
   settings: (id: string) => `/organizations/${encodeURIComponent(id)}/settings`,
 } as const;
 
