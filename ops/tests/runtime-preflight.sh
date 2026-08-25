@@ -15,6 +15,7 @@ POSTGRES_PASSWORD=test-only-explicit-password
 POSTGRES_DB=app
 DATABASE_URL=postgresql://app:test-only-explicit-password@postgres:5432/app
 REDIS_URL=redis://redis:6379
+APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
 BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid
@@ -46,6 +47,32 @@ empty=$tmp_dir/empty.env
 sed 's/^BETTER_AUTH_SECRET=.*/BETTER_AUTH_SECRET=/' "$valid" >"$empty"
 if ops/runtime-preflight.sh staging "$empty" >/dev/null 2>&1; then
   echo 'preflight accepted an empty required secret' >&2
+  exit 1
+fi
+
+# The realistic wrong key, not a random one: `openssl rand -hex 32` produces 64
+# characters that are all valid base64 and decode to 48 bytes, so it survives
+# every check the other required values get. The application refuses it at
+# boot, after the migration container has already run.
+hex_key=$tmp_dir/hex-key.env
+sed 's/^APP_ENCRYPTION_KEY=.*/APP_ENCRYPTION_KEY=00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff/' \
+  "$valid" >"$hex_key"
+if ops/runtime-preflight.sh staging "$hex_key" >/dev/null 2>&1; then
+  echo 'preflight accepted a hex-encoded encryption key' >&2
+  exit 1
+fi
+
+short_key=$tmp_dir/short-key.env
+sed 's/^APP_ENCRYPTION_KEY=.*/APP_ENCRYPTION_KEY=c2hvcnQta2V5/' "$valid" >"$short_key"
+if ops/runtime-preflight.sh staging "$short_key" >/dev/null 2>&1; then
+  echo 'preflight accepted an encryption key shorter than 32 bytes' >&2
+  exit 1
+fi
+
+missing_key=$tmp_dir/missing-key.env
+grep -v '^APP_ENCRYPTION_KEY=' "$valid" >"$missing_key"
+if ops/runtime-preflight.sh staging "$missing_key" >/dev/null 2>&1; then
+  echo 'preflight accepted a runtime file with no encryption key' >&2
   exit 1
 fi
 

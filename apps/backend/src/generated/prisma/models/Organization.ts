@@ -217,6 +217,7 @@ export type OrganizationWhereInput = {
   members?: Prisma.MemberListRelationFilter
   invitations?: Prisma.InvitationListRelationFilter
   agentRuns?: Prisma.AgentRunListRelationFilter
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
 }
 
 export type OrganizationOrderByWithRelationInput = {
@@ -232,6 +233,7 @@ export type OrganizationOrderByWithRelationInput = {
   members?: Prisma.MemberOrderByRelationAggregateInput
   invitations?: Prisma.InvitationOrderByRelationAggregateInput
   agentRuns?: Prisma.AgentRunOrderByRelationAggregateInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideOrderByRelationAggregateInput
 }
 
 export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
@@ -250,6 +252,7 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   members?: Prisma.MemberListRelationFilter
   invitations?: Prisma.InvitationListRelationFilter
   agentRuns?: Prisma.AgentRunListRelationFilter
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
 }, "id" | "slug">
 
 export type OrganizationOrderByWithAggregationInput = {
@@ -295,6 +298,7 @@ export type OrganizationCreateInput = {
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateInput = {
@@ -310,6 +314,7 @@ export type OrganizationUncheckedCreateInput = {
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUpdateInput = {
@@ -325,6 +330,7 @@ export type OrganizationUpdateInput = {
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateInput = {
@@ -340,6 +346,7 @@ export type OrganizationUncheckedUpdateInput = {
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationCreateManyInput = {
@@ -461,6 +468,20 @@ export type OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutAgentRunsInput, Prisma.OrganizationUpdateWithoutAgentRunsInput>, Prisma.OrganizationUncheckedUpdateWithoutAgentRunsInput>
 }
 
+export type OrganizationCreateNestedOneWithoutFeatureFlagOverridesInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutFeatureFlagOverridesInput, Prisma.OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutFeatureFlagOverridesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutFeatureFlagOverridesNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutFeatureFlagOverridesInput, Prisma.OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutFeatureFlagOverridesInput
+  upsert?: Prisma.OrganizationUpsertWithoutFeatureFlagOverridesInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutFeatureFlagOverridesInput, Prisma.OrganizationUpdateWithoutFeatureFlagOverridesInput>, Prisma.OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput>
+}
+
 export type OrganizationCreateWithoutMembersInput = {
   id?: string
   name: string
@@ -473,6 +494,7 @@ export type OrganizationCreateWithoutMembersInput = {
   archiveReason?: string | null
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateWithoutMembersInput = {
@@ -487,6 +509,7 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   archiveReason?: string | null
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationCreateOrConnectWithoutMembersInput = {
@@ -517,6 +540,7 @@ export type OrganizationUpdateWithoutMembersInput = {
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutMembersInput = {
@@ -531,6 +555,7 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationCreateWithoutInvitationsInput = {
@@ -545,6 +570,7 @@ export type OrganizationCreateWithoutInvitationsInput = {
   archiveReason?: string | null
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateWithoutInvitationsInput = {
@@ -559,6 +585,7 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   archiveReason?: string | null
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationCreateOrConnectWithoutInvitationsInput = {
@@ -589,6 +616,7 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
@@ -603,6 +631,7 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationCreateWithoutAgentRunsInput = {
@@ -617,6 +646,7 @@ export type OrganizationCreateWithoutAgentRunsInput = {
   archiveReason?: string | null
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationUncheckedCreateWithoutAgentRunsInput = {
@@ -631,6 +661,7 @@ export type OrganizationUncheckedCreateWithoutAgentRunsInput = {
   archiveReason?: string | null
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
 }
 
 export type OrganizationCreateOrConnectWithoutAgentRunsInput = {
@@ -661,6 +692,7 @@ export type OrganizationUpdateWithoutAgentRunsInput = {
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
 }
 
 export type OrganizationUncheckedUpdateWithoutAgentRunsInput = {
@@ -675,6 +707,83 @@ export type OrganizationUncheckedUpdateWithoutAgentRunsInput = {
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationCreateWithoutFeatureFlagOverridesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationCreateOrConnectWithoutFeatureFlagOverridesInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutFeatureFlagOverridesInput, Prisma.OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput>
+}
+
+export type OrganizationUpsertWithoutFeatureFlagOverridesInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutFeatureFlagOverridesInput, Prisma.OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutFeatureFlagOverridesInput, Prisma.OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutFeatureFlagOverridesInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutFeatureFlagOverridesInput, Prisma.OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput>
+}
+
+export type OrganizationUpdateWithoutFeatureFlagOverridesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
 }
 
 
@@ -686,12 +795,14 @@ export type OrganizationCountOutputType = {
   members: number
   invitations: number
   agentRuns: number
+  featureFlagOverrides: number
 }
 
 export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   members?: boolean | OrganizationCountOutputTypeCountMembersArgs
   invitations?: boolean | OrganizationCountOutputTypeCountInvitationsArgs
   agentRuns?: boolean | OrganizationCountOutputTypeCountAgentRunsArgs
+  featureFlagOverrides?: boolean | OrganizationCountOutputTypeCountFeatureFlagOverridesArgs
 }
 
 /**
@@ -725,6 +836,13 @@ export type OrganizationCountOutputTypeCountAgentRunsArgs<ExtArgs extends runtim
   where?: Prisma.AgentRunWhereInput
 }
 
+/**
+ * OrganizationCountOutputType without action
+ */
+export type OrganizationCountOutputTypeCountFeatureFlagOverridesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.FeatureFlagOrganizationOverrideWhereInput
+}
+
 
 export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -739,6 +857,7 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   agentRuns?: boolean | Prisma.Organization$agentRunsArgs<ExtArgs>
+  featureFlagOverrides?: boolean | Prisma.Organization$featureFlagOverridesArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["organization"]>
 
@@ -783,6 +902,7 @@ export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.Interna
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   agentRuns?: boolean | Prisma.Organization$agentRunsArgs<ExtArgs>
+  featureFlagOverrides?: boolean | Prisma.Organization$featureFlagOverridesArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OrganizationIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -794,6 +914,7 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     members: Prisma.$MemberPayload<ExtArgs>[]
     invitations: Prisma.$InvitationPayload<ExtArgs>[]
     agentRuns: Prisma.$AgentRunPayload<ExtArgs>[]
+    featureFlagOverrides: Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1212,6 +1333,7 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   members<T extends Prisma.Organization$membersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$membersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MemberPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   invitations<T extends Prisma.Organization$invitationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$invitationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InvitationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   agentRuns<T extends Prisma.Organization$agentRunsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentRunsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentRunPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  featureFlagOverrides<T extends Prisma.Organization$featureFlagOverridesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$featureFlagOverridesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1712,6 +1834,30 @@ export type Organization$agentRunsArgs<ExtArgs extends runtime.Types.Extensions.
   take?: number
   skip?: number
   distinct?: Prisma.AgentRunScalarFieldEnum | Prisma.AgentRunScalarFieldEnum[]
+}
+
+/**
+ * Organization.featureFlagOverrides
+ */
+export type Organization$featureFlagOverridesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the FeatureFlagOrganizationOverride
+   */
+  select?: Prisma.FeatureFlagOrganizationOverrideSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the FeatureFlagOrganizationOverride
+   */
+  omit?: Prisma.FeatureFlagOrganizationOverrideOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.FeatureFlagOrganizationOverrideInclude<ExtArgs> | null
+  where?: Prisma.FeatureFlagOrganizationOverrideWhereInput
+  orderBy?: Prisma.FeatureFlagOrganizationOverrideOrderByWithRelationInput | Prisma.FeatureFlagOrganizationOverrideOrderByWithRelationInput[]
+  cursor?: Prisma.FeatureFlagOrganizationOverrideWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.FeatureFlagOrganizationOverrideScalarFieldEnum | Prisma.FeatureFlagOrganizationOverrideScalarFieldEnum[]
 }
 
 /**

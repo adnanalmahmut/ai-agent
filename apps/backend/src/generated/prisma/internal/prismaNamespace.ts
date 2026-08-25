@@ -406,7 +406,11 @@ export const ModelName = {
   Member: 'Member',
   Invitation: 'Invitation',
   AgentRun: 'AgentRun',
-  OutboxEvent: 'OutboxEvent'
+  OutboxEvent: 'OutboxEvent',
+  FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
+  FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
+  RuntimeSetting: 'RuntimeSetting',
+  ManagedSecret: 'ManagedSecret'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -422,7 +426,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "outboxEvent"
+    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1166,6 +1170,302 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    FeatureFlagPlatformOverride: {
+      payload: Prisma.$FeatureFlagPlatformOverridePayload<ExtArgs>
+      fields: Prisma.FeatureFlagPlatformOverrideFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.FeatureFlagPlatformOverrideFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.FeatureFlagPlatformOverrideFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>
+        }
+        findFirst: {
+          args: Prisma.FeatureFlagPlatformOverrideFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.FeatureFlagPlatformOverrideFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>
+        }
+        findMany: {
+          args: Prisma.FeatureFlagPlatformOverrideFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>[]
+        }
+        create: {
+          args: Prisma.FeatureFlagPlatformOverrideCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>
+        }
+        createMany: {
+          args: Prisma.FeatureFlagPlatformOverrideCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.FeatureFlagPlatformOverrideCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>[]
+        }
+        delete: {
+          args: Prisma.FeatureFlagPlatformOverrideDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>
+        }
+        update: {
+          args: Prisma.FeatureFlagPlatformOverrideUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>
+        }
+        deleteMany: {
+          args: Prisma.FeatureFlagPlatformOverrideDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.FeatureFlagPlatformOverrideUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.FeatureFlagPlatformOverrideUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>[]
+        }
+        upsert: {
+          args: Prisma.FeatureFlagPlatformOverrideUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagPlatformOverridePayload>
+        }
+        aggregate: {
+          args: Prisma.FeatureFlagPlatformOverrideAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateFeatureFlagPlatformOverride>
+        }
+        groupBy: {
+          args: Prisma.FeatureFlagPlatformOverrideGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FeatureFlagPlatformOverrideGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.FeatureFlagPlatformOverrideCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FeatureFlagPlatformOverrideCountAggregateOutputType> | number
+        }
+      }
+    }
+    FeatureFlagOrganizationOverride: {
+      payload: Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>
+      fields: Prisma.FeatureFlagOrganizationOverrideFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.FeatureFlagOrganizationOverrideFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.FeatureFlagOrganizationOverrideFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>
+        }
+        findFirst: {
+          args: Prisma.FeatureFlagOrganizationOverrideFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.FeatureFlagOrganizationOverrideFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>
+        }
+        findMany: {
+          args: Prisma.FeatureFlagOrganizationOverrideFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>[]
+        }
+        create: {
+          args: Prisma.FeatureFlagOrganizationOverrideCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>
+        }
+        createMany: {
+          args: Prisma.FeatureFlagOrganizationOverrideCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.FeatureFlagOrganizationOverrideCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>[]
+        }
+        delete: {
+          args: Prisma.FeatureFlagOrganizationOverrideDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>
+        }
+        update: {
+          args: Prisma.FeatureFlagOrganizationOverrideUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>
+        }
+        deleteMany: {
+          args: Prisma.FeatureFlagOrganizationOverrideDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.FeatureFlagOrganizationOverrideUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.FeatureFlagOrganizationOverrideUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>[]
+        }
+        upsert: {
+          args: Prisma.FeatureFlagOrganizationOverrideUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$FeatureFlagOrganizationOverridePayload>
+        }
+        aggregate: {
+          args: Prisma.FeatureFlagOrganizationOverrideAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateFeatureFlagOrganizationOverride>
+        }
+        groupBy: {
+          args: Prisma.FeatureFlagOrganizationOverrideGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FeatureFlagOrganizationOverrideGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.FeatureFlagOrganizationOverrideCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.FeatureFlagOrganizationOverrideCountAggregateOutputType> | number
+        }
+      }
+    }
+    RuntimeSetting: {
+      payload: Prisma.$RuntimeSettingPayload<ExtArgs>
+      fields: Prisma.RuntimeSettingFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.RuntimeSettingFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.RuntimeSettingFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>
+        }
+        findFirst: {
+          args: Prisma.RuntimeSettingFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.RuntimeSettingFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>
+        }
+        findMany: {
+          args: Prisma.RuntimeSettingFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>[]
+        }
+        create: {
+          args: Prisma.RuntimeSettingCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>
+        }
+        createMany: {
+          args: Prisma.RuntimeSettingCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.RuntimeSettingCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>[]
+        }
+        delete: {
+          args: Prisma.RuntimeSettingDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>
+        }
+        update: {
+          args: Prisma.RuntimeSettingUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>
+        }
+        deleteMany: {
+          args: Prisma.RuntimeSettingDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.RuntimeSettingUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.RuntimeSettingUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>[]
+        }
+        upsert: {
+          args: Prisma.RuntimeSettingUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$RuntimeSettingPayload>
+        }
+        aggregate: {
+          args: Prisma.RuntimeSettingAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateRuntimeSetting>
+        }
+        groupBy: {
+          args: Prisma.RuntimeSettingGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RuntimeSettingGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.RuntimeSettingCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.RuntimeSettingCountAggregateOutputType> | number
+        }
+      }
+    }
+    ManagedSecret: {
+      payload: Prisma.$ManagedSecretPayload<ExtArgs>
+      fields: Prisma.ManagedSecretFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ManagedSecretFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ManagedSecretFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>
+        }
+        findFirst: {
+          args: Prisma.ManagedSecretFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ManagedSecretFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>
+        }
+        findMany: {
+          args: Prisma.ManagedSecretFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>[]
+        }
+        create: {
+          args: Prisma.ManagedSecretCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>
+        }
+        createMany: {
+          args: Prisma.ManagedSecretCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ManagedSecretCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>[]
+        }
+        delete: {
+          args: Prisma.ManagedSecretDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>
+        }
+        update: {
+          args: Prisma.ManagedSecretUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>
+        }
+        deleteMany: {
+          args: Prisma.ManagedSecretDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ManagedSecretUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ManagedSecretUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>[]
+        }
+        upsert: {
+          args: Prisma.ManagedSecretUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ManagedSecretPayload>
+        }
+        aggregate: {
+          args: Prisma.ManagedSecretAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateManagedSecret>
+        }
+        groupBy: {
+          args: Prisma.ManagedSecretGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ManagedSecretGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ManagedSecretCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ManagedSecretCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1366,6 +1666,55 @@ export const OutboxEventScalarFieldEnum = {
 export type OutboxEventScalarFieldEnum = (typeof OutboxEventScalarFieldEnum)[keyof typeof OutboxEventScalarFieldEnum]
 
 
+export const FeatureFlagPlatformOverrideScalarFieldEnum = {
+  key: 'key',
+  enabled: 'enabled',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type FeatureFlagPlatformOverrideScalarFieldEnum = (typeof FeatureFlagPlatformOverrideScalarFieldEnum)[keyof typeof FeatureFlagPlatformOverrideScalarFieldEnum]
+
+
+export const FeatureFlagOrganizationOverrideScalarFieldEnum = {
+  id: 'id',
+  key: 'key',
+  enabled: 'enabled',
+  organizationId: 'organizationId',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type FeatureFlagOrganizationOverrideScalarFieldEnum = (typeof FeatureFlagOrganizationOverrideScalarFieldEnum)[keyof typeof FeatureFlagOrganizationOverrideScalarFieldEnum]
+
+
+export const RuntimeSettingScalarFieldEnum = {
+  key: 'key',
+  value: 'value',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type RuntimeSettingScalarFieldEnum = (typeof RuntimeSettingScalarFieldEnum)[keyof typeof RuntimeSettingScalarFieldEnum]
+
+
+export const ManagedSecretScalarFieldEnum = {
+  key: 'key',
+  ciphertext: 'ciphertext',
+  iv: 'iv',
+  authTag: 'authTag',
+  algorithm: 'algorithm',
+  keyFingerprint: 'keyFingerprint',
+  label: 'label',
+  lastRotatedAt: 'lastRotatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type ManagedSecretScalarFieldEnum = (typeof ManagedSecretScalarFieldEnum)[keyof typeof ManagedSecretScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -1522,6 +1871,20 @@ export type EnumOutboxEventStatusFieldRefInput<$PrismaModel> = FieldRefInputType
  * Reference to a field of type 'OutboxEventStatus[]'
  */
 export type ListEnumOutboxEventStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OutboxEventStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'Bytes'
+ */
+export type BytesFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Bytes'>
+    
+
+
+/**
+ * Reference to a field of type 'Bytes[]'
+ */
+export type ListBytesFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Bytes[]'>
     
 
 
@@ -1699,6 +2062,10 @@ export type GlobalOmitConfig = {
   invitation?: Prisma.InvitationOmit
   agentRun?: Prisma.AgentRunOmit
   outboxEvent?: Prisma.OutboxEventOmit
+  featureFlagPlatformOverride?: Prisma.FeatureFlagPlatformOverrideOmit
+  featureFlagOrganizationOverride?: Prisma.FeatureFlagOrganizationOverrideOmit
+  runtimeSetting?: Prisma.RuntimeSettingOmit
+  managedSecret?: Prisma.ManagedSecretOmit
 }
 
 /* Types for Logging */

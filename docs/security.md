@@ -18,6 +18,17 @@ Primary boundaries:
 - Runtime secrets: GitHub and coding agents know names only; the deploy user
   cannot read the root-only file; Compose passes explicit per-service allowlists
   so the worker and migration process do not inherit API-only credentials.
+- Managed credentials: provider secrets are AES-256-GCM ciphertext in
+  PostgreSQL under a bootstrap-only master key, with a fresh nonce per write and
+  a full-length authentication tag, so a tampered row fails loudly instead of
+  decrypting to something a provider would be handed. The tag length is pinned:
+  Node accepts truncated GCM tags and verifies them against a prefix of the
+  correct one, which would put forgery within reach of anyone able to write the
+  column. No API returns a stored credential, no
+  masked preview exists, and none is copied into `process.env` — the plaintext
+  goes straight to the adapter that needs it. Writing one requires a
+  super-admin-only permission that is separate from reading control-plane
+  metadata.
 - Supply chain: frozen pnpm lock, current generated Prisma client, SHA-tagged
   images, provenance/SBOM, digest-pinned migration and runtime images, no
   production rebuild.

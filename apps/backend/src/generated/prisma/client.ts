@@ -94,3 +94,45 @@ export type AgentRun = Prisma.AgentRunModel
  * 
  */
 export type OutboxEvent = Prisma.OutboxEventModel
+/**
+ * Model FeatureFlagPlatformOverride
+ * A platform-wide feature-flag override.
+ * 
+ * Separate from the organization-scoped table rather than one table with a
+ * nullable `organizationId`, because PostgreSQL treats NULLs as distinct in a
+ * unique index — so the single most important constraint here, "at most one
+ * platform override per key", would silently not hold. Two tables state the
+ * precedence in the schema instead of in a comment.
+ */
+export type FeatureFlagPlatformOverride = Prisma.FeatureFlagPlatformOverrideModel
+/**
+ * Model FeatureFlagOrganizationOverride
+ * A feature-flag override for one organization, which wins over the platform
+ * override and the code default.
+ */
+export type FeatureFlagOrganizationOverride = Prisma.FeatureFlagOrganizationOverrideModel
+/**
+ * Model RuntimeSetting
+ * One operator-editable setting, whose key must exist in the code-owned
+ * registry and whose value must satisfy that entry's Zod schema.
+ * 
+ * The value is JSON because the registry — not the column — decides each
+ * setting's type. Storing text and parsing on read would make every consumer
+ * re-derive the type, and a typed column per setting would make adding one a
+ * migration.
+ */
+export type RuntimeSetting = Prisma.RuntimeSettingModel
+/**
+ * Model ManagedSecret
+ * A provider credential, encrypted at rest with the application master key.
+ * 
+ * The plaintext is never returned by any read surface and never enters
+ * `process.env`; it is decrypted only when an adapter is about to use it. What
+ * the control plane can show is everything in this model except `ciphertext`.
+ * 
+ * `keyFingerprint` is a non-secret digest of the master key that encrypted the
+ * row. Without it, decrypting after the master key changed produces an
+ * authentication failure indistinguishable from corruption; with it the
+ * application can say which of the two happened.
+ */
+export type ManagedSecret = Prisma.ManagedSecretModel

@@ -22,6 +22,14 @@ process.env.REDIS_URL ??= 'redis://localhost:6378';
 process.env.REDIS_KEY_PREFIX ??= 'test';
 process.env.QUEUE_PREFIX ??= 'test-bmq';
 
+/**
+ * The control plane refuses to boot without a master key, so every suite that
+ * constructs the application needs one. Obviously fake, and it only ever seals
+ * throwaway fixtures.
+ */
+process.env.APP_ENCRYPTION_KEY ??=
+  'dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=';
+
 process.env.LOG_LEVEL = 'silent';
 process.env.LOG_PRETTY = 'false';
 process.env.NODE_ENV = 'test';

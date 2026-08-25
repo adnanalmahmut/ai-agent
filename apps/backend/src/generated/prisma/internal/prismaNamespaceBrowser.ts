@@ -60,7 +60,11 @@ export const ModelName = {
   Member: 'Member',
   Invitation: 'Invitation',
   AgentRun: 'AgentRun',
-  OutboxEvent: 'OutboxEvent'
+  OutboxEvent: 'OutboxEvent',
+  FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
+  FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
+  RuntimeSetting: 'RuntimeSetting',
+  ManagedSecret: 'ManagedSecret'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -238,6 +242,55 @@ export const OutboxEventScalarFieldEnum = {
 } as const
 
 export type OutboxEventScalarFieldEnum = (typeof OutboxEventScalarFieldEnum)[keyof typeof OutboxEventScalarFieldEnum]
+
+
+export const FeatureFlagPlatformOverrideScalarFieldEnum = {
+  key: 'key',
+  enabled: 'enabled',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type FeatureFlagPlatformOverrideScalarFieldEnum = (typeof FeatureFlagPlatformOverrideScalarFieldEnum)[keyof typeof FeatureFlagPlatformOverrideScalarFieldEnum]
+
+
+export const FeatureFlagOrganizationOverrideScalarFieldEnum = {
+  id: 'id',
+  key: 'key',
+  enabled: 'enabled',
+  organizationId: 'organizationId',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type FeatureFlagOrganizationOverrideScalarFieldEnum = (typeof FeatureFlagOrganizationOverrideScalarFieldEnum)[keyof typeof FeatureFlagOrganizationOverrideScalarFieldEnum]
+
+
+export const RuntimeSettingScalarFieldEnum = {
+  key: 'key',
+  value: 'value',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type RuntimeSettingScalarFieldEnum = (typeof RuntimeSettingScalarFieldEnum)[keyof typeof RuntimeSettingScalarFieldEnum]
+
+
+export const ManagedSecretScalarFieldEnum = {
+  key: 'key',
+  ciphertext: 'ciphertext',
+  iv: 'iv',
+  authTag: 'authTag',
+  algorithm: 'algorithm',
+  keyFingerprint: 'keyFingerprint',
+  label: 'label',
+  lastRotatedAt: 'lastRotatedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt',
+  updatedByUserId: 'updatedByUserId'
+} as const
+
+export type ManagedSecretScalarFieldEnum = (typeof ManagedSecretScalarFieldEnum)[keyof typeof ManagedSecretScalarFieldEnum]
 
 
 export const SortOrder = {

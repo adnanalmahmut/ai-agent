@@ -91,11 +91,18 @@ model User {
   deletedByUserId String?
   deletionReason  String?
 
-  sessions    Session[]
-  accounts    Account[]
-  memberships Member[]
-  invitations Invitation[] @relation("InvitationInviter")
+  sessions         Session[]
+  accounts         Account[]
+  memberships      Member[]
+  invitations      Invitation[] @relation("InvitationInviter")
   agentRunsCreated AgentRun[]
+
+  /// Control-plane edit attribution. `SetNull` on delete, because who changed
+  /// a setting is useful history but must never block removing an account.
+  featureFlagPlatformOverridesEdited     FeatureFlagPlatformOverride[]     @relation("FeatureFlagPlatformOverrideEditor")
+  featureFlagOrganizationOverridesEdited FeatureFlagOrganizationOverride[] @relation("FeatureFlagOrganizationOverrideEditor")
+  runtimeSettingsEdited                  RuntimeSetting[]                  @relation("RuntimeSettingEditor")
+  managedSecretsEdited                   ManagedSecret[]                   @relation("ManagedSecretEditor")
 
   @@unique([email])
   @@index([deletedAt])
@@ -197,7 +204,9 @@ model Organization {
 
   members     Member[]
   invitations Invitation[]
-  agentRuns    AgentRun[]
+  agentRuns   AgentRun[]
+
+  featureFlagOverrides FeatureFlagOrganizationOverride[]
 
   @@unique([slug])
   @@index([archivedAt])
@@ -414,4 +423,118 @@ model OutboxEvent {
   /// The reclaim half of the same query: `PROCESSING` rows whose lease lapsed.
   @@index([type, status, leaseExpiresAt])
   @@map("outbox_event")
+}
+
+// ---------------------------------------------------------------------------
+// Control plane
+// ---------------------------------------------------------------------------
+// Operational state an operator may change without a deployment, kept
+// deliberately separate from two things it is often confused with.
+//
+// It is not bootstrap configuration. `DATABASE_URL`, `REDIS_URL`,
+// `BETTER_AUTH_SECRET` and the secret-encryption master key cannot live here,
+// because they are what the application needs in order to reach the database
+// these rows are in.
+//
+// It is also not agent behaviour. Prompts, context policy and input/output
+// schemas belong to a versioned definition in code: a durable AgentRun accepted
+// against version 1 must still execute version 1 tomorrow, and a mutable row
+// cannot promise that. Changing behaviour publishes a new version.
+//
+// What is left is genuinely operational: whether a feature accepts new work,
+// bounded numeric and enumerated tuning values, and provider credentials.
+
+/// A platform-wide feature-flag override.
+///
+/// Separate from the organization-scoped table rather than one table with a
+/// nullable `organizationId`, because PostgreSQL treats NULLs as distinct in a
+/// unique index — so the single most important constraint here, "at most one
+/// platform override per key", would silently not hold. Two tables state the
+/// precedence in the schema instead of in a comment.
+model FeatureFlagPlatformOverride {
+  key     String  @id
+  enabled Boolean
+
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?
+  updatedByUser   User?    @relation("FeatureFlagPlatformOverrideEditor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+  @@map("feature_flag_platform_override")
+}
+
+/// A feature-flag override for one organization, which wins over the platform
+/// override and the code default.
+model FeatureFlagOrganizationOverride {
+  id      String  @id @default(uuid())
+  key     String
+  enabled Boolean
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?
+  updatedByUser   User?    @relation("FeatureFlagOrganizationOverrideEditor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, key])
+  @@index([updatedByUserId])
+  @@map("feature_flag_organization_override")
+}
+
+/// One operator-editable setting, whose key must exist in the code-owned
+/// registry and whose value must satisfy that entry's Zod schema.
+///
+/// The value is JSON because the registry — not the column — decides each
+/// setting's type. Storing text and parsing on read would make every consumer
+/// re-derive the type, and a typed column per setting would make adding one a
+/// migration.
+model RuntimeSetting {
+  key   String @id
+  value Json
+
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?
+  updatedByUser   User?    @relation("RuntimeSettingEditor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+  @@map("runtime_setting")
+}
+
+/// A provider credential, encrypted at rest with the application master key.
+///
+/// The plaintext is never returned by any read surface and never enters
+/// `process.env`; it is decrypted only when an adapter is about to use it. What
+/// the control plane can show is everything in this model except `ciphertext`.
+///
+/// `keyFingerprint` is a non-secret digest of the master key that encrypted the
+/// row. Without it, decrypting after the master key changed produces an
+/// authentication failure indistinguishable from corruption; with it the
+/// application can say which of the two happened.
+model ManagedSecret {
+  key String @id
+
+  ciphertext Bytes
+  /// The GCM nonce. Unique per encryption, stored beside the ciphertext
+  /// because decryption needs it and it is not secret.
+  iv         Bytes
+  /// The GCM authentication tag, which is what makes a tampered ciphertext a
+  /// loud failure rather than silent garbage.
+  authTag    Bytes
+
+  algorithm      String
+  keyFingerprint String
+
+  /// A non-secret hint — never the value, never a prefix of it — so an
+  /// operator can tell two credentials apart in a list.
+  label String?
+
+  lastRotatedAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  updatedByUserId String?
+  updatedByUser   User?    @relation("ManagedSecretEditor", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([updatedByUserId])
+  @@map("managed_secret")
 }

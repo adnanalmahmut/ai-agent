@@ -25,6 +25,7 @@ POSTGRES_PASSWORD=test-only-database-password
 POSTGRES_DB=app
 DATABASE_URL=postgresql://app:test-only-database-password@postgres:5432/app
 REDIS_URL=redis://redis:6379
+APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
 BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid
@@ -44,6 +45,15 @@ jq -e '.services.worker.environment.BETTER_AUTH_SECRET == null' "$rendered" >/de
 jq -e '.services.worker.environment.GOOGLE_CLIENT_SECRET == null' "$rendered" >/dev/null
 jq -e '.services.worker.environment.SMTP_PASSWORD == null' "$rendered" >/dev/null
 jq -e '.services.worker.environment.RATE_LIMIT_ENABLED == null' "$rendered" >/dev/null
+# The control-plane master key decrypts every stored provider credential. The
+# worker legitimately needs it — a background execution resolves the same
+# credentials the API does — but the migration process, web, and platform do
+# not, and `docs/deployment.md` states that allowlist as a security property.
+# Asserted in both directions so neither a removal nor a widening is silent.
+jq -e '.services.backend.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
+jq -e '.services.worker.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
+jq -e '.services.migrate.environment.APP_ENCRYPTION_KEY == null' "$rendered" >/dev/null
+
 jq -e '.services.migrate.environment | keys == ["DATABASE_URL"]' "$rendered" >/dev/null
 jq -e '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]' "$rendered" >/dev/null
 jq -e '.services.platform.environment == null' "$rendered" >/dev/null

@@ -2,6 +2,7 @@ import agentsConfig from './agents.config';
 import appConfig from './app.config';
 import authConfig from './auth.config';
 import databaseConfig from './database.config';
+import encryptionConfig from './encryption.config';
 import geoIpConfig from '../core/geoip/geoip.config';
 import httpConfig from './http.config';
 import mailConfig from './mail.config';
@@ -15,6 +16,7 @@ export {
   appConfig,
   authConfig,
   databaseConfig,
+  encryptionConfig,
   geoIpConfig,
   httpConfig,
   mailConfig,
@@ -24,11 +26,13 @@ export {
   redisConfig,
 };
 export type { LogMailConfig, MailConfig } from './mail.config';
+export type { EncryptionConfig } from './encryption.config';
 export type { GoogleAuthConfig } from './auth.config';
 
 export const configurations = [
   appConfig,
   databaseConfig,
+  encryptionConfig,
   geoIpConfig,
   httpConfig,
   observabilityConfig,
@@ -68,6 +72,9 @@ export const cliConfigurations = [
 export const workerConfigurations = [
   appConfig,
   databaseConfig,
+  // The worker resolves provider credentials when it executes an agent, so it
+  // needs the master key the API needs for the same reason.
+  encryptionConfig,
   observabilityConfig,
   redisConfig,
   queueConfig,

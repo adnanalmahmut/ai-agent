@@ -247,4 +247,17 @@ export const as = (harness: Harness, user: Pick<TestUser, 'cookie'>) => ({
       .post(path)
       .set('Cookie', user.cookie)
       .send(body ?? {}),
+  /**
+   * `put` and `del` exist because the control-plane surface is idempotent
+   * writes and removals rather than commands, and a suite that reached for
+   * `request(...)` directly would drop the session cookie the first time
+   * somebody copied the line.
+   */
+  put: (path: string, body?: unknown) =>
+    request(harness.server)
+      .put(path)
+      .set('Cookie', user.cookie)
+      .send(body ?? {}),
+  del: (path: string) =>
+    request(harness.server).delete(path).set('Cookie', user.cookie),
 });

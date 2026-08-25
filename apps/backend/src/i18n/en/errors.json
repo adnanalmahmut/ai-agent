@@ -18,5 +18,8 @@
   "SERVICE_UNAVAILABLE": "The service is temporarily unavailable",
   "QUEUE_UNAVAILABLE": "The queue service is temporarily unavailable",
   "AI_PROVIDER_UNAVAILABLE": "The AI provider service is temporarily unavailable",
-  "RESOURCE_CONFLICT": "The resource already exists or conflicts with existing state"
+  "RESOURCE_CONFLICT": "The resource already exists or conflicts with existing state",
+  "FEATURE_DISABLED": "This feature is not currently enabled.",
+  "SECRET_NOT_CONFIGURED": "The required credential has not been configured yet.",
+  "SECRET_UNREADABLE": "The stored credential could not be read."
 }

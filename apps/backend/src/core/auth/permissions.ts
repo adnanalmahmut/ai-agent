@@ -54,6 +54,22 @@ export const GLOBAL_PERMISSION_STATEMENTS = {
    * who is not a member, and it grants nothing else inside that organization.
    */
   organizationLifecycle: ['restore'],
+
+  /**
+   * The operational control plane: feature flags, runtime settings, and
+   * provider credentials.
+   *
+   * Split into read and write rather than one statement, because they are
+   * genuinely different exposures. Reading tells you which features exist and
+   * how the platform is tuned; writing can switch a paid subsystem on for
+   * every organization at once, or replace the credential it bills against.
+   *
+   * `managedSecret:write` is separate again, and no read counterpart exists,
+   * because there is nothing to read: a credential's *metadata* is part of
+   * `controlPlane:read` and its value is returned by no surface at all.
+   */
+  controlPlane: ['read', 'write'],
+  managedSecret: ['write'],
 } as const;
 
 const globalAc = createAccessControl(GLOBAL_PERMISSION_STATEMENTS);
@@ -122,6 +138,8 @@ const platformSuperAdmin = globalAc.newRole({
   session: ['list', 'revoke', 'delete'],
   accountLifecycle: ['deactivate', 'restore'],
   organizationLifecycle: ['restore'],
+  controlPlane: ['read', 'write'],
+  managedSecret: ['write'],
 });
 
 export const globalAccessControl = globalAc;
