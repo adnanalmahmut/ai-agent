@@ -11,11 +11,12 @@ import { PLATFORM_BASE_PATH } from './src/config/paths.js';
  * The component suite runs in jsdom, which is a good enough DOM to assert
  * behaviour against and is not a browser. Four things this application depends
  * on are simply absent there: real navigation and history, `sessionStorage`
- * with its real lifetime, `crypto.randomUUID` in a secure context, and the
- * bundle actually being buildable and bootable. Every one of them is load-
- * bearing for the content-idea flow — the operation lives in the URL, the
- * idempotency key lives in session storage, and the key is minted with
- * `randomUUID`.
+ * with its real lifetime, the `crypto` subtle and `randomUUID` APIs in a secure
+ * context, and the bundle actually being buildable and bootable. Every one of
+ * them is load-bearing for the content-idea flow — the operation lives in the
+ * URL, the idempotency key lives in session storage, the key is minted with
+ * `randomUUID`, and what is stored beside it is a `crypto.subtle` digest of the
+ * request rather than the request.
  *
  * ## What it is not
  *

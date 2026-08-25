@@ -2,6 +2,7 @@ export { AGENT_RUN_CAPACITY_LOCK, AgentRunService } from './agent-run.service';
 export type { AgentRuntime } from './agent-runtime';
 export type {
   AgentDefinition,
+  AgentOutputContract,
   AgentRun,
   AgentRunStatus,
   AgentRuntimeName,
@@ -17,6 +18,7 @@ export {
   contentIdeaAgent,
   contentIdeaInput,
   contentIdeaOutput,
+  contentIdeaOutputContract,
   CONTENT_IDEA_AGENT_ID,
   CONTENT_IDEA_AGENT_VERSION,
   CONTENT_IDEA_FORMATS,

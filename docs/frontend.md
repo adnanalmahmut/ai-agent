@@ -50,10 +50,13 @@ unreadable, or wrong-organization operation id fails closed and is never shown
 under another organization.
 
 The idempotency key the endpoint requires is minted per material request and,
-with its request fingerprint and organization, survives an ambiguous transport
-failure in session storage. A reload/retry therefore reuses the uncertain key
-instead of buying a second run. It is cleared only when acceptance or refusal
-is unambiguous; a materially changed request receives a new identity.
+scoped by organization, survives an ambiguous transport failure in session
+storage. A reload/retry therefore reuses the uncertain key instead of buying a
+second run. Sameness is decided by a SHA-256 digest of the canonical normalized
+request; the stored record is only `{ idempotencyKey, requestDigest }`, so no
+operator-authored request text — topic, goal, audience, guidance — is written to
+browser storage. It is cleared only when acceptance or refusal is unambiguous; a
+materially changed request digests differently and receives a new identity.
 
 Both 403s are distinguished by code rather than status, so a disabled feature
 does not read as a missing permission, and the reason a 429 carried is rendered

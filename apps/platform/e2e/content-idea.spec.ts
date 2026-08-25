@@ -8,8 +8,10 @@ import { PLATFORM_BASE_PATH } from '../src/config/paths.js';
  * Only the cases that need one. The component suite already asserts the logic
  * in jsdom — what it cannot assert is that the built bundle boots, that the
  * router's basename works, that the operation genuinely survives a *browser*
- * reload, and that a key minted with `crypto.randomUUID` and kept in real
- * `sessionStorage` survives the same reload. Each of those is a browser fact.
+ * reload, and that a key minted with `crypto.randomUUID`, paired with a
+ * `crypto.subtle` digest of the request and kept in real `sessionStorage`,
+ * survives the same reload without the request text going with it. Each of
+ * those is a browser fact.
  *
  * Every request is fulfilled from the fixtures below. No backend, no database,
  * no provider, and no credential — which is what keeps this runnable in CI on
@@ -307,6 +309,39 @@ test.describe('content ideas in a browser', () => {
 
     await expect(page.getByText(/something went wrong/i)).toBeVisible();
     expect(api.submissions).toHaveLength(1);
+
+    /**
+     * What survives the reload is an identity, not the request.
+     *
+     * Real `sessionStorage` in a real browser, which is the only place this can
+     * honestly be checked. The record used to be the request itself,
+     * serialized, so the operator's topic, goal, audience and guidance sat in a
+     * store every script on the origin can read. Only sameness is ever asked of
+     * the value, and a SHA-256 digest preserves sameness without keeping the
+     * text.
+     */
+    const storage = await page.evaluate(() => ({
+      ...window.sessionStorage,
+    }));
+    const pending = storage[`content-idea:pending:${ORGANIZATION_ID}`];
+
+    // Not vacuous: the ambiguous failure is exactly when a record must exist.
+    expect(pending).toEqual(expect.any(String));
+    expect(JSON.parse(pending ?? 'null')).toEqual({
+      idempotencyKey: api.submissions[0]?.key,
+      requestDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
+    });
+
+    const dump = JSON.stringify(storage);
+
+    for (const typed of [
+      'Electric kettles',
+      'Sell the autumn range',
+      'Home cooks',
+      'Keep it concrete.',
+    ]) {
+      expect(dump).not.toContain(typed);
+    }
 
     await page.reload();
     await fillForm(page);

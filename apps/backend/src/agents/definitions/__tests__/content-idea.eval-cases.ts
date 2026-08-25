@@ -52,6 +52,13 @@ export type EvalCase = {
     rejectsInput?: boolean;
     /** The provider's answer is refused by the pinned output schema. */
     rejectsOutput?: boolean;
+    /**
+     * The answer parses but breaks the request/answer contract — today, the
+     * exact idea count. Separate from `rejectsOutput` because the two are
+     * different layers and a case that confused them would pass while the
+     * count check was deleted.
+     */
+    rejectsOutputContract?: boolean;
     /** Substrings that must appear in the prompt sent to the provider. */
     promptContains?: readonly string[];
     /** Substrings that must not appear anywhere in the prompt. */
@@ -308,21 +315,58 @@ export const ALLOWED_SPACES: readonly KnowledgeSpaceSlug[] = [
   'content.strategy',
 ];
 
-/** A well-formed provider answer, used wherever the case is not about output. */
-export const VALID_ANSWER: ContentIdeaOutput = {
-  ideas: [
-    {
-      title: 'Deployment safety is a design problem',
-      hook: 'Your incident review keeps blaming the deploy tool. It is not the deploy tool.',
-      angle:
-        'Reframe reliability as an interface decision rather than a pipeline one.',
-      summary:
-        'Open with a familiar postmortem, show that the decision that caused it was made weeks earlier in a design document, and close with three questions to ask during design review.',
-      suggestedFormat: 'post',
-    },
-  ],
-  sources: ['content.strategy'],
+/** One well-formed idea, the unit every fixture answer below is built from. */
+const VALID_IDEA: ContentIdeaOutput['ideas'][number] = {
+  title: 'Deployment safety is a design problem',
+  hook: 'Your incident review keeps blaming the deploy tool. It is not the deploy tool.',
+  angle:
+    'Reframe reliability as an interface decision rather than a pipeline one.',
+  summary:
+    'Open with a familiar postmortem, show that the decision that caused it was made weeks earlier in a design document, and close with three questions to ask during design review.',
+  suggestedFormat: 'post',
 };
+
+/**
+ * A well-formed answer of exactly `count` ideas.
+ *
+ * A function rather than a constant because `numberOfIdeas` is an output
+ * contract, not a prompt hint: the runner refuses an answer whose idea count
+ * differs from the request's. A single fixed answer would therefore make every
+ * case that asks for three or nine fail for a reason that has nothing to do
+ * with what the case is about, and pinning each case's count to the fixture's
+ * would delete the coverage of the count travelling to the provider at all.
+ *
+ * The titles are numbered so the ideas are distinct, which is what the
+ * instructions ask a provider for and what makes an off-by-one visible when a
+ * case fails.
+ */
+export function validAnswerFor(count: number): ContentIdeaOutput {
+  return {
+    ideas: Array.from({ length: count }, (unusedValue, index) => ({
+      ...VALID_IDEA,
+      title: `${VALID_IDEA.title} (${index + 1})`,
+    })),
+    sources: ['content.strategy'],
+  };
+}
+
+/**
+ * The count the pinned input schema will settle on for a request.
+ *
+ * Restated here rather than imported so a fixture answer is built against the
+ * declared default: reading the default off the schema would make the harness
+ * agree with the contract however the contract changed, which is the one thing
+ * these cases exist to notice.
+ */
+export const DEFAULT_NUMBER_OF_IDEAS = 5;
+
+/**
+ * A well-formed answer, used wherever the case is not about output.
+ *
+ * One idea, matching a request for one. Cases that ask for another count get
+ * their answer from `validAnswerFor` instead.
+ */
+export const VALID_ANSWER: ContentIdeaOutput = validAnswerFor(1);
 
 export const EVAL_CASES: readonly EvalCase[] = [
   /* --- language ---------------------------------------------------------- */
@@ -595,7 +639,9 @@ export const EVAL_CASES: readonly EvalCase[] = [
       'The happy path, so the rejection cases below are not vacuously green.',
     organizationId: ORG_DEVELOPER,
     request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
-    providerAnswer: VALID_ANSWER,
+    // Sized to the default count, because the count is part of the contract:
+    // a well-formed answer of the wrong length is not the happy path.
+    providerAnswer: validAnswerFor(DEFAULT_NUMBER_OF_IDEAS),
     expect: {},
   },
   {
@@ -633,5 +679,58 @@ export const EVAL_CASES: readonly EvalCase[] = [
       sources: [],
     },
     expect: { rejectsOutput: true },
+  },
+
+  /* --- the requested count is an output contract -------------------------- */
+  {
+    id: 'accepts-exactly-the-requested-count',
+    intent:
+      'Five asked for and five returned is the answer to the request, and is stored.',
+    organizationId: ORG_DEVELOPER,
+    request: {
+      topic: 'Deployment safety',
+      goal: 'Book demos',
+      language: 'en',
+      numberOfIdeas: 5,
+    },
+    providerAnswer: validAnswerFor(5),
+    expect: { normalized: { numberOfIdeas: 5 } },
+  },
+  {
+    id: 'rejects-fewer-ideas-than-requested',
+    intent:
+      'Four well-formed ideas for a request of five is short measure on something the caller is billed for, so it is refused rather than stored.',
+    organizationId: ORG_DEVELOPER,
+    request: {
+      topic: 'Deployment safety',
+      goal: 'Book demos',
+      language: 'en',
+      numberOfIdeas: 5,
+    },
+    providerAnswer: validAnswerFor(4),
+    expect: { rejectsOutputContract: true },
+  },
+  {
+    id: 'rejects-more-ideas-than-requested',
+    intent:
+      'Six for a request of five is output tokens nobody asked for and a list no screen budgeted room for; the count is exact in both directions.',
+    organizationId: ORG_DEVELOPER,
+    request: {
+      topic: 'Deployment safety',
+      goal: 'Book demos',
+      language: 'en',
+      numberOfIdeas: 5,
+    },
+    providerAnswer: validAnswerFor(6),
+    expect: { rejectsOutputContract: true },
+  },
+  {
+    id: 'the-contract-count-is-the-defaulted-one',
+    intent:
+      'A request that omits the count is contracted against the schema default rather than against nothing at all.',
+    organizationId: ORG_DEVELOPER,
+    request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
+    providerAnswer: validAnswerFor(DEFAULT_NUMBER_OF_IDEAS - 1),
+    expect: { rejectsOutputContract: true },
   },
 ];

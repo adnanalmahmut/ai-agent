@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AgentConfigurationError } from '../agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import type { AgentRuntime } from '../agent-runtime';
+import type { AgentDefinition, AgentOutputContract } from '../agent.types';
 import { AgentRuntimeRegistry } from '../agent-runtime.registry';
 import { AgentRunner } from '../agent-runner.service';
 import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
@@ -428,6 +429,179 @@ describe('a malformed provider answer', () => {
     await expect(
       runOnce(runnerReturning({ answer: 'hello' })),
     ).resolves.toEqual({ output: { answer: 'hello', sources: [] } });
+  });
+});
+
+/**
+ * The contract between the request and the answer, which no schema can state.
+ *
+ * A Zod output schema is handed the provider's answer and nothing else, so it
+ * cannot know that a request for five results came back with four. That pair is
+ * exactly where a billed agent goes wrong in a way every shape check passes, so
+ * the definition carries an optional second gate and the runner runs it after
+ * the parse and before the value is returned for durable storage.
+ */
+describe('the declared output contract', () => {
+  const countingDefinition = {
+    ...definition,
+    id: 'counting-agent',
+    input: z.object({ wanted: z.number() }),
+    output: z.object({ items: z.array(z.string()) }).strict(),
+    outputContract: ((input, output) => {
+      const wanted = (input as { wanted: number }).wanted;
+      const produced = (output as { items: string[] }).items.length;
+
+      return produced === wanted
+        ? null
+        : `requested ${wanted} items, received ${produced}`;
+    }) satisfies AgentOutputContract,
+  } as const;
+
+  const runnerReturning = (
+    output: unknown,
+    definitionOverride: AgentDefinition = countingDefinition,
+  ) =>
+    runnerFor([definitionOverride], {
+      resolve: jest.fn<(name: string) => AgentRuntime>(() => ({
+        name: 'mastra',
+        run: () => Promise.resolve({ output: output as never }),
+      })),
+    } as unknown as AgentRuntimeRegistry);
+
+  const runWanting = (
+    runner: ReturnType<typeof runnerReturning>,
+    wanted: number,
+    agentId = countingDefinition.id,
+  ) =>
+    runner.run({
+      agentId,
+      agentVersion: 1,
+      runtime: 'mastra',
+      organizationId: 'org_1',
+      input: { wanted },
+    });
+
+  it('refuses an answer that parses but breaks the contract', async () => {
+    await expect(
+      runWanting(runnerReturning({ items: ['a', 'b'] }), 3),
+    ).rejects.toThrow(
+      'Agent output does not satisfy its declared contract: requested 3 items, received 2',
+    );
+  });
+
+  /**
+   * The count is exact in both directions. A contract stated as a floor would
+   * accept an answer that spends output tokens nobody asked for, and would let
+   * a list overflow a screen sized for what was requested.
+   */
+  it('refuses an answer that overshoots the contract', async () => {
+    await expect(
+      runWanting(runnerReturning({ items: ['a', 'b', 'c', 'd'] }), 3),
+    ).rejects.toThrow('requested 3 items, received 4');
+  });
+
+  it('stores an answer that satisfies it', async () => {
+    await expect(
+      runWanting(runnerReturning({ items: ['a', 'b', 'c'] }), 3),
+    ).resolves.toEqual({ output: { items: ['a', 'b', 'c'] } });
+  });
+
+  /**
+   * The classification, which is the part that costs money if it is wrong.
+   *
+   * A model that miscounted once may count correctly on the next attempt, so a
+   * violation is an ordinary retryable failure. Making it an
+   * `AgentConfigurationError` — the natural-looking tidy-up, since it is a
+   * "contract" failure — would end the run on first sight and spend none of the
+   * budget the failure is eligible for.
+   */
+  it('keeps its retry budget', async () => {
+    await expect(
+      runWanting(runnerReturning({ items: [] }), 3),
+    ).rejects.not.toBeInstanceOf(AgentConfigurationError);
+  });
+
+  /**
+   * The contract sees the *parsed* input, so a value the schema defaulted is
+   * the value contracted against. Reading `run.input` instead would contract a
+   * request that omitted the field against `undefined` and pass anything.
+   */
+  it('is given the defaulted input rather than the stored row', async () => {
+    const seen: unknown[] = [];
+    const defaulting = {
+      ...countingDefinition,
+      id: 'defaulting-agent',
+      input: z.object({ wanted: z.number().default(3) }),
+      outputContract: ((input, output) => {
+        seen.push(input);
+
+        return (output as { items: string[] }).items.length ===
+          (input as { wanted: number }).wanted
+          ? null
+          : 'count mismatch';
+      }) satisfies AgentOutputContract,
+    } as const;
+
+    const runner = runnerReturning({ items: ['a', 'b', 'c'] }, defaulting);
+
+    await expect(
+      runner.run({
+        agentId: 'defaulting-agent',
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: 'org_1',
+        input: {},
+      }),
+    ).resolves.toEqual({ output: { items: ['a', 'b', 'c'] } });
+
+    expect(seen).toEqual([{ wanted: 3 }]);
+  });
+
+  /**
+   * The contract never runs on unparsed data, so an implementation may rely on
+   * its arguments. A malformed answer is the schema's refusal, not the
+   * contract's, and running the contract on it would hand every implementation
+   * a shape it did not agree to read.
+   */
+  it('is not consulted when the schema already refused the answer', async () => {
+    const outputContract = jest.fn<AgentOutputContract>(() => null);
+    const guarded = {
+      ...countingDefinition,
+      id: 'guarded-agent',
+      outputContract,
+    } as const;
+
+    await expect(
+      runnerReturning({ items: [42] }, guarded).run({
+        agentId: 'guarded-agent',
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: 'org_1',
+        input: { wanted: 1 },
+      }),
+    ).rejects.toThrow('does not satisfy its declared schema');
+
+    expect(outputContract).not.toHaveBeenCalled();
+  });
+
+  /** A definition without one is unaffected: the schema is the whole contract. */
+  it('is optional', async () => {
+    const runner = runnerFor([definition], {
+      resolve: jest.fn<(name: string) => AgentRuntime>(() => ({
+        name: 'mastra',
+        run: () => Promise.resolve({ output: 'done' }),
+      })),
+    } as unknown as AgentRuntimeRegistry);
+
+    await expect(
+      runner.run({
+        agentId: definition.id,
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: 'org_1',
+        input: 'hello',
+      }),
+    ).resolves.toEqual({ output: 'done' });
   });
 });
 

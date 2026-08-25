@@ -17,6 +17,7 @@ export {
   contentIdeaAgent,
   contentIdeaInput,
   contentIdeaOutput,
+  contentIdeaOutputContract,
   CONTENT_IDEA_AGENT_ID,
   CONTENT_IDEA_AGENT_VERSION,
   CONTENT_IDEA_FORMATS,

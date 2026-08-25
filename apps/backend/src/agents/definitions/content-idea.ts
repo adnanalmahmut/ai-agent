@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-import { AGENT_RUNTIME_NAMES, type AgentDefinition } from '../agent.types';
+import {
+  AGENT_RUNTIME_NAMES,
+  type AgentDefinition,
+  type AgentOutputContract,
+} from '../agent.types';
 
 export const CONTENT_IDEA_AGENT_ID = 'content-idea';
 export const CONTENT_IDEA_AGENT_VERSION = 1;
@@ -107,6 +111,44 @@ export const contentIdeaOutput = z
 export type ContentIdeaOutput = z.infer<typeof contentIdeaOutput>;
 
 /**
+ * The half of the contract the output schema cannot state.
+ *
+ * `numberOfIdeas` is what the caller asked for and what the caller is billed
+ * against, so it is an output guarantee rather than a phrasing in the prompt.
+ * The schema bounds the array at one to ten and stops there — it has no access
+ * to the request, so five requested and four returned parses cleanly and is
+ * still the wrong answer. Somebody who asked for five and planned a week around
+ * five must not silently receive four, and must certainly not receive six they
+ * did not budget for.
+ *
+ * Both values are re-parsed rather than asserted, in keeping with the rest of
+ * this file. The runner only calls a contract with data its own schemas have
+ * already accepted, so neither parse can fail in practice; returning `null` on
+ * the impossible branch keeps this function from inventing a second opinion
+ * about shape, which is the schema layer's job and is already enforced above.
+ *
+ * The message is counts and nothing else. It becomes an `Error` message, and
+ * copying any part of the provider's answer into it would put model output on a
+ * path that ends in a log.
+ */
+export const contentIdeaOutputContract: AgentOutputContract = (
+  input,
+  output,
+) => {
+  const request = contentIdeaInput.safeParse(input);
+  const answer = contentIdeaOutput.safeParse(output);
+
+  if (!request.success || !answer.success) return null;
+
+  const requested = request.data.numberOfIdeas;
+  const produced = answer.data.ideas.length;
+
+  if (produced === requested) return null;
+
+  return `requested ${requested} ideas, received ${produced}`;
+};
+
+/**
  * The first production agent.
  *
  * Its instructions are the operator's voice and the only place behavior is
@@ -165,6 +207,7 @@ export const contentIdeaAgent: AgentDefinition = {
   ].join('\n'),
   input: contentIdeaInput,
   output: contentIdeaOutput,
+  outputContract: contentIdeaOutputContract,
   /**
    * The only spaces this agent may ever read, named by registry slug and
    * resolved against the caller's own organization.

@@ -11,10 +11,11 @@ import type { KnowledgeMatch, RetrievalQuery } from '../../../knowledge';
 import {
   ALLOWED_SPACES,
   CROSS_TENANT_CANARY,
+  DEFAULT_NUMBER_OF_IDEAS,
   EVAL_CASES,
   EVAL_CORPUS,
   EXCLUDED_SPACE_CANARY,
-  VALID_ANSWER,
+  validAnswerFor,
   type EvalCase,
   type EvalDocument,
 } from './content-idea.eval-cases';
@@ -232,6 +233,28 @@ const promptSpaces = (): string[] => [
 
 const passageCount = () => sentPrompt().match(/<passage /g)?.length ?? 0;
 
+/**
+ * How many ideas a case's request will be understood to have asked for.
+ *
+ * Needed because the idea count is an *output contract* rather than a prompt
+ * hint — an answer whose count differs from the request is refused. So a case
+ * that does not care about output still needs an answer of the right size, and
+ * the size is a property of its own request rather than of the fixture.
+ */
+const requestedCount = (request: unknown): number => {
+  if (typeof request !== 'object' || request === null) {
+    return DEFAULT_NUMBER_OF_IDEAS;
+  }
+
+  const value = (request as { numberOfIdeas?: unknown }).numberOfIdeas;
+
+  return typeof value === 'number' ? value : DEFAULT_NUMBER_OF_IDEAS;
+};
+
+/** The provider answer a case supplies, or a well-formed one of the right size. */
+const answerFor = (testCase: EvalCase): unknown =>
+  testCase.providerAnswer ?? validAnswerFor(requestedCount(testCase.request));
+
 describe('content-idea@1 evaluation', () => {
   let harness: Harness;
 
@@ -248,7 +271,7 @@ describe('content-idea@1 evaluation', () => {
    * rather than an exact number so adding one is not a test edit.
    */
   it('covers the documented breadth of cases', () => {
-    expect(EVAL_CASES.length).toBeGreaterThanOrEqual(18);
+    expect(EVAL_CASES.length).toBeGreaterThanOrEqual(22);
 
     // Both languages, and both halves of the output contract.
     const ids = EVAL_CASES.map((testCase) => testCase.id).join(' ');
@@ -260,15 +283,17 @@ describe('content-idea@1 evaluation', () => {
     expect(EVAL_CASES.some((testCase) => testCase.expect.rejectsInput)).toBe(
       true,
     );
+    // And the contract layer, which is neither of those two.
+    expect(
+      EVAL_CASES.some((testCase) => testCase.expect.rejectsOutputContract),
+    ).toBe(true);
   });
 
   describe.each(EVAL_CASES.map((testCase) => [testCase.id, testCase] as const))(
     '%s',
     (unusedId: string, testCase: EvalCase) => {
       it(testCase.intent, async () => {
-        generate.mockResolvedValue({
-          object: testCase.providerAnswer ?? VALID_ANSWER,
-        });
+        generate.mockResolvedValue({ object: answerFor(testCase) });
 
         const attempt = harness.run(testCase.organizationId, testCase.request);
 
@@ -282,7 +307,12 @@ describe('content-idea@1 evaluation', () => {
         }
 
         if (testCase.expect.rejectsOutput === true) {
-          await expect(attempt).rejects.toThrow();
+          // The message, not just a rejection: the two output layers are
+          // asserted separately so a case cannot pass for the other one's
+          // reason — and so deleting either check fails a test.
+          await expect(attempt).rejects.toThrow(
+            'does not satisfy its declared schema',
+          );
           // The provider *was* asked — the refusal is of its answer, not of
           // the request — so this is a genuine output-parse assertion rather
           // than an input one wearing the wrong label.
@@ -291,9 +321,23 @@ describe('content-idea@1 evaluation', () => {
           return;
         }
 
+        if (testCase.expect.rejectsOutputContract === true) {
+          /**
+           * The answer parsed and was still refused, which is the whole point
+           * of the layer: `numberOfIdeas` is a business contract the schema
+           * cannot state, because a schema never sees the request.
+           */
+          await expect(attempt).rejects.toThrow(
+            'does not satisfy its declared contract',
+          );
+          expect(generate).toHaveBeenCalled();
+
+          return;
+        }
+
         const result = await attempt;
 
-        expect(result.output).toEqual(testCase.providerAnswer ?? VALID_ANSWER);
+        expect(result.output).toEqual(answerFor(testCase));
 
         for (const fragment of testCase.expect.promptContains ?? []) {
           expect(sentPrompt()).toContain(fragment);
@@ -351,9 +395,7 @@ describe('content-idea@1 evaluation', () => {
 
     for (const testCase of EVAL_CASES) {
       generate.mockReset();
-      generate.mockResolvedValue({
-        object: testCase.providerAnswer ?? VALID_ANSWER,
-      });
+      generate.mockResolvedValue({ object: answerFor(testCase) });
 
       await harness
         .run(testCase.organizationId, testCase.request)

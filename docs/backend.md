@@ -104,7 +104,16 @@ against the run rather than to an SDK loop that reports three calls as one.
 `language` (`ar` or `en`), optional `audience` (3–200) and `guidance` (≤1000),
 and `numberOfIdeas` (1–10, default 5). It answers with `ideas` — each carrying
 `title`, `hook`, `angle`, `summary`, and a `suggestedFormat` of `carousel`,
-`post`, or `video` — plus `sources` naming the spaces it drew on. `language` is
+`post`, or `video` — plus `sources` naming the spaces it drew on.
+`numberOfIdeas` is an output guarantee rather than a prompt hint: a definition
+may declare an `outputContract`, checked by `AgentRunner` after the output
+schema parses and before any durable success is written, and this one requires
+the answer to carry *exactly* the requested number of ideas. A wrong count is a
+provider-output failure — a plain error that keeps its BullMQ retry budget, not
+an `AgentConfigurationError` — because a model that miscounted once may count
+correctly on the next attempt. Contract violation messages are composed from
+application-owned counts alone, so no provider text reaches a log,
+`failedReason`, or `AgentRun.lastError`. `language` is
 the language of the *content*, chosen per request: it is never inferred from the
 Platform's UI locale, because an Arabic-speaking marketer writing English
 campaign copy is the ordinary case rather than the exception. Its context policy
@@ -120,8 +129,9 @@ A repository-owned evaluation set
 through the real runner, assembler, and adapter with three fakes at the edges.
 It measures application-owned behavior — normalization, language and goal
 reaching the prompt, context drawn only from the declared spaces, cross-tenant
-isolation, both budgets binding, and the output being parsed before it is stored
-— and it deliberately measures nothing about model quality.
+isolation, both budgets binding, and the output being both parsed and contracted
+against the requested idea count before it is stored — and it deliberately
+measures nothing about model quality.
 
 `content-idea@1` (`src/agents/definitions/`) is the first production definition,
 and `src/content-ideas/` is the business surface in front of it: one route to

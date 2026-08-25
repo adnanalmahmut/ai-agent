@@ -133,6 +133,20 @@ export type AgentDefinition = {
   input: ZodType;
   output: ZodType;
   /**
+   * What the parsed answer must additionally be true of, given the request.
+   *
+   * Separate from `output` because a Zod schema never sees the input, and the
+   * claims worth making here are about the pair — most obviously that an agent
+   * asked for N results returned exactly N. Absent means the schema is the
+   * whole contract.
+   *
+   * Checked after the output schema and before any durable success is written,
+   * and a violation keeps the retry budget: a model that miscounted once may
+   * well count correctly on the next attempt, which is the opposite of a
+   * configuration failure.
+   */
+  outputContract?: AgentOutputContract;
+  /**
    * Which knowledge this agent may see. Absent means none at all.
    *
    * Declared on the definition rather than chosen per request, because it is
@@ -143,6 +157,31 @@ export type AgentDefinition = {
    */
   contextPolicy?: ContextPolicy;
 };
+
+/**
+ * A cross-check between what was asked for and what came back.
+ *
+ * The output schema is a statement about shape alone: it cannot know that a
+ * request for five ideas came back with four, because the request is not in
+ * scope when a schema parses a response. Some agents nonetheless promise
+ * something about the *relationship* between the two, and that promise is a
+ * business contract rather than a prompt hint — a caller who asked for five and
+ * was billed for four received the wrong answer, however well-formed it was.
+ *
+ * Returns the reason the pair is unacceptable, or `null` when it is fine. The
+ * reason is developer-facing and must be composed only from application-owned
+ * values — counts, field names — never from provider text, because it becomes
+ * an `Error` message and the containment design rests on no provider output
+ * reaching a log, a queue failure reason, or `AgentRun.lastError`.
+ *
+ * Both arguments arrive already parsed by the definition's own schemas, so an
+ * implementation may re-parse them to recover its types and can rely on that
+ * re-parse succeeding.
+ */
+export type AgentOutputContract = (
+  input: AgentValue,
+  output: AgentValue,
+) => string | null;
 
 /**
  * The knowledge an agent is allowed to be given, and how much of it.

@@ -698,7 +698,9 @@ on any PR touching compose or images.
 The incremental remediation finalizes the unmerged `content-idea@1` contract
 and closes the operating gaps found across PR30–PR36. The request has `topic`,
 `goal`, `language`, optional `audience`/`guidance`, and `numberOfIdeas`; its
-strict output is parsed before durable success. Knowledge spaces are a
+strict output is parsed before durable success, and the requested
+`numberOfIdeas` is enforced exactly as a declared output contract on the same
+path — a wrong count is a retryable provider-output failure. Knowledge spaces are a
 code-owned eight-space registry, while the agent's context policy is exactly
 `organization.profile`, `brand.voice`, `audience`, and `content.strategy`
 within 12 chunks and 12,000 characters. The deterministic evaluation fixture
@@ -711,7 +713,11 @@ super-admin floor and serializes exact per-organization run acceptance. The
 knowledge ingestion path returns the committed `updatedAt` after a source-URI
 only update without rewriting chunks or incrementing revision. The Platform
 adds audit history, canonical-space selection, cursor pagination, availability
-readiness, reloadable operation state, and browser smoke coverage.
+readiness, reloadable operation state, and browser smoke coverage. The audit
+tab renders only a closed safe projection and is regression-tested against
+hostile `before`/`after` payloads carrying a secret canary. The reloadable
+submission identity in session storage keeps an idempotency key beside a
+SHA-256 digest of the canonical request, never the request text.
 
 ## Blockers
 

@@ -1235,6 +1235,59 @@ describe('the content ideas screen', () => {
       ).toBeNull();
     });
 
+    /**
+     * What the record is allowed to contain, asserted on the screen's own path
+     * rather than only on the module's.
+     *
+     * The record used to be the request itself, serialized — topic, goal,
+     * audience and guidance, which is operator-authored business text, written
+     * to a store every script on the origin can read. Only the identity is
+     * needed, so only the identity is kept: an idempotency key and a SHA-256
+     * digest of the canonical request. This asserts against the whole of
+     * session storage, so a future record that stashes the request under some
+     * other key fails here too.
+     */
+    it('stores only an opaque digest of the request, never its text', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      requestContentIdeas.mockRejectedValueOnce(new ApiError(502, 'BAD_GATEWAY'));
+
+      render();
+      await userEvent.type(
+        screen.getByLabelText(/^topic$/i),
+        'Project Nightjar',
+      );
+      await userEvent.type(
+        screen.getByLabelText(/^goal$/i),
+        'Warm the list before launch',
+      );
+      await submit();
+
+      await waitFor(() => expect(requestContentIdeas).toHaveBeenCalled());
+
+      const raw = window.sessionStorage.getItem(
+        `content-idea:pending:${organization().id}`,
+      );
+
+      // Not vacuous: the ambiguous failure is exactly when a record must exist.
+      expect(raw).not.toBeNull();
+
+      const stored = JSON.parse(raw ?? 'null') as Record<string, unknown>;
+
+      expect(Object.keys(stored).sort()).toEqual([
+        'idempotencyKey',
+        'requestDigest',
+      ]);
+      expect(stored.idempotencyKey).toBe(keyOf(0));
+      expect(stored.requestDigest).toMatch(/^[0-9a-f]{64}$/);
+
+      const dump = Object.entries({ ...window.sessionStorage })
+        .map(([key, value]) => `${key}=${String(value)}`)
+        .join('\n');
+
+      expect(dump).not.toContain('Project Nightjar');
+      expect(dump).not.toContain('Warm the list before launch');
+    });
+
     /** A browser that refuses to store anything must still work. */
     it('still submits when the browser refuses to store the key', async () => {
       allow('contentIdea:create', 'contentIdea:read');

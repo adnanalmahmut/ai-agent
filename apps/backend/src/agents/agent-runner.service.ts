@@ -80,6 +80,39 @@ export class AgentRunner {
       throw new Error('Agent output does not satisfy its declared schema');
     }
 
+    /**
+     * The second half of the output contract, and the half a schema cannot
+     * state: what the answer must be true of *given the request*.
+     *
+     * `numberOfIdeas` is the motivating case. A request for five ideas that
+     * comes back with four parses perfectly — the array is bounded and every
+     * member is well-formed — and is still the wrong answer to the question the
+     * caller was billed for. Checked here rather than in the handler because
+     * this is the last point before the value is returned for durable storage,
+     * and checked after the schema parse so a contract only ever sees data it
+     * can rely on.
+     *
+     * A plain `Error`, deliberately, for the same reason a malformed answer is
+     * one: the count is the model's to get right and its next attempt may.
+     * `AgentConfigurationError` would make a miscount immediately final and
+     * spend nothing of the retry budget the failure is actually eligible for.
+     *
+     * The violation text is the contract's, which is required to compose it
+     * from application-owned values only. Nothing from the provider's answer
+     * reaches it, and nothing from this message reaches an operator surface —
+     * `AgentExecutionHandler` throws its own constant.
+     */
+    const violation = definition.outputContract?.(
+      parsedInput.data as AgentValue,
+      parsedOutput.data as AgentValue,
+    );
+
+    if (violation !== undefined && violation !== null) {
+      throw new Error(
+        `Agent output does not satisfy its declared contract: ${violation}`,
+      );
+    }
+
     return { output: parsedOutput.data as AgentValue };
   }
 }

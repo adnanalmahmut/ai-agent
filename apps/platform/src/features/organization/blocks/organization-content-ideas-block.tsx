@@ -501,17 +501,17 @@ export function OrganizationContentIdeasBlock({
 
     try {
       /**
-       * Inside the try, because `crypto.randomUUID` is absent outside a secure
-       * context. Thrown out here it would escape the click handler before
-       * anything could be shown, leaving a button that does nothing and says
-       * nothing.
+       * Inside the try, because `crypto.randomUUID` and `crypto.subtle` are
+       * both absent outside a secure context. Thrown out here either would
+       * escape the click handler before anything could be shown, leaving a
+       * button that does nothing and says nothing.
        *
        * The stored key is reused only for the *same* request. A materially
        * different one — an edited topic, a different language — is a new
        * purchase and gets a new key, which is what somebody pressing the button
        * a second time on purpose expects.
        */
-      const pending = keyForSubmission(
+      const pending = await keyForSubmission(
         organizationId,
         request,
         () => crypto.randomUUID(),
@@ -524,7 +524,7 @@ export function OrganizationContentIdeasBlock({
       const accepted = await requestContentIdeas(
         organizationId,
         request,
-        pending.key,
+        pending.idempotencyKey,
       );
 
       pendingKey.current = null;
