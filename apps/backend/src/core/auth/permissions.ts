@@ -155,6 +155,18 @@ export const GLOBAL_ADMIN_ROLES = ['admin', 'super_admin'] as const;
 
 export const DEFAULT_GLOBAL_ROLE = 'user' satisfies GlobalRoleName;
 
+/**
+ * The role that can grant roles, and therefore the one nothing inside the
+ * authorized surface can create.
+ *
+ * Named here rather than at its use site for the reason every other role
+ * literal is: this file is the only place a role name is allowed to be written,
+ * so that adding, renaming or removing one is a compile error everywhere it
+ * matters instead of a silent string mismatch. The first-run bootstrap command
+ * imports this.
+ */
+export const SUPER_ADMIN_ROLE = 'super_admin' satisfies GlobalRoleName;
+
 /* -------------------------------------------------------------------------
  * Domain 2 — Organization: what a principal may do *inside one organization*.
  *

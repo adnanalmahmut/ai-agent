@@ -170,5 +170,39 @@ case "${1:-}" in
     [ "$#" -eq 2 ] || die 'health requires environment'
     health
     ;;
+  bootstrap-super-admin)
+    # First-run only: creates the platform's first super administrator, which
+    # no authorized route can create because granting that role is itself a
+    # super-administrator action. The backend command refuses once one exists.
+    #
+    # Routed through this script rather than documented as a raw `docker
+    # compose run` for one reason: the image. The compose file resolves the
+    # backend to the mutable `:development` tag unless BACKEND_IMAGE is
+    # exported, which only deploy_release does — so an ad-hoc invocation would
+    # pull a tag from the registry and run it against the live database to mint
+    # the platform's root credential. Here the digest comes from the recorded
+    # release, so the account is created by exactly the image that is running.
+    #
+    # Deliberately absent from ai-agent-deploy-dispatch's allowlist, so it is
+    # NOT reachable over the CI deploy key — only by someone with local root on
+    # the host. Minting the platform's root credential must require host
+    # access, not possession of a deployment secret. ops/tests/
+    # lightsail-boundary.sh asserts that exclusion.
+    #
+    # `--interactive --tty` so the backend detects a terminal and takes its
+    # hidden-prompt path with confirmation. Without a pty it would silently
+    # take the piped path, and the operator would type the password into a
+    # terminal that echoes it. Piping is deliberately not offered here: a
+    # scripted bootstrap belongs against a checkout, not against a live host.
+    # At least environment; the rest is forwarded to the backend command, which
+    # validates its own flags and refuses --password.
+    [ "$#" -ge 2 ] || die 'bootstrap-super-admin requires environment'
+    shift 2
+    lock_deployment
+    bootstrap_digest=$(digest_from_manifest "$current_release" backend)
+    BACKEND_IMAGE="$registry/backend@sha256:$bootstrap_digest" \
+      compose run --rm --interactive --tty --no-deps backend \
+      node dist/src/cli super-admin:create "$@"
+    ;;
   *) die 'unsupported operation' ;;
 esac

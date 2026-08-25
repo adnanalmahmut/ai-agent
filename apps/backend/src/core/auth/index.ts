@@ -16,6 +16,7 @@ export type { AppAuth } from './auth.factory';
 export {
   DEFAULT_GLOBAL_ROLE,
   GLOBAL_ADMIN_ROLES,
+  SUPER_ADMIN_ROLE,
   GLOBAL_PERMISSION_STATEMENTS,
   globalAccessControl,
   globalRoles,
