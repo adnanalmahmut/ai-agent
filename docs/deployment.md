@@ -58,3 +58,34 @@ health → public HTTPS smoke. Only after success does the wrapper atomically
 rotate root-only `CURRENT_RELEASE.json` and `PREVIOUS_RELEASE.json`, each
 containing the source SHA and four OCI digests. Live operator commands are in
 the staging/production ops docs.
+
+## One-time operator step before the Knowledge release
+
+The PostgreSQL image changed from `postgres:16-alpine` to
+`pgvector/pgvector:pg16`. Knowledge retrieval stores embeddings in a `vector`
+column and the extension is absent from the Alpine image; pgvector publishes no
+Alpine variant, so this is a Debian image where the previous one was musl.
+
+The data directory is binary-compatible for the same PostgreSQL major, so the
+container starts and serves normally. What is not compatible is text collation:
+musl and glibc order text differently under the same locale name, and musl
+records no collation version — so PostgreSQL emits no mismatch warning, and
+every existing text btree index is silently left in an order the new libc does
+not agree with. The symptom is wrong results from range and equality scans, not
+an error.
+
+On an environment with an existing PostgreSQL volume, an operator must run this
+once against each database after the first start on the new image, before
+traffic is admitted:
+
+```sql
+REINDEX DATABASE <database>;
+ALTER DATABASE <database> REFRESH COLLATION VERSION;
+```
+
+The application does not and must not perform this. It is a privileged,
+long-running, one-time repair on live data, and a service that reindexed its
+own database at boot would do it on every rollback and every restart.
+
+A fresh volume needs nothing: there is no index built under the other libc.
+The `postgres-test` service keeps its data in tmpfs, so it is unaffected.

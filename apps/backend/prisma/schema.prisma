@@ -208,6 +208,10 @@ model Organization {
 
   featureFlagOverrides FeatureFlagOrganizationOverride[]
 
+  knowledgeSpaces    KnowledgeSpace[]
+  knowledgeDocuments KnowledgeDocument[]
+  knowledgeChunks    KnowledgeChunk[]
+
   @@unique([slug])
   @@index([archivedAt])
   @@map("organization")
@@ -537,4 +541,157 @@ model ManagedSecret {
 
   @@index([updatedByUserId])
   @@map("managed_secret")
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge
+// ---------------------------------------------------------------------------
+// Organization-owned reference material, chunked and embedded so an agent can
+// be given the parts of it that bear on a request.
+//
+// Every one of these three tables carries `organizationId`, including the two
+// that could derive it through a parent. That is denormalization on purpose:
+// the tenant predicate has to sit in the same row as the vector, so the
+// ranking query can be scoped without a join. A join is a thing a future query
+// can forget, and forgetting it here returns another organization's material.
+//
+// All three restrict organization deletion, like every other business table.
+
+/// A named collection of documents inside one organization.
+///
+/// Spaces exist so an agent can be pointed at *some* of an organization's
+/// material rather than all of it: `content-idea@1` reads brand and product
+/// notes and has no business reading a support archive. The set an agent may
+/// see is declared in its code-owned context policy, not chosen at call time.
+model KnowledgeSpace {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  /// Stable, human-written, and unique within the organization. A context
+  /// policy names spaces by slug, so a policy stays readable in code review
+  /// and does not embed a uuid that differs per deployment.
+  slug String
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents KnowledgeDocument[]
+  chunks    KnowledgeChunk[]
+
+  @@unique([organizationId, slug])
+  /// The target of the composite foreign keys below. Its only job is to let a
+  /// child reference `(id, organizationId)` as a pair, so the database — not a
+  /// convention — guarantees the two agree.
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("knowledge_space")
+}
+
+/// One source text, before it was split.
+///
+/// Kept as a row of its own rather than folded into the chunks so a retrieved
+/// passage can say where it came from, and so re-ingesting a changed source
+/// replaces a known set of chunks instead of accumulating duplicates.
+model KnowledgeDocument {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  spaceId String
+  /// Referenced as a pair with `organizationId`, so a document cannot be filed
+  /// into a space belonging to a different organization.
+  space   KnowledgeSpace @relation(fields: [spaceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  title String
+
+  /// Where the text came from, when it came from somewhere addressable. Free
+  /// text and never dereferenced by this application.
+  sourceUri String?
+
+  /// A digest of the source text, so ingestion can tell an unchanged document
+  /// from one that has to be re-split and re-embedded — which costs a provider
+  /// call per chunk.
+  checksum String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chunks KnowledgeChunk[]
+
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([spaceId])
+  @@map("knowledge_document")
+}
+
+/// One passage and its embedding.
+///
+/// `embedding` is `Unsupported` because Prisma has no vector type, and it is
+/// *nullable* because a required `Unsupported` field removes `create`,
+/// `createMany` and `upsert` from the generated delegate entirely — verified
+/// against the installed 7.9.1. A row is therefore written first and its
+/// vector set by a raw `UPDATE`, and a chunk whose embedding is still null is
+/// simply not retrievable yet.
+///
+/// There is deliberately no vector index. An approximate index changes which
+/// rows come back, and the tenant predicate is applied *after* the index scan
+/// — so a scoped query under HNSW returns whichever of the requested rows
+/// happen to survive the filter, silently short. Prisma also cannot represent
+/// such an index and emits `DROP INDEX` for it on every subsequent migration,
+/// so it would not survive a forward-only pipeline in any case. Exact search
+/// needs no index; the btree below is what pgvector's own guidance recommends
+/// for a filter this selective.
+model KnowledgeChunk {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  /// Both parents are referenced as a pair with `organizationId`.
+  ///
+  /// `organizationId` on this row is the entire scoping predicate — retrieval
+  /// filters on it and on `spaceId`, in the same statement that ranks. Left as
+  /// three independent foreign keys, nothing but the correctness of whatever
+  /// writes the row would keep the three tenant answers in agreement, and the
+  /// isolation guarantee would be a convention rather than a constraint. As a
+  /// pair, a chunk that claimed one organization while sitting in another's
+  /// space is rejected by PostgreSQL.
+  spaceId String
+  space   KnowledgeSpace @relation(fields: [spaceId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  documentId String
+  document   KnowledgeDocument @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  /// Position within the document, so a retrieved passage can be placed.
+  ordinal Int
+  content String
+
+  /// 1536 dimensions: `text-embedding-3-small` native, and reachable by
+  /// `text-embedding-3-large` through its `dimensions` parameter — so two
+  /// further models remain available without a table rewrite and a full
+  /// re-embedding.
+  embedding Unsupported("vector(1536)")?
+
+  /// Which model produced the vector.
+  ///
+  /// Two models' embeddings are not comparable — the numbers occupy different
+  /// spaces and the distance between them is arithmetic rather than meaning.
+  /// 1536 dimensions was chosen so `text-embedding-3-large` can replace
+  /// `text-embedding-3-small` without a column change, which means the swap
+  /// will not be forced through a migration that stops traffic: during
+  /// re-embedding the table holds both. Retrieval therefore *filters* on this
+  /// column rather than merely recording it, so a query ranks within one model
+  /// or returns nothing, never across two.
+  embeddingModel String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([documentId, ordinal])
+  @@index([organizationId, spaceId])
+  @@index([documentId])
+  @@map("knowledge_chunk")
 }

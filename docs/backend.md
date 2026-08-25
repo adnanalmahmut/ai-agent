@@ -62,6 +62,32 @@ controller — the worker imports the providers alone, because it resolves a
 provider credential when it executes rather than receiving one in a job payload
 that would sit in Redis and be as stale as the moment it was enqueued.
 
+The Knowledge domain (`src/knowledge/`) holds organization-owned reference
+material — spaces, documents, and embedded chunks — and answers one question:
+which of an organization's passages bear on this, within the spaces the caller
+was granted. Storage is PostgreSQL with pgvector, behind a `RetrievalPort`, and
+the raw vector SQL exists in exactly two files so replacing the storage engine
+is a change to those and to nothing else.
+
+Isolation is a property of the ranking query, not of a filter applied to its
+results. `organizationId` and `spaceId` are denormalized onto every chunk so the
+predicate sits in the same row as the vector: ranking the whole table and
+filtering afterwards would let another organization's closer material push this
+one's out of the requested top-N before the filter ran — a leak that presents as
+missing results rather than as an error. An empty granted-space list retrieves
+nothing rather than everything, and a search with no organization is refused
+before a query is built.
+
+How much may be returned is the operator's, not the caller's:
+`knowledge.retrieval_max_chunks` clamps the requested limit, because context
+volume is a provider cost and a limit a caller can exceed is advisory. Nothing
+here embeds text — retrieval takes a vector, and the provider adapter that
+produces one arrives with the ingestion pipeline that needs it.
+
+Both composition roots get the domain and neither gets a controller from it: the
+worker assembles an agent's context when the run executes rather than from a
+snapshot taken when it was accepted.
+
 ## Operator commands
 
 `src/cli.ts` runs one command and exits. Today that is

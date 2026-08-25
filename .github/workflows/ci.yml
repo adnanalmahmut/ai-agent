@@ -61,7 +61,7 @@ jobs:
       # including its credentials, so a failure reproduces locally with
       # `docker compose --profile test up -d postgres-test redis-test`.
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: backend_test_user
           POSTGRES_PASSWORD: backend_test_password

@@ -6,6 +6,7 @@ import { appConfig, observabilityConfig, workerConfigurations } from './config';
 import { AgentExecutionHandler } from './agents/agent-execution.handler';
 import { AgentExecutionModule } from './agents/agent-execution.module';
 import { ControlPlaneCoreModule } from './control-plane';
+import { KnowledgeCoreModule } from './knowledge';
 import { LifecycleModule } from './core/lifecycle';
 import { OutboxModule } from './core/outbox';
 import { createLoggerOptions } from './core/providers/logger.options';
@@ -66,6 +67,10 @@ import { DatabaseModule } from './database';
     // than receiving one in a job payload that would sit in Redis and be as
     // stale as the moment it was enqueued.
     ControlPlaneCoreModule,
+    // Here for the same reason: an agent assembles its context when it runs,
+    // from whatever the organization's material says then — not from a
+    // snapshot taken when the run was accepted.
+    KnowledgeCoreModule,
     RedisModule,
     QueueModule,
     OutboxModule,
