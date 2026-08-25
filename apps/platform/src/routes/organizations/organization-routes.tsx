@@ -2,11 +2,13 @@ import { useLoaderData } from 'react-router';
 
 import { CreateOrganizationBlock } from '@/features/organization/blocks/create-organization-block';
 import { OrganizationInvitationsBlock } from '@/features/organization/blocks/organization-invitations-block';
+import { OrganizationKnowledgeBlock } from '@/features/organization/blocks/organization-knowledge-block';
 import { OrganizationMembersBlock } from '@/features/organization/blocks/organization-members-block';
 import { OrganizationOverviewBlock } from '@/features/organization/blocks/organization-overview-block';
 import { OrganizationSettingsBlock } from '@/features/organization/blocks/organization-settings-block';
 import { OrganizationShellBlock } from '@/features/organization/blocks/organization-shell-block';
 import { OrganizationsBlock } from '@/features/organization/blocks/organizations-block';
+import { useOrganizationContext } from '@/features/organization/organization-context';
 import type {
   OrganizationData,
   OrganizationsListData,
@@ -43,6 +45,22 @@ export function OrganizationMembersRoute() {
 
 export function OrganizationInvitationsRoute() {
   return <OrganizationInvitationsBlock />;
+}
+
+/**
+ * Keyed on the organization, so moving between two of them remounts.
+ *
+ * React Router reuses the component instance when only the path parameter
+ * changes, and this block holds spaces, a chosen space, and that space's
+ * documents. Without the key, navigating from one organization to another
+ * renders the first one's material under the second one's heading until two
+ * fetches resolve — with no loading state, because the block finished loading
+ * for the organization it is no longer showing.
+ */
+export function OrganizationKnowledgeRoute() {
+  const { organization } = useOrganizationContext();
+
+  return <OrganizationKnowledgeBlock key={organization.id} />;
 }
 
 export function OrganizationSettingsRoute() {

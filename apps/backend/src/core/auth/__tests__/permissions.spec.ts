@@ -201,6 +201,12 @@ describe('global access control', () => {
   });
 });
 
+/** Resources the plugin knows nothing about, so there is no default to narrow. */
+const OWN_ORGANIZATION_RESOURCES: readonly string[] = ['knowledge'];
+
+/** What an ordinary member may do. Everything else must be refused. */
+const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [['knowledge', 'read']];
+
 describe('organization access control', () => {
   describe('permission catalog', () => {
     it('narrows Better Auth defaults rather than redefining them', () => {
@@ -210,6 +216,18 @@ describe('organization access control', () => {
         const upstream = (
           organizationDefaultStatements as Record<string, readonly string[]>
         )[resource];
+
+        /**
+         * `knowledge` is entirely ours: no plugin route checks it, so there is
+         * nothing upstream to narrow. It is asserted absent rather than merely
+         * skipped, so that a resource we believe is ours cannot quietly be a
+         * misspelling of one the plugin already enforces.
+         */
+        if (OWN_ORGANIZATION_RESOURCES.includes(resource)) {
+          expect(upstream).toBeUndefined();
+          continue;
+        }
+
         expect(upstream).toBeDefined();
 
         for (const action of actions) {
@@ -233,16 +251,34 @@ describe('organization access control', () => {
   });
 
   describe('member', () => {
-    it('manages nothing', () => {
+    /**
+     * Stated as an allow-list rather than "nothing", because a member does
+     * hold one grant. Enumerating the whole catalog and excepting that grant
+     * keeps the assertion total: anything added to a role without being added
+     * here is refused by this test, which is the direction that matters.
+     */
+    it('holds only the grants a member is meant to have', () => {
       for (const [resource, actions] of Object.entries(
         ORGANIZATION_PERMISSION_STATEMENTS,
       )) {
         for (const action of actions) {
+          const granted = MEMBER_GRANTS.some(
+            ([grantedResource, grantedAction]) =>
+              grantedResource === resource && grantedAction === action,
+          );
+
           expect(allowsOrganization('member', { [resource]: [action] })).toBe(
-            false,
+            granted,
           );
         }
       }
+    });
+
+    it('reads the knowledge base but cannot change it', () => {
+      expect(allowsOrganization('member', { knowledge: ['read'] })).toBe(true);
+      expect(allowsOrganization('member', { knowledge: ['write'] })).toBe(
+        false,
+      );
     });
   });
 

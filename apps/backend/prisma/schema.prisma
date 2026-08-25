@@ -617,11 +617,24 @@ model KnowledgeDocument {
   /// call per chunk.
   checksum String
 
+  /// How many times the body has been replaced, starting at one.
+  ///
+  /// There is deliberately no revision *history*. Keeping superseded chunks
+  /// would mean either retrieving stale passages or carrying an is-current
+  /// predicate through the one query whose predicates are the isolation
+  /// guarantee. This counter exists so a caller can see that a re-ingestion
+  /// changed something, and so the outbox event for one edit is distinct from
+  /// the event for the next.
+  revision Int @default(1)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   chunks KnowledgeChunk[]
 
+  /// A document is addressed by title within its space, which is what makes
+  /// re-submitting a source an update rather than a duplicate.
+  @@unique([organizationId, spaceId, title])
   @@unique([id, organizationId])
   @@index([organizationId])
   @@index([spaceId])

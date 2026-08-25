@@ -9,6 +9,7 @@ import { AppModule } from '../../src/app.module';
 import { httpConfig } from '../../src/config';
 import { GeoIpService, type GeoIpLocation } from '../../src/core/geoip';
 import { configureTrustedProxy } from '../../src/core/http';
+import { EMBEDDING_PORT } from '../../src/knowledge';
 import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
 import type { MailTransport } from '../../src/core/mail/mail-transport';
 import type {
@@ -81,6 +82,21 @@ export async function createHarness(
     geoIp?: {
       lookup: (ipAddress: string | null | undefined) => Promise<GeoIpLocation>;
     };
+    /**
+     * Substitutes the embedding provider.
+     *
+     * Bound here rather than by the composition root, which wires the real
+     * OpenAI adapter in every process. A suite that needs deterministic
+     * vectors — or that must not reach a provider at all, which is every suite
+     * in CI — supplies its own; production has no way to receive one.
+     */
+    embeddings?: {
+      model: string;
+      dimensions: number;
+      /** Matches the port: the handler pages its reads at this size. */
+      maxBatch: number;
+      embed: (texts: readonly string[]) => Promise<number[][]>;
+    };
   } = {},
 ): Promise<Harness> {
   const transport = new CapturingTransport();
@@ -94,6 +110,12 @@ export async function createHarness(
 
   if (options.geoIp) {
     builder = builder.overrideProvider(GeoIpService).useValue(options.geoIp);
+  }
+
+  if (options.embeddings) {
+    builder = builder
+      .overrideProvider(EMBEDDING_PORT)
+      .useValue(options.embeddings);
   }
 
   const moduleRef = await builder.compile();

@@ -403,6 +403,130 @@ on any PR touching compose or images.
   `prisma generate` is drift and fails CI on its own. Regenerate after any
   schema edit, comments included — not only after a field or model change.
 
+- 2026-08-23: PR5 authorizes in a guard rather than with `@MemberHasPermission`
+  or a check inside the handler. Two reasons, and the second was found by a
+  failing test. `@MemberHasPermission` authorizes against the session's *active*
+  organization, while these routes name their organization in the path, so an
+  operator who had not switched into it would be refused work they may do — and
+  worse, one who *had* switched into a different organization would be granted a
+  check against the wrong tenant. Checking inside the handler was tried first and
+  returned 400 where 404 was expected: Nest runs guards before pipes, so body
+  validation ran ahead of authorization and told an unauthorized caller the
+  request shape. The guard restores the ordering.
+
+- 2026-08-23: Ingestion is content-addressed on `(organizationId, spaceId,
+  title)` with a checksum, rather than keyed on a caller-supplied id. Re-sending
+  identical text is recognized and does nothing at all — no revision, no chunk
+  rewrite, no outbox event — because embedding is the expensive step and the
+  common case for a management surface is re-saving unchanged material.
+
+- 2026-08-23: The outbox dedupe key is `${documentId}:${revision}`, not the
+  document id. Found by mutation: keying on the document alone left the test
+  suite green, but the key becomes BullMQ's job id, so a second edit would be
+  discarded as a repeat while retention still held the first job — leaving the
+  new revision's chunks silently unembedded. A regression test now pins it.
+
+- 2026-08-23: There is no revision *history* table. `revision` counts changes so
+  deliveries can be distinguished; nothing in this milestone reads an older
+  revision, and a table only ever written is a table that drifts.
+
+- 2026-08-23: The embedding model is a code constant, not a runtime setting. The
+  stored vectors' dimension depends on it, so an operator changing it in the
+  Platform would not reconfigure the system — it would silently split the corpus
+  into two incomparable halves. Changing models is a re-embedding, and the
+  `embeddingModel` predicate is what makes that possible without downtime.
+
+- 2026-08-23: Three pre-existing tests failed once PR5 added a second routed
+  event type and a member grant, and all three were repaired to derive from the
+  system rather than restate it: the dispatcher test now asserts the claim
+  against `ROUTABLE_EVENT_TYPES`, and the member test states an allow-list
+  instead of "nothing". Restating a set that grows is how a test goes stale
+  without going red.
+
+- 2026-08-23: The outbox e2e suite now clears its table *before* each test as
+  well as after. Its comment claimed nothing else wrote there; knowledge
+  ingestion now does, and a claim asks for every routable type, so rows left by
+  an earlier suite were leased alongside the test's own. This is also the most
+  likely explanation for the single unexplained e2e failure recorded during PR3
+  — it was cross-suite pollution, not flake.
+
+- 2026-08-23: The Platform document list is tagged with the space it was loaded
+  for. Found while repairing a `react-hooks/set-state-in-effect` violation: the
+  effect cleared the list by writing state, and removing that write exposed that
+  an untagged list renders whichever of the two arrived last — showing one
+  space's documents beneath another's heading.
+
+- 2026-08-23: PR5 review found one high finding — a document whose embedding
+  job exhausted its attempts could never be embedded again. The natural
+  first-use order (enable the feature, store a document, then configure the
+  provider credential) fails every attempt; re-submitting the text is what an
+  operator will try, and content addressing recognized it as unchanged and
+  wrote nothing. Nothing swept for chunks still owed a vector. The unchanged
+  path now re-requests embedding when any chunk lacks a vector for the current
+  model, deliberately with *no* dedupe key: the key is BullMQ's job id and the
+  failed job is retained, so a repair carrying it would be discarded as the
+  duplicate it is not. The same path is what makes a model change a re-run.
+
+- 2026-08-23: Embedding is paged rather than done in one call. A provider
+  failure on the last batch of a long document threw away every vector the
+  earlier batches had been billed for, and the retry bought them again — the
+  handler's own idempotence comment was only true of its writes. The port now
+  states its batch size and the handler reads, embeds, and writes one page at
+  a time, so progress is durable and resident memory is one batch.
+
+- 2026-08-23: `knowledge.ingestion_max_document_bytes` was unreachable. The
+  application parses JSON with a 1 MiB body limit, while the setting allowed
+  10 MiB and defaulted to exactly 1,048,576 — over the limit once the envelope
+  is counted. Raising it would have changed nothing observable and the request
+  would have failed with a bare 413. The ceiling is now 512 KiB with a 256 KiB
+  default, under the transport with headroom for JSON escaping. Raising the
+  global body limit was rejected: it applies to every endpoint.
+
+- 2026-08-23: The archive check ran before the membership check, which turned
+  the pair into a confirmation oracle — `ORGANIZATION_ARCHIVED` is a 403 with
+  its own code while every other refusal is a 404, so a stranger who guessed an
+  id learned it named a real organization. Membership is decided first now.
+  Note the same order exists in `auth-hooks.ts`, which is safe because Better
+  Auth resolves membership before it runs; this guard had no such protection.
+
+- 2026-08-23: Deletion is deliberately outside `knowledge.enabled`. The flag
+  refuses new work, and an operator switching knowledge off is the likeliest
+  person to want the material gone. Documented on both `remove` methods and
+  pinned by a test, rather than left for the next reader to infer.
+
+- 2026-08-23: Ingestion is metered at 60 per five minutes per user. A per-minute
+  cap tight enough to matter refuses the one thing people legitimately do —
+  seeding a knowledge base is dozens of documents in a row — so the window
+  absorbs the burst while holding the sustained rate far below the generic
+  budget. Discovered by the e2e suite failing with 429 under a first attempt at
+  12 per minute, which was the right signal about real usage.
+
+- 2026-08-23: Two listings had no tenant-predicate coverage, the only knowledge
+  paths without a negative cross-organization test. Every other case is a
+  refusal, which is loud; a listing that loses its predicate answers 200 with
+  another organization's rows, which looks like working software. Both are now
+  pinned and both mutants were killed.
+
+- 2026-08-23: Nothing joined the outbox route table to the handlers that answer
+  it — two unrelated literals. A queue or job name changed on one side left
+  every test green while production published jobs nobody consumed, which does
+  not fail but stalls and retries forever. `worker-composition.spec.ts` now
+  asserts a registered handler for every routable event type.
+
+- 2026-08-23: Deferred with reason. Knowledge listings are capped at 200 rows
+  rather than paged: nothing in this milestone consumes a cursor, and a paging
+  contract with one caller is designed against a guess. Also deferred: a
+  literal parity check between the backend and Platform permission catalogs —
+  both are now asserted totally against their own catalogs, but nothing
+  compares the two, and a cross-app import fights both tsconfigs.
+
+- 2026-08-23: One surviving mutant, recorded rather than papered over. The
+  embedding handler's page cursor is `ordinal > after`; changing it to `>=`
+  survives, because the pending predicate already excludes rows a write has
+  cleared. The cursor is a termination guard against a state the writes make
+  unreachable, so no honest test exercises it, and inventing one would assert
+  a scenario that cannot occur.
+
 ## Blockers
 
 None currently.

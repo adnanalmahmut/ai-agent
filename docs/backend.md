@@ -80,13 +80,39 @@ before a query is built.
 
 How much may be returned is the operator's, not the caller's:
 `knowledge.retrieval_max_chunks` clamps the requested limit, because context
-volume is a provider cost and a limit a caller can exceed is advisory. Nothing
-here embeds text — retrieval takes a vector, and the provider adapter that
-produces one arrives with the ingestion pipeline that needs it.
+volume is a provider cost and a limit a caller can exceed is advisory.
 
-Both composition roots get the domain and neither gets a controller from it: the
-worker assembles an agent's context when the run executes rather than from a
-snapshot taken when it was accepted.
+Ingestion is content-addressed. A document is identified within its space by
+title, and storing the same text again is recognized by checksum and does no
+work: no new revision, no chunk rewrite, and no embedding event. Text that has
+in fact changed increments the document's `revision`, replaces its chunks
+wholesale, and appends one outbox event, all in the transaction that writes the
+document. Chunking is paragraph-first and falls back to sentences and then to a
+hard split, so a passage keeps as much of its own context as it can.
+
+Embedding happens in the worker, off the request. The
+`knowledge-document.ingested` event routes to the `knowledge-embedding` queue,
+and the handler embeds only the chunks that lack a vector for the current model
+— which is what makes it safe under at-least-once redelivery, and also what
+makes a model change a matter of re-running rather than of migrating. The
+outbox dedupe key is `${documentId}:${revision}`, so a second edit is a
+different delivery rather than a repeat of the first. The embedding model is a
+code constant rather than a runtime setting: the stored vectors' dimension
+depends on it, so changing it is a re-embedding, not a configuration change.
+
+Authorization is a guard, not a check inside the handler. Nest runs guards
+before pipes, so an unauthorized caller is refused before the body is
+validated, and cannot learn the request shape from validation errors. The guard
+authorizes against the organization named in the path rather than the session's
+active one, because an operator acting on an organization has not necessarily
+switched into it. `knowledge.enabled` is asserted at the acceptance boundary,
+where refusing new work is meaningful; retrieval does not consult it, because an
+accepted run must be allowed to finish.
+
+Both composition roots get the domain, but only the API gets its controller.
+`KnowledgeCoreModule` carries the providers the worker needs; `KnowledgeModule`
+adds the surface. The worker assembles an agent's context when the run executes
+rather than from a snapshot taken when it was accepted.
 
 ## Operator commands
 

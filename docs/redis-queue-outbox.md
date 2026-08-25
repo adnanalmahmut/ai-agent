@@ -33,9 +33,20 @@ The internal AgentRun acceptance boundary follows that existing path: one
 PostgreSQL transaction creates a `QUEUED` `agent_run` and an
 `agent-run.queued` outbox event whose payload is only `{ runId }` and whose
 dedupe key is that run id. The existing route publishes `execute` to
-`agent-execution`. `WorkerModule` explicitly registers the single
-`AgentExecutionHandler`; `QueueModule` contains publication only, so the API
-composition root cannot consume jobs.
+`agent-execution`. `WorkerModule` registers the handlers —
+`AgentExecutionHandler` and `KnowledgeEmbeddingHandler`; `QueueModule` contains
+publication only, so the API composition root cannot consume jobs.
+
+Knowledge ingestion uses the same boundary. One transaction writes the document
+and its chunks and appends a `knowledge-document.ingested` event carrying only
+`{ documentId, organizationId }`, which routes `embed` to `knowledge-embedding`.
+The dedupe key is `${documentId}:${revision}` rather than the document id
+alone: the key becomes BullMQ's job id, so keying on the document would let a
+second edit be discarded as a repeat of the first while retention still held
+it, leaving the new revision's chunks unembedded. Idempotency under redelivery
+is PostgreSQL-backed rather than key-based — the handler embeds only chunks
+that have no vector for the current model, so a duplicate delivery finds
+nothing to do.
 
 The handler stores BullMQ's `attemptsStarted` active-start ordinal as the durable
 AgentRun `attemptCount` compare-and-set version. Unlike `attemptsMade`, that

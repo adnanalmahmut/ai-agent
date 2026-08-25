@@ -27,6 +27,15 @@ export const OUTBOX_EVENT_ROUTES = {
     queue: QUEUE_NAMES.agentExecution,
     jobName: 'execute',
   },
+  /**
+   * A knowledge document's text was committed and its chunks still need
+   * vectors. Written in the same transaction as the chunks, so the work is
+   * durable before anything is published.
+   */
+  'knowledge-document.ingested': {
+    queue: QUEUE_NAMES.knowledgeEmbedding,
+    jobName: 'embed',
+  },
 } as const satisfies Record<string, { queue: QueueName; jobName: string }>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_ROUTES;

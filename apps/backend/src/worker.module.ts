@@ -6,7 +6,7 @@ import { appConfig, observabilityConfig, workerConfigurations } from './config';
 import { AgentExecutionHandler } from './agents/agent-execution.handler';
 import { AgentExecutionModule } from './agents/agent-execution.module';
 import { ControlPlaneCoreModule } from './control-plane';
-import { KnowledgeCoreModule } from './knowledge';
+import { KnowledgeCoreModule, KnowledgeEmbeddingHandler } from './knowledge';
 import { LifecycleModule } from './core/lifecycle';
 import { OutboxModule } from './core/outbox';
 import { createLoggerOptions } from './core/providers/logger.options';
@@ -80,10 +80,11 @@ import { DatabaseModule } from './database';
     QueueWorkerRunner,
     {
       provide: QUEUE_JOB_HANDLERS,
-      inject: [AgentExecutionHandler],
+      inject: [AgentExecutionHandler, KnowledgeEmbeddingHandler],
       useFactory: (
         agentExecution: AgentExecutionHandler,
-      ): QueueJobHandler[] => [agentExecution],
+        knowledgeEmbedding: KnowledgeEmbeddingHandler,
+      ): QueueJobHandler[] => [agentExecution, knowledgeEmbedding],
     },
   ],
 })

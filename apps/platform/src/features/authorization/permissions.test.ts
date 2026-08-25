@@ -115,12 +115,42 @@ describe('global roles', () => {
   });
 });
 
+/** What an ordinary member may do here. Everything else must be refused. */
+const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [['knowledge', 'read']];
+
 describe('organization roles', () => {
-  it('grants a plain member nothing', () => {
-    expect(allows(organizationRoles.member, { organization: ['update'] })).toBe(
-      false,
+  /**
+   * Stated over the whole catalog with an allow-list, rather than by probing
+   * two resources.
+   *
+   * These gates decide which controls an operator is shown, so a grant added
+   * here but not on the server puts a button on screen that answers 403 —
+   * and probing a sample cannot notice a grant nobody thought to probe. The
+   * backend's own spec is written in this shape for the same reason; the two
+   * lists are maintained together deliberately.
+   */
+  it('holds only the grants a member is meant to have', () => {
+    for (const [resource, actions] of Object.entries(
+      ORGANIZATION_PERMISSION_STATEMENTS,
+    )) {
+      for (const action of actions) {
+        const granted = MEMBER_GRANTS.some(
+          ([grantedResource, grantedAction]) =>
+            grantedResource === resource && grantedAction === action,
+        );
+
+        expect(allows(organizationRoles.member, { [resource]: [action] })).toBe(
+          granted,
+        );
+      }
+    }
+  });
+
+  it('lets a member read the knowledge base but not change it', () => {
+    expect(allows(organizationRoles.member, { knowledge: ['read'] })).toBe(
+      true,
     );
-    expect(allows(organizationRoles.member, { invitation: ['create'] })).toBe(
+    expect(allows(organizationRoles.member, { knowledge: ['write'] })).toBe(
       false,
     );
   });

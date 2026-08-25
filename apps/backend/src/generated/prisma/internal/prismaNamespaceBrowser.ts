@@ -315,6 +315,7 @@ export const KnowledgeDocumentScalarFieldEnum = {
   title: 'title',
   sourceUri: 'sourceUri',
   checksum: 'checksum',
+  revision: 'revision',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { PinoLogger } from 'nestjs-pino';
 
 import { QueuePublishError, type QueueProducer } from '../../queue';
+import { ROUTABLE_EVENT_TYPES } from '../outbox-event.routes';
 import { OutboxDispatcher } from '../outbox-dispatcher.service';
 import type {
   ClaimedOutboxEvent,
@@ -188,9 +189,17 @@ describe('OutboxDispatcher', () => {
 
     await dispatcher.dispatchOnce();
 
+    // Derived from the route table rather than restated, so a newly routed
+    // event type that the dispatcher forgets to claim fails here instead of
+    // silently parking in production.
     expect(claim).toHaveBeenCalledWith(
-      expect.objectContaining({ types: ['agent-run.queued'] }),
+      expect.objectContaining({ types: [...ROUTABLE_EVENT_TYPES] }),
     );
+    // Anchored, both of them: the assertion above compares the dispatcher to
+    // the constant it already references, so it cannot notice a type dropped
+    // from the route table. These can.
+    expect(ROUTABLE_EVENT_TYPES).toContain('agent-run.queued');
+    expect(ROUTABLE_EVENT_TYPES).toContain('knowledge-document.ingested');
   });
 
   describe('a transient publish failure', () => {

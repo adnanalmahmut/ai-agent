@@ -1,5 +1,5 @@
 import { cn } from '@repo/ui';
-import { LayoutDashboard, Mail, Settings, Users } from 'lucide-react';
+import { BookText, LayoutDashboard, Mail, Settings, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { useTranslations } from 'use-intl';
 
@@ -41,6 +41,12 @@ export function OrganizationTabs({
       href: ORGANIZATION_ROUTES.invitations(organizationId),
       label: t('tabs.invitations'),
       Icon: Mail,
+      exact: false,
+    },
+    {
+      href: ORGANIZATION_ROUTES.knowledge(organizationId),
+      label: t('tabs.knowledge'),
+      Icon: BookText,
       exact: false,
     },
     {

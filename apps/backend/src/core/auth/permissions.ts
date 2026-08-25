@@ -216,6 +216,16 @@ export const ORGANIZATION_PERMISSION_STATEMENTS = {
   organization: ['update', 'delete', 'archive', 'restore'],
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
+  /**
+   * The organization's own reference material.
+   *
+   * Split read from write because they are different exposures. Reading is
+   * ordinary membership — the material is what the organization's agents will
+   * be answering from, and a member unable to see it cannot tell why an answer
+   * was what it was. Writing replaces what every future agent run reads, which
+   * is a content decision rather than a routine one.
+   */
+  knowledge: ['read', 'write'],
 } as const;
 
 const organizationAc = createAccessControl(ORGANIZATION_PERMISSION_STATEMENTS);
@@ -225,6 +235,9 @@ const organizationMember = organizationAc.newRole({
   organization: [],
   member: [],
   invitation: [],
+  // Reading is ordinary membership; a member who cannot see the material
+  // cannot tell why an agent answered as it did.
+  knowledge: ['read'],
 });
 
 /** Runs the organization day to day, but cannot end its life. */
@@ -232,6 +245,7 @@ const organizationAdmin = organizationAc.newRole({
   organization: ['update'],
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
+  knowledge: ['read', 'write'],
 });
 
 /**
@@ -245,6 +259,7 @@ const organizationOwner = organizationAc.newRole({
   organization: ['update', 'archive', 'restore'],
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
+  knowledge: ['read', 'write'],
 });
 
 export const organizationAccessControl = organizationAc;

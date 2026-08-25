@@ -23,6 +23,16 @@ import { buildRedisConnectionOptions } from '../redis';
 export const QUEUE_NAMES = {
   /** Asynchronous agent execution: one job per `AgentRun` attempt. */
   agentExecution: 'agent-execution',
+  /**
+   * Embedding a knowledge document's chunks after its text is committed.
+   *
+   * Its own queue rather than a second job name on the agent queue, because
+   * the two have genuinely different shapes: an agent run is one long call a
+   * person is waiting on, and an embedding job is many short provider calls
+   * nobody is. Sharing a queue would let a re-ingested manual crowd out the
+   * runs behind it.
+   */
+  knowledgeEmbedding: 'knowledge-embedding',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

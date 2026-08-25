@@ -11,7 +11,14 @@ There are two deliberately separate access-control domains:
 | Domain | Roles | Authority |
 |---|---|---|
 | Platform | `user`, `admin`, `super_admin` | account/session administration and platform lifecycle |
-| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore |
+| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore, knowledge read/write |
+
+`knowledge` is the one organization resource Better Auth knows nothing about,
+so it is added rather than narrowed. Reading is ordinary membership — a member
+who cannot see the material cannot tell why an agent answered as it did — while
+writing belongs to `admin` and `owner`. It is enforced by a guard that runs
+before body validation and authorizes against the organization named in the
+path, not the session's active one.
 
 No global role grants organization authority and no organization role grants
 platform authority. `super_admin` alone can grant roles, take over account

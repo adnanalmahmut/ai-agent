@@ -156,6 +156,11 @@ export const ORGANIZATION_PERMISSION_STATEMENTS = {
   organization: ['update', 'delete', 'archive', 'restore'],
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
+  /**
+   * The organization's own reference material. Read is ordinary membership;
+   * write replaces what every future agent run reads.
+   */
+  knowledge: ['read', 'write'],
 } as const;
 
 export const organizationAccessControl = createAccessControl(
@@ -166,18 +171,21 @@ const organizationMember = organizationAccessControl.newRole({
   organization: [],
   member: [],
   invitation: [],
+  knowledge: ['read'],
 });
 
 const organizationAdmin = organizationAccessControl.newRole({
   organization: ['update'],
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
+  knowledge: ['read', 'write'],
 });
 
 const organizationOwner = organizationAccessControl.newRole({
   organization: ['update', 'archive', 'restore'],
   member: ['create', 'update', 'delete'],
   invitation: ['create', 'cancel'],
+  knowledge: ['read', 'write'],
 });
 
 /**

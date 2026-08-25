@@ -24,7 +24,7 @@ export const FEATURE_FLAGS = {
     organizationOverridable: true,
   },
   'knowledge.enabled': {
-    description: 'Accept knowledge ingestion and serve retrieval.',
+    description: 'Accept new knowledge ingestion for an organization.',
     defaultEnabled: false,
     organizationOverridable: true,
   },

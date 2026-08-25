@@ -2,6 +2,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -105,8 +106,20 @@ describe('transactional outbox (e2e)', () => {
     await prisma.onModuleDestroy();
   });
 
+  /**
+   * Cleared before each test as well as after.
+   *
+   * These assertions describe the whole claim, so the suite has to own the
+   * whole table. It is no longer the only writer — knowledge ingestion appends
+   * here too, and a claim asks for every routable type — so rows left behind
+   * by an earlier suite would be leased alongside this test's own and read as
+   * a claim returning more than it was given.
+   */
+  beforeEach(async () => {
+    await prisma.outboxEvent.deleteMany({});
+  });
+
   afterEach(async () => {
-    // Scoped to this table, which nothing outside this suite writes to yet.
     await prisma.outboxEvent.deleteMany({});
     try {
       await inspector.obliterate({ force: true });

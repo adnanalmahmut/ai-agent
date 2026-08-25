@@ -92,12 +92,21 @@ export const RUNTIME_SETTINGS = {
   },
   'knowledge.ingestion_max_document_bytes': {
     description: 'Largest document accepted for ingestion, in bytes.',
+    /**
+     * Bounded well below the 1 MiB JSON body limit the application parses
+     * with, not at some notional maximum. A ceiling the transport refuses
+     * first is not a setting: raising it would change nothing an operator
+     * could observe, and the request would fail with a bare 413 that says
+     * nothing about the limit they had just edited. The headroom covers the
+     * rest of the envelope and JSON escaping, which can inflate the encoded
+     * form of the text well past its byte length.
+     */
     schema: z
       .number()
       .int()
       .min(1_024)
-      .max(10 * 1_024 * 1_024),
-    defaultValue: 1_048_576,
+      .max(512 * 1_024),
+    defaultValue: 256 * 1_024,
     sensitivity: 'public',
     editable: true,
   },
