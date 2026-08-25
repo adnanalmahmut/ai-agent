@@ -24,6 +24,7 @@ import {
   Search,
   Settings,
   Shield,
+  SlidersHorizontal,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -57,6 +58,7 @@ export function PlatformSidebar() {
   const { pathname } = useAppLocation();
   const current = useCurrentOrganization();
   const canManageUsers = useGlobalPermission({ user: ['list'] });
+  const canReadControlPlane = useGlobalPermission({ controlPlane: ['read'] });
 
   const primary: NavItem[] = [
     {
@@ -85,6 +87,21 @@ export function PlatformSidebar() {
             href: PLATFORM_ROUTES.adminUsers,
             label: t('nav.adminUsers'),
             Icon: Shield,
+            exact: false,
+          },
+        ]
+      : []),
+    /*
+     * Gated separately from user administration, because the two are separate
+     * permissions and only one of them is granted to `admin`. Hiding it is
+     * courtesy; the backend refuses the reader either way.
+     */
+    ...(canReadControlPlane
+      ? [
+          {
+            href: PLATFORM_ROUTES.controlPlane,
+            label: t('nav.controlPlane'),
+            Icon: SlidersHorizontal,
             exact: false,
           },
         ]

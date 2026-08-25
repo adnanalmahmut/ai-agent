@@ -282,6 +282,19 @@ export function createRoutes(): RouteObject[] {
                         },
 
                         {
+                          // Its own chunk: the operator surface is reached by
+                          // one role, rarely, and nothing else in the shell
+                          // needs the three panels it pulls in.
+                          path: rel(PLATFORM_ROUTES.controlPlane),
+                          lazy: {
+                            Component: async () =>
+                              (
+                                await import('@/routes/admin/control-plane-route')
+                              ).ControlPlaneRoute,
+                          },
+                        },
+
+                        {
                           // The heaviest page in the application and the least
                           // visited, so it is the one that earns its own chunk.
                           path: rel(PLATFORM_ROUTES.designSystem),

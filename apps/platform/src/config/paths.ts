@@ -28,3 +28,14 @@ export const API_BASE_PATH = '/api';
 
 /** Better Auth's mount point inside the backend. */
 export const AUTH_BASE_PATH = `${API_BASE_PATH}/auth`;
+
+/**
+ * The backend's operator surface.
+ *
+ * Here rather than beside the functions that call it, because written out in
+ * full it is `/platform/control-plane` — a backend route that is spelled the
+ * same as this application's own mount point and means something completely
+ * different. Composed from a constant, the two can never be confused for one
+ * another or edited as if they were the same thing.
+ */
+export const CONTROL_PLANE_PATH = '/platform/control-plane';

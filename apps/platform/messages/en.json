@@ -578,7 +578,8 @@
       "invitations": "Invitations",
       "settings": "Settings",
       "userSettings": "Account settings",
-      "adminUsers": "User administration"
+      "adminUsers": "User administration",
+      "controlPlane": "Control plane"
     },
     "account": {
       "label": "Open the account menu",
@@ -750,6 +751,79 @@
       "restoreTitle": "Restore User",
       "restoreDescription": "Are you sure you want to restore {name}'s account?",
       "restoreSubmit": "Restore Account"
+    }
+  },
+  "ControlPlane": {
+    "title": "Control plane",
+    "description": "Feature availability, operational limits, and provider credentials. Changes take effect immediately and apply to the whole platform.",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "dismiss": "Dismiss",
+    "error": {
+      "unavailable": "The platform API could not be reached.",
+      "unauthenticated": "Your session has expired. Sign in again to continue.",
+      "forbidden": "You do not have permission to use the control plane.",
+      "invalid": "The value was refused. Check the allowed range and try again.",
+      "failed": "Something went wrong. Try again."
+    },
+    "flags": {
+      "tab": "Feature flags",
+      "empty": "No feature flags are registered.",
+      "on": "On",
+      "off": "Off",
+      "enable": "Enable",
+      "disable": "Disable",
+      "clear": "Clear override",
+      "defaultOn": "Enabled in code",
+      "defaultOff": "Disabled in code",
+      "source": {
+        "organization": "Organization override",
+        "platform": "Platform override",
+        "default": "Code default"
+      },
+      "column": {
+        "flag": "Flag",
+        "state": "State",
+        "source": "Source",
+        "actions": "Actions"
+      }
+    },
+    "settings": {
+      "tab": "Settings",
+      "empty": "No runtime settings are registered.",
+      "default": "Using the default",
+      "rejected": "Stored value refused",
+      "deploymentOnly": "Deployment only",
+      "defaultIs": "Default: {value}",
+      "save": "Save",
+      "reset": "Reset",
+      "column": {
+        "setting": "Setting",
+        "value": "Value",
+        "actions": "Actions"
+      }
+    },
+    "secrets": {
+      "tab": "Credentials",
+      "empty": "No credential slots are registered.",
+      "configured": "Configured",
+      "notConfigured": "Not configured",
+      "unusable": "Cannot be decrypted",
+      "store": "Store",
+      "rotate": "Rotate",
+      "remove": "Remove",
+      "valueLabel": "New value for {key}",
+      "valuePlaceholder": "Paste the credential",
+      "labelLabel": "Label for {key}",
+      "labelPlaceholder": "Optional note, never the credential",
+      "column": {
+        "secret": "Credential",
+        "status": "Status",
+        "value": "New value",
+        "actions": "Actions"
+      },
+      "lastRotated": "Last rotated {when}",
+      "labelHoldsCredential": "That note contains the credential. Nothing was sent — clear the note and store the credential in the field above."
     }
   }
 }

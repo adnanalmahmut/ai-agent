@@ -29,6 +29,17 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { 'content-type': 'application/json' },
   });
 
+/** What the backend's global `ResponseInterceptor` actually emits. */
+const enveloped = (data: unknown, status = 200) =>
+  jsonResponse(
+    {
+      success: true,
+      data,
+      meta: { requestId: 'req_test', timestamp: '2026-08-23T00:00:00.000Z' },
+    },
+    status,
+  );
+
 describe('a successful call', () => {
   it('addresses the API by path on this same origin', async () => {
     // No host anywhere: production and development both serve the backend
@@ -43,12 +54,46 @@ describe('a successful call', () => {
     );
   });
 
-  it('returns the parsed body', async () => {
-    fetchMock.mockResolvedValue(jsonResponse([{ id: 'org_1' }]));
+  /**
+   * The fixture is the envelope, because that is the only thing the backend
+   * emits. Its `ResponseInterceptor` is global and wraps every non-204 `/api`
+   * body as `{ success, data, meta }`, so a test written against a bare array
+   * asserts against a response the server cannot produce — and would keep
+   * passing while every caller that reads a body received the envelope.
+   */
+  it('returns what the server put in the envelope, not the envelope', async () => {
+    fetchMock.mockResolvedValue(enveloped([{ id: 'org_1' }]));
 
     await expect(apiRequest('/organizations/archived')).resolves.toEqual([
       { id: 'org_1' },
     ]);
+  });
+
+  it('unwraps an object payload as readily as a list', async () => {
+    fetchMock.mockResolvedValue(enveloped({ key: 'agents.enabled' }));
+
+    await expect(apiRequest('/x')).resolves.toEqual({ key: 'agents.enabled' });
+  });
+
+  /**
+   * `meta` carries a request id, a timestamp and — on paginated routes — the
+   * page counts. Nothing here reads any of it, and a caller that received the
+   * pair would have to unwrap something it never uses.
+   */
+  it('drops the envelope metadata rather than returning a pair', async () => {
+    fetchMock.mockResolvedValue(enveloped(['a']));
+
+    const result = await apiRequest<string[]>('/x');
+
+    expect(result).toEqual(['a']);
+    expect(result).not.toHaveProperty('meta');
+  });
+
+  /** `@RawResponse()` endpoints exist, and are not this function's business. */
+  it('returns an unenveloped body as it stands', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ status: 'ok' }));
+
+    await expect(apiRequest('/health')).resolves.toEqual({ status: 'ok' });
   });
 
   it('sends JSON only when there is a body', async () => {
@@ -151,5 +196,93 @@ describe('an empty success', () => {
     fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(apiRequest('/x', { method: 'POST' })).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The reasons the server gave, on their way to a screen.
+ *
+ * Every screen that shows a specific rejection reason gets it through here,
+ * and nothing else in the application parses an error body. A test that
+ * constructs `new ApiError(422, code, { issues })` by hand proves the screen
+ * renders details; only these prove the details ever arrive.
+ */
+describe('the reasons a refusal carries', () => {
+  it('reads the issues a validation failure listed', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            code: 'VALIDATION_ERROR',
+            details: { issues: ['Too big: expected number to be <=100'] },
+          },
+        },
+        422,
+      ),
+    );
+
+    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+
+    expect(failure.code).toBe('VALIDATION_ERROR');
+    expect(failure.details.issues).toEqual([
+      'Too big: expected number to be <=100',
+    ]);
+  });
+
+  it('reads a single reason from an unnested body', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ code: 'VALIDATION_ERROR', details: { reason: 'no' } }, 422),
+    );
+
+    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+
+    expect(failure.details.reason).toBe('no');
+  });
+
+  /**
+   * The screen maps over `issues` and renders each as a list item. A body
+   * carrying objects there would otherwise reach React as children.
+   */
+  it('refuses issues that are not all strings', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: { details: { issues: ['ok', { bad: 1 }] } } }, 422),
+    );
+
+    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+
+    expect(failure.details.issues).toBeUndefined();
+  });
+
+  it('refuses a reason that is not a string', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: { details: { reason: { text: 'no' } } } }, 422),
+    );
+
+    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+
+    expect(failure.details.reason).toBeUndefined();
+  });
+
+  it('carries no details when the body has none', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ error: { code: 'FORBIDDEN' } }, 403));
+
+    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+
+    expect(failure.code).toBe('FORBIDDEN');
+    expect(failure.details).toEqual({});
+  });
+
+  it('survives an error body that is not JSON at all', async () => {
+    fetchMock.mockResolvedValue(
+      new Response('<html>502 Bad Gateway</html>', {
+        status: 502,
+        headers: { 'content-type': 'text/html' },
+      }),
+    );
+
+    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+
+    expect(failure).toBeInstanceOf(ApiError);
+    expect(failure.details).toEqual({});
   });
 });
