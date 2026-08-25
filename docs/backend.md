@@ -39,10 +39,83 @@ redaction into container logs.
 A worker-only reconciliation sweep finalizes runs whose queue job the transport
 failed terminally without ever invoking the handler, which BullMQ does when a
 job exceeds its stalled-job allowance. Deterministic configuration failures —
-an unregistered definition pair, a runtime mismatch — are recorded as final
-immediately instead of consuming the retry budget. Production definitions remain
-empty and no public create route is exposed, so this still does not let a user
-execute an agent.
+an unregistered definition pair, a runtime mismatch, a model naming a provider
+this build cannot authenticate — are recorded as final immediately instead of
+consuming the retry budget. A provider that answered in the wrong shape is not
+one of those: it may well answer correctly next time, so it keeps its retries.
+
+A definition now also carries what it accepts, what it promises, and what it may
+read. Both schemas are parsed rather than asserted, and the output schema is the
+less obvious of the two: a model is an untrusted source that this application
+happens to pay for, so a run that stored whatever came back would make
+`AgentRun.output` a shape no consumer could rely on. Input is parsed again at
+execution against the *pinned* version's schema, because a run accepted days
+earlier must be checked against the definition it will actually run with.
+
+`ContextPolicy` names the knowledge spaces an agent may read, by slug, with an
+explicit chunk budget and an explicit character budget. The two are separate
+because they bound different costs: the first bounds the retrieval, the second
+bounds what is actually sent, which is what a provider bills for and what starts
+displacing the instructions as a corpus grows. Assembly happens in the
+application (`AgentContextAssembler`), not in the runtime — Mastra has its own
+retrieval primitives, and using them would put the tenant predicate, the space
+policy and the budget inside a framework this repository does not own. Slugs are
+resolved against the caller's own organization, so a definition cannot name its
+way into another tenant's material, and an agent with no policy gets nothing
+rather than everything.
+
+Retrieved passages travel to the runtime separately from the input and are
+rendered into the *user* message, fenced and labelled as quoted material. They
+are never merged into the instructions: they are organization data that some
+member typed, and the system message is where the operator speaks. Angle
+brackets inside a passage are replaced before it is fenced, so a document
+cannot close the fence and continue in the position the preamble has told the
+model is the caller's request. That is mitigation rather than proof — nothing
+in a prompt makes a model incapable of following text it is shown — and what
+keeps it from mattering today is that this milestone's agent has no tools and
+no side effects. The fence is made unbreakable anyway, because an argument
+resting on there being nothing worth stealing stops holding the moment the
+agent gains a tool.
+
+The provider credential is resolved per run from the encrypted store and passed
+to the SDK on the model config. Mastra would otherwise resolve a bare
+`provider/model` string by reading a provider environment variable, which would
+mean the platform's key living in the worker's process environment for its whole
+life and rotating only on a deployment. A definition naming a provider this
+build holds no credential mapping for fails as a configuration error rather
+than falling back to an environment variable, and composition asserts that no
+registered definition does.
+
+The generation call is bounded on the side that costs money. Everything
+entering a prompt is already capped — the input schema on every field, the
+context policy on chunks and characters — while nothing capped what came back,
+and tokens are billed before the output schema gets to reject them. The
+adapter sets an output-token ceiling, a wall-clock timeout so a stalled
+provider does not hold a worker slot until BullMQ reclaims the job, and
+`maxRetries: 0`, because retry belongs to BullMQ where each attempt is recorded
+against the run rather than to an SDK loop that reports three calls as one.
+
+`content-idea@1` (`src/agents/definitions/`) is the first production definition,
+and `src/content-ideas/` is the business surface in front of it: one route to
+request ideas and one to read the operation. Generation is asynchronous because
+it is a provider call that takes seconds and can fail, so the request returns an
+operation the caller polls; there is deliberately no synchronous variant.
+Acceptance checks two flags, coarse first: `agents.enabled` is the switch that
+stops every agent at once, and `content_ideas.enabled` is this feature's own.
+It also enforces `agents.max_concurrent_runs_per_organization`, counting the
+organization's `QUEUED` and `RUNNING` runs — a ceiling rather than a semaphore,
+since two accepts racing can both observe room, so the bound is exceeded by at
+most the number of requests in flight at that instant. It is checked after the
+idempotency lookup, so a caller retrying a request that was already accepted is
+never refused at a ceiling they are themselves occupying. The per-user rate
+limit is not a substitute: that bounds one member, and the bill is the
+organization's. Reading is ungated for the same reason knowledge reads are, and
+an `Idempotency-Key` header is required — generation is
+not naturally idempotent and a client retrying a timed-out request without one
+would buy the same ideas twice. The stored key mixes the caller's key with a
+digest of the parsed request, so an honest retry finds its own run while the
+same key sent with a different body is a different key rather than a way to
+receive somebody else's answer.
 
 The control plane (`src/control-plane/`) holds operational state an operator can
 change without a deployment: feature flags, typed runtime settings, and

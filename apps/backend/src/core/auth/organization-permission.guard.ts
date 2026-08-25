@@ -8,11 +8,12 @@ import {
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 
-import { AppException } from '../core/errors';
-import { KnowledgeAuthorization } from './knowledge-authorization';
+import { AppException } from '../errors';
+import { OrganizationAccess } from './organization-access.service';
+import type { OrganizationPermissionRequest } from './permissions';
 
 /**
- * Authorization for knowledge routes, as a guard rather than a method call.
+ * Organization authorization as a guard rather than a method call.
  *
  * A guard because Nest runs guards *before* pipes. Checking inside the handler
  * means the body has already been parsed and validated, so a caller with no
@@ -23,30 +24,35 @@ import { KnowledgeAuthorization } from './knowledge-authorization';
  * `await this.authorize(...)` line would simply be open.
  *
  * Deliberately not Better Auth's `@MemberHasPermission`. That decorator
- * authorizes against the session's *active* organization, and every route here
- * names its organization in the path. For anyone belonging to two, the two are
- * different organizations, and the answer would be about the wrong one.
+ * authorizes against the session's *active* organization, and every route
+ * using this guard names its organization in the path. For anyone belonging to
+ * two, the two are different organizations, and the answer would be about the
+ * wrong one.
+ *
+ * The permission asked for is whatever the decorator was given, in the same
+ * shape the shared access control takes everywhere else. One guard rather than
+ * one per feature: a second copy of this reasoning is a second place for it to
+ * be got subtly wrong, and the parts that matter — guard-before-pipe, path over
+ * active organization, deny when unmarked — are identical for every resource.
  */
 
-const KNOWLEDGE_PERMISSION = 'knowledgePermission';
+const ORGANIZATION_PERMISSION = 'organizationPermission';
 
-export type KnowledgePermission = 'read' | 'write';
-
-export const RequiresKnowledge = (
-  permission: KnowledgePermission,
-): CustomDecorator<string> => SetMetadata(KNOWLEDGE_PERMISSION, permission);
+export const RequiresOrganizationPermission = (
+  permission: OrganizationPermissionRequest,
+): CustomDecorator<string> => SetMetadata(ORGANIZATION_PERMISSION, permission);
 
 @Injectable()
-export class KnowledgePermissionGuard implements CanActivate {
+export class OrganizationPermissionGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly authorization: KnowledgeAuthorization,
+    private readonly authorization: OrganizationAccess,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const permission = this.reflector.getAllAndOverride<
-      KnowledgePermission | undefined
-    >(KNOWLEDGE_PERMISSION, [context.getHandler(), context.getClass()]);
+      OrganizationPermissionRequest | undefined
+    >(ORGANIZATION_PERMISSION, [context.getHandler(), context.getClass()]);
 
     /**
      * An unmarked route is refused, not allowed through. The default has to be

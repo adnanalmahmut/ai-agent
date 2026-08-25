@@ -137,21 +137,30 @@ export class KnowledgeSpaceService {
     return { id: input.spaceId };
   }
 
-  /** Resolves a slug to an id within one organization, for a context policy. */
+  /**
+   * Resolves slugs to ids within one organization, for a context policy.
+   *
+   * The organization is a predicate, not a filter applied afterwards: an
+   * agent definition names spaces by slug, and slugs are only unique inside an
+   * organization, so a policy naming one that belongs to somebody else must
+   * resolve to nothing rather than to their material.
+   *
+   * Returns the slug alongside the id because the caller labels each retrieved
+   * passage with the space it came from, and the ids coming back out of
+   * retrieval carry no name.
+   */
   async resolveSlugs(input: {
     organizationId: string;
     slugs: readonly string[];
-  }): Promise<string[]> {
+  }): Promise<{ id: string; slug: string }[]> {
     if (input.slugs.length === 0) return [];
 
-    const spaces = await this.prisma.knowledgeSpace.findMany({
+    return this.prisma.knowledgeSpace.findMany({
       where: {
         organizationId: input.organizationId,
         slug: { in: [...input.slugs] },
       },
-      select: { id: true },
+      select: { id: true, slug: true },
     });
-
-    return spaces.map((space) => space.id);
   }
 }

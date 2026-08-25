@@ -16,9 +16,13 @@ export const FEATURE_FLAGS = {
   'agents.enabled': {
     description: 'Accept new agent runs.',
     /**
-     * Default off. This gates a subsystem that costs money per invocation and
-     * whose first real definition does not exist yet, so the safe default is
-     * the one that does nothing until somebody decides otherwise.
+     * Default off. This gates a subsystem that costs money per invocation, so
+     * the safe default is the one that does nothing until somebody decides
+     * otherwise.
+     *
+     * The coarse switch: every acceptance boundary that queues agent work
+     * checks this before checking its own feature's flag, so turning it off
+     * stops all of them at once.
      */
     defaultEnabled: false,
     organizationOverridable: true,

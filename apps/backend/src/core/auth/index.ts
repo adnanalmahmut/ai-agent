@@ -36,3 +36,10 @@ export {
 
 export { AccountLifecycleService } from './account-lifecycle.service';
 export { OrganizationLifecycleService } from './organization-lifecycle.service';
+
+export { OrganizationAccess } from './organization-access.service';
+export { OrganizationAccessModule } from './organization-access.module';
+export {
+  OrganizationPermissionGuard,
+  RequiresOrganizationPermission,
+} from './organization-permission.guard';

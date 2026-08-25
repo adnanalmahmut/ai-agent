@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
-import { memberRoleHasPermission } from '../core/auth/permissions';
-import { AppException } from '../core/errors';
-import { PrismaService } from '../database';
+import {
+  memberRoleHasPermission,
+  type OrganizationPermissionRequest,
+} from './permissions';
+import { AppException } from '../errors';
+import { PrismaService } from '../../database';
 
 /**
- * Authorization for knowledge routes, against the organization in the path.
+ * Authorization against the organization named in the request path.
  *
  * Not `@MemberHasPermission`. That decorator authorizes against the session's
  * *active* organization, which is a different organization from the one named
@@ -19,20 +22,21 @@ import { PrismaService } from '../database';
  * row and asks the shared access control, so `admin` and `owner` mean here
  * exactly what they mean everywhere else, and a platform `super_admin` who is
  * not a member gets nothing — an operator's authority over the platform is not
- * authority inside a tenant's knowledge.
+ * authority inside a tenant's data.
  *
  * An archived organization is refused as well. Every operation on one is
- * refused elsewhere, and ingesting into a dormant organization would be an
+ * refused elsewhere, and acting inside a dormant organization would be an
  * exception nobody chose.
  */
 @Injectable()
-export class KnowledgeAuthorization {
+export class OrganizationAccess {
   constructor(private readonly prisma: PrismaService) {}
 
   async assertMay(input: {
     organizationId: string;
     actorUserId: string;
-    permission: 'read' | 'write';
+    /** The same shape every other caller of the shared access control uses. */
+    permission: OrganizationPermissionRequest;
   }): Promise<void> {
     const organization = await this.prisma.organization.findUnique({
       where: { id: input.organizationId },
@@ -79,9 +83,7 @@ export class KnowledgeAuthorization {
       });
     }
 
-    const allowed = memberRoleHasPermission(membership.role, {
-      knowledge: [input.permission],
-    });
+    const allowed = memberRoleHasPermission(membership.role, input.permission);
 
     if (!allowed) throw new AppException('FORBIDDEN');
   }

@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 
 import { QueueModule } from '../core/queue';
+import { ControlPlaneCoreModule } from '../control-plane';
+import { DatabaseModule } from '../database';
+import { KnowledgeCoreModule } from '../knowledge';
+import { AgentContextAssembler } from './agent-context.assembler';
 import {
   AGENT_DEFINITIONS,
   AgentDefinitionRegistry,
@@ -24,12 +28,30 @@ import { MastraRuntime } from './runtime/mastra/mastra.runtime';
  * gains neither.
  */
 @Module({
-  imports: [AgentsModule, QueueModule],
+  /**
+   * `KnowledgeCoreModule` and `ControlPlaneCoreModule` arrive here, in the
+   * worker's composition, because that is where an agent actually runs.
+   * Context is assembled when the run executes rather than snapshotted when it
+   * was accepted, and the provider credential is resolved at the same moment,
+   * so neither is stale by the time it is used.
+   *
+   * The *core* modules specifically. Their controller-bearing siblings would
+   * bring the HTTP stack — guards, interceptors, and the Redis-backed rate
+   * limiter — into a process that serves no requests.
+   */
+  imports: [
+    AgentsModule,
+    QueueModule,
+    DatabaseModule,
+    KnowledgeCoreModule,
+    ControlPlaneCoreModule,
+  ],
   providers: [
     { provide: AGENT_DEFINITIONS, useValue: PRODUCTION_AGENT_DEFINITIONS },
     AgentDefinitionRegistry,
     MastraRuntime,
     AgentRuntimeRegistry,
+    AgentContextAssembler,
     AgentRunner,
     AgentExecutionHandler,
     AgentRunReconciler,

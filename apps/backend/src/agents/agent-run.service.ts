@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database';
+import { AppException } from '../core/errors';
 import { OutboxRepository } from '../core/outbox';
 import {
   TERMINAL_TRANSPORT_FAILURE,
@@ -54,6 +55,23 @@ export class AgentRunService {
   async create(input: CreateAgentRun): Promise<AgentRun> {
     const existing = await this.findByIdempotencyKey(input);
     if (existing) return toAgentRun(existing);
+
+    /**
+     * Checked here rather than at the controller, because here is the first
+     * point that knows this is new work.
+     *
+     * A caller retrying a request that timed out has already been accepted and
+     * has already been paid for; refusing their retry at a ceiling they are
+     * themselves part of would strand a run they can no longer reach. The
+     * idempotency short-circuit above runs first for exactly that reason.
+     *
+     * A ceiling, not a semaphore. Two accepts racing can both observe room and
+     * both take it, so the bound is exceeded by at most the number of requests
+     * in flight at that instant. Making it exact needs a serializable
+     * transaction or a lock on the acceptance path, which is a real cost paid
+     * on every request to tighten a spend control by one or two runs.
+     */
+    await this.assertCapacity(input);
 
     try {
       const run = await this.prisma.$transaction(async (tx) => {
@@ -288,6 +306,48 @@ export class AgentRunService {
     });
 
     return count === 1;
+  }
+
+  /**
+   * Reads one run, scoped to the organization that owns it.
+   *
+   * The organization is a predicate rather than a check on the result: a run
+   * id from another tenant must be indistinguishable from one that does not
+   * exist, and comparing after the read is how that distinction leaks back
+   * out through a different error.
+   */
+  async findForOrganization(input: {
+    runId: string;
+    organizationId: string;
+  }): Promise<AgentRun | null> {
+    const run = await this.prisma.agentRun.findFirst({
+      where: { id: input.runId, organizationId: input.organizationId },
+    });
+
+    return run === null ? null : toAgentRun(run);
+  }
+
+  private async assertCapacity(input: CreateAgentRun): Promise<void> {
+    const { maxInFlight } = input;
+
+    if (maxInFlight === undefined) return;
+
+    const inFlight = await this.prisma.agentRun.count({
+      where: {
+        organizationId: input.organizationId,
+        status: { in: ['QUEUED', 'RUNNING'] },
+      },
+    });
+
+    if (inFlight < maxInFlight) return;
+
+    throw new AppException('TOO_MANY_REQUESTS', {
+      context: { resource: 'agentRun', organizationId: input.organizationId },
+      publicDetails: {
+        reason:
+          'This organization already has the maximum number of agent runs in flight. Wait for one to finish.',
+      },
+    });
   }
 
   private findByIdempotencyKey(

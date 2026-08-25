@@ -29,6 +29,42 @@ Primary boundaries:
   goes straight to the adapter that needs it. Writing one requires a
   super-admin-only permission that is separate from reading control-plane
   metadata.
+- Agent context: what an agent may read is declared on its definition as a
+  `ContextPolicy` naming knowledge spaces by slug, and the slugs are resolved
+  against the caller's own organization at assembly time — so a definition
+  cannot name its way into another tenant's material, and an agent with no
+  policy retrieves nothing rather than everything. Assembly is application code
+  rather than a runtime primitive, which is what keeps the tenant predicate,
+  the space policy and the context budget in this repository. Retrieved
+  passages travel separately from the request and are rendered into the user
+  message, fenced and labelled as quoted material, never into the instructions:
+  they are text some member typed into a document. Angle brackets inside a
+  passage are replaced before fencing, so a document cannot close the fence and
+  continue where the preamble has told the model the caller's request appears.
+  That is mitigation, not proof — nothing in a prompt makes a model incapable of
+  following text it is shown — and what bounds it is that this milestone's agent
+  has no tools and no side effects, so a hostile passage costs a bad answer
+  inside the tenant that stored it. The fence is nonetheless made unbreakable,
+  because that bound disappears the first time this agent is given a tool. The provider's answer is parsed against the definition's declared
+  schema before it is stored, because a model is an untrusted source that this
+  application happens to pay for.
+- Provider credentials at execution: the key is resolved per run from the
+  encrypted store and handed to the SDK on its model config. It is never
+  exported to the environment, never placed in a job payload, and never read
+  back from one — Mastra's default of resolving a `provider/model` string
+  through a provider environment variable would put the platform's key in the
+  worker's process environment for the life of the process. A provider with no
+  credential mapping is a configuration error, never a fallback to the
+  environment; an unreadable credential is reported as the provider being
+  unavailable and carries nothing from the cause, because the one thing that
+  report must not do is describe the secret it failed to read.
+- Agent spend: acceptance checks `agents.enabled` before the per-feature flag,
+  so an operator has one switch that stops every agent. It also enforces
+  `agents.max_concurrent_runs_per_organization` against the organization's
+  in-flight runs — the per-user rate limit bounds one member, and the bill is
+  the organization's. The generation call carries an output-token ceiling, a
+  wall-clock timeout, and no SDK-level retry, so retry stays with BullMQ where
+  each attempt is recorded against the run.
 - Knowledge isolation: an organization's chunks are reachable only through a
   query whose `WHERE` carries both `organizationId` and the granted `spaceId`s.
   The predicate is in the statement that ranks, not applied to its results,

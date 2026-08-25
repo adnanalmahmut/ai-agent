@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
 
+import { OrganizationAccessModule } from '../core/auth/organization-access.module';
 import { ControlPlaneCoreModule } from '../control-plane';
 import { OutboxPersistenceModule } from '../core/outbox';
 import { DatabaseModule } from '../database';
 import { OpenAiEmbeddingAdapter } from './adapters/openai-embedding.adapter';
 import { PgVectorKnowledgeRepository } from './adapters/pgvector.repository';
-import { KnowledgeAuthorization } from './knowledge-authorization';
-import { KnowledgePermissionGuard } from './knowledge-permission.guard';
 import { KnowledgeController } from './knowledge.controller';
 import { KnowledgeEmbeddingHandler } from './knowledge-embedding.handler';
 import { KnowledgeIngestionService } from './knowledge-ingestion.service';
@@ -43,16 +42,20 @@ import { RETRIEVAL_PORT } from './ports/retrieval.port';
     KnowledgeWriterService,
     KnowledgeSpaceService,
     KnowledgeIngestionService,
-    KnowledgeAuthorization,
-    KnowledgePermissionGuard,
     KnowledgeEmbeddingHandler,
   ],
   exports: [
+    /**
+     * The port, not the adapter. An agent's context assembler has to embed a
+     * query with the same model the chunks were embedded with, and exporting
+     * the symbol keeps that a contract rather than a second import of the
+     * OpenAI adapter in a module that has no business naming a provider.
+     */
+    EMBEDDING_PORT,
     KnowledgeRetrievalService,
     KnowledgeWriterService,
     KnowledgeSpaceService,
     KnowledgeIngestionService,
-    KnowledgeAuthorization,
     KnowledgeEmbeddingHandler,
   ],
 })
@@ -60,7 +63,7 @@ export class KnowledgeCoreModule {}
 
 /** The core plus the organization-facing HTTP surface. For `AppModule` only. */
 @Module({
-  imports: [KnowledgeCoreModule],
+  imports: [KnowledgeCoreModule, OrganizationAccessModule],
   controllers: [KnowledgeController],
   exports: [KnowledgeCoreModule],
 })
