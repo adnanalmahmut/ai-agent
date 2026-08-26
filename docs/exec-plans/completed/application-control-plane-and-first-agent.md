@@ -756,8 +756,9 @@ not have caught, because none of them are properties of the repository:
 
 Every one of those is the same defect: the host bundle is unversioned, so a
 release cannot state which host it requires and the host cannot refuse a
-release it cannot run. `docs/exec-plans/active/host-bundle-versioning.md`
-carries that work.
+release it cannot run. `docs/exec-plans/completed/host-bundle-versioning.md`
+carries that work, delivered as PR #38 and rolled out on Staging on
+2026-08-26.
 
 ## Blockers
 
