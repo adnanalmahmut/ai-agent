@@ -85,7 +85,11 @@ jobs:
             '.schemaVersion == 2 and .repository == $repository and .sourceWorkflow == "CI" and .ciRunId == $ciRunId and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and .sha == $sha and .hostBundleMinVersion == $hostBundleMinVersion and (.hostBundleMinVersion | type) == "number" and ([.backend,.migration,.web,.platform] | all(test("^ghcr\\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$")))' \
             release/image-digests.json >/dev/null
 
-      - uses: actions/upload-artifact@v4
+      # This artifact is the only channel by which the four validated digests
+      # reach a deployment, so `archive` must stay at its default: the staging
+      # workflow downloads by name pattern with `merge-multiple` and reads the
+      # extracted JSON. An unzipped direct upload would also ignore `name`.
+      - uses: actions/upload-artifact@v7
         with:
           name: image-digests-${{ env.SOURCE_SHA }}
           path: release/image-digests.json

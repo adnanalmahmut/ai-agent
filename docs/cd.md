@@ -34,6 +34,18 @@ without it. The host reads the labels after pulling and before migrating and
 refuses a release its recorded bundle cannot satisfy — see
 [the host bundle document](host-bundle.md).
 
+The digest manifest and the staging evidence both travel as GitHub Actions
+artifacts, uploaded with `actions/upload-artifact@v7` and read back with
+`actions/download-artifact@v8` — the current majors, both on the Node 24
+runtime. Two packaging defaults are part of the contract rather than incidental.
+Uploads stay archived: an unzipped direct upload ignores the artifact name and
+derives it from the filename, which would rename both artifacts and leave the
+production promotion gate unable to find its evidence. Downloads keep
+`digest-mismatch` at its fail-closed default, so a manifest whose hash does not
+match the server stops the deployment instead of configuring one.
+`ops/tests/artifact-contract.sh` asserts the whole handoff statically, because
+the cross-run download cannot be exercised from a pull request.
+
 Both workflows use non-cancelling environment concurrency, pinned SSH host keys,
 the `deploy` identity, migration-first rollout, internal health, and external
 HTTPS smoke tests. Configure production Environment reviewers and main-only
