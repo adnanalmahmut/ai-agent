@@ -57,9 +57,12 @@ verify_integrity() {
       die 'host bundle manifest has a malformed file entry'
     [ -f "$path" ] || die "recorded host bundle file is missing: $path"
 
+    # stat drops leading zeros; the manifest records four octal digits. Padded
+    # rather than prefixed with one zero, so a mode like 0040 compares as
+    # itself instead of as 040.
     actual_mode=$(stat -c '%a' "$path")
-    # stat drops a leading zero; the manifest records four digits.
-    [ "0$actual_mode" = "$expected_mode" ] ||
+    while [ "${#actual_mode}" -lt 4 ]; do actual_mode=0$actual_mode; done
+    [ "$actual_mode" = "$expected_mode" ] ||
       die "recorded host bundle file has the wrong mode: $path"
 
     actual_digest=$(sha256sum "$path" | cut -d' ' -f1)
