@@ -131,6 +131,7 @@ jobs:
           ops/tests/image-publishing.sh
           ops/tests/staging-cd.sh
           ops/tests/production-cd.sh
+          ops/tests/artifact-contract.sh
           ops/tests/release-manifest.sh
           ops/tests/host-bundle.sh
           ops/tests/backup-recovery.sh

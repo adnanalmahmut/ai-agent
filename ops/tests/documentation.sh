@@ -39,6 +39,9 @@ grep -Fq 'root:root' docs/deployment.md
 grep -Fq '0600' docs/deployment.md
 grep -Fq 'PREVIOUS_RELEASE.json' docs/rollback.md
 grep -Fq 'staging-success-<SHA>' docs/cd.md
+grep -Fq 'actions/upload-artifact@v7' docs/cd.md
+grep -Fq 'actions/download-artifact@v8' docs/cd.md
+grep -Fq 'ops/tests/artifact-contract.sh' docs/cd.md
 grep -Fq 'explicit environment allowlist' docs/deployment.md
 grep -Fq 'install-host-bundle.sh' docs/host-bundle.md
 grep -Fq 'io.ai-agent.host-bundle.min-version' docs/host-bundle.md

@@ -30,8 +30,14 @@ jobs:
       VPS_USER: ${{ vars.VPS_USER }}
       DEPLOYMENT_URL: ${{ vars.DEPLOYMENT_URL }}
     steps:
+      # Fetched from the publish run by name pattern, not by artifact id, so
+      # the v5 change to single-artifact-by-id extraction paths does not apply.
+      # Two defaults are load-bearing and deliberately not overridden:
+      # `skip-decompress` stays false because the next step reads the extracted
+      # JSON, and `digest-mismatch` stays `error` so a manifest that does not
+      # match the server hash stops the deployment instead of configuring one.
       - name: Download publish digest manifest
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: image-digests-*
           merge-multiple: true
@@ -107,8 +113,13 @@ jobs:
             '.sha == $sha and .stagingWorkflow == "Deploy staging" and .stagingRunId == $stagingRunId' \
             release/staging-success.json >/dev/null
 
+      # `archive` must stay at its default. Setting it to false uploads the file
+      # unzipped and ignores `name`, deriving the artifact name from the
+      # filename — which would rename this artifact to `staging-success.json`
+      # and break the production promotion gate, which looks it up by the exact
+      # name `staging-success-<sha>`.
       - name: Upload staging release evidence
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: staging-success-${{ env.RELEASE_SHA }}
           path: release/staging-success.json
