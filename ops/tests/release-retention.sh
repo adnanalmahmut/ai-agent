@@ -267,6 +267,13 @@ case ${1:-} in
           echo "Error response from daemon: conflict: unable to delete $reference (must be forced) - container $cid is using its referenced image" >&2
           exit 1
         done <"$containers"
+        # A removal that fails for a reason the pre-check cannot see: the image
+        # vanished under a concurrent operation, or the daemon errored. Reaching
+        # this is the only way to exercise whether the caller reads rm's status.
+        if [ -f "$CONTROL/rm_fails" ] && grep -Fxq "$reference" "$CONTROL/rm_fails"; then
+          echo "Error response from daemon: unexpected failure removing $reference" >&2
+          exit 1
+        fi
         grep -Fv "$repository $digest" "$images" >"$images.next" || true
         mv "$images.next" "$images"
         # Models collateral damage: a removal that takes something it was not
@@ -514,6 +521,18 @@ for pair in "backend $(d 1)" "backend-migration $(d 2)" "web $(d 3)" "platform $
   image_present "$1" "$2" || fail "a protected image was lost during a partial sweep: $1 $2"
 done
 
+# --- A removal that fails for a reason the pre-check cannot see -----------
+reset_scenario; add_superseded
+printf '%s/web@%s\n' "$registry" "$(d 23)" >"$control/rm_fails"
+if run_retention reclaim; then
+  fail 'retention reported success despite a removal that failed'
+fi
+expect_message 'could not remove'
+expect_message 'failed 1'
+image_present web "$(d 23)" || fail 'an image reported as failed was actually removed'
+# The rest of the sweep still completed.
+! image_present backend "$(d 21)" || fail 'one failed removal abandoned the sweep'
+
 # --- Disk reporting -------------------------------------------------------
 reset_scenario; add_superseded
 printf '%s\n%s\n' 2048000 6144000 >"$control/df_values"
@@ -617,6 +636,20 @@ if ! run_retention reclaim >/dev/null 2>&1; then
   probe_done
   fail 'removing the post-mutation check still failed the run; the check is not what catches a lost protected image'
 fi
+probe_done
+
+# The empty-protected-set guard. Unreachable through any input, so it looked
+# like an untestable assertion until probed against the field map it actually
+# defends: emptying that map is a plausible refactoring error, and the guard is
+# what stops it becoming a sweep with nothing protected.
+probe 'empty protected set guard' \
+  "release_fields='backend:backend migration:backend-migration web:web platform:platform'=>release_fields=''"
+reset_scenario; add_superseded
+if run_retention reclaim >/dev/null 2>&1; then
+  probe_done
+  fail 'an empty release field map produced a sweep instead of a refusal'
+fi
+expect_message 'protected set is empty'
 probe_done
 
 # The repository allowlist. Widened with a fifth repository under our own
