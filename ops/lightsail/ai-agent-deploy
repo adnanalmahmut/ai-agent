@@ -7,9 +7,21 @@ environment_file=/etc/ai-agent/environment
 state_dir=/var/lib/ai-agent
 compose_file=$readonly_root/docker-compose.yml
 preflight=/usr/local/sbin/ai-agent-runtime-preflight
+host_preflight=/usr/local/sbin/ai-agent-host-preflight
 current_release=$state_dir/CURRENT_RELEASE.json
 previous_release=$state_dir/PREVIOUS_RELEASE.json
 registry=ghcr.io/adnanalmahmut/ai-agent
+
+# Pulling and extracting the four release images is the deploy step most likely
+# to exhaust a small Lightsail plan, and it fails there partway through a
+# release that has already started. Refused up front instead.
+required_free_mib=4096
+
+# Extensions a migration in this release creates and therefore cannot create
+# itself if the image does not carry them. Kept in sync with the migrations by
+# ops/tests/host-bundle.sh, because `CREATE EXTENSION vector` failing inside the
+# migration container is exactly the failure this list exists to prevent.
+required_extensions='vector'
 
 die() { echo "deployment rejected: $*" >&2; exit 64; }
 
@@ -20,9 +32,17 @@ environment=$(sed -n '1p' "$environment_file")
 [ -f "$compose_file" ] || die 'compose file is not installed'
 [ -f "$runtime_env" ] || die 'runtime.env is not installed'
 [ -x "$preflight" ] || die 'runtime preflight is not installed'
+[ -x "$host_preflight" ] || die 'host preflight is not installed; reinstall the host bundle'
 
 compose() {
   docker compose --file "$compose_file" --env-file "$runtime_env" --profile "$environment" "$@"
+}
+
+# `migrate` lives in the `migration` profile, so the active-profile view above
+# does not resolve it. Only the image-agreement check needs to see it.
+compose_with_migration() {
+  docker compose --file "$compose_file" --env-file "$runtime_env" \
+    --profile "$environment" --profile migration "$@"
 }
 
 validate_sha() {
@@ -74,6 +94,85 @@ pull_release_images() {
   done
 }
 
+# A release states which host it needs through labels on its own immutable
+# images, not through a new deploy argument: the dispatcher's forced-command
+# grammar is the trust boundary for the CI deploy key and stays exactly as wide
+# as it is, and an argument would also force every host into lockstep with every
+# release. A label travels with the digest, is readable after the pull and
+# before migrations, and lets an older bundle keep serving releases whose
+# minimum it already satisfies.
+image_label() {
+  image=$1
+  label=$2
+  value=$(docker image inspect --format "{{ index .Config.Labels \"$label\" }}" "$image" 2>/dev/null) ||
+    die "release image was not pulled: $label"
+  [ -n "$value" ] && [ "$value" != '<no value>' ] || die "release image does not declare $label"
+  printf '%s' "$value"
+}
+
+verify_release_declaration() {
+  sha=$1
+  minimum=
+
+  for image in "$BACKEND_IMAGE" "$BACKEND_MIGRATION_IMAGE" "$WEB_IMAGE" "$PLATFORM_IMAGE"; do
+    # Ties the four digests to one release. Digests are immutable but not
+    # necessarily related: four valid digests from four different builds would
+    # otherwise deploy as a release that was never tested together.
+    declared_sha=$(image_label "$image" io.ai-agent.release.sha)
+    [ "$declared_sha" = "$sha" ] ||
+      die 'release image does not belong to the requested release'
+
+    declared=$(image_label "$image" io.ai-agent.host-bundle.min-version)
+    printf '%s' "$declared" | grep -Eq '^[1-9][0-9]*$' ||
+      die 'release declares a malformed host bundle minimum'
+    if [ -z "$minimum" ]; then
+      minimum=$declared
+    else
+      [ "$declared" = "$minimum" ] || die 'release images disagree on the host bundle minimum'
+    fi
+  done
+
+  "$host_preflight" require-version "$minimum"
+}
+
+# The installed compose file passing an existence check is what let Staging
+# deploy a release against a compose file that predated it. This asserts what
+# the file actually resolves to: the four pinned digests, and no mutable
+# application tag anywhere.
+verify_compose_images() {
+  images=$(compose_with_migration config --images)
+
+  for reference in "$BACKEND_IMAGE" "$BACKEND_MIGRATION_IMAGE" "$WEB_IMAGE" "$PLATFORM_IMAGE"; do
+    printf '%s\n' "$images" | grep -Fxq "$reference" ||
+      die 'installed compose file does not resolve the pinned release images'
+  done
+
+  if printf '%s\n' "$images" | grep -Eq "^$registry/(backend|backend-migration|web|platform):"; then
+    die 'installed compose file resolves a mutable application tag'
+  fi
+}
+
+# Migrations run inside a container that can only report what it finds. When the
+# installed compose file pinned stock PostgreSQL, `CREATE EXTENSION vector`
+# failed there — after the release had been pulled and the database was already
+# up. Asked of the running database first, so it is a refusal instead of a
+# half-applied release. The extension names are code-owned and shape-checked, so
+# interpolating them into the query introduces nothing the script did not
+# already control.
+require_postgres_extensions() {
+  for extension in $required_extensions; do
+    printf '%s' "$extension" | grep -Eq '^[a-z][a-z0-9_]*$' ||
+      die 'required extension name is malformed'
+
+    available=$(compose exec -T postgres sh -c \
+      "psql --username \"\$POSTGRES_USER\" --dbname \"\$POSTGRES_DB\" --no-psqlrc --quiet --tuples-only --no-align --command \"select count(*) from pg_available_extensions where name = '$extension'\"" \
+      2>/dev/null) || die 'PostgreSQL is not answering capability queries'
+
+    [ "$(printf '%s' "$available" | tr -d '[:space:]')" = '1' ] ||
+      die "the PostgreSQL image does not provide a required extension: $extension"
+  done
+}
+
 deploy_release() {
   sha=$1
   backend_digest=$2
@@ -87,6 +186,12 @@ deploy_release() {
     validate_digest "$digest"
   done
 
+  # Everything from here to the migration step is a refusal, in the order that
+  # keeps the cheapest and least reversible checks first. Nothing below may move
+  # after `compose run --rm migrate`: migrations are forward-only, so a check
+  # that runs afterwards is a diagnosis, not a gate.
+  "$host_preflight" integrity
+  "$host_preflight" disk "$required_free_mib"
   "$preflight" "$environment" "$runtime_env"
 
   export BACKEND_IMAGE="$registry/backend@sha256:$backend_digest"
@@ -95,7 +200,10 @@ deploy_release() {
   export PLATFORM_IMAGE="$registry/platform@sha256:$platform_digest"
 
   pull_release_images
+  verify_release_declaration "$sha"
+  verify_compose_images
   compose up -d --wait postgres redis geoipupdate
+  require_postgres_extensions
   if [ "$migration_mode" = migrate ]; then
     compose run --rm migrate
   fi

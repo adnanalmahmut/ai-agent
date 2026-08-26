@@ -26,6 +26,14 @@ the exact four staged digests. Neither workflow rebuilds source or receives
 runtime application secrets. The Production workflow and evidence validation
 are prepared but dormant future capability; agents must not dispatch it.
 
+Every release also declares which host it needs. The publisher exports
+`ops/host-bundle/MIN_VERSION` into Bake, which labels each image with the
+release SHA and that minimum, and records the same minimum in the digest
+manifest as `hostBundleMinVersion`; both deploy workflows refuse a manifest
+without it. The host reads the labels after pulling and before migrating and
+refuses a release its recorded bundle cannot satisfy — see
+[the host bundle document](host-bundle.md).
+
 Both workflows use non-cancelling environment concurrency, pinned SSH host keys,
 the `deploy` identity, migration-first rollout, internal health, and external
 HTTPS smoke tests. Configure production Environment reviewers and main-only

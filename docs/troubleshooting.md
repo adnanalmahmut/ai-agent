@@ -7,6 +7,8 @@
 | Sessions lack location | MMDB volume/file, geoipupdate logs and runtime names | authentication remains valid; repair updater |
 | 429 too early | route template/subject, configured points/window, auth vs Nest limiter | inspect keys/headers; do not disable all limits blindly |
 | Redis warning/headers absent | Redis readiness and bounded connection errors | ordinary routes intentionally fail open; repair and observe |
+| Deployment rejected before migrations | which refusal it names: bundle integrity, free space, runtime environment, image labels, resolved compose images, or extension availability | reinstall the host bundle from the release checkout, or repair the named condition; do not bypass the wrapper |
+| Deployment says the release needs a newer host bundle | recorded version in `/etc/ai-agent/host-bundle.manifest` against the release's `hostBundleMinVersion` | check out the release SHA on the host and run `install-host-bundle.sh`; never edit the manifest |
 | Migration gate fails | migration image SHA, `DATABASE_URL`, migration history | stop rollout; do not start new code or mark migration applied casually |
 | Worker not running | restricted status, worker logs, Redis, outbox leases | repair worker; accepted work remains in PostgreSQL |
 | Publish artifact missing | main CI/publisher conclusion, exact publisher run ID, and packages permission | rerun/fix publisher; never rebuild in staging/production |

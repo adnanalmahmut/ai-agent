@@ -113,6 +113,18 @@ sign-in-capable platform administrator without relying on direct database
 repair; out-of-band database administration remains an exceptional recovery
 procedure, not part of normal account management.
 
+## Host bundle updates
+
+The compose file, deploy wrapper, dispatcher, and both preflights are a
+versioned host bundle, and the host records what it has in
+`/etc/ai-agent/host-bundle.manifest`. When a release changes any of them, check
+out that release on the host and run `sudo ops/lightsail/install-host-bundle.sh`;
+confirm with `sudo ai-agent-host-preflight integrity`. Never edit an installed
+bundle file or the manifest by hand — the wrapper compares recorded digests on
+every deployment and will refuse the next release rather than the one after.
+[The host bundle document](host-bundle.md) has the inventory and the refusal
+order.
+
 ## Release
 
 Merge only after stacked PR review. Main CI publishes once; Staging deploys
@@ -142,6 +154,10 @@ understanding the database state.
   contract_violation` is a contract failure, `runtime_error` is anything else —
   filter on the affected `agentId`/`agentVersion`. The mitigation is the
   per-feature flag or `agents.enabled`, not a retry.
+- Deployment refused before migrations: the wrapper names which condition
+  failed, and nothing has been applied. Repair the named condition — most often
+  by reinstalling the host bundle from the release checkout — rather than
+  reaching past the wrapper to run Compose directly.
 - Bad release: use application rollback only when schema remains compatible.
 - Suspected credential exposure: revoke at the owning boundary, replace the VPS
   runtime file/key, and redeploy; do not paste evidence containing secret values.

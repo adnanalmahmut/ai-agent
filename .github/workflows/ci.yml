@@ -132,6 +132,7 @@ jobs:
           ops/tests/staging-cd.sh
           ops/tests/production-cd.sh
           ops/tests/release-manifest.sh
+          ops/tests/host-bundle.sh
           ops/tests/backup-recovery.sh
           ops/tests/restore-drill-safety.sh
           ops/tests/documentation.sh

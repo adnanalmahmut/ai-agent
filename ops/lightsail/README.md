@@ -29,10 +29,13 @@ flowchart LR
 
    `ops/lightsail/bootstrap-host.sh <environment> <domain> <trusted-cidr> <deploy-public-key-file>`
 
-5. Install `docker-compose.yml` at `/opt/ai-agent/docker-compose.yml`. Create
-   `/etc/ai-agent/runtime.env` from the names-only template, owner root, mode
-   0600. The deploy user must not be able to read either that file or Docker's
-   socket.
+   Bootstrap installs the versioned host bundle — the compose file, the deploy
+   wrapper, the dispatcher, both preflights, and the sudoers fragment — and
+   records `/etc/ai-agent/host-bundle.manifest`.
+
+5. Create the root-owned runtime environment file from the names-only template,
+   owner root, mode 0600. The deploy user must not be able to read either that
+   file or Docker's socket.
    If GHCR packages are private, authenticate root's Docker client once with a
    server-local, packages-read-only credential. Do not place that credential in
    GitHub Actions or the deploy user's home.
@@ -40,12 +43,26 @@ flowchart LR
    then run `ops/lightsail/issue-certificate.sh`. Certificate issuance needs
    working DNS and inbound port 80; it is intentionally operator-only.
 
+## Updating the host bundle
+
+Whenever a release changes the compose file or any host script, check out that
+release on the host and run, as root:
+
+`ops/lightsail/install-host-bundle.sh`
+
+It reinstalls every file in `ops/host-bundle/files` and rewrites the recorded
+manifest. Never edit an installed bundle file in place: the deploy wrapper
+compares recorded digests before it pulls anything, so a hand edit refuses the
+next release rather than the one after. See
+[the host bundle document](../../docs/host-bundle.md).
+
 ## Boundary verification
 
 ```sh
 id deploy
 getent group docker
 sudo -l -U deploy
+ai-agent-host-preflight integrity
 stat -c '%U:%G %a' /etc/ai-agent/runtime.env
 ss -ltnp
 nginx -t

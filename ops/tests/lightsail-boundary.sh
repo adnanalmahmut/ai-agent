@@ -7,6 +7,7 @@ for script in \
   ops/lightsail/ai-agent-deploy \
   ops/lightsail/ai-agent-deploy-dispatch \
   ops/lightsail/bootstrap-host.sh \
+  ops/lightsail/install-host-bundle.sh \
   ops/lightsail/install-nginx.sh \
   ops/lightsail/issue-certificate.sh \
   ops/lightsail/reload-nginx-after-renewal; do
@@ -14,6 +15,17 @@ for script in \
 done
 
 grep -Fq 'restrict,no-user-rc,command="/usr/local/sbin/ai-agent-deploy-dispatch"' ops/lightsail/bootstrap-host.sh
+# First-run bootstrap and every later bundle update must install the
+# release-coupled files by the same path, so that both record a manifest. When
+# bootstrap listed the `install` commands itself, nothing on the host recorded
+# which release its compose file and deploy script came from.
+grep -Fq 'ops/lightsail/install-host-bundle.sh' ops/lightsail/bootstrap-host.sh
+if grep -Eq '^install .*(ai-agent-deploy|runtime-preflight|host-preflight|sudoers)' ops/lightsail/bootstrap-host.sh; then
+  echo 'release-coupled host files must be installed by the bundle installer' >&2
+  exit 1
+fi
+grep -Fq 'host-bundle.manifest' ops/host-preflight.sh
+grep -Fq 'sha256sum' ops/lightsail/install-host-bundle.sh
 grep -Fq 'gpasswd -d deploy docker' ops/lightsail/bootstrap-host.sh
 grep -Fq 'fallocate -l 2G /swapfile' ops/lightsail/bootstrap-host.sh
 grep -Fq '/swapfile none swap sw 0 0' ops/lightsail/bootstrap-host.sh

@@ -49,7 +49,7 @@ jobs:
           jq -e \
             --arg repository "$GITHUB_REPOSITORY" \
             --argjson publishRunId "$PUBLISH_RUN_ID" \
-            '.schemaVersion == 1 and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId' \
+            '.schemaVersion == 2 and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and (.hostBundleMinVersion | type) == "number" and .hostBundleMinVersion >= 1' \
             "$manifest" >/dev/null
 
           release_sha=$(jq -r .sha "$manifest")

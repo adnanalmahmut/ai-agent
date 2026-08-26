@@ -15,10 +15,18 @@ sed \
   -e "s#/etc/ai-agent#$tmp_dir/etc/ai-agent#g" \
   -e "s#/var/lib/ai-agent#$tmp_dir/state#g" \
   -e "s#/usr/local/sbin/ai-agent-runtime-preflight#$tmp_dir/bin/preflight#g" \
+  -e "s#/usr/local/sbin/ai-agent-host-preflight#$tmp_dir/bin/host-preflight#g" \
   ops/lightsail/ai-agent-deploy >"$tmp_dir/deploy"
 chmod +x "$tmp_dir/deploy"
 
 cat >"$tmp_dir/bin/preflight" <<'SH'
+#!/bin/sh
+exit 0
+SH
+# The host-bundle and release-declaration gates have their own reproductions in
+# ops/tests/host-bundle.sh. Here they are satisfied cheaply, so that what this
+# test proves stays what it is about: manifest rotation and digest immutability.
+cat >"$tmp_dir/bin/host-preflight" <<'SH'
 #!/bin/sh
 exit 0
 SH
@@ -28,7 +36,25 @@ set -eu
 printf '%s|%s|%s|%s|%s\n' \
   "${BACKEND_IMAGE:-}" "${BACKEND_MIGRATION_IMAGE:-}" \
   "${WEB_IMAGE:-}" "${PLATFORM_IMAGE:-}" "$*" >>"$TEST_LOG"
+
+# The release SHA the deploy script is asking about, written by the test before
+# each invocation: a digest does not encode the release it came from, which is
+# the whole reason the deploy script reads it off a label instead.
+if [ "${1:-}" = image ]; then
+  for argument in "$@"; do
+    case $argument in *host-bundle.min-version*) printf '1\n'; exit 0 ;; esac
+  done
+  sed -n '1p' "$TEST_SHA_FILE"
+  exit 0
+fi
+
 case " $* " in
+  *' config --images '*)
+    printf '%s\n' "$BACKEND_IMAGE" "$BACKEND_MIGRATION_IMAGE" "$WEB_IMAGE" "$PLATFORM_IMAGE"
+    ;;
+  *' exec -T postgres '*)
+    printf '1\n'
+    ;;
   *' ps --status running --services '*)
     service=
     for argument in "$@"; do service=$argument; done
@@ -46,8 +72,11 @@ exit 0
 SH
 chmod +x "$tmp_dir/bin/preflight" "$tmp_dir/bin/docker" "$tmp_dir/bin/curl" "$tmp_dir/bin/flock"
 
+chmod +x "$tmp_dir/bin/host-preflight"
+
 export PATH="$tmp_dir/bin:$PATH"
 export TEST_LOG=$tmp_dir/commands.log
+export TEST_SHA_FILE=$tmp_dir/release-sha
 
 sha_one=1111111111111111111111111111111111111111
 sha_two=2222222222222222222222222222222222222222
@@ -60,13 +89,16 @@ migration_two=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 web_two=abababababababababababababababababababababababababababababababab
 platform_two=cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd
 
+printf '%s\n' "$sha_one" >"$TEST_SHA_FILE"
 "$tmp_dir/deploy" deploy production "$sha_one" "$backend_one" "$migration_one" "$web_one" "$platform_one"
+printf '%s\n' "$sha_two" >"$TEST_SHA_FILE"
 "$tmp_dir/deploy" deploy production "$sha_two" "$backend_two" "$migration_two" "$web_two" "$platform_two"
 
 grep -Fq "\"sha\":\"$sha_two\"" "$tmp_dir/state/CURRENT_RELEASE.json"
 grep -Fq "\"backend\":\"sha256:$backend_one\"" "$tmp_dir/state/PREVIOUS_RELEASE.json"
 test "$(grep -c ' run --rm migrate' "$TEST_LOG")" -eq 2
 
+printf '%s\n' "$sha_one" >"$TEST_SHA_FILE"
 "$tmp_dir/deploy" rollback production
 
 grep -Fq "\"sha\":\"$sha_one\"" "$tmp_dir/state/CURRENT_RELEASE.json"

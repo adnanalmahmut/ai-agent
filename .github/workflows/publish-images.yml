@@ -43,6 +43,16 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # The minimum host-bundle version is read from the file rather than
+      # restated here, and exported so bake stamps it onto every image in the
+      # release set. A release that cannot say which host it needs is a release
+      # the host cannot refuse.
+      - name: Declare the release host requirement
+        run: |
+          minimum=$(sed -n '1p' ops/host-bundle/MIN_VERSION)
+          printf '%s\n' "$minimum" | grep -Eq '^[1-9][0-9]*$'
+          printf 'HOST_BUNDLE_MIN_VERSION=%s\n' "$minimum" >>"$GITHUB_ENV"
+
       - name: Build and push one release set
         run: docker buildx bake --file docker-bake.hcl --push release
 
@@ -59,18 +69,20 @@ jobs:
             --arg sha "$SOURCE_SHA" \
             --argjson ciRunId "$CI_RUN_ID" \
             --argjson publishRunId "$PUBLISH_RUN_ID" \
+            --argjson hostBundleMinVersion "$HOST_BUNDLE_MIN_VERSION" \
             --arg backend "$REGISTRY/backend@$backend" \
             --arg migration "$REGISTRY/backend-migration@$migration" \
             --arg web "$REGISTRY/web@$web" \
             --arg platform "$REGISTRY/platform@$platform" \
-            '{schemaVersion:1,repository:$repository,sourceWorkflow:"CI",ciRunId:$ciRunId,publishWorkflow:"Publish immutable images",publishRunId:$publishRunId,sha:$sha,backend:$backend,migration:$migration,web:$web,platform:$platform}' \
+            '{schemaVersion:2,repository:$repository,sourceWorkflow:"CI",ciRunId:$ciRunId,publishWorkflow:"Publish immutable images",publishRunId:$publishRunId,sha:$sha,hostBundleMinVersion:$hostBundleMinVersion,backend:$backend,migration:$migration,web:$web,platform:$platform}' \
             >release/image-digests.json
           jq -e \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg sha "$SOURCE_SHA" \
             --argjson ciRunId "$CI_RUN_ID" \
             --argjson publishRunId "$PUBLISH_RUN_ID" \
-            '.schemaVersion == 1 and .repository == $repository and .sourceWorkflow == "CI" and .ciRunId == $ciRunId and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and .sha == $sha and ([.backend,.migration,.web,.platform] | all(test("^ghcr\\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$")))' \
+            --argjson hostBundleMinVersion "$HOST_BUNDLE_MIN_VERSION" \
+            '.schemaVersion == 2 and .repository == $repository and .sourceWorkflow == "CI" and .ciRunId == $ciRunId and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and .sha == $sha and .hostBundleMinVersion == $hostBundleMinVersion and (.hostBundleMinVersion | type) == "number" and ([.backend,.migration,.web,.platform] | all(test("^ghcr\\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$")))' \
             release/image-digests.json >/dev/null
 
       - uses: actions/upload-artifact@v4
