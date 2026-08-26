@@ -18,6 +18,7 @@ import {
   TRAIN_LIMIT_CEILING,
   analyze,
   dashboardFileDecision,
+  parsePorcelainZ,
 } from './pr-train.mjs';
 
 /** Inspection only. Every call here reads state; none of them change it. */
@@ -75,18 +76,13 @@ const mainSha = run('git', ['rev-parse', 'origin/main'], run('git', ['rev-parse'
  * Paths with uncommitted content. Reported so inherited work is visible before
  * any edit; the model turns this into an explicit do-not-discard finding.
  *
- * Read NUL-separated and untrimmed on purpose. `run` trims, which eats the
- * leading space of the first porcelain line and silently truncated the first
- * path by one character; and a trimmed newline split cannot represent a path
- * that legitimately contains whitespace.
+ * Read NUL-separated and untrimmed on purpose: `run` trims, which eats the
+ * leading space of the first porcelain record, and a newline split cannot
+ * represent a path containing whitespace. Record parsing — including the
+ * two-record rename form — lives in the pure module so it is tested against a
+ * real fixture.
  */
-const dirtyPaths = runRaw('git', ['status', '--porcelain', '-z'])
-  .split('\0')
-  .filter(Boolean)
-  // "XY path" for ordinary entries; rename entries carry the old path in a
-  // following record, which shows up as its own entry and is fine for reporting.
-  .map((entry) => entry.slice(3))
-  .filter(Boolean);
+const dirtyPaths = parsePorcelainZ(runRaw('git', ['status', '--porcelain', '-z']));
 
 // ---------------------------------------------------------------------------
 // GitHub evidence
@@ -203,8 +199,17 @@ out(`Train: ${train.id ?? '(unnamed)'}`);
 out(`Train state: ${train.state ?? '(unrecorded)'}`);
 out(`Anchor main SHA: ${train.anchorMainSha ?? '(unrecorded)'}`);
 out(`Configured max open PRs: ${train.configuredLimit} (default ${DEFAULT_TRAIN_LIMIT}, supported ceiling ${TRAIN_LIMIT_CEILING})`);
-out(`Occupied slots: ${result.limit.occupied} of ${result.limit.limit}`);
-out(`Train limit: ${result.limit.message}`);
+out(`CAPACITY RECORDED: ${result.limit.occupied} of ${result.limit.limit} slots occupied per the dashboard`);
+out(`  ${result.limit.message}`);
+out(
+  `NEW-SLOT PROGRESSION ${result.progression.allowed ? 'ALLOWED' : 'BLOCKED'}: ${result.progression.effectiveOccupancy} of ${result.progression.limit} slots live by evidence`,
+);
+if (!result.progression.allowed) {
+  for (const reason of result.progression.reasons) out(`  - ${reason}`);
+}
+if (result.progression.confirmedReleased.length > 0) {
+  out(`  confirmed released: PR ${result.progression.confirmedReleased.join(', PR ')}`);
+}
 if (train.declaredMergeOrder) out(`Declared merge order: ${train.declaredMergeOrder}`);
 
 out();
@@ -227,6 +232,15 @@ for (const slot of train.slots) {
   out(`  next: ${slot.nextAction ?? '(unrecorded)'}`);
   const remaining = slot.checklist.filter((item) => !item.done).map((item) => item.label);
   out(`  checklist: ${slot.checklist.length - remaining.length}/${slot.checklist.length} done${remaining.length ? `; next "${remaining[0]}"` : ''}`);
+}
+
+if (result.eligibility.length > 0) {
+  out();
+  out('--- planned slot eligibility ---');
+  for (const entry of result.eligibility) {
+    out(`PR ${entry.slot} — ${entry.taskId ?? '(no task id)'}: ${entry.eligible ? 'MAY START' : 'MAY NOT START'}`);
+    for (const reason of entry.reasons) out(`  - ${reason}`);
+  }
 }
 
 if (result.siblings.length > 0) {
@@ -315,10 +329,15 @@ out('5. Read the tracked exec plan for the current PR before continuing.');
 out('6. Continue exactly the "Next legitimate action" for the CURRENT PR.');
 out('7. Checkpoint the dashboard after every objectively verified transition, and before compacting or stopping.');
 out('8. Never merge, enable auto-merge, or start a PR outside the approved execution window.');
-if (!result.limit.allowed) {
-  out(`9. ${result.limit.message} Do not begin another roadmap PR; report to the human instead.`);
+if (!result.progression.allowed) {
+  out(`9. ${result.progression.message} Do not begin another roadmap PR; report to the human instead.`);
+  for (const reason of result.progression.reasons) out(`   - ${reason}`);
 } else {
+  out(`9. ${result.progression.message}`);
   out(
-    `9. ${result.limit.message} A new slot may only take a task whose "Approved to start" box is checked under "# APPROVED EXECUTION WINDOW", and only once the current PR has reached its handoff requirement.`,
+    '   A PLANNED slot may start when its own dependencies are verified by evidence and its task is approved — see "planned slot eligibility" above.',
+  );
+  out(
+    '   An independent or sibling slot may start while another PR is CI_PENDING; a slot that DEPENDS on the pending PR may not.',
   );
 }

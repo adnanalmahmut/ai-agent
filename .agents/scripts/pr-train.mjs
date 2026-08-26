@@ -61,6 +61,13 @@ const REQUIRES_PR_NUMBER = new Set([
   'MERGED',
 ]);
 
+/**
+ * States whose claim of verification must be backed by evidence before it may be
+ * relied on by a *new* slot. Continuing existing work uses the recorded state;
+ * authorizing new work does not.
+ */
+const VERIFIED_STATES = new Set(['CI_GREEN', 'REVIEW_FINDINGS', 'READY_FOR_HUMAN', 'MERGED']);
+
 /** States that assert a specific commit was verified. */
 const REQUIRES_HEAD_SHA = new Set(['CI_GREEN', 'REVIEW_FINDINGS', 'READY_FOR_HUMAN', 'MERGED']);
 
@@ -339,6 +346,15 @@ function structuralContradictions(train) {
     if (slot.state && slot.state !== 'PLANNED' && !slot.branch) {
       errors.push(`${label}: state ${slot.state} requires a "Branch"`);
     }
+    // PLANNED releases train capacity, so it must not be able to hide a live PR.
+    // This is the same hole as a slot wrongly recorded MERGED, reached from the
+    // other end of the lifecycle, and it is closed structurally rather than left
+    // to the evidence gate.
+    if (slot.state === 'PLANNED' && slot.prNumber !== null) {
+      errors.push(
+        `${label}: state PLANNED records PR #${slot.prNumber}; planned work has no pull request, and PLANNED releases train capacity`,
+      );
+    }
 
     // Dependency and base must agree. This is the guard that stops a sibling
     // from silently becoming a link in a deep stack: the base branch is the
@@ -614,6 +630,16 @@ export function reconcile(train, evidence = {}) {
         'GitHub wins: record the merge, then reconcile dependent bases',
       );
     }
+    // The inverse direction, which the first version of this missed entirely. It
+    // is the more dangerous one: a slot wrongly recorded MERGED releases train
+    // capacity, so a stale dashboard could authorize a PR beyond the limit.
+    if (slot.state === 'MERGED' && actual.state !== 'MERGED') {
+      add(
+        'contradiction',
+        `PR ${slot.slot} (#${slot.prNumber}) is recorded MERGED but GitHub reports ${actual.state}; the slot is still live and still occupies the train`,
+        'GitHub wins in this direction too: correct the recorded state before treating the slot as released',
+      );
+    }
     if (actual.state === 'CLOSED' && slot.state !== 'MERGED' && slot.state !== BLOCKED) {
       add('drift', `PR ${slot.slot} (#${slot.prNumber}) is CLOSED on GitHub but recorded as ${slot.state}`, 'establish why it was closed before continuing');
     }
@@ -634,9 +660,20 @@ export function reconcile(train, evidence = {}) {
     if (slot.branch && actual.headRefName && slot.branch !== actual.headRefName) {
       add('drift', `PR ${slot.slot} records branch "${slot.branch}" but #${slot.prNumber} head branch is "${actual.headRefName}"`, null);
     }
-    // A green claim must never survive contrary evidence.
+    // A green claim must never survive contrary evidence — and must not survive
+    // *absent* evidence either. The earlier `actual.checks &&` short-circuit let
+    // an unknown or null rollup pass as though it were success, which is exactly
+    // the case where nothing is known.
     if (slot.state === 'CI_GREEN' || slot.state === 'READY_FOR_HUMAN') {
-      if (actual.checks && actual.checks !== 'SUCCESS') {
+      if (actual.state === 'MERGED') {
+        // Already handled as a merge drift above; a merged PR needs no rollup.
+      } else if (!actual.checks) {
+        add(
+          'unverified-claim',
+          `PR ${slot.slot} is recorded as ${slot.state} but #${slot.prNumber} reports no readable check state`,
+          'an unknown rollup is not a pass: re-establish final-head CI before treating this as verified or handing it off',
+        );
+      } else if (actual.checks !== 'SUCCESS') {
         add(
           'contradiction',
           `PR ${slot.slot} is recorded as ${slot.state} but #${slot.prNumber} checks are ${actual.checks}`,
@@ -684,6 +721,239 @@ function shaMatches(a, b) {
 }
 
 /**
+ * Parses `git status --porcelain -z` into accurate paths.
+ *
+ * Pure so it can be tested against a real fixture. `-z` does not quote paths,
+ * which is why it is used, but a rename or copy emits **two** records: `R  <new>`
+ * followed by a bare `<old>` with no status prefix. Slicing three characters off
+ * every record therefore truncated the old path of every rename by three
+ * characters — silently, in the one report whose whole job is to stop inherited
+ * work being lost.
+ */
+export function parsePorcelainZ(raw) {
+  if (typeof raw !== 'string' || raw === '') return [];
+  const records = raw.split('\0').filter((record) => record !== '');
+  const paths = [];
+
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    // "XY " then the path. A bare continuation record has no such prefix, but a
+    // well-formed stream only produces one immediately after an R/C entry, which
+    // is consumed below.
+    const status = record.slice(0, 2);
+    const path = record.slice(3);
+    if (!path) continue;
+
+    if (status.includes('R') || status.includes('C')) {
+      const original = records[index + 1];
+      if (original !== undefined) {
+        index += 1;
+        paths.push(`${original} -> ${path}`);
+        continue;
+      }
+    }
+    paths.push(path);
+  }
+
+  return paths;
+}
+
+/**
+ * Reads the approved execution window.
+ *
+ * Deliberately narrow: `## [APPROVED] <task id> — title` plus a checked
+ * `**Approved to start:** [x]` inside that block. Anything else — `[DELIVERED]`,
+ * an unchecked box, a roadmap entry — is not approval. This is a lookup table,
+ * not a planner.
+ */
+export function parseApprovedWindow(text) {
+  const approvals = new Map();
+  const block = section(text, '# APPROVED EXECUTION WINDOW');
+  if (block === null) return approvals;
+
+  for (const entry of block.split(/^## /m).slice(1)) {
+    const heading = entry.split('\n', 1)[0];
+    const match = heading.match(/^\[APPROVED\]\s*([A-Za-z][A-Za-z0-9-]*)/);
+    if (!match) continue;
+    const checked = /^\s*\*\*Approved to start:\*\*\s*\[x\]/im.test(entry);
+    approvals.set(match[1].toUpperCase(), checked);
+  }
+  return approvals;
+}
+
+/**
+ * Whether a slot's recorded verification is actually backed by evidence.
+ *
+ * A recorded state is a claim. This is the only function allowed to answer "is
+ * it true?", and it answers no when it cannot tell — absent evidence is not
+ * agreement.
+ */
+export function isVerifiedByEvidence(slot, actual) {
+  if (slot.state === 'MERGED') return actual?.state === 'MERGED';
+  if (!VERIFIED_STATES.has(slot.state)) return false;
+  if (!actual) return false;
+  if (actual.state === 'MERGED') return true;
+  return actual.checks === 'SUCCESS';
+}
+
+/**
+ * Effective occupancy: what is *actually* still live, not what the dashboard
+ * says.
+ *
+ * A slot is released only when the dashboard says MERGED **and** GitHub confirms
+ * it. A dashboard-MERGED slot that GitHub reports OPEN, CLOSED-not-merged, or
+ * cannot be read at all stays live, so a stale dashboard can never manufacture
+ * capacity. This is the direction the earlier reconciliation missed: it caught
+ * GitHub-merged/dashboard-open and not the inverse.
+ */
+export function effectiveOccupancy(train, evidence = {}) {
+  const prs = evidence.prs ?? {};
+  const live = [];
+  const released = [];
+  const gaps = [];
+
+  for (const slot of train.slots) {
+    if (slot.state === 'PLANNED') continue;
+
+    if (slot.state !== 'MERGED') {
+      live.push(slot.slot);
+      continue;
+    }
+
+    if (slot.prNumber === null) {
+      // MERGED with no PR number cannot be confirmed at all.
+      live.push(slot.slot);
+      gaps.push(`PR ${slot.slot} is recorded MERGED but records no PR number, so the merge cannot be confirmed`);
+      continue;
+    }
+
+    const actual = prs[slot.prNumber] ?? prs[String(slot.prNumber)];
+    if (!actual) {
+      live.push(slot.slot);
+      gaps.push(`PR ${slot.slot} (#${slot.prNumber}) is recorded MERGED but no GitHub state could be read to confirm it`);
+      continue;
+    }
+    if (actual.state === 'MERGED') {
+      released.push(slot.slot);
+      continue;
+    }
+    live.push(slot.slot);
+    gaps.push(
+      `PR ${slot.slot} (#${slot.prNumber}) is recorded MERGED but GitHub reports ${actual.state}; the slot is still live`,
+    );
+  }
+
+  return { live, released, gaps };
+}
+
+/**
+ * The new-slot progression gate.
+ *
+ * Separate from `trainLimitStatus` on purpose. That function answers "what does
+ * the dashboard record?" and stays free of integration concerns; this one
+ * answers "is starting another PR authorized by live evidence?" and fails closed
+ * whenever it cannot tell.
+ */
+export function progressionGate(train, evidence = {}) {
+  const recorded = trainLimitStatus(train);
+  const occupancy = effectiveOccupancy(train, evidence);
+  const limit = Math.min(train.configuredLimit, TRAIN_LIMIT_CEILING);
+  const reasons = [];
+  const prs = evidence.prs ?? {};
+
+  if (train.configuredLimit > TRAIN_LIMIT_CEILING) {
+    reasons.push(`configured limit ${train.configuredLimit} exceeds the supported ceiling of ${TRAIN_LIMIT_CEILING}`);
+  }
+
+  if (occupancy.live.length >= limit) {
+    reasons.push(`${occupancy.live.length} of ${limit} slots are live by evidence`);
+  }
+
+  reasons.push(...occupancy.gaps);
+
+  // Any recorded PR whose live state is unknown makes the whole capacity
+  // calculation unreliable, not just that slot's.
+  for (const slot of train.slots) {
+    if (slot.prNumber === null) continue;
+    const actual = prs[slot.prNumber] ?? prs[String(slot.prNumber)];
+    if (!actual) {
+      reasons.push(`PR ${slot.slot} (#${slot.prNumber}) has no readable GitHub state, so capacity cannot be established`);
+    }
+  }
+
+  for (const finding of train.findings.filter((entry) => !entry.resolved)) {
+    reasons.push(`unresolved finding must be resolved or explicitly carried first: ${finding.text}`);
+  }
+
+  const unique = [...new Set(reasons)];
+  return {
+    allowed: unique.length === 0,
+    reasons: unique,
+    recordedOccupancy: recorded.occupied,
+    effectiveOccupancy: occupancy.live.length,
+    liveSlots: occupancy.live,
+    confirmedReleased: occupancy.released,
+    limit,
+    message:
+      unique.length === 0
+        ? `NEW-SLOT PROGRESSION ALLOWED (${occupancy.live.length} of ${limit} slots live by evidence).`
+        : `NEW-SLOT PROGRESSION BLOCKED (${occupancy.live.length} of ${limit} slots live by evidence).`,
+  };
+}
+
+/**
+ * Whether a PLANNED slot may become ACTIVE.
+ *
+ * This is the executable form of the CI_PENDING sibling exception. The rule is
+ * about the slot's *own* dependencies and nothing else: a sibling being
+ * CI_PENDING is irrelevant, because a sibling shares the ancestor's commit
+ * rather than the pending change. Creation order is never consulted.
+ */
+export function slotEligibility(train, slot, evidence = {}, approvals = new Map()) {
+  const reasons = [];
+
+  if (slot.state !== 'PLANNED') {
+    return { eligible: false, reasons: [`PR ${slot.slot} is ${slot.state}, not PLANNED`], notApplicable: true };
+  }
+
+  const gate = progressionGate(train, evidence);
+  if (!gate.allowed) reasons.push(...gate.reasons);
+
+  const bySlot = new Map(train.slots.map((entry) => [entry.slot, entry]));
+  const prs = evidence.prs ?? {};
+
+  for (const dependency of slot.dependsOn) {
+    const parent = bySlot.get(dependency);
+    if (!parent) {
+      reasons.push(`depends on PR ${dependency}, which is not in this train`);
+      continue;
+    }
+    const actual = parent.prNumber === null ? null : (prs[parent.prNumber] ?? prs[String(parent.prNumber)]);
+    if (!isVerifiedByEvidence(parent, actual)) {
+      reasons.push(
+        `its dependency PR ${parent.slot} is ${parent.state}${actual ? ` with checks ${actual.checks ?? 'unknown'}` : ' with no readable GitHub state'}; dependent work must not build on an unverified change`,
+      );
+    }
+  }
+
+  // Approval is part of the decision rather than an unenforced policy note,
+  // because the window format is a fixed heading plus a checkbox.
+  const taskId = (slot.taskId ?? '').toUpperCase().match(/^[A-Z][A-Z0-9-]*/)?.[0] ?? null;
+  if (!taskId) {
+    reasons.push('no task id could be read from the slot heading, so approval cannot be established');
+  } else if (approvals.size === 0) {
+    reasons.push('no "# APPROVED EXECUTION WINDOW" entries could be read, so approval cannot be established');
+  } else if (!approvals.has(taskId)) {
+    reasons.push(`${taskId} does not appear as [APPROVED] in the execution window`);
+  } else if (approvals.get(taskId) !== true) {
+    reasons.push(`${taskId} appears in the execution window but its "Approved to start" box is not checked`);
+  }
+
+  const unique = [...new Set(reasons)];
+  return { eligible: unique.length === 0, reasons: unique };
+}
+
+/**
  * The dashboard-file safety contract.
  *
  * The dashboard holds operational state and must stay local. The two unsafe
@@ -714,7 +984,8 @@ export function dashboardFileDecision({ exists, tracked, ignored }) {
     return {
       ok: true,
       severity: 'warn',
-      message: 'the dashboard file is not ignored. Add it to .gitignore; until then never stage with `git add -A`, only explicit paths.',
+      message:
+        'the dashboard file is not ignored. Ignore it locally, preferably through `.git/info/exclude`, and do not stage it. Stage explicit paths only, never `git add -A`. Do not edit tracked .gitignore for local-only state.',
     };
   }
   return { ok: true, severity: 'ok', message: 'dashboard file is local and ignored.' };
@@ -727,11 +998,23 @@ export function dashboardFileDecision({ exists, tracked, ignored }) {
  * below an instruction that still says "human merge". The instruction itself has
  * to change, or the authority order is decorative.
  */
+/**
+ * Severities that must change the instruction, not merely accompany it.
+ *
+ * `unverified-claim` is here because an unreadable rollup is not a pass.
+ * `unverified` is here for the case that exposed the gap: with `gh` down there is
+ * no rollup to read at all, only a "no GitHub state was available" finding — and
+ * a slot recorded READY_FOR_HUMAN would still have printed "human merge" beneath
+ * it. Absent evidence must suppress a handoff instruction exactly as
+ * contradictory evidence does.
+ */
+const BLOCKING_SEVERITIES = new Set(['contradiction', 'drift', 'unverified-claim', 'unverified']);
+
 export function nextActionUnderEvidence(train, current, recorded, findings) {
   if (!current) return recorded;
 
   const blocking = findings.filter((finding) => {
-    if (finding.severity !== 'contradiction' && finding.severity !== 'drift') return false;
+    if (!BLOCKING_SEVERITIES.has(finding.severity)) return false;
     // Train-level drift (main advanced) and any finding naming the current slot.
     return !/^PR \d+/.test(finding.message) || finding.message.startsWith(`PR ${current.slot}`);
   });
@@ -749,13 +1032,23 @@ export function nextActionUnderEvidence(train, current, recorded, findings) {
 export function analyze(text, evidence = {}) {
   const parsed = parseTrain(text);
   if (!parsed.valid) {
-    return { ...parsed, limit: null, current: null, siblings: [], reconciliation: [] };
+    return { ...parsed, limit: null, progression: null, eligibility: [], current: null, siblings: [], reconciliation: [] };
   }
   const resolved = resolveCurrent(parsed.train);
   const reconciliation = reconcile(parsed.train, evidence);
+  const approvals = parseApprovedWindow(text);
+  const progression = progressionGate(parsed.train, evidence);
+  const eligibility = parsed.train.slots
+    .filter((slot) => slot.state === 'PLANNED')
+    .map((slot) => ({ slot: slot.slot, taskId: slot.taskId, ...slotEligibility(parsed.train, slot, evidence, approvals) }));
+
   return {
     ...parsed,
+    // What the dashboard records, kept separate from what evidence authorizes.
     limit: trainLimitStatus(parsed.train),
+    progression,
+    approvals,
+    eligibility,
     ...resolved,
     recordedNextAction: resolved.nextAction,
     nextAction: nextActionUnderEvidence(parsed.train, resolved.current, resolved.nextAction, reconciliation),

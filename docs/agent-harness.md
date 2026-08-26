@@ -72,7 +72,14 @@ and prints. It is read-only by construction.
 `TODO.md` is a local operational dashboard, deliberately untracked. It never
 overrules Git or GitHub, and it is not a substitute for a tracked exec plan under
 `docs/exec-plans/`. Resume refuses outright if that file is tracked by Git, and
-warns if it is merely unignored.
+warns if it is merely unignored — pointing at `.git/info/exclude` rather than at
+tracked `.gitignore`, because local-only state does not belong in a tracked file.
+
+Two facts are reported separately and never conflated: what the dashboard records
+as occupied capacity, and whether starting another PR is authorized by live
+evidence. The second fails closed — a slot is released only when the dashboard
+says merged *and* GitHub confirms it, and unreadable GitHub state blocks new-slot
+progression while leaving current work free to continue.
 
 A compaction is treated as a process restart. Resume reconstructs state from
 evidence and reports drift rather than repairing it silently; a dashboard that

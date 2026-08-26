@@ -23,7 +23,10 @@ Authority order:
 5. Source and runtime evidence for anything still unresolved
 
 `TODO.md` is a local operational dashboard. It is never allowed to overrule Git
-or GitHub, and it is not a substitute for a tracked exec plan.
+or GitHub, and it is not a substitute for a tracked exec plan. Keep it ignored
+locally — preferably through `.git/info/exclude` — and stage explicit paths only.
+Do not edit tracked `.gitignore` for local-only state. Resume refuses outright if
+the file is tracked, and warns if it is merely unignored.
 
 ## Size
 
@@ -33,13 +36,55 @@ or GitHub, and it is not a substitute for a tracked exec plan.
 | Hard maximum the workflow supports | 4 |
 
 A fourth PR is **not** started automatically when the configured limit is 3.
-When the occupied slots reach the configured limit, `pnpm agents:resume` prints
-`TRAIN LIMIT REACHED — HUMAN CHECKPOINT REQUIRED` and does not name another
-roadmap PR as the next action. A dashboard configuring more than 4 fails to
-parse: that is a malformed dashboard, not a bigger train.
+A dashboard configuring more than 4 fails to parse: that is a malformed
+dashboard, not a bigger train.
 
-A slot occupies the train unless it is `PLANNED` (not started) or `MERGED`
-(gone).
+### Recorded capacity is not authorization
+
+Two separate questions, deliberately never conflated:
+
+**CAPACITY RECORDED** — what the dashboard says. A slot occupies the train unless
+it is `PLANNED` (not started) or `MERGED` (gone). This is `trainLimitStatus`, and
+it stays free of integration concerns.
+
+**NEW-SLOT PROGRESSION ALLOWED / BLOCKED** — whether starting another PR is
+authorized by live evidence. This is `progressionGate`, and it fails closed.
+
+The distinction exists because a stale dashboard could otherwise manufacture
+capacity. Reconciliation originally caught only one direction — GitHub merged
+while the dashboard said open — and missed the dangerous inverse: a slot wrongly
+recorded `MERGED` *releases* a slot, so with limit 3 and one such slot the train
+would accept a fourth PR while three were still live.
+
+So a slot is released **only** when the dashboard says `MERGED` *and* GitHub
+confirms it. A slot recorded `MERGED` that GitHub reports `OPEN`, reports
+`CLOSED` without merging, records no PR number, or cannot be read at all stays
+live. GitHub wins in both directions.
+
+Progression is blocked when any of these holds:
+
+- effective live slots have reached the configured limit
+- any recorded PR's GitHub state cannot be read, so capacity is unknowable
+- a slot recorded `MERGED` cannot be confirmed merged
+- the configured limit exceeds the ceiling
+- any unresolved finding is outstanding
+
+**Current PR work continues regardless.** The gate governs new slots only:
+losing GitHub access must not strand work in progress, and must not authorize
+anything new either.
+
+### A verification claim must be backed by evidence
+
+`CI_GREEN` and later are claims. For the purpose of authorizing *new* work they
+are believed only when GitHub agrees: checks rolled up to `SUCCESS`, or the PR
+merged. An unknown or null rollup is **not** a pass — that is the case where
+nothing is known, and it was previously accepted by a short-circuit that skipped
+the comparison when the rollup was absent.
+
+A `CI_GREEN` or `READY_FOR_HUMAN` slot whose checks cannot be verified produces
+an `unverified-claim` finding, and that finding suppresses the printed next
+action. `Next legitimate action` never says "human merge" while the final-head CI
+evidence is missing, pending, or contradictory.
 
 ## States
 
@@ -54,6 +99,7 @@ States carry obligations, and a claim without its evidence fails to parse:
 
 | State | Requires |
 |---|---|
+| `PLANNED` | *no* `PR number` — planned work has no PR, and `PLANNED` releases capacity |
 | anything past `PLANNED` | `Branch` |
 | `PR_OPEN` and later | `PR number` |
 | `CI_GREEN`, `REVIEW_FINDINGS`, `READY_FOR_HUMAN`, `MERGED` | `Head SHA` |
@@ -107,23 +153,46 @@ Default handoff before starting another PR: implementation complete, required
 local validation green, self-review complete, legitimate findings repaired, PR
 opened, final-head CI green.
 
-**The one relaxation, deliberately narrow.** You may begin work on an
-independent or sibling PR while an earlier PR's CI is still running, provided:
+**The one relaxation, deliberately narrow — and executable, not just prose.**
+You may begin work on an independent or sibling PR while an earlier PR's CI is
+still running. This is decided by `slotEligibility`, which answers one question:
+may this `PLANNED` slot become `ACTIVE`?
 
-- the earlier slot stays `CI_PENDING` — it is never advanced to `CI_GREEN`
-  without actual CI evidence;
-- the new work does not depend on the pending PR. A *dependent* slot is blocked
-  until its dependency reaches `CI_GREEN`, because dependent work would
-  otherwise build on an unverified change;
-- a CI failure becomes an entry under `# UNRESOLVED FINDINGS`, which blocks the
-  train's human handoff;
-- the train stays within its configured size.
+A `PLANNED` slot is eligible when **all** of these hold:
 
-Why this rule and not a more permissive one: a sibling shares its ancestor's
-*commit*, not the pending change, so a CI failure in the pending PR cannot
-invalidate the sibling's foundation. A dependent PR shares the change itself, so
-it can. The resume output enforces the distinction by refusing to name dependent
-work as the next action while its dependency is unverified.
+1. `progressionGate` allows a new slot (capacity and evidence, above);
+2. every one of **its own** dependencies is verified by evidence;
+3. its task appears as `[APPROVED]` in the execution window with its
+   `Approved to start` box checked.
+
+Nothing else is consulted. In particular, creation order is never consulted, and
+a *sibling* being `CI_PENDING` is irrelevant.
+
+Worked example. PR 1 `CI_GREEN`, PR 2 `CI_PENDING` depending on PR 1, PR 3
+`PLANNED`:
+
+| PR 3 depends on | May start | Why |
+|---|---|---|
+| nothing (base `main`) | yes | independent; nothing unverified underneath it |
+| PR 1 | yes | sibling of PR 2; its own dependency is verified |
+| PR 2 | **no** | its dependency is `CI_PENDING` |
+
+Why: a sibling shares its ancestor's *commit*, not the pending change, so a CI
+failure in the pending PR cannot invalidate the sibling's foundation. A dependent
+PR shares the change itself, so it can.
+
+The earlier slot stays `CI_PENDING` throughout — it is never advanced to
+`CI_GREEN` without actual CI evidence — and a CI failure becomes an entry under
+`# UNRESOLVED FINDINGS`, which blocks both the train's human handoff and any
+further new-slot progression.
+
+**Approval boundary.** Approval is part of the decision rather than an
+unenforced note, because the window format is a fixed heading plus a checkbox:
+`## [APPROVED] <task id>` followed by `**Approved to start:** [x]`. Anything else
+is not approval — `[DELIVERED]`, an unchecked box, a bare roadmap entry, or a
+task absent from the window. A missing or unreadable window blocks every planned
+slot rather than permitting anything. That is the whole extent of it; there is no
+planner and no dependency inference from the window.
 
 ## Merge, rebase, and retarget
 
@@ -229,12 +298,18 @@ unstaged state, each recorded PR's live number/head/base/mergeability/checks and
 dependency relationship, derived sibling groups, the next legitimate action,
 unresolved findings, and train-limit status.
 
+It prints `CAPACITY RECORDED` and `NEW-SLOT PROGRESSION ALLOWED/BLOCKED` as
+separate lines, with the blocking reasons, and a per-slot eligibility verdict for
+every `PLANNED` slot.
+
 It then reconciles evidence against the dashboard and reports drift rather than
 repairing it silently. Detected classes: main advanced past the anchor, worktree
 on a different branch than the current slot records, a PR merged or closed behind
-the dashboard, head or base mismatch, a `CI_GREEN` claim contradicted by actual
-checks, a merged dependency needing retarget, inherited uncommitted work, and any
-recorded PR whose GitHub state could not be read.
+the dashboard, **a PR recorded merged that GitHub still reports open or closed**,
+head or base mismatch, a `CI_GREEN` claim contradicted by actual checks, a
+`CI_GREEN` claim whose checks cannot be read at all, a merged dependency needing
+retarget, inherited uncommitted work, and any recorded PR whose GitHub state
+could not be read.
 
 A dashboard that does not parse stops resume with exit code 2 and an explicit
 error list. The single-PR predecessor is recognized by name and answered with
@@ -291,8 +366,17 @@ read-only resume script, and this contract.
   unauthenticated, resume says so explicitly and reports that PR-level drift was
   *not* checked. Absence of drift findings in that case is not evidence of
   agreement.
-- **Rename entries in the dirty-path report are shown as `old -> new`.** Adequate
-  for "inspect this before editing", not a parseable path list.
+- **Rename and copy entries in the dirty-path report are rendered as
+  `old -> new`.** That is a display form, not a parseable path list. It is
+  produced from the real two-record `git status --porcelain -z` rename form
+  (`R  <new>` followed by a bare `<old>`) and is covered by a fixture test.
+- **A slot deleted from the dashboard is invisible.** The model reasons about the
+  slots it is given; it cannot know about a live PR that was never recorded, or
+  was removed. That is why the checkpoint triggers include "PR opened" and why
+  resume reports the recent commit graph alongside the train.
+- **Approval is read from the window's shape, not its meaning.** A task approved
+  in the window but wrong to start for a reason no checkbox captures will pass
+  the eligibility gate. Approval is a boundary, not judgment.
 
 ## Implementation
 
@@ -301,5 +385,6 @@ read-only resume script, and this contract.
 - `.agents/scripts/resume-task.mjs` — integration boundary that gathers Git and
   GitHub evidence and prints the snapshot.
 - `.agents/scripts/__tests__/pr-train.test.mjs` — parser/state tests plus
-  mutation probes on the train-limit guard and the base/dependency agreement
-  check. Run by `pnpm agents:check`.
+  mutation probes on the train-limit guard, the base/dependency agreement check,
+  the merge-confirmation check, dependency verification, the approval check, and
+  the porcelain rename pairing. Run by `pnpm agents:check`.
