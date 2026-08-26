@@ -41,10 +41,20 @@ download_node24_floor=7
 upload_expected=7
 download_expected=8
 
-references=$(grep -rn 'uses:[[:space:]]*actions/\(upload\|download\)-artifact' "$workflows" || true)
-[ -n "$references" ] || fail 'no artifact action references found; this test has lost its subject'
+for workflow in "$publish" "$staging" "$production"; do
+  [ -r "$workflow" ] || fail "a workflow this contract depends on is missing: $workflow"
+done
 
-printf '%s\n' "$references" | while IFS= read -r reference; do
+work=$(mktemp)
+trap 'rm -f "$work"' EXIT HUP INT TERM
+
+grep -rn 'uses:[[:space:]]*actions/\(upload\|download\)-artifact' "$workflows" >"$work" || true
+[ -s "$work" ] || fail 'no artifact action references found; this test has lost its subject'
+
+# Redirected rather than piped, so a refusal exits this script rather than a
+# subshell. The floor is encoded once, here, instead of being restated as a
+# version regex that could drift away from the variables above.
+while IFS= read -r reference; do
   spec=${reference##*actions/}
   action=${spec%%@*}
   version=${spec#*@}
@@ -65,16 +75,30 @@ printf '%s\n' "$references" | while IFS= read -r reference; do
     fail "actions/$action@$version still runs on the Node 20 runtime; $action needs v$floor or later"
   [ "$major" -eq "$expected" ] ||
     fail "actions/$action is pinned to v$major but this repository expects v$expected; update ops/tests/artifact-contract.sh deliberately if that is intended"
-done
+done <"$work"
 
-# `while` above runs in a subshell, so its `exit 1` cannot fail this script.
-# Recheck the floor here where the status is observable.
-if printf '%s\n' "$references" | grep -Eq 'actions/upload-artifact@v[1-5]([^0-9]|$)'; then
-  fail 'an upload-artifact reference still requests a Node 20 major'
-fi
-if printf '%s\n' "$references" | grep -Eq 'actions/download-artifact@v[1-6]([^0-9]|$)'; then
-  fail 'a download-artifact reference still requests a Node 20 major'
-fi
+# --- The steps exist, and there is exactly one of each --------------------
+#
+# Without this, every assertion below is satisfiable by a workflow that no
+# longer transfers anything: the naming checks match the leftover `with:` keys,
+# and the version checks only constrain references that are still present. A
+# pipeline that stopped uploading the digest manifest entirely would pass. The
+# counts also make a duplicated upload — two steps disagreeing about what the
+# release is — a failure rather than an ambiguity.
+count_uses() {
+  grep -c "uses:[[:space:]]*actions/$2@" "$1" 2>/dev/null || true
+}
+
+[ "$(count_uses "$publish" upload-artifact)" -eq 1 ] ||
+  fail 'publish-images.yml must upload the digest manifest exactly once'
+[ "$(count_uses "$publish" download-artifact)" -eq 0 ] ||
+  fail 'publish-images.yml must not download artifacts'
+[ "$(count_uses "$staging" download-artifact)" -eq 1 ] ||
+  fail 'deploy-staging.yml must download the digest manifest exactly once'
+[ "$(count_uses "$staging" upload-artifact)" -eq 1 ] ||
+  fail 'deploy-staging.yml must upload staging evidence exactly once'
+[ "$(count_uses "$production" upload-artifact)" -eq 0 ] ||
+  fail 'deploy-production.yml must not upload artifacts'
 
 # --- Artifact naming across the chain -------------------------------------
 #

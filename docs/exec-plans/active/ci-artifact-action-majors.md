@@ -45,9 +45,14 @@ wrong file, or a promotion gate that cannot find its evidence.
 
 - Repoint the three `uses:` lines to `actions/upload-artifact@v7` and
   `actions/download-artifact@v8`.
-- Extend `ops/tests/image-publishing.sh`, `ops/tests/staging-cd.sh`, and
-  `ops/tests/production-cd.sh` with contract assertions covering the artifact
-  handoff and the new inputs whose defaults must not be relied on silently.
+- Add `ops/tests/artifact-contract.sh`, covering the handoff and the inputs
+  whose defaults must not be relied on silently, and wire it into CI.
+  A dedicated file rather than additions to `ops/tests/image-publishing.sh`,
+  `ops/tests/staging-cd.sh`, and `ops/tests/production-cd.sh`, which was the
+  first intent: every property here spans workflows, so splitting the contract
+  across three per-workflow test files would have left no single place where the
+  chain is asserted end to end. Those three keep their existing per-workflow
+  invariants unchanged.
 - Document the pinned majors and the reason the packaging defaults matter.
 
 ## Non-goals
@@ -149,6 +154,9 @@ are both unaffected.
 - The manifest validation expressions in all three workflows are untouched.
 - Contract tests fail if any of the above regresses, and fail if a future edit
   adopts `archive: false` or `skip-decompress: true`.
+- No artifact action is named in any workflow's Node-20 deprecation annotation.
+  Restated from the dashboard's "no warning remains on final-head CI", which is
+  not achievable here — see the section on where the warning appears.
 - `ops/tests/*.sh`, `pnpm agents:check`, and the aggregate checks are green
   without `--fix`.
 - Final-head CI is green.
@@ -160,7 +168,9 @@ are both unaffected.
 - Mutation probes: revert each `uses:` line to v4 and confirm the new
   assertions fail; add `archive: false` and confirm the guard fires.
 - `pnpm agents:check`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`
-- Confirm no artifact-action deprecation annotation on the final-head run.
+- Read the Node-20 annotations on the post-merge `Publish immutable images` and
+  `Deploy staging` runs and confirm no artifact action is named. CI cannot show
+  this either way, because CI uses no artifact actions.
 
 ## Required evidence
 
@@ -176,6 +186,36 @@ per-job results, and the annotation check. Staging is not operated.
   24, however this action was by default still running on Node.js 20") would
   have led to upgrading to a major that does not solve the problem.
 
+## Where the deprecation warning actually appears
+
+Measured on the runs for `d358076` rather than assumed, by reading the
+annotations on each job:
+
+| Workflow | Actions named in the Node-20 annotation |
+| --- | --- |
+| CI | `checkout@v4`, `setup-node@v4`, `pnpm/action-setup@v4`, `docker/setup-buildx-action@v3` |
+| Publish immutable images | `checkout@v4`, **`upload-artifact@v4`**, `docker/login-action@v3`, `docker/setup-buildx-action@v3` |
+| Deploy staging | **`download-artifact@v4`**, **`upload-artifact@v4`** |
+
+Two consequences, both worth stating plainly rather than working around.
+
+**CI never used an artifact action at all.** So the acceptance criterion
+inherited from the dashboard — "confirm no warning remains on final-head CI" —
+cannot be satisfied by this change, and never could have been: every action
+named in CI's annotation is one this plan's non-goals exclude. The criterion is
+kept but restated truthfully below, as "no artifact action is named in any
+deprecation annotation".
+
+**`Deploy staging` is the one workflow this fully clears.** Its annotation names
+only the two artifact actions, so after this change it should have no Node-20
+annotation at all. `Publish immutable images` will keep its annotation, reduced
+to `checkout@v4` and the two `docker/*` actions.
+
+Retiring the rest is a real follow-up, but it belongs in its own change: the
+`docker/*` actions gate image publishing, and `setup-node`/`pnpm/action-setup`
+gate every build job, so they carry different blast radius and different
+evidence needs than an artifact rename.
+
 ## Progress
 
 - [x] Determined the actual Node-24 majors from `action.yml` at each tag.
@@ -184,6 +224,31 @@ per-job results, and the annotation check. Staging is not operated.
 - [x] Confirmed no self-hosted runners, so the 2.327.1 runner floor is met.
 - [x] Established that download v5's path-behavior break does not apply to
       `pattern` + `merge-multiple` downloads.
+- [x] Repointed the three call sites; verified by parsing each workflow that
+      only the version changed and every input is identical.
+- [x] Added `ops/tests/artifact-contract.sh` and wired it into CI.
+- [x] Measured which workflows actually carry the annotation, which corrected
+      the acceptance criterion rather than the other way round.
+- [x] Self-review found three findings in the new test, all repaired:
+  1. **Test coverage, medium.** The naming and version assertions were
+     independent of whether the artifact steps existed. Deleting the digest
+     upload entirely, or duplicating it, passed: the naming greps matched the
+     leftover `with:` keys and the version check only constrained references
+     still present. A pipeline that had stopped transferring the manifest would
+     have gone green. Now each workflow asserts an exact expected count.
+  2. **Comment correctness, low.** A comment claimed the `while` loop's
+     refusal could not fail the script because it ran in a pipeline subshell,
+     and justified a duplicate version-regex recheck on that basis. The claim is
+     false — a pipeline's status is its last command's, so `set -e` does abort;
+     verified with a standalone probe. Worse, the duplicate encoded the Node-24
+     floor a second time as `v[1-5]`/`v[1-6]`, which could drift from the floor
+     variables. The loop now reads from a redirected file, so no subshell is
+     involved at all, and the floor is stated once.
+  3. **Diagnostics, low.** A missing workflow file produced
+     `[: Illegal number:` before the real message, because `grep -c` on an
+     absent file yields no count. Guarded with a readability check.
+- [x] 30 mutation probes across every assertion class, each confirmed to fail
+      the suite when applied and to pass when reverted.
 
 ## Blockers
 
