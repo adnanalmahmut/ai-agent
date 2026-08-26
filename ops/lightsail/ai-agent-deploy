@@ -105,7 +105,9 @@ image_label() {
   image=$1
   label=$2
   value=$(docker image inspect --format "{{ index .Config.Labels \"$label\" }}" "$image" 2>/dev/null) ||
-    die "release image was not pulled: $label"
+    die "release image is not present locally after the pull"
+  # Verified against an attested bake push pulled by index digest: an absent
+  # label comes back empty on Docker 29 and as `<no value>` on older releases.
   [ -n "$value" ] && [ "$value" != '<no value>' ] || die "release image does not declare $label"
   printf '%s' "$value"
 }

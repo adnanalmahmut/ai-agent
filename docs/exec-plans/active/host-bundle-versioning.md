@@ -152,6 +152,14 @@ human operator action taken after merge.
 
 ## Decision log
 
+- 2026-08-26: The label read was verified empirically rather than assumed. Bake
+  pushes an index carrying provenance and SBOM attestations alongside the
+  platform image, so it was not self-evident that `docker image inspect` on the
+  index digest — the reference `compose pull` resolves — would return the
+  image's own labels. A local registry, an attested bake push, and a pull by
+  index digest confirmed both labels come back. The same probe showed a missing
+  label returning an empty string on Docker 29 where older versions print
+  `<no value>`; the deploy script refuses on either.
 - 2026-08-26: `ops/tests/host-bundle.sh` installs the bundle into a sandbox with
   the real installer and then drives the deploy wrapper that installer put
   there, rather than a rewritten copy of the repository file. A test that
