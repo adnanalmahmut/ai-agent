@@ -18,6 +18,7 @@ docs/ci.md
 docs/cd.md
 docs/deployment.md
 docs/host-bundle.md
+docs/release-retention.md
 docs/rollback.md
 docs/backup-restore.md
 docs/security.md
@@ -42,6 +43,10 @@ grep -Fq 'staging-success-<SHA>' docs/cd.md
 grep -Fq 'actions/upload-artifact@v7' docs/cd.md
 grep -Fq 'actions/download-artifact@v8' docs/cd.md
 grep -Fq 'ops/tests/artifact-contract.sh' docs/cd.md
+grep -Fq 'OCI image index digest' docs/release-retention.md
+grep -Fq 'never compares digest strings' docs/release-retention.md
+grep -Fq 'before any mutation' docs/release-retention.md
+grep -Fq 'ai-agent-release-retention' docs/host-bundle.md
 grep -Fq 'explicit environment allowlist' docs/deployment.md
 grep -Fq 'install-host-bundle.sh' docs/host-bundle.md
 grep -Fq 'io.ai-agent.host-bundle.min-version' docs/host-bundle.md

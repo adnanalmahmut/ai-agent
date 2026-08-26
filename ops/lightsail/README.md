@@ -51,9 +51,13 @@ release on the host and run, as root:
 `ops/lightsail/install-host-bundle.sh`
 
 It reinstalls every file in `ops/host-bundle/files` and rewrites the recorded
-manifest. Never edit an installed bundle file in place: the deploy wrapper
-compares recorded digests before it pulls anything, so a hand edit refuses the
-next release rather than the one after. See
+manifest. Bundle 2 adds `ai-agent-release-retention`, which is installed but not
+yet invoked by anything; see
+[release image retention](../../docs/release-retention.md).
+
+Never edit an installed bundle file in place: the deploy wrapper compares
+recorded digests before it pulls anything, so a hand edit refuses the next
+release rather than the one after. See
 [the host bundle document](../../docs/host-bundle.md).
 
 ## Boundary verification

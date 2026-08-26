@@ -134,6 +134,7 @@ jobs:
           ops/tests/artifact-contract.sh
           ops/tests/release-manifest.sh
           ops/tests/host-bundle.sh
+          ops/tests/release-retention.sh
           ops/tests/backup-recovery.sh
           ops/tests/restore-drill-safety.sh
           ops/tests/documentation.sh

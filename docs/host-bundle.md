@@ -34,8 +34,15 @@ genuinely stops working on an older bundle. `ops/tests/host-bundle.sh` fails if
 [`ops/host-bundle/files`](../ops/host-bundle/files) is the inventory: source
 path, installed destination, and mode, one file per line. It covers the compose
 bundle, `ai-agent-deploy`, `ai-agent-deploy-dispatch`,
-`ai-agent-runtime-preflight`, `ai-agent-host-preflight`, and the sudoers
-fragment.
+`ai-agent-runtime-preflight`, `ai-agent-host-preflight`,
+`ai-agent-release-retention`, and the sudoers fragment.
+
+Bundle 2 adds `ai-agent-release-retention` and changes nothing else. It is a
+worked example of why the two version numbers are separate: the capability is
+installed but nothing invokes it, so `MIN_VERSION` stays at 1 and a host still
+running bundle 1 remains completely correct. Declaring a minimum of 2 there
+would refuse deployments over a dependency no release actually has yet. See
+[release image retention](release-retention.md).
 
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by
