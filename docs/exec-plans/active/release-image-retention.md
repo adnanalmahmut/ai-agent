@@ -596,10 +596,56 @@ host, not by anyone remembering to do it in the right order.
 - [x] Two-stage rollout adopted so no deployment is ever expected to fail.
 - [x] Probe cleanup verified: all three pulled images and both probe containers
       removed; the local daemon is back to its pre-probe image count.
-- [ ] OPS-03A: implement the retention script, its tests, and bundle
-      `VERSION` 2, without wiring the invocation.
+- [x] OPS-03A implemented: `ops/release-retention.sh`,
+      `ops/tests/release-retention.sh`, `docs/release-retention.md`, bundle
+      `VERSION` 2 with `MIN_VERSION` held at 1, the widened anti-reclaim sweep,
+      and no invocation anywhere. `ai-agent-deploy`,
+      `ai-agent-deploy-dispatch`, and the sudoers fragment are byte-identical
+      to `main`.
+- [x] Review findings repaired. Six in total, five of them in the tests:
+  1. **Dead probe, medium.** The post-mutation verification probe removed the
+     guard and then asserted nothing. It also could not have asserted anything,
+     since protected images are never candidates and so no input reaches a sweep
+     that loses one. The Docker stub now models collateral damage, which is the
+     only way to make that guard fire.
+  2. **Dead probe, medium.** The blocking-container probe asserted only that
+     some `image rm` appeared in the log, which it does anyway for the unblocked
+     candidates. It passed with the guard intact. Now discriminated on the
+     blocked reference.
+  3. **Overclaim, low.** The digest-format probe asserted the guard was
+     load-bearing; it is not. A malformed digest cannot reach a mutation either
+     way, because the reference fails to resolve and the pre-mutation gate
+     refuses. The probe now documents the layering instead of overstating it.
+  4. **Untested guard, low.** The empty-protected-set check was unreachable
+     through any input. Probed against the field map it actually defends: an
+     empty `release_fields` is a plausible refactoring error, and the guard turns
+     it into a refusal rather than a sweep with nothing protected.
+  5. **Untested path, medium.** No scenario reached an `image rm` that failed
+     for a reason the container pre-check cannot see, so whether the caller reads
+     Docker's exit status was unverified. The stub can now fail a specific
+     removal, which catches both ignoring the status and reading it through a
+     pipe.
+  6. **Stale assumption in an existing test, medium.** `ops/tests/host-bundle.sh`
+     derived its newer-bundle refusal case from `MIN_VERSION`, which equals
+     `VERSION` only while every shipped capability is also required. It stopped
+     refusing the moment a bundle shipped an unused capability — exactly the
+     situation OPS-03A creates, and exactly when that case needs to keep
+     working. Derived from `VERSION` now.
+- [x] 31 mutation probes across every guard, each confirmed to fail the suite
+      when applied and pass when reverted.
 - [ ] Operator installs bundle 2 on Staging and records evidence.
 - [ ] OPS-03B: bump `MIN_VERSION` to 2 and activate.
+
+## Open design item for OPS-03B
+
+Retention takes the deployment lock non-blockingly, which is correct for the
+standalone command but cannot be how it is called from inside a deployment that
+already holds that lock. OPS-03B has to reconcile this deliberately — by passing
+the held lock down, by releasing it once the deployment is complete and state is
+rotated, or by giving retention a separate lock and relying on the caller's. It
+is recorded here rather than guessed at now, because the wrong choice either
+deadlocks every deployment or reopens the pull-before-rotation window this lock
+exists to close.
 
 ## Blockers
 
