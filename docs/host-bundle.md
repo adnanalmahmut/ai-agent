@@ -37,11 +37,25 @@ bundle, `ai-agent-deploy`, `ai-agent-deploy-dispatch`,
 `ai-agent-runtime-preflight`, `ai-agent-host-preflight`,
 `ai-agent-release-retention`, and the sudoers fragment.
 
-Bundle 2 adds `ai-agent-release-retention` and changes nothing else. It is a
-worked example of why the two version numbers are separate: the capability is
-installed but nothing invokes it, so `MIN_VERSION` stays at 1 and a host still
-running bundle 1 remains completely correct. Declaring a minimum of 2 there
-would refuse deployments over a dependency no release actually has yet. See
+Bundle 2 added `ai-agent-release-retention`, installed and invoked by nothing.
+Bundle 3 wires it into the successful deployment path. Together they are the
+worked example of why the two numbers are separate.
+
+At bundle 2 the capability existed but nothing called it, so `MIN_VERSION` stayed
+at 1: a host still on bundle 1 remained completely correct, and declaring a
+minimum of 2 would have refused deployments over a dependency no release had
+yet. At bundle 3 the wrapper calls retention, so two listed files changed and
+`VERSION` had to move with them — holding it at 2 would leave two materially
+different bundles both recording `version 2`, which is precisely the false claim
+this mechanism exists to prevent.
+
+`MIN_VERSION` is 2 at bundle 3, not 3. Retention is entirely host-side: the
+release images require nothing from it, and a host on bundle 2 deploys correctly
+using its own wrapper, which does not call it. So 2 is the floor at which the
+capability exists, which is what the release can honestly require; 3 would claim
+the invocation is required and refuse a host that is on bundle 2 today. The
+consequence is that retention starts running only after an operator reinstalls
+the bundle, not when the release merges. See
 [release image retention](release-retention.md).
 
 Files that are not release-coupled are deliberately absent. The Nginx site and

@@ -25,6 +25,7 @@ set -eu
 state_dir=/var/lib/ai-agent
 current_release=$state_dir/CURRENT_RELEASE.json
 previous_release=$state_dir/PREVIOUS_RELEASE.json
+deploy_lock=$state_dir/deploy.lock
 host_preflight=/usr/local/sbin/ai-agent-host-preflight
 registry=ghcr.io/adnanalmahmut/ai-agent
 
@@ -64,11 +65,44 @@ candidates=$work_dir/candidates
 
 # A deployment between the image pull and the CURRENT rotation has its new
 # images on disk but not yet recorded, so they would be unprotected candidates.
-# Taking the deployment lock makes that window unreachable. Non-blocking: a
+# Holding the deployment lock makes that window unreachable. Non-blocking: a
 # retention sweep is never worth waiting behind a release for.
+#
+# There are two ways to hold it, because ai-agent-deploy already holds it for the
+# whole deployment and retention runs inside that deployment. flock locks belong
+# to an open file description rather than to a process, which is what makes both
+# safe:
+#
+#   - Opening the file here creates a new description, so it is refused while a
+#     deployment holds the lock. That is standalone mode.
+#   - Re-locking a description that is already held is a no-op that returns
+#     immediately, never a deadlock. That is what internal mode does with the
+#     descriptor ai-agent-deploy passes down.
+#
+# Both paths perform the same unconditional flock. Neither reads anything from
+# the environment: an environment variable asserting "the lock is already held"
+# would be a claim, not a lock.
+
+# Standalone. A fresh description, so an active deployment refuses it.
 lock_retention() {
   [ -d "$state_dir" ] || die 'release state directory does not exist'
-  exec 9>"$state_dir/deploy.lock"
+  exec 9>"$deploy_lock"
+  flock -n 9 || die 'a deployment is active; retention will not run alongside one'
+}
+
+# Internal. The lock file is deliberately never opened here: opening it would
+# create a second description and lose the caller's lock, turning the guarantee
+# into its opposite. Descriptor 9 must already be open on exactly the deployment
+# lock, which is checked rather than assumed — a caller that forgot the
+# redirection, or whose descriptor 9 points at something else, must refuse before
+# any Docker call rather than sweep under a serialization that does not exist.
+adopt_deployment_lock() {
+  target=$(readlink "/proc/$$/fd/9" 2>/dev/null || true)
+  [ "$target" = "$deploy_lock" ] || die \
+    "internal retention requires the deployment lock on descriptor 9; found ${target:-nothing}"
+  # Unconditional, exactly as in standalone mode. On the descriptor
+  # ai-agent-deploy holds this returns immediately; on any other description of
+  # the same file it refuses while a deployment is running.
   flock -n 9 || die 'a deployment is active; retention will not run alongside one'
 }
 
@@ -330,14 +364,23 @@ available_mib() {
 # Entry point
 # ---------------------------------------------------------------------------
 
+# Serialization is a parameter rather than the caller's business, so both entry
+# points run the identical sequence in the identical order and there is one place
+# where that order is stated.
 run_retention() {
-  required_mib=${1:-}
+  lock_mode=$1
+  required_mib=${2:-}
   if [ -n "$required_mib" ]; then
     printf '%s' "$required_mib" | grep -Eq '^[1-9][0-9]*$' ||
       die 'required free space must be a positive number of MiB'
   fi
 
-  lock_retention
+  case $lock_mode in
+    standalone) lock_retention ;;
+    inherited) adopt_deployment_lock ;;
+    *) die 'internal error: unknown lock mode' ;;
+  esac
+
   establish_protected_set
 
   data_root=$(docker_data_root)
@@ -377,7 +420,20 @@ run_retention() {
 case "${1:-}" in
   reclaim)
     [ "$#" -le 2 ] || die 'reclaim takes an optional required free space in MiB'
-    run_retention "${2:-}"
+    run_retention standalone "${2:-}"
     ;;
-  *) die 'usage: release-retention.sh reclaim [required-free-mib]' ;;
+  reclaim-locked)
+    # Internal. Called by ai-agent-deploy after a deployment has succeeded and
+    # its release state has been rotated, on the deployment's own lock.
+    #
+    # Deliberately absent from ai-agent-deploy-dispatch's forced-command
+    # grammar, and absent from the sudoers fragment, so the CI deploy key cannot
+    # execute retention in either mode. Being handed the descriptor is not what
+    # makes this safe, and is not treated as though it were: the flock above is.
+    # An operator running this by hand with the redirection would simply get
+    # standalone behaviour.
+    [ "$#" -le 2 ] || die 'reclaim-locked takes an optional required free space in MiB'
+    run_retention inherited "${2:-}"
+    ;;
+  *) die 'usage: release-retention.sh reclaim|reclaim-locked [required-free-mib]' ;;
 esac

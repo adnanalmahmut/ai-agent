@@ -66,12 +66,62 @@ not on a classic-store daemon, which reports the config digest. Resolving rather
 than comparing keeps retention correct on either, which matters because the
 script cannot know which store a host runs.
 
+## The two execution modes
+
+Retention needs the deployment lock, and `ai-agent-deploy` already holds it for
+the whole deployment. `flock` locks belong to an *open file description* rather
+than to a process, and that is what makes both modes work:
+
+| | `reclaim` | `reclaim-locked` |
+|---|---|---|
+| Caller | an operator | `ai-agent-deploy`, after a successful deployment |
+| The lock | opens `/var/lib/ai-agent/deploy.lock` itself | requires it already open on descriptor 9 |
+| Description | a new one, so an active deployment refuses it | the deployment's own, so re-locking returns immediately |
+| `flock -n 9` | unconditional | unconditional |
+
+Both perform the same non-blocking `flock`. Internal mode never opens the lock
+file: opening it would create a second description and lose the caller's lock,
+turning the guarantee into its opposite. It instead checks that descriptor 9 is
+open on exactly the deployment lock — `readlink /proc/$$/fd/9` against the fixed
+absolute path — so a caller that forgot the redirection refuses before any Docker
+call rather than sweeping under a serialisation that does not exist.
+
+Being handed the descriptor is not a privilege and is not treated as one. An
+operator running `reclaim-locked` by hand with the redirection would get exactly
+standalone behaviour, because the lock test is identical. What keeps the CI
+deploy identity away from retention is the forced-command grammar in
+`ai-agent-deploy-dispatch`, which contains neither verb, and the sudoers
+fragment, which permits exactly one program — `ai-agent-deploy`. Retention reads
+nothing at all from the environment; there is no variable that could assert the
+lock is held, because a claim is not a lock.
+
+## When the deployment runs it
+
+`ai-agent-deploy deploy` calls `reclaim-locked` from its `deploy` case arm, after
+`deploy_release` returns. That is after the new release is healthy and after
+`CURRENT`/`PREVIOUS` rotation, and the ordering is structural rather than
+commented into place: `deploy_release`'s last two statements are the rotation and
+the `CURRENT` write. Called any earlier, the release that had just started would
+not yet be recorded and would classify as a removal candidate.
+
+A retention failure never fails the deployment. The release is deployed,
+healthy, and recorded by then; retention is disk hygiene, not part of the
+release. It is not silent either — the wrapper prints the exit status and states
+that superseded images were not reclaimed, and the hard gate stays where it was:
+the next deployment's `disk 4096` preflight, the refusal that surfaced this
+problem in the first place.
+
+`rollback` deliberately does not call retention. A rollback is incident
+response, and adding an image mutation to it buys disk the next deployment's own
+preflight already guards. Anything it could have reclaimed is still reclaimable
+by the next forward deployment or by the standalone command.
+
 ## Sequence
 
-1. Take the deployment lock, non-blocking. A deployment between its image pull
-   and its `CURRENT` rotation has images on disk that are not yet recorded, so
-   they would look like candidates; holding the lock makes that window
-   unreachable.
+1. Hold the deployment lock, non-blocking, by one of the two modes above. A
+   deployment between its image pull and its `CURRENT` rotation has images on
+   disk that are not yet recorded, so they would look like candidates; holding
+   the lock makes that window unreachable.
 2. Read and strictly validate `CURRENT_RELEASE.json` and
    `PREVIOUS_RELEASE.json` — release SHA plus all four image references, each a
    well-formed `sha256:` digest. A record missing a field is a refusal, never a
@@ -121,6 +171,10 @@ sudo ai-agent-release-retention reclaim
 sudo ai-agent-release-retention reclaim 4096
 ```
 
+`reclaim-locked` is the wrapper's entry point and takes the same optional
+argument, but it is not an operator command: it requires the deployment lock on
+descriptor 9 and refuses without it.
+
 With a free-space requirement it re-runs `ai-agent-host-preflight disk` at the
 end, so a sweep that did not free enough space says so in the same words a
 deployment refusal would use. Without one it reports reclaimed space and states
@@ -131,15 +185,21 @@ partial or zero reclaim is visible rather than silent.
 
 ## Current status
 
-Installed as part of host bundle 2 and **not yet invoked by anything**.
-`ai-agent-deploy` does not call it, and no release behaviour depends on it:
-`MIN_VERSION` remains 1, so a host still running bundle 1 is completely correct
-and deploys normally. This is capability delivered ahead of activation, so the
-removal logic could be reviewed before anything could call it.
+Active in the wrapper as of host bundle 3, with `MIN_VERSION` at 2.
 
-Activation — wiring it into the successful post-deploy path and moving
-`MIN_VERSION` to 2 — is a separate change, and requires that an operator has
-already installed bundle 2. It is also not reachable over SSH: the
-forced-command grammar in `ai-agent-deploy-dispatch` is unchanged, so the CI
-deploy key cannot invoke retention. See
+The rollout was deliberately split. Bundle 2 shipped the script installed and
+uninvoked, so the removal logic could be reviewed before anything could call it,
+and so no deployment was ever expected to fail. Bundle 3 wires it in.
+
+`MIN_VERSION` is 2 rather than 3, and the distinction matters. Everything
+retention does is host-side: the four release images require nothing from it, and
+a host on bundle 2 deploys correctly using its own wrapper, which does not call
+retention. So `MIN_VERSION=2` declares the floor at which the capability exists,
+which is the honest claim. `MIN_VERSION=3` would declare that the invocation
+itself is required and would refuse a host that is running bundle 2 today.
+
+The consequence, stated so it is not discovered later: **merging this does not
+make retention run.** It runs once an operator has reinstalled the bundle from a
+checkout containing it, at which point the host records version 3 and its
+wrapper calls retention. Until then the host deploys exactly as before. See
 [the host bundle document](host-bundle.md).

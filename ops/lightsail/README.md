@@ -51,8 +51,10 @@ release on the host and run, as root:
 `ops/lightsail/install-host-bundle.sh`
 
 It reinstalls every file in `ops/host-bundle/files` and rewrites the recorded
-manifest. Bundle 2 adds `ai-agent-release-retention`, which is installed but not
-yet invoked by anything; see
+manifest. Bundle 2 added `ai-agent-release-retention`, installed and invoked by
+nothing; bundle 3 has the deploy wrapper run it after a successful deployment has
+rotated its release state. Retention only starts running once the bundle carrying
+that wrapper is installed — merging the release does not start it. See
 [release image retention](../../docs/release-retention.md).
 
 Never edit an installed bundle file in place: the deploy wrapper compares
