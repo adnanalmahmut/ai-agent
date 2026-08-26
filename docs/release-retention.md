@@ -185,7 +185,8 @@ partial or zero reclaim is visible rather than silent.
 
 ## Current status
 
-Active in the wrapper as of host bundle 3, with `MIN_VERSION` at 2.
+Active in the wrapper as of host bundle 3, with `MIN_VERSION` at 2. Bundle 3 is
+installed and verified on Staging.
 
 The rollout was deliberately split. Bundle 2 shipped the script installed and
 uninvoked, so the removal logic could be reviewed before anything could call it,
@@ -196,10 +197,33 @@ retention does is host-side: the four release images require nothing from it, an
 a host on bundle 2 deploys correctly using its own wrapper, which does not call
 retention. So `MIN_VERSION=2` declares the floor at which the capability exists,
 which is the honest claim. `MIN_VERSION=3` would declare that the invocation
-itself is required and would refuse a host that is running bundle 2 today.
+itself is required and would refuse a host still running bundle 2.
 
-The consequence, stated so it is not discovered later: **merging this does not
-make retention run.** It runs once an operator has reinstalled the bundle from a
-checkout containing it, at which point the host records version 3 and its
-wrapper calls retention. Until then the host deploys exactly as before. See
+That distinction was confirmed rather than assumed. Merging the activation
+triggered the usual release chain, and the automatic Staging deployment ran
+before the operator installed bundle 3. Its log reads `host bundle 2 verified`
+and `host bundle 2 satisfies the required 2`: the release was accepted, the
+bundle-2 wrapper called no retention, and the deployment was healthy. New host
+behaviour arrives with the bundle install, not with the merge. See
 [the host bundle document](host-bundle.md).
+
+## First real execution
+
+**Retention has not yet run on a real host.** It is installed and wired, and
+every guard is covered by tests driving a modelled image store, but its first
+execution will be the first legitimate deployment after bundle 3 was installed.
+
+It must not be forced. A no-op release, an empty commit, or a manual
+`reclaim` on the host would each prove something adjacent to the thing that
+matters — that retention behaves correctly on the deployment path — and a manual
+run would consume the superseded generation the automatic run needs in order to
+demonstrate anything at all.
+
+What that deployment's log has to show is recorded in the completed execution
+plan, `docs/exec-plans/completed/release-image-retention.md`, under *Operational
+acceptance still open*. In outline: the deployment stayed healthy; the host was
+on bundle 3; retention ran after the release-state rotation; it completed or
+refused with an explicit fail-closed reason; all eight protected references still
+resolved afterwards; every reclaimed reference was a superseded application
+image; before/after/reclaimed disk was reported; the post-retention disk
+preflight passed; and no `prune` or forced deletion appeared anywhere.
