@@ -79,6 +79,22 @@ printf '%s\n' 'status staging' | grep -Eq "$dispatch_allowlist" || {
   exit 1
 }
 
+# Retention runs on the deployment's own lock. `reclaim` would open the lock file
+# again, get a distinct open file description, and be refused by the deployment
+# that is calling it -- every time, silently, so retention would simply never
+# run. `reclaim-locked` re-locks the inherited description instead.
+grep -Fq '"$retention" reclaim-locked' ops/lightsail/ai-agent-deploy ||
+  { echo 'the wrapper must invoke retention through the inherited-lock entry point' >&2; exit 1; }
+if grep -Eq '\$retention"? +reclaim( |$)' ops/lightsail/ai-agent-deploy; then
+  echo 'the wrapper must not invoke the standalone retention entry point; it already holds the lock' >&2
+  exit 1
+fi
+# Retention must not be asked to take the deployment's word for it: the inherited
+# descriptor is the lock, and a variable saying it is held would only be a claim.
+# Asserted from retention's side, where it is a property rather than a pattern --
+# ops/tests/release-retention.sh requires that the script expand no environment
+# variable at all, which leaves the wrapper nothing it could assert through.
+
 grep -Fq 'CURRENT_RELEASE.json' ops/lightsail/ai-agent-deploy
 grep -Fq 'PREVIOUS_RELEASE.json' ops/lightsail/ai-agent-deploy
 if grep -Eq 'ghcr\.io/.+:\$sha' ops/lightsail/ai-agent-deploy; then

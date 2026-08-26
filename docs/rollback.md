@@ -14,6 +14,13 @@ checks. A rollback target that a satisfied host once deployed still satisfies
 it; a host whose bundle has since been hand-edited does not, and must be
 reinstalled from the release checkout before rolling back.
 
+Rollback also does not run release-image retention, and does not need to: the
+images a rollback depends on are exactly the ones retention protects, because the
+retained set is `CURRENT` plus `PREVIOUS` and `PREVIOUS` is what rollback reads.
+Retention runs only on the forward-deployment path — adding an image mutation to
+incident response would buy disk the next deployment's own preflight already
+guards. See [release image retention](release-retention.md).
+
 Rollback does not execute migrations and never performs a down migration.
 Database compatibility depends on expand → migrate/backfill → switch →
 contract-later. If the previous app cannot run on the current schema, stop and

@@ -46,6 +46,11 @@ grep -Fq 'ops/tests/artifact-contract.sh' docs/cd.md
 grep -Fq 'OCI image index digest' docs/release-retention.md
 grep -Fq 'never compares digest strings' docs/release-retention.md
 grep -Fq 'before any mutation' docs/release-retention.md
+grep -Fq 'reclaim-locked' docs/release-retention.md
+grep -Fq 'open file description' docs/release-retention.md
+grep -Fq 'never fails the deployment' docs/release-retention.md
+grep -Fq 'release-retention.md' docs/cd.md
+grep -Fq 'release-retention.md' docs/rollback.md
 grep -Fq 'ai-agent-release-retention' docs/host-bundle.md
 grep -Fq 'explicit environment allowlist' docs/deployment.md
 grep -Fq 'install-host-bundle.sh' docs/host-bundle.md

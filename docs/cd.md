@@ -34,6 +34,12 @@ without it. The host reads the labels after pulling and before migrating and
 refuses a release its recorded bundle cannot satisfy — see
 [the host bundle document](host-bundle.md).
 
+After a deployment is healthy and its `CURRENT`/`PREVIOUS` state has rotated, the
+wrapper reclaims the superseded release's images on its own deployment lock. That
+step never fails a deployment that has already succeeded, and it reports its
+outcome either way; the hard disk gate remains the next deployment's preflight.
+See [release image retention](release-retention.md).
+
 The digest manifest and the staging evidence both travel as GitHub Actions
 artifacts, uploaded with `actions/upload-artifact@v7` and read back with
 `actions/download-artifact@v8` — the current majors, both on the Node 24

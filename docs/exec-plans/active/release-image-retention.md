@@ -220,6 +220,31 @@ first change that has any reason to touch image removal at all.
 10. The forced-command grammar is unchanged, so the CI deploy key cannot invoke
     retention directly.
 
+Added with activation in OPS-03B:
+
+11. Retention runs only after a deployment is healthy and its release state has
+    rotated, never before.
+12. Retention never runs on a failure path: a deployment that did not become
+    healthy has pulled unrecorded images, which is the description of a
+    candidate.
+13. Retention holds the deployment lock in both modes, and the check is
+    unconditional in both.
+14. Internal mode never opens the lock file, so it cannot lose the caller's lock.
+15. Internal mode refuses a descriptor that is not the deployment lock.
+16. Internal mode refuses when no descriptor was passed at all.
+17. Standalone mode opens its own description and is therefore refused by a held
+    lock, even when handed one already locked.
+18. Retention exiting does not release the deployment's lock.
+19. Retention reads nothing from the environment, so no variable can assert that
+    the lock is held.
+20. A retention failure never fails, undoes, or rolls back a healthy deployment.
+21. A retention failure is reported with its exit status and distinguished from a
+    deployment failure.
+22. `rollback` does not run retention.
+23. A release declaring a minimum of 2 is refused on a bundle-1 host, before
+    migrations, and accepted at exactly 2.
+24. `health` still answers on a host missing the retention executable.
+
 ## Trust boundary
 
 The dispatcher grammar in `ops/lightsail/ai-agent-deploy-dispatch` is **not**
@@ -284,7 +309,16 @@ it. OPS-03B may not begin until that evidence exists.
 - All approved safety invariants and their mutation probes.
 
 Prerequisite, not negotiable: verified operator evidence that Staging is running
-bundle 2.
+bundle 2. **Satisfied on 2026-08-26**: the operator installed the bundle from
+release checkout `b465e31be371e90433ef4f8ac09ab939478f1c88`, the recorded
+manifest declares version 2, `ai-agent-host-preflight integrity` passes,
+`/usr/local/sbin/ai-agent-release-retention` is installed and executable, the
+runtime preflight passes, `disk 4096` passes with 23640MiB available, and
+`health staging` succeeds. Retention has not been run on the host.
+
+The lock question that was left open is resolved below under *the deployment
+lock contract*: two verbs, one of which never opens the lock file and instead
+re-locks the descriptor the deployment already holds.
 
 ## Files
 
@@ -306,11 +340,22 @@ Modified in OPS-03A:
 
 Modified in OPS-03B:
 
-- `ops/host-bundle/MIN_VERSION` (1 -> 2)
-- `ops/lightsail/ai-agent-deploy` — invoke retention after state rotation; add
-  the operator-only subcommand
-- `docs/cd.md`, `docs/rollback.md`, `docs/operations-runbook.md`,
-  `docs/troubleshooting.md`
+- `ops/host-bundle/MIN_VERSION` (1 -> 2) and `ops/host-bundle/VERSION` (2 -> 3).
+  The `VERSION` bump is required by the repository contract and is reasoned out
+  under *the two version numbers in OPS-03B* below; it is not a free choice.
+- `ops/lightsail/ai-agent-deploy` — the `reclaim-locked` invocation after
+  `deploy_release` returns, plus the installed-file check for the retention
+  executable
+- `ops/release-retention.sh` — the second entry point and the inherited-lock
+  contract
+- `ops/tests/release-retention.sh` — both lock modes, the decoy probe, activation
+  assertions replacing the OPS-03A "installed and unused" ones
+- `ops/tests/host-bundle.sh` — retention in the sandbox inventory, the bundle-1
+  refusal and bundle-2 acceptance of an OPS-03B release, deploy ordering, and
+  deploy-side mutation probes
+- `ops/tests/lightsail-boundary.sh` — the wrapper must use the internal verb
+- `docs/release-retention.md`, `docs/host-bundle.md`, `docs/cd.md`,
+  `docs/rollback.md`, `ops/lightsail/README.md`
 
 ## Gate 1: the image identity contract, proven empirically
 
@@ -633,21 +678,204 @@ host, not by anyone remembering to do it in the right order.
      working. Derived from `VERSION` now.
 - [x] 31 mutation probes across every guard, each confirmed to fail the suite
       when applied and pass when reverted.
-- [ ] Operator installs bundle 2 on Staging and records evidence.
-- [ ] OPS-03B: bump `MIN_VERSION` to 2 and activate.
+- [x] Operator installed bundle 2 on Staging from `b465e31` and recorded
+      evidence: manifest version 2, integrity passing, the retention executable
+      installed and executable, runtime preflight passing, `disk 4096` passing
+      with 23640MiB available, and `health staging` succeeding. Retention was not
+      run by hand.
+- [x] Deployment lock contract resolved and measured rather than reasoned about.
+      Six flock properties probed directly: a child re-locking an inherited
+      descriptor succeeds, a fresh description on the same file is refused even
+      from a child of the holder, and a child's exit does not release the
+      parent's lock. Two verbs, `reclaim` and `reclaim-locked`, sharing one
+      sequence with serialization as a parameter.
+- [x] OPS-03B implemented: `MIN_VERSION` 1 -> 2, `VERSION` 2 -> 3, the wrapper
+      invoking `reclaim-locked` after `deploy_release` returns, retention's
+      inherited-lock entry point, and the deploy-side and lock-mode test
+      coverage. `ai-agent-deploy-dispatch` and the sudoers fragment are
+      byte-identical to `main`.
+- [x] Review findings repaired. Four:
+  1. **Dead assertion in the OPS-03A suite, medium.** `expect_refusal` checked
+     `grep -Fq ' image rm '` against a log whose lines the Docker stub writes
+     without the `docker` prefix, so the leading space meant it could never
+     match. Every refusal case had been passing that check vacuously. Anchored
+     to `^image rm `, and the old pattern was confirmed non-matching against a
+     real log line before the fix.
+  2. **Unnecessary coupling, medium.** The retention executable was required at
+     the top of the wrapper for every verb, so a host missing it would refuse
+     `health` -- the diagnostic staging CD and an operator during an incident
+     both call, and the one thing that does not use retention. Scoped to
+     `deploy`, with a test that `health` still answers, probed by removing the
+     scoping.
+  3. **Non-discriminating fixture, medium.** Caught by its own probe: the
+     ordering test redeployed one SHA, so `CURRENT` carried that SHA whether
+     retention ran before or after the rotation. A third SHA now makes it
+     discriminating, and the stand-in records the earliest observation only, so a
+     probe that adds a correctly-placed second call cannot overwrite the
+     pre-rotation one.
+  4. **Redundant case, low.** A second identical failing deployment was added to
+     `ops/tests/deploy-service-health.sh` to inspect a log the existing
+     API-readiness case had already produced. Folded into it.
+- [x] Two other suites drive the wrapper in their own sandboxes and had no
+      retention executable, so both refused before reaching what they test.
+      `ops/tests/release-manifest.sh` and `ops/tests/deploy-service-health.sh`
+      now install a stand-in; the latter also asserts that retention runs on the
+      success path and on no failure path.
 
-## Open design item for OPS-03B
+## The two version numbers in OPS-03B
 
-Retention takes the deployment lock non-blockingly, which is correct for the
-standalone command but cannot be how it is called from inside a deployment that
-already holds that lock. OPS-03B has to reconcile this deliberately — by passing
-the held lock down, by releasing it once the deployment is complete and state is
-rotated, or by giving retention a separate lock and relying on the caller's. It
-is recorded here rather than guessed at now, because the wrong choice either
-deadlocks every deployment or reopens the pull-before-rotation window this lock
-exists to close.
+The direction was to keep `VERSION` at 2 unless the repository contract
+objectively required a bump. It does, so `VERSION` becomes 3.
+
+The contract, stated in `ops/host-bundle/files` and `docs/host-bundle.md`, is
+that `VERSION` is bumped whenever the inventory or any file in it changes.
+OPS-03B changes two listed files: `ops/lightsail/ai-agent-deploy` gains the
+retention invocation, and `ops/release-retention.sh` gains its second entry
+point. Holding `VERSION` at 2 would leave two materially different bundles both
+recording `version 2` on a host — one whose wrapper calls retention and one
+whose wrapper does not. That is the precise failure the mechanism exists to
+prevent: a recorded version that asserts more than the installed files support.
+It would also make the difference inexpressible, since no future release could
+ask for "a host whose wrapper calls retention" when that host reports the same
+number as one without it.
+
+`MIN_VERSION` becomes 2, not 3, and the distinction is worth being exact about.
+Everything retention does is host-side: the four release images require nothing
+from it, and a host on an older bundle simply runs its own older wrapper, which
+does not call retention. So the OPS-03B release does not stop working on bundle
+2 — it deploys normally there and retention does not run until the operator
+reinstalls. `MIN_VERSION=2` therefore declares the floor at which the retention
+capability exists at all, which is the honest claim; `MIN_VERSION=3` would
+declare that the invocation is required, and would refuse the very Staging host
+that is running bundle 2 today. That is the known-red deployment this rollout
+was split in two to avoid.
+
+The consequence, stated plainly so it is not discovered later: merging OPS-03B
+does not make retention run. It runs after the operator reinstalls the bundle
+from the OPS-03B checkout, at which point the host records version 3 and its
+wrapper calls retention. Until then Staging deploys exactly as it does now.
+
+## Resolved: the deployment lock contract
+
+Retention mutates images, and the set it may mutate is "application images that
+are neither CURRENT nor PREVIOUS". Between a deployment's image pull and its
+`CURRENT` rotation, the release that is starting is on disk and not yet
+recorded, so it satisfies that description exactly. The deployment lock is what
+makes that window unreachable, which means retention must hold it — and
+`ai-agent-deploy` already holds it for the whole deployment.
+
+### The mechanism
+
+`flock` locks belong to an *open file description*, not to a process. That one
+fact resolves the whole problem, and it was measured rather than assumed:
+
+| Probe | Result |
+|---|---|
+| Parent `exec 9>lock; flock -n 9` | acquires |
+| Child inheriting fd 9, `flock -n 9` | **succeeds immediately** — same description, no deadlock |
+| Child opening the same file fresh, `flock -n 8` | **refused** — a distinct description |
+| Same, after the first child exited | still refused: a child's exit does not release the parent's lock |
+| `readlink /proc/$$/fd/9` from a child | resolves to the lock's absolute path |
+| Same with `9<&-` | absent |
+
+So the deployment can simply pass its lock down: shell descriptors above 2 are
+not close-on-exec, so `ai-agent-deploy`'s fd 9 is already open in any child it
+executes.
+
+### Two modes
+
+`reclaim [required-mib]` — **standalone operator mode.** Opens
+`/var/lib/ai-agent/deploy.lock` itself with `exec 9>`, then `flock -n 9`. A
+fresh description, so it is refused while a deployment holds the lock.
+Unchanged from OPS-03A.
+
+`reclaim-locked [required-mib]` — **internal post-deploy mode.** Never opens the
+lock file. It requires descriptor 9 to be open already on exactly
+`/var/lib/ai-agent/deploy.lock`, proven by comparing `readlink /proc/$$/fd/9`
+against the fixed absolute literal, and then performs the *same* unconditional
+`flock -n 9`.
+
+### Why it cannot deadlock
+
+Internal mode never opens the file, so its `flock -n 9` targets the description
+`ai-agent-deploy` already holds — a no-op re-lock that returns immediately
+(probe row 2). `LOCK_UN` is issued nowhere, so retention exiting does not
+release the deployment's lock (probe row 4); the deployment keeps it until its
+own process exits.
+
+### Why it cannot run unlocked
+
+`flock -n 9` is unconditional in both modes. There is no bypass flag and no
+environment variable that skips it. Anything that opens the lock file for itself
+gets a distinct description and is refused while a deployment holds it — from an
+unrelated process and from a child of the holder alike (probe row 3). Retention
+reads nothing from the environment at all, and
+`ops/tests/release-retention.sh` asserts that the script contains no
+environment expansion whatsoever.
+
+### An inherited descriptor is not a privilege, and is not described as one
+
+Being handed the descriptor is not what makes internal mode safe — the `flock`
+is. An operator who ran `reclaim-locked` by hand with the redirection would get
+exactly standalone behaviour, because the lock test is identical. The internal
+verb exists to avoid a deadlock, not to grant anything.
+
+The `readlink` assertion is still load-bearing, for a different reason: a caller
+that forgot the redirection, or whose fd 9 points somewhere else entirely, must
+refuse before any Docker call rather than run a sweep whose serialisation is
+imaginary. That guard is mutation-probed with a decoy file.
+
+### Why the CI deploy key cannot reach internal mode
+
+Three independent layers, in the order they apply:
+
+1. **Grammar.** The forced-command regex in `ai-agent-deploy-dispatch` admits
+   only `deploy <env> <sha> <4 digests>` and `status|health|rollback <env>`.
+   Neither retention verb appears in it, and the file is byte-identical to the
+   one shipped before this change.
+2. **Authorization.** The sudoers fragment permits the `deploy` user exactly one
+   program, `/usr/local/sbin/ai-agent-deploy`. `ai-agent-release-retention` is
+   not in it, so the CI identity cannot execute retention as root by any route,
+   and the release state directory is root-owned, so it can do nothing useful
+   unprivileged either.
+3. **Safety.** Granting both, internal mode still performs the unconditional
+   `flock -n`, so it still could not run alongside a deployment.
+
+Layers 1 and 2 are the authorization boundary; layer 3 holds regardless of them,
+which is why it is the one asserted by mutation probe rather than by inspection.
+
+### Ordering
+
+Retention is invoked from the `deploy` case arm, after `deploy_release` returns
+— not from inside it. `deploy_release`'s last two statements are the `PREVIOUS`
+rotation and the `CURRENT` write, so "after the function returns" *is* "after
+rotation", structurally, with no ordering comment that has to be kept true.
+`ops/tests/host-bundle.sh` proves it semantically as well: the sandbox's
+retention records the `CURRENT_RELEASE.json` it can see at the moment it is
+invoked, and the test asserts that record already names the release being
+deployed.
+
+### Rollback deliberately does not invoke retention
+
+`rollback` shares `deploy_release` but not the retention call. A rollback is
+incident response, and adding an image mutation to it buys disk that the next
+deployment's own preflight already guards. Anything a rollback could have
+reclaimed is still reclaimable by the next forward deployment or by the
+standalone command.
+
+### Failure semantics
+
+`run_retention` in the wrapper is `if retention…; then report; else report the
+failure loudly; fi; return 0`. The release is deployed, healthy, and recorded
+before it is called, so a retention failure cannot fail or undo it. It is not
+swallowed either: the wrapper prints the exit status and states that disk was
+not reclaimed, retention itself already exits non-zero on any blocked or failed
+candidate, and the hard gate is the next deployment's `disk 4096` preflight —
+the same refusal that surfaced the original incident.
 
 ## Blockers
 
-None. Gate 1 is passed, so OPS-03A may proceed. OPS-03B remains blocked on
-operator evidence of bundle 2 on Staging.
+None. Gate 1 is passed and OPS-03A is merged as `b465e31`. The operator has
+installed bundle 2 on Staging from that exact checkout, verified integrity, and
+confirmed `/usr/local/sbin/ai-agent-release-retention` is present and
+executable, so the OPS-03B prerequisite is satisfied.

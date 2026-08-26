@@ -16,6 +16,7 @@ sed \
   -e "s#/var/lib/ai-agent#$tmp_dir/state#g" \
   -e "s#/usr/local/sbin/ai-agent-runtime-preflight#$tmp_dir/bin/preflight#g" \
   -e "s#/usr/local/sbin/ai-agent-host-preflight#$tmp_dir/bin/host-preflight#g" \
+  -e "s#/usr/local/sbin/ai-agent-release-retention#$tmp_dir/bin/retention#g" \
   ops/lightsail/ai-agent-deploy >"$tmp_dir/deploy"
 chmod +x "$tmp_dir/deploy"
 
@@ -30,6 +31,14 @@ cat >"$tmp_dir/bin/host-preflight" <<'SH'
 #!/bin/sh
 exit 0
 SH
+# Retention runs after a successful rotation and has its own reproduction in
+# ops/tests/release-retention.sh, plus its deployment wiring in
+# ops/tests/host-bundle.sh. Satisfied cheaply here for the same reason as above.
+cat >"$tmp_dir/bin/retention" <<'SH'
+#!/bin/sh
+exit 0
+SH
+chmod +x "$tmp_dir/bin/retention"
 cat >"$tmp_dir/bin/docker" <<'SH'
 #!/bin/sh
 set -eu

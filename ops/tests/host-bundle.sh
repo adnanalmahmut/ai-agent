@@ -34,6 +34,14 @@ printf '%s' "$bundle_minimum" | grep -Eq '^[1-9][0-9]*$' ||
 [ "$bundle_minimum" -le "$bundle_version" ] ||
   fail 'host bundle MIN_VERSION must not exceed the bundle VERSION it ships with'
 
+# Both numbers are load-bearing for an operator deciding whether to reinstall, so
+# the documents that explain them must be describing the bundle that actually
+# ships. A bump with no doc revisit is the drift this catches.
+grep -Fq "bundle $bundle_version" docs/host-bundle.md ||
+  fail "docs/host-bundle.md does not describe bundle $bundle_version"
+grep -Fq "host bundle $bundle_version" docs/release-retention.md ||
+  fail "docs/release-retention.md does not describe host bundle $bundle_version"
+
 # ---------------------------------------------------------------------------
 # The inventory is the contract; nothing release-coupled may fall out of it
 # ---------------------------------------------------------------------------
@@ -187,6 +195,47 @@ rewrite ops/lightsail/ai-agent-deploy-dispatch "$tmp_dir/src/ai-agent-deploy-dis
 cp ops/lightsail/ai-agent-deploy.sudoers "$tmp_dir/src/ai-agent-deploy.sudoers"
 cp docker-compose.yml "$tmp_dir/src/docker-compose.yml"
 rewrite ops/lightsail/ai-agent-deploy "$tmp_dir/src/ai-agent-deploy"
+
+# Stands in for ai-agent-release-retention. Retention's own behaviour is owned by
+# ops/tests/release-retention.sh, which drives the real script against a modelled
+# image store; what matters here is the wiring -- which entry point the wrapper
+# calls, when it calls it, whether the deployment lock reaches it, and what the
+# wrapper does with the answer. A stand-in also keeps this suite from needing a
+# second image-store model that could drift from the first.
+cat >"$tmp_dir/src/release-retention" <<'SH'
+#!/bin/sh
+set -eu
+printf 'retention %s\n' "$*" >>"$TEST_LOG"
+
+# What descriptor 9 is at the moment retention is entered. The real script
+# refuses unless this is the deployment lock, so recording it here proves the
+# wrapper actually passes its lock down.
+readlink "/proc/$$/fd/9" >"$TEST_CONTROL/retention_fd9" 2>/dev/null ||
+  printf 'none\n' >"$TEST_CONTROL/retention_fd9"
+
+# The release state retention can see when it starts. This is the ordering proof:
+# retention must never run before the rotation, or the release that has just
+# started is not yet recorded and would look removable.
+#
+# Recorded once, for the earliest invocation only. A probe that adds a second,
+# correctly-placed call would otherwise overwrite the pre-rotation observation
+# and hide exactly what it was inserted to expose.
+if [ ! -f "$TEST_CONTROL/retention_saw_current" ]; then
+  if [ -f "$TEST_STATE_DIR/CURRENT_RELEASE.json" ]; then
+    cat "$TEST_STATE_DIR/CURRENT_RELEASE.json" >"$TEST_CONTROL/retention_saw_current"
+  else
+    printf 'absent\n' >"$TEST_CONTROL/retention_saw_current"
+  fi
+fi
+
+[ ! -f "$TEST_CONTROL/retention_fails" ] || {
+  echo 'release retention failed: stand-in was told to fail' >&2
+  exit 64
+}
+echo 'release retention: stand-in completed'
+SH
+chmod 0755 "$tmp_dir/src/release-retention"
+
 # The deploy script's free-space floor is a property of the release, not of
 # whatever the CI runner happens to have left. Its refusal is asserted directly
 # against the host preflight further down.
@@ -198,6 +247,7 @@ sed -i 's/^required_free_mib=.*/required_free_mib=1/' "$tmp_dir/src/ai-agent-dep
   printf '%s %s %s\n' "$tmp_dir/src/ai-agent-deploy-dispatch" "$tmp_dir/sbin/ai-agent-deploy-dispatch" 0755
   printf '%s %s %s\n' "$tmp_dir/src/runtime-preflight.sh" "$tmp_dir/sbin/ai-agent-runtime-preflight" 0755
   printf '%s %s %s\n' "$tmp_dir/src/host-preflight.sh" "$tmp_dir/sbin/ai-agent-host-preflight" 0755
+  printf '%s %s %s\n' "$tmp_dir/src/release-retention" "$tmp_dir/sbin/ai-agent-release-retention" 0755
   printf '%s %s %s\n' "$tmp_dir/src/ai-agent-deploy.sudoers" "$tmp_dir/etc/sudoers.d/ai-agent-deploy" 0440
 } >"$tmp_dir/files"
 
@@ -296,6 +346,7 @@ PATH="$tmp_dir/bin:$PATH"
 export PATH
 export TEST_LOG=$tmp_dir/commands.log
 export TEST_CONTROL=$control
+export TEST_STATE_DIR=$tmp_dir/state
 
 registry=ghcr.io/adnanalmahmut/ai-agent
 release_sha=1111111111111111111111111111111111111111
@@ -323,7 +374,7 @@ manifest=$tmp_dir/etc/ai-agent/host-bundle.manifest
 [ -f "$manifest" ] || fail 'the installer recorded no host bundle manifest'
 grep -Fxq "version $bundle_version" "$manifest" ||
   fail 'the recorded manifest does not carry the bundle version'
-[ "$(grep -c '^file ' "$manifest")" -eq 6 ] ||
+[ "$(grep -c '^file ' "$manifest")" -eq 7 ] ||
   fail 'the recorded manifest does not cover every installed file'
 
 preflight=$tmp_dir/sbin/ai-agent-host-preflight
@@ -385,6 +436,195 @@ attempt_deploy >/dev/null
   fail 'a satisfied host did not reach migrations'
 grep -Fq "\"sha\":\"$release_sha\"" "$tmp_dir/state/CURRENT_RELEASE.json" ||
   fail 'a successful deployment recorded no release manifest'
+
+# ---------------------------------------------------------------------------
+# Retention is invoked by a successful deployment, and only afterwards
+# ---------------------------------------------------------------------------
+
+# Each case that inspects the recorded release state deploys a SHA that is not
+# already recorded. Reusing one would make the ordering assertion hold whether
+# retention ran before or after the rotation, because CURRENT would carry that
+# SHA either way -- which the ordering probe caught.
+second_sha=3333333333333333333333333333333333333333
+third_sha=4444444444444444444444444444444444444444
+
+deploy_sha() {
+  printf '%s\n' "$1" >"$control/label.release-sha"
+  "$deploy" deploy staging "$1" "$backend_digest" "$migration_digest" \
+    "$web_digest" "$platform_digest"
+}
+deploy_second() { deploy_sha "$second_sha"; }
+deploy_third() { deploy_sha "$third_sha"; }
+restore_first_sha() { printf '%s\n' "$release_sha" >"$control/label.release-sha"; }
+
+# A second release, so CURRENT changes value. With one SHA the ordering assertion
+# below would hold whether retention ran before or after the rotation, and would
+# be proving nothing.
+rm -f "$control/retention_fd9" "$control/retention_saw_current"
+deploy_second >"$tmp_dir/out" 2>&1 || fail 'a second deployment did not succeed'
+
+grep -Fq 'retention reclaim-locked 1' "$TEST_LOG" ||
+  fail 'a successful deployment did not invoke retention through the inherited-lock entry point'
+if grep -Eq '^retention reclaim( |$)' "$TEST_LOG"; then
+  fail 'the wrapper invoked the standalone retention entry point, which its own lock would refuse'
+fi
+
+# The deployment lock reaches retention as descriptor 9. Without this the real
+# script refuses, so the wiring and the contract are asserted in one place.
+[ "$(cat "$control/retention_fd9")" = "$tmp_dir/state/deploy.lock" ] ||
+  fail "retention did not receive the deployment lock on descriptor 9: $(cat "$control/retention_fd9")"
+
+# Ordering. Retention must see the release that was just deployed already
+# recorded as CURRENT; anything earlier and that release is an unrecorded image
+# on disk, which is exactly the description of a removal candidate.
+grep -Fq "\"sha\":\"$second_sha\"" "$control/retention_saw_current" ||
+  fail 'retention ran before CURRENT was rotated to the release being deployed'
+
+# The wrapper reports the outcome in its own voice rather than leaving a reader
+# to infer it from retention's output.
+grep -Fq 'release retention: completed' "$tmp_dir/out" ||
+  fail 'a successful deployment did not report the retention outcome'
+
+# --- A retention failure is loud, and does not fail a healthy deployment ---
+: >"$control/retention_fails"
+rm -f "$control/retention_saw_current"
+deploy_second >"$tmp_dir/out" 2>&1 ||
+  fail 'a retention failure turned a healthy deployment into a failed one'
+grep -Fq 'release retention FAILED' "$tmp_dir/out" ||
+  fail 'a retention failure was not reported'
+grep -Fq 'exit 64' "$tmp_dir/out" ||
+  fail 'a retention failure did not report its exit status'
+grep -Fq 'this deployment is healthy and complete' "$tmp_dir/out" ||
+  fail 'a retention failure did not distinguish itself from a deployment failure'
+grep -Fq "\"sha\":\"$second_sha\"" "$tmp_dir/state/CURRENT_RELEASE.json" ||
+  fail 'a retention failure lost the recorded release state'
+rm -f "$control/retention_fails"
+
+# --- The retention executable is a bundle requirement ---
+# Refused at the top of the wrapper, before anything irreversible, the same way
+# every other installed bundle file is.
+mv "$tmp_dir/sbin/ai-agent-release-retention" "$tmp_dir/retention.absent"
+refuses 'release retention is not installed' \
+  'a host bundle with no retention executable' deploy_second
+# ...but only for `deploy`. `health` is what staging CD and an operator during an
+# incident both call, and it does not use retention, so a missing retention
+# executable must not turn the diagnostic into a refusal.
+"$deploy" health staging >/dev/null 2>&1 ||
+  fail 'health refused because the retention executable was absent'
+mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
+
+# ---------------------------------------------------------------------------
+# The bundle version gate, at the minimum this release actually declares
+# ---------------------------------------------------------------------------
+
+# The recorded version is not covered by the manifest's file digests, so it can
+# be rewritten without disturbing the integrity check -- which is the point: this
+# is a host genuinely on an older bundle, not a tampered one.
+set_recorded_version() {
+  sed "s/^version .*/version $1/" "$manifest" >"$manifest.next"
+  mv "$manifest.next" "$manifest"
+}
+
+set_recorded_version 1
+refuses "requires host bundle $bundle_minimum and the host has 1" \
+  'a host still on bundle 1 deploying a release that declares a minimum of 2' \
+  deploy_second
+
+# Accepted at exactly the declared minimum. The wrapper installed here is the
+# OPS-03B one, so this asserts the version arithmetic rather than claiming a real
+# bundle-2 host would invoke retention -- a real one carries the bundle-2
+# wrapper, which does not.
+set_recorded_version "$bundle_minimum"
+deploy_second >/dev/null 2>&1 ||
+  fail 'a host at exactly the declared minimum was refused'
+set_recorded_version "$bundle_version"
+
+# ---------------------------------------------------------------------------
+# Mutation probes on the wrapper itself
+# ---------------------------------------------------------------------------
+#
+# The wrapper source is edited and the bundle reinstalled, so the manifest
+# records digests of exactly what the sandbox then executes -- the same route the
+# operator takes, not a way around the integrity check.
+
+probe_wrapper() {
+  expression=$1
+  cp "$tmp_dir/src/ai-agent-deploy" "$tmp_dir/wrapper.pristine"
+  python3 - "$tmp_dir/wrapper.pristine" "$tmp_dir/src/ai-agent-deploy" "$expression" <<'PROBE'
+import sys
+source, destination, expression = sys.argv[1], sys.argv[2], sys.argv[3]
+old, new = expression.split('=>', 1)
+text = open(source).read()
+if old not in text:
+    sys.stderr.write('wrapper probe anchor missing: %r\n' % old)
+    sys.exit(2)
+open(destination, 'w').write(text.replace(old, new, 1))
+PROBE
+  "$tmp_dir/install" >/dev/null
+}
+
+probe_wrapper_done() {
+  cp "$tmp_dir/wrapper.pristine" "$tmp_dir/src/ai-agent-deploy"
+  "$tmp_dir/install" >/dev/null
+}
+
+# Retention moved ahead of the rotation. This is the ordering mistake that would
+# put the release being deployed into the candidate set, and the ordering
+# assertion above has to be what catches it.
+probe_wrapper '  if [ -f "$current_release" ]; then=>  run_retention
+  if [ -f "$current_release" ]; then'
+rm -f "$control/retention_saw_current"
+deploy_third >/dev/null 2>&1 || true
+if grep -Fq "\"sha\":\"$third_sha\"" "$control/retention_saw_current"; then
+  probe_wrapper_done
+  fail 'retention called before the rotation still saw the new release as CURRENT; the ordering assertion proves nothing'
+fi
+# ...and it did see the release the rotation was about to replace, which is what
+# makes this the dangerous case rather than merely a different one.
+grep -Fq "\"sha\":\"$second_sha\"" "$control/retention_saw_current" ||
+  fail 'the pre-rotation probe did not observe the superseded release as CURRENT'
+probe_wrapper_done
+
+# The retention invocation removed entirely.
+probe_wrapper '    run_retention
+    ;;=>    ;;'
+: >"$TEST_LOG"
+deploy_second >/dev/null 2>&1 || true
+if grep -Fq 'retention reclaim-locked' "$TEST_LOG"; then
+  probe_wrapper_done
+  fail 'retention appeared to run with its invocation removed; the invocation assertion proves nothing'
+fi
+probe_wrapper_done
+
+# Retention failure made fatal. The tolerance is what keeps a healthy deployment
+# green, so removing it has to be visible.
+probe_wrapper "    status=\$?=>    die 'retention failed'"
+: >"$control/retention_fails"
+if deploy_second >/dev/null 2>&1; then
+  rm -f "$control/retention_fails"
+  probe_wrapper_done
+  fail 'a fatal retention failure still reported a successful deployment; the tolerance assertion proves nothing'
+fi
+rm -f "$control/retention_fails"
+probe_wrapper_done
+
+# The verb scoping on the retention requirement. With it gone, a host missing the
+# retention executable can no longer answer `health` -- the diagnostic staging CD
+# and an operator during an incident both call.
+probe_wrapper '[ "${1:-}" != deploy ] || [ -x "$retention" ] ||=>[ -x "$retention" ] ||'
+mv "$tmp_dir/sbin/ai-agent-release-retention" "$tmp_dir/retention.absent"
+if "$deploy" health staging >/dev/null 2>&1; then
+  mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
+  probe_wrapper_done
+  fail 'health still answered with the verb scoping removed; the scoping assertion proves nothing'
+fi
+mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
+probe_wrapper_done
+
+# Leave the sandbox as the happy path left it, so every case below is still
+# caused by the one thing it changes.
+restore_first_sha
+attempt_deploy >/dev/null
 
 # Staging failure 1: the installed compose file predated the release.
 cp "$tmp_dir/opt/ai-agent/docker-compose.yml" "$tmp_dir/compose.saved"

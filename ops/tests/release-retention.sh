@@ -78,34 +78,54 @@ grep -Fq "docker image inspect \"\$1\" --format '{{.Id}}'" "$source_script" ||
 grep -Fq 'RepoDigests' "$source_script" ||
   fail 'retention must build removal references from RepoDigests'
 
+# Retention takes nothing from the environment. This is what makes the lock
+# contract a lock rather than a claim: there is no variable a caller could set to
+# assert "the deployment lock is already held", because the script reads none.
+# Every path is a fixed absolute literal for the same reason.
+if grep -nE '\$\{?[A-Z][A-Z0-9_]*' "$source_script"; then
+  fail 'retention must not read anything from the environment'
+fi
+
 # ===========================================================================
-# Host bundle state for OPS-03A: capability shipped, nothing depends on it
+# Host bundle state: the capability is shipped and now invoked
 # ===========================================================================
 
 bundle_version=$(sed -n '1p' ops/host-bundle/VERSION)
 bundle_minimum=$(sed -n '1p' ops/host-bundle/MIN_VERSION)
-[ "$bundle_version" = 2 ] || fail 'host bundle VERSION must be 2 in OPS-03A'
-[ "$bundle_minimum" = 1 ] || fail \
-  'host bundle MIN_VERSION must stay 1 in OPS-03A: the release is fully functional on bundle 1 because nothing invokes retention yet'
+# The wrapper now calls retention, so two listed bundle files changed and the
+# repository contract requires VERSION to move with them. MIN_VERSION declares
+# the floor at which the retention capability exists, which is 2 -- not 3: the
+# release images require nothing from retention, and a host on bundle 2 deploys
+# correctly with its own wrapper, which simply does not call it.
+[ "$bundle_version" = 3 ] || fail \
+  'host bundle VERSION must be 3: ai-agent-deploy and release-retention.sh both changed'
+[ "$bundle_minimum" = 2 ] || fail \
+  'host bundle MIN_VERSION must be 2: the retention capability first exists in bundle 2'
 
 grep -Fq '/usr/local/sbin/ai-agent-release-retention' ops/host-bundle/files ||
   fail 'the retention script must be in the host bundle inventory'
 
-# The whole point of OPS-03A: the capability is installed and unused. If the
-# deploy wrapper ever calls it here, the release starts depending on bundle 2
-# while MIN_VERSION still says 1, and a bundle-1 host would run a release whose
-# requirement it cannot satisfy.
-if grep -Eq 'release-retention|release_retention' ops/lightsail/ai-agent-deploy; then
-  fail 'ai-agent-deploy must not invoke retention in OPS-03A'
-fi
+# Activation. The wrapper must call retention, and must call the entry point that
+# re-locks the descriptor it already holds -- `reclaim` would open the lock file
+# again, be refused by the very deployment calling it, and never run.
+grep -Fq '"$retention" reclaim-locked' ops/lightsail/ai-agent-deploy ||
+  fail 'ai-agent-deploy must invoke retention through the inherited-lock entry point'
+grep -Fq 'retention=/usr/local/sbin/ai-agent-release-retention' ops/lightsail/ai-agent-deploy ||
+  fail 'ai-agent-deploy must resolve retention by its fixed installed path'
 
-# The forced-command grammar is the trust boundary for the CI deploy key.
+# The forced-command grammar is the trust boundary for the CI deploy key, and it
+# is unchanged: neither retention verb appears in it.
 if grep -Eq 'retention|reclaim' ops/lightsail/ai-agent-deploy-dispatch; then
   fail 'retention must not be reachable through the forced-command grammar'
 fi
+# Nor through sudo: the deploy user is permitted exactly one program.
+if grep -Eq 'retention|reclaim' ops/lightsail/ai-agent-deploy.sudoers; then
+  fail 'the deploy user must not be permitted to run retention under sudo'
+fi
 dispatch_allowlist=$(sed -n "/grep -Eq/s/.*grep -Eq '\([^']*\)'.*/\1/p" ops/lightsail/ai-agent-deploy-dispatch)
 [ -n "$dispatch_allowlist" ] || fail 'could not extract the forced-command allowlist'
-for rejected in 'reclaim staging' 'reclaim production' 'release-retention staging'; do
+for rejected in 'reclaim staging' 'reclaim production' 'reclaim-locked staging' \
+                'release-retention staging' 'deploy staging reclaim-locked'; do
   if printf '%s\n' "$rejected" | grep -Eq "$dispatch_allowlist"; then
     fail "the CI deploy identity must not be able to invoke retention: $rejected"
   fi
@@ -144,10 +164,16 @@ echo "free space satisfies the required $2MiB"
 SH
 chmod 0755 "$tmp_dir/sbin/ai-agent-host-preflight"
 
-cat >"$bin_dir/flock" <<'SH'
+# Delegates to the real flock rather than modelling it. The whole lock design
+# rests on flock locks belonging to an open file description rather than to a
+# process, so the tests below must exercise the kernel primitive, not a stand-in
+# that would agree with whatever the script did. $CONTROL/lock_held simulates a
+# competing holder for the cases that only need a refusal.
+real_flock=$(command -v flock) || fail 'flock is required to test the lock contract'
+cat >"$bin_dir/flock" <<SH
 #!/bin/sh
-[ ! -f "$CONTROL/lock_held" ] || exit 1
-exit 0
+[ ! -f "\$CONTROL/lock_held" ] || exit 1
+exec "$real_flock" "\$@"
 SH
 chmod 0755 "$bin_dir/flock"
 
@@ -358,18 +384,91 @@ run_retention() {
     "$script" "$@" >"$tmp_dir/out" 2>&1
 }
 
+# Internal mode reads the deployment lock from descriptor 9, so the descriptor is
+# the only thing these runners vary. $LOCK_FD decides what descriptor 9 is:
+#   lock   -- the deployment lock, a fresh description, nothing holding it
+#   decoy  -- some other file entirely
+#   none   -- closed
+lock_file=$state/deploy.lock
+decoy_file=$tmp_dir/decoy.lock
+LOCK_FD=lock
+
+run_retention_fd() {
+  script=${RETENTION_SCRIPT:-$retention}
+  : >"$decoy_file"
+  case ${LOCK_FD:-lock} in
+    lock)
+      DOCKER_LOG=$log CONTROL=$control DOCKER_DATA_ROOT=$data_root PATH=$bin_dir:$PATH \
+        "$script" "$@" >"$tmp_dir/out" 2>&1 9>"$lock_file" ;;
+    decoy)
+      DOCKER_LOG=$log CONTROL=$control DOCKER_DATA_ROOT=$data_root PATH=$bin_dir:$PATH \
+        "$script" "$@" >"$tmp_dir/out" 2>&1 9>"$decoy_file" ;;
+    none)
+      DOCKER_LOG=$log CONTROL=$control DOCKER_DATA_ROOT=$data_root PATH=$bin_dir:$PATH \
+        "$script" "$@" >"$tmp_dir/out" 2>&1 9<&- ;;
+    *) fail "unknown LOCK_FD: $LOCK_FD" ;;
+  esac
+}
+
+# Holds the deployment lock with the real flock on its own open file description
+# and then runs a command, so any lock that command takes for itself is competing
+# with a genuinely held one. This is how ai-agent-deploy holds it.
+cat >"$tmp_dir/with-held-lock" <<'SH'
+#!/bin/sh
+set -eu
+lockfile=$1
+real_flock=$2
+shift 2
+exec 9>"$lockfile"
+"$real_flock" -n 9 || { echo 'harness could not take the lock' >&2; exit 70; }
+"$@"
+SH
+chmod 0755 "$tmp_dir/with-held-lock"
+
+# Replaces descriptor 9 with its own description on the same file. Same path,
+# different description -- which is precisely what flock distinguishes.
+cat >"$tmp_dir/with-fresh-fd" <<'SH'
+#!/bin/sh
+set -eu
+lockfile=$1
+shift
+exec 9>"$lockfile"
+"$@"
+SH
+chmod 0755 "$tmp_dir/with-fresh-fd"
+
+run_under_held_lock() {
+  script=${RETENTION_SCRIPT:-$retention}
+  DOCKER_LOG=$log CONTROL=$control DOCKER_DATA_ROOT=$data_root PATH=$bin_dir:$PATH \
+    "$tmp_dir/with-held-lock" "$lock_file" "$real_flock" "$script" "$@" \
+    >"$tmp_dir/out" 2>&1
+}
+
+run_under_held_lock_with_fresh_fd() {
+  script=${RETENTION_SCRIPT:-$retention}
+  DOCKER_LOG=$log CONTROL=$control DOCKER_DATA_ROOT=$data_root PATH=$bin_dir:$PATH \
+    "$tmp_dir/with-held-lock" "$lock_file" "$real_flock" \
+    "$tmp_dir/with-fresh-fd" "$lock_file" "$script" "$@" \
+    >"$tmp_dir/out" 2>&1
+}
+
 image_present() { grep -Fq "$registry/$1 $2" "$control/images"; }
+
+retention_runner=run_retention
 
 expect_refusal() {
   description=$1; shift
   before=$(sort "$control/images")
-  if run_retention "$@"; then
+  if "$retention_runner" "$@"; then
     fail "retention was accepted despite $description"
   fi
   after=$(sort "$control/images")
   [ "$before" = "$after" ] ||
     fail "retention removed an image despite $description"
-  if grep -Fq ' image rm ' "$log"; then
+  # Anchored, because the stub logs the argument list without the `docker`
+  # prefix: a pattern with a leading space could never match and this assertion
+  # would silently prove nothing.
+  if grep -Eq '^image rm ' "$log"; then
     fail "retention attempted a removal despite $description"
   fi
 }
@@ -568,11 +667,97 @@ reset_scenario; add_superseded
 expect_refusal 'an active deployment holding the lock' reclaim
 expect_message 'a deployment is active'
 
+# --- The two lock modes --------------------------------------------------
+#
+# Driven against the real flock, so what is asserted is the kernel's
+# open-file-description semantics rather than a model of them.
+
+# Internal mode on the deployment's own descriptor: the case ai-agent-deploy
+# creates. The lock is genuinely held by the caller, and retention re-locking the
+# same description must return immediately rather than deadlock.
+reset_scenario; add_superseded
+run_under_held_lock reclaim-locked ||
+  fail 'internal retention deadlocked or refused on the deployment lock it was handed'
+! image_present web "$(d 23)" ||
+  fail 'internal retention did not reclaim while running on the inherited lock'
+expect_message 'all protected release images verified present'
+
+# The same, with a free-space requirement, which is how the wrapper calls it.
+reset_scenario; add_superseded
+run_under_held_lock reclaim-locked 4096 ||
+  fail 'internal retention refused with a free-space requirement'
+grep -Fq 'host-preflight disk 4096' "$log" ||
+  fail 'internal retention did not re-run the disk preflight'
+
+# Internal mode given a *fresh* description on the same file while a deployment
+# genuinely holds the lock. Same path, so the descriptor check passes; different
+# description, so the real flock refuses. This is the case that proves internal
+# mode cannot run unlocked.
+reset_scenario; add_superseded
+before_images=$(sort "$control/images")
+if run_under_held_lock_with_fresh_fd reclaim-locked; then
+  fail 'internal retention ran on a descriptor that did not hold the lock'
+fi
+[ "$(sort "$control/images")" = "$before_images" ] ||
+  fail 'internal retention mutated while the lock was held elsewhere'
+expect_message 'a deployment is active'
+
+# Standalone mode must not piggyback on an inherited descriptor. It opens the
+# lock file itself, which is a new description, so a held lock refuses it even
+# when descriptor 9 arrives already locked.
+reset_scenario; add_superseded
+before_images=$(sort "$control/images")
+if run_under_held_lock reclaim; then
+  fail 'standalone retention accepted an inherited lock instead of taking its own'
+fi
+[ "$(sort "$control/images")" = "$before_images" ] ||
+  fail 'standalone retention mutated during an active deployment'
+expect_message 'a deployment is active'
+
+# A descriptor pointing somewhere else is refused before any Docker call. A
+# caller that forgot the redirection must not sweep under a serialization that
+# does not exist.
+# $LOCK_FD is assigned as its own statement rather than as a prefix on the
+# function call: POSIX leaves it unspecified whether such a prefix is scoped to
+# the call or left set in the shell afterwards, and a value leaking into a later
+# case is exactly the kind of thing that makes one of these pass for the wrong
+# reason.
+reset_scenario; add_superseded
+retention_runner=run_retention_fd
+LOCK_FD=decoy
+expect_refusal 'a descriptor 9 that is not the deployment lock' reclaim-locked
+expect_message 'requires the deployment lock on descriptor 9'
+
+# No descriptor 9 at all.
+reset_scenario; add_superseded
+LOCK_FD=none
+expect_refusal 'no descriptor 9 at all' reclaim-locked
+expect_message 'found nothing'
+
+# And it still refuses a competing deployment on a correct descriptor.
+reset_scenario; add_superseded
+: >"$control/lock_held"
+LOCK_FD=lock
+expect_refusal 'an active deployment while running internally' reclaim-locked
+expect_message 'a deployment is active'
+retention_runner=run_retention
+
 # --- Usage --------------------------------------------------------------
 reset_scenario
 if run_retention; then fail 'retention accepted no subcommand'; fi
 if run_retention bogus; then fail 'retention accepted an unknown subcommand'; fi
 if run_retention reclaim 4096 extra; then fail 'retention accepted a trailing argument'; fi
+LOCK_FD=lock
+if run_retention_fd reclaim-locked 4096 extra; then
+  fail 'internal retention accepted a trailing argument'
+fi
+# The verb, not the descriptor, selects the mode: `reclaim` handed a descriptor
+# must still open the lock file for itself, and `reclaim-locked` without one must
+# still refuse rather than fall back.
+LOCK_FD=none
+run_retention_fd reclaim ||
+  fail 'standalone retention needs a descriptor it is supposed to open itself'
+LOCK_FD=lock
 
 # ===========================================================================
 # Mutation probes
@@ -679,13 +864,60 @@ grep -Fq "image rm $registry/backend@$(d 21)" "$log" ||
   { probe_done; fail 'removing the blocking-container check did not cause a removal attempt on the blocked image'; }
 probe_done
 
-# The deployment lock.
-probe 'deployment lock' 'flock -n 9 || die =>flock -n 9 || true && : '
+# The standalone deployment lock. First occurrence, which is lock_retention's.
+probe 'standalone deployment lock' 'flock -n 9 || die =>flock -n 9 || true && : '
 reset_scenario; add_superseded
 : >"$control/lock_held"
 if ! run_retention reclaim >/dev/null 2>&1; then
   probe_done
   fail 'removing the lock refusal still refused; the lock is not what refuses'
+fi
+probe_done
+
+# The internal descriptor check -- the guard that makes "the lock is held" a fact
+# rather than a hope. With it gone, a descriptor on some unrelated file is
+# accepted, the real flock happily locks that file, and retention sweeps under a
+# serialization that protects nothing.
+probe 'internal lock descriptor check' \
+  '[ "$target" = "$deploy_lock" ] || die \
+    "internal retention requires the deployment lock on descriptor 9; found ${target:-nothing}"=>:'
+reset_scenario; add_superseded
+retention_runner=run_retention_fd
+LOCK_FD=decoy
+run_retention_fd reclaim-locked >/dev/null 2>&1 || true
+if image_present web "$(d 23)"; then
+  probe_done; retention_runner=run_retention; LOCK_FD=lock
+  fail 'removing the descriptor check did not let retention run on an unrelated descriptor; the check proves nothing'
+fi
+retention_runner=run_retention
+LOCK_FD=lock
+probe_done
+
+# The internal flock itself. Anchored on its own comment, because the standalone
+# path contains a byte-identical call and the probe replaces the first match.
+probe 'internal deployment lock' \
+  '  # Unconditional, exactly as in standalone mode. On the descriptor
+  # ai-agent-deploy holds this returns immediately; on any other description of
+  # the same file it refuses while a deployment is running.
+  flock -n 9 || die =>  false || true && : '
+reset_scenario; add_superseded
+run_under_held_lock_with_fresh_fd reclaim-locked >/dev/null 2>&1 || true
+if image_present web "$(d 23)"; then
+  probe_done
+  fail 'removing the internal flock did not let retention run while a deployment held the lock'
+fi
+probe_done
+
+# The mode dispatch. Internal mode taking its own lock instead of adopting the
+# inherited one is the deadlock this design exists to avoid: it would be refused
+# by the very deployment calling it, so retention would never run in production
+# and no other test would notice.
+probe 'internal mode adopts rather than reopens' \
+  'inherited) adopt_deployment_lock ;;=>inherited) lock_retention ;;'
+reset_scenario; add_superseded
+if run_under_held_lock reclaim-locked >/dev/null 2>&1; then
+  probe_done
+  fail 'internal mode opening its own lock was still accepted under a held lock; the adoption path proves nothing'
 fi
 probe_done
 

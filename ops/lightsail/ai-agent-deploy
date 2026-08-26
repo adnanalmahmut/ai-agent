@@ -8,6 +8,7 @@ state_dir=/var/lib/ai-agent
 compose_file=$readonly_root/docker-compose.yml
 preflight=/usr/local/sbin/ai-agent-runtime-preflight
 host_preflight=/usr/local/sbin/ai-agent-host-preflight
+retention=/usr/local/sbin/ai-agent-release-retention
 current_release=$state_dir/CURRENT_RELEASE.json
 previous_release=$state_dir/PREVIOUS_RELEASE.json
 registry=ghcr.io/adnanalmahmut/ai-agent
@@ -33,6 +34,11 @@ environment=$(sed -n '1p' "$environment_file")
 [ -f "$runtime_env" ] || die 'runtime.env is not installed'
 [ -x "$preflight" ] || die 'runtime preflight is not installed'
 [ -x "$host_preflight" ] || die 'host preflight is not installed; reinstall the host bundle'
+# Scoped to `deploy`, the only verb that runs retention. `health` is the
+# diagnostic an operator reaches for during an incident, and a missing retention
+# executable must not turn it into a refusal.
+[ "${1:-}" != deploy ] || [ -x "$retention" ] ||
+  die 'release retention is not installed; reinstall the host bundle'
 
 compose() {
   docker compose --file "$compose_file" --env-file "$runtime_env" --profile "$environment" "$@"
@@ -233,6 +239,37 @@ lock_deployment() {
   flock -n 9 || die 'another deployment is active'
 }
 
+# Reclaims the disk the superseded release was holding, and is called only after
+# deploy_release returns.
+#
+# That ordering is structural rather than commented into place: deploy_release's
+# last two statements are the PREVIOUS rotation and the CURRENT write, and
+# retention's candidates are exactly the application images that are neither
+# CURRENT nor PREVIOUS. Called any earlier, the release that has just started
+# would not yet be recorded and would classify as removable.
+#
+# `reclaim-locked` rather than `reclaim` because this deployment already holds
+# the lock. flock locks belong to an open file description, so retention
+# inheriting descriptor 9 re-locks the one held here — immediate, not a deadlock
+# — while `reclaim` would open the file again, get a distinct description, and be
+# refused every time. Nothing is passed through the environment: the descriptor
+# is the lock, not a claim about it.
+run_retention() {
+  # The release is deployed, healthy, and recorded before this runs. Retention is
+  # disk hygiene, not part of the release, so its failure must not fail or undo a
+  # deployment that has already succeeded — and must not be silent either. The
+  # hard gate stays where it was: the next deployment's disk preflight, which is
+  # the refusal that surfaced this problem in the first place.
+  if "$retention" reclaim-locked "$required_free_mib"; then
+    echo 'release retention: completed'
+  else
+    status=$?
+    echo "release retention FAILED (exit $status): superseded release images were not reclaimed" >&2
+    echo "this deployment is healthy and complete; investigate before the next release, which refuses below ${required_free_mib}MiB free" >&2
+  fi
+  return 0
+}
+
 manifest_value() {
   manifest=$1
   key=$2
@@ -257,8 +294,13 @@ case "${1:-}" in
     [ "$#" -eq 7 ] || die 'deploy requires environment, SHA and four digests'
     lock_deployment
     deploy_release "$3" "$4" "$5" "$6" "$7" migrate
+    run_retention
     ;;
   rollback)
+    # Deliberately does not run retention. A rollback is incident response, and
+    # adding an image mutation to it buys disk that the next deployment's own
+    # preflight already guards; anything it could have reclaimed is still
+    # reclaimable by the next forward deployment or by the standalone command.
     [ "$#" -eq 2 ] || die 'rollback requires environment'
     lock_deployment
     rollback_sha=$(manifest_value "$previous_release" sha)

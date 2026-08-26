@@ -11,6 +11,7 @@ state_dir=$test_root/var/lib/ai-agent
 bin_dir=$test_root/bin
 preflight=$test_root/usr/local/sbin/ai-agent-runtime-preflight
 host_preflight=$test_root/usr/local/sbin/ai-agent-host-preflight
+retention=$test_root/usr/local/sbin/ai-agent-release-retention
 wrapper=$test_root/ai-agent-deploy
 log_file=$test_root/deploy.log
 
@@ -26,6 +27,7 @@ sed \
   -e "s#state_dir=/var/lib/ai-agent#state_dir=$state_dir#" \
   -e "s#preflight=/usr/local/sbin/ai-agent-runtime-preflight#preflight=$preflight#" \
   -e "s#host_preflight=/usr/local/sbin/ai-agent-host-preflight#host_preflight=$host_preflight#" \
+  -e "s#retention=/usr/local/sbin/ai-agent-release-retention#retention=$retention#" \
   "$repo_root/ops/lightsail/ai-agent-deploy" >"$wrapper"
 chmod 0755 "$wrapper"
 
@@ -45,6 +47,16 @@ set -eu
 printf '%s\n' "host-preflight $1" >>"$DEPLOY_TEST_LOG"
 EOF
 chmod 0755 "$host_preflight"
+
+# Retention only runs after a successful deployment, which is the case this suite
+# is specifically not about. Logged so the assertions below can show it does not
+# run when a service never comes up.
+cat >"$retention" <<'EOF'
+#!/bin/sh
+set -eu
+printf '%s\n' "retention $*" >>"$DEPLOY_TEST_LOG"
+EOF
+chmod 0755 "$retention"
 
 cat >"$bin_dir/flock" <<'EOF'
 #!/bin/sh
@@ -148,6 +160,14 @@ assert_failed_without_rotation() {
     echo "failed deployment rotated PREVIOUS_RELEASE for $missing_service" >&2
     exit 1
   }
+  # Retention removes application images that are neither CURRENT nor PREVIOUS.
+  # A deployment that never became healthy has pulled its images and rotated
+  # nothing, so those images are unrecorded -- running retention here would make
+  # the half-finished release its own deletion candidate.
+  if grep -Fq 'retention ' "$log_file"; then
+    echo "retention ran after a deployment that failed on $missing_service" >&2
+    exit 1
+  fi
 }
 
 assert_failed_without_rotation worker 'backend web platform'
@@ -161,11 +181,20 @@ if deploy_with 'backend worker web platform' false >/dev/null 2>&1; then
 fi
 [ "$(sed -n '1p' "$current_release")" = "$old_current" ]
 [ "$(sed -n '1p' "$previous_release")" = "$old_previous" ]
+if grep -Fq 'retention ' "$log_file"; then
+  echo 'retention ran after a deployment whose API readiness failed' >&2
+  exit 1
+fi
 
 reset_state
 deploy_with 'backend worker web platform' true >/dev/null
 grep -Fq "\"sha\":\"$sha\"" "$current_release"
 [ "$(sed -n '1p' "$previous_release")" = "$old_current" ]
+# ...and on the success path it does run, after the rotation above.
+grep -Fq 'retention reclaim-locked' "$log_file" || {
+  echo 'a successful deployment did not run retention' >&2
+  exit 1
+}
 
 for service in backend worker web platform; do
   grep -Fq "compose ps --status running --services $service" "$log_file"
