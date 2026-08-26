@@ -24,6 +24,17 @@ same names with independent values when it is provisioned.
 `GITHUB_TOKEN` is job-scoped and needs no operator value. Production should
 require reviewers; staging should remain automatic if that is the desired flow.
 
+## Host bundle
+
+The compose file, the deploy wrapper, the dispatcher, and both preflights live
+on the host and change with the release they serve, so they are versioned as a
+bundle and installed by `ops/lightsail/install-host-bundle.sh`, which records
+`/etc/ai-agent/host-bundle.manifest`. Every release declares the minimum bundle
+version it can run on, and the wrapper refuses — before migrations — a host that
+does not satisfy it, whose recorded files no longer match, or whose compose file
+does not resolve the pinned digests. See [the host bundle document](host-bundle.md)
+for the inventory, the two version numbers, and the full refusal order.
+
 ## VPS runtime names
 
 Install `/etc/ai-agent/runtime.env` as `root:root 0600`. The deploy user cannot
@@ -51,6 +62,12 @@ Release images are pulled sequentially in the order platform → web → backend
 migrate. Worker reuses the backend image. This bounds memory and disk-I/O
 pressure on small Lightsail hosts during layer download and extraction instead
 of asking Compose to pull every large image concurrently.
+
+Before any of that the wrapper refuses outright: bundle integrity, free space
+for extraction, the runtime environment, the release's own image labels against
+the recorded bundle version, the compose file's resolved images, and the running
+database's extension availability. All of it happens ahead of the migration
+step, because a forward-only migration cannot be un-run by a later check.
 
 The remaining order is PostgreSQL/Redis/GeoIP bootstrap → migration → API → API
 readiness → worker → worker status → web and platform → complete internal

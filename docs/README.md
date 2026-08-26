@@ -33,7 +33,8 @@ configuration win when a document disagrees with implementation.
   [Nginx/TLS](nginx-tls.md)
 - [Networking and canonical client IP](networking-real-ip.md)
 - [Continuous integration](ci.md) and [continuous delivery](cd.md)
-- [Deployment contract](deployment.md) and [rollback](rollback.md)
+- [Deployment contract](deployment.md), the [host bundle](host-bundle.md), and
+  [rollback](rollback.md)
 - [Security model](security.md)
 
 ## Operations

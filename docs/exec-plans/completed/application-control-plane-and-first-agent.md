@@ -172,10 +172,26 @@ on any PR touching compose or images.
   head `6d6fc2994d2481ef171d47726bb25c3610b61614`, CI run
   [32642515109](https://github.com/adnanalmahmut/ai-agent/actions/runs/32642515109)
   green across all five jobs.
-- [~] PR4 `feat/knowledge-rag-core`
-- [ ] PR5 `feat/knowledge-management`
-- [ ] PR6 `feat/content-idea-agent`
-- [ ] PR7 `feat/content-idea-platform`
+- [x] PR4 `feat/knowledge-rag-core` — [#33](https://github.com/adnanalmahmut/ai-agent/pull/33),
+  head `bce3af622e38861815e93af8ffec3d977ec559e5`, CI run
+  [32645454031](https://github.com/adnanalmahmut/ai-agent/actions/runs/32645454031)
+  green; merged as `f0eacfb`.
+- [x] PR5 `feat/knowledge-management` — [#34](https://github.com/adnanalmahmut/ai-agent/pull/34),
+  head `4143b5783c5647e4b688daef63f3b9befa22d354`, CI run
+  [32660866809](https://github.com/adnanalmahmut/ai-agent/actions/runs/32660866809)
+  green; merged as `734f095`.
+- [x] PR6 `feat/content-idea-agent` — [#35](https://github.com/adnanalmahmut/ai-agent/pull/35),
+  head `7fbf2c63f9267a99f6358209eef62ec3c2d81ea9`, CI run
+  [32702017762](https://github.com/adnanalmahmut/ai-agent/actions/runs/32702017762)
+  green; merged as `44c284e`.
+- [x] PR7 `feat/content-idea-platform` — [#36](https://github.com/adnanalmahmut/ai-agent/pull/36),
+  head `041b12f0195074fc462bdd592f8f480ee1c2b182`, CI run
+  [32756064924](https://github.com/adnanalmahmut/ai-agent/actions/runs/32756064924)
+  green; merged as `866845b`.
+- [x] Hardening remediation `fix/milestone-hardening` — [#37](https://github.com/adnanalmahmut/ai-agent/pull/37),
+  head `1a420bc15c54ea4102de8e5aa2a647e37acd65ff`, CI run
+  [32865427701](https://github.com/adnanalmahmut/ai-agent/actions/runs/32865427701)
+  green; merged as `b50b0f7`.
 
 - 2026-08-23: PR2 stores feature-flag overrides in two tables rather than one
   with a nullable `organizationId`. PostgreSQL treats NULLs as distinct in a
@@ -718,6 +734,30 @@ tab renders only a closed safe projection and is regression-tested against
 hostile `before`/`after` payloads carrying a secret canary. The reloadable
 submission identity in session storage keeps an idempotency key beside a
 SHA-256 digest of the canonical request, never the request text.
+
+## Outcome
+
+All seven pull requests and the hardening remediation landed on `main` at
+`b50b0f7`, and the merged release is deployed to Staging. The plan is complete;
+what it did not cover is the host side of delivery.
+
+Bringing the release up on Staging required four manual repairs that CI could
+not have caught, because none of them are properties of the repository:
+
+- the installed `/opt/ai-agent/docker-compose.yml` still pinned stock
+  PostgreSQL, so `CREATE EXTENSION vector` failed inside the migration
+  container after the release had already been pulled;
+- the PostgreSQL image had to be moved to `pgvector/pgvector:pg16` and the
+  Prisma migration state recovered by hand;
+- `APP_ENCRYPTION_KEY` was absent from `/etc/ai-agent/runtime.env`, so the
+  backend refused to boot after migrations had run;
+- `/usr/local/sbin/ai-agent-deploy` on the host predated the release it was
+  deploying.
+
+Every one of those is the same defect: the host bundle is unversioned, so a
+release cannot state which host it requires and the host cannot refuse a
+release it cannot run. `docs/exec-plans/active/host-bundle-versioning.md`
+carries that work.
 
 ## Blockers
 

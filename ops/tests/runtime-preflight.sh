@@ -76,6 +76,43 @@ if ops/runtime-preflight.sh staging "$missing_key" >/dev/null 2>&1; then
   exit 1
 fi
 
+# The compose file falls back to POSTGRES_PASSWORD=postgres, so a runtime file
+# that forgets the value does not fail any non-empty check — it deploys the
+# database with a published default credential instead.
+fallback_password=$tmp_dir/fallback-password.env
+sed 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=postgres/' "$valid" >"$fallback_password"
+if ops/runtime-preflight.sh staging "$fallback_password" >/dev/null 2>&1; then
+  echo 'preflight accepted the compose development database password' >&2
+  exit 1
+fi
+
+# DATABASE_URL and the POSTGRES_* trio describe the same database twice. When
+# they disagree the migration container connects successfully to the wrong one
+# and applies a forward-only migration there.
+wrong_database=$tmp_dir/wrong-database.env
+sed 's#/app?schema=public#/postgres?schema=public#; s#@postgres:5432/app$#@postgres:5432/postgres#' \
+  "$valid" >"$wrong_database"
+if ops/runtime-preflight.sh staging "$wrong_database" >/dev/null 2>&1; then
+  echo 'preflight accepted a DATABASE_URL naming another database' >&2
+  exit 1
+fi
+
+wrong_role=$tmp_dir/wrong-role.env
+sed 's#^DATABASE_URL=postgresql://app:#DATABASE_URL=postgresql://postgres:#' "$valid" >"$wrong_role"
+if ops/runtime-preflight.sh staging "$wrong_role" >/dev/null 2>&1; then
+  echo 'preflight accepted a DATABASE_URL naming another role' >&2
+  exit 1
+fi
+
+# A URL with no role at all must be refused as such, rather than being split at
+# a separator that is not there and reported as a mismatch.
+roleless=$tmp_dir/roleless.env
+sed 's#^DATABASE_URL=.*#DATABASE_URL=postgresql://postgres:5432/app#' "$valid" >"$roleless"
+if ops/runtime-preflight.sh staging "$roleless" >/dev/null 2>&1; then
+  echo 'preflight accepted a DATABASE_URL with no role' >&2
+  exit 1
+fi
+
 if ops/runtime-preflight.sh production "$valid" >/dev/null 2>&1; then
   echo 'preflight accepted a runtime file for the wrong environment' >&2
   exit 1

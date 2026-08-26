@@ -20,6 +20,7 @@
     "build:web": "pnpm run build:packages && pnpm --filter web build",
     "typecheck": "pnpm --recursive run typecheck",
     "agents:check": "node .agents/scripts/agents-check.mjs && node --test .agents/hooks/__tests__/*.test.mjs",
+    "agents:resume": "node .agents/scripts/resume-task.mjs",
     "typecheck:backend": "pnpm --filter backend run typecheck",
     "lint": "pnpm --recursive run lint",
     "lint:fix": "pnpm --recursive run lint:fix",

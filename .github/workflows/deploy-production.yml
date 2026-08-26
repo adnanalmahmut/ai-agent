@@ -78,7 +78,7 @@ jobs:
             --arg repository "$GITHUB_REPOSITORY" \
             --arg sha "$RELEASE_SHA" \
             --argjson stagingRunId "$STAGING_RUN_ID" \
-            '.schemaVersion == 1 and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and (.publishRunId | type == "number") and .sha == $sha and .stagingWorkflow == "Deploy staging" and .stagingRunId == $stagingRunId' \
+            '.schemaVersion == 2 and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and (.publishRunId | type == "number") and .sha == $sha and .stagingWorkflow == "Deploy staging" and .stagingRunId == $stagingRunId and (.hostBundleMinVersion | type) == "number" and .hostBundleMinVersion >= 1' \
             "$manifest" >/dev/null
 
           for entry in backend:backend migration:backend-migration web:web platform:platform; do

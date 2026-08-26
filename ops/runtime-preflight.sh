@@ -69,6 +69,44 @@ encryption_key_bytes=$(printf '%s' "$encryption_key" | base64 -d 2>/dev/null | w
 [ "$encryption_key_bytes" = '32' ] ||
   die 'APP_ENCRYPTION_KEY must decode to 32 bytes (generate with: openssl rand -base64 32)'
 
+# `docker-compose.yml` falls back to POSTGRES_PASSWORD=postgres when the value
+# is absent, so a runtime file that merely forgets it does not fail any
+# non-empty check — it silently deploys the database with a published default
+# credential. The fallback exists for local development and has no business on a
+# host that answers from the internet.
+[ "$(value_for POSTGRES_PASSWORD)" != 'postgres' ] ||
+  die 'POSTGRES_PASSWORD must not be the compose development fallback'
+
+# DATABASE_URL and the POSTGRES_* trio describe the same database twice: compose
+# creates it from the trio and the application reaches it through the URL. When
+# they disagree the migration container connects successfully to the wrong
+# database and applies a forward-only migration there. Compared by name only —
+# the password in the URL is never extracted, split, or echoed.
+database_url=$(value_for DATABASE_URL)
+case "$database_url" in
+  postgresql://*|postgres://*) ;;
+  *) die 'DATABASE_URL must be a postgresql:// connection string' ;;
+esac
+url_rest=${database_url#*://}
+case "$url_rest" in
+  *@*) ;;
+  *) die 'DATABASE_URL must carry the database role' ;;
+esac
+# Longest-match on `@` and shortest-match on `:` so a percent-encoded password
+# containing either separator still splits at the right place.
+url_userinfo=${url_rest%@*}
+url_hostpath=${url_rest##*@}
+case "$url_hostpath" in
+  */*) ;;
+  *) die 'DATABASE_URL must name a database' ;;
+esac
+url_database=${url_hostpath#*/}
+url_database=${url_database%%\?*}
+[ "$url_database" = "$(value_for POSTGRES_DB)" ] ||
+  die 'DATABASE_URL names a different database than POSTGRES_DB'
+[ "${url_userinfo%%:*}" = "$(value_for POSTGRES_USER)" ] ||
+  die 'DATABASE_URL names a different role than POSTGRES_USER'
+
 google_enabled=$(value_for GOOGLE_AUTH_ENABLED)
 case "$google_enabled" in
   true)

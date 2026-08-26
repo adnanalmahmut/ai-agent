@@ -8,6 +8,12 @@ root wrapper validates the previous manifest, reconstructs image references
 from fixed repository names, redeploys its exact application digests, and swaps
 the manifests only after health succeeds.
 
+Rollback runs the same gated path as a forward deployment, so it is refused by
+the same host-bundle, runtime, image-label, compose-resolution, and extension
+checks. A rollback target that a satisfied host once deployed still satisfies
+it; a host whose bundle has since been hand-edited does not, and must be
+reinstalled from the release checkout before rolling back.
+
 Rollback does not execute migrations and never performs a down migration.
 Database compatibility depends on expand → migrate/backfill → switch →
 contract-later. If the previous app cannot run on the current schema, stop and

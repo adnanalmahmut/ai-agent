@@ -11,10 +11,17 @@ The `staging` GitHub Environment supplies public variables `VPS_HOST`,
 `VPS_SSH_PRIVATE_KEY` secret. The job never receives database, auth, mail,
 OAuth, Redis, or MaxMind credentials.
 
-The forced SSH command invokes `deploy staging <sha> <four digest hex values>`.
+The forced SSH command invokes `deploy staging <sha> <four digest hex values>`
+and carries nothing else: the release's host requirement travels on its own
+image labels, so the forced-command grammar stays exactly as wide as it is.
+
 Repository names are fixed on the host. The root wrapper holds a host lock,
-pulls digest references, starts data services, runs the digest-pinned migration
-image, and stops immediately if migration fails. Only then does it update
+verifies the recorded host bundle and free space, validates the runtime file,
+pulls digest references, checks the pulled images' release and host-bundle
+labels and the compose file's resolved images, starts data services, confirms
+the database provides the extensions the release's migrations need, then runs
+the digest-pinned migration image and stops immediately if migration fails.
+Every one of those refusals happens before the migration container starts. Only then does it update
 API/readiness, worker/process status, web, and platform. GitHub exercises all
 three public HTTPS routes and uploads `staging-success-<sha>` containing the
 same digests and its own workflow-run identity.

@@ -33,31 +33,19 @@ grep -Fqx '/swapfile none swap sw 0 0' /etc/fstab || printf '%s\n' '/swapfile no
 printf '%s\n' 'vm.swappiness=10' >/etc/sysctl.d/99-ai-agent-swap.conf
 sysctl -p /etc/sysctl.d/99-ai-agent-swap.conf >/dev/null
 
-# The smallest Lightsail plans have little RAM and Docker image extraction can
-# briefly require more memory than the running application set. Provision a
-# bounded swap file so deploys fail on real errors rather than transient OOM.
-if ! swapon --show=NAME --noheadings | grep -Fxq '/swapfile'; then
-  if [ ! -f /swapfile ]; then
-    fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
-  fi
-  chmod 0600 /swapfile
-  mkswap /swapfile >/dev/null
-  swapon /swapfile
-fi
-grep -Fqx '/swapfile none swap sw 0 0' /etc/fstab || printf '%s\n' '/swapfile none swap sw 0 0' >>/etc/fstab
-printf '%s\n' 'vm.swappiness=10' >/etc/sysctl.d/99-ai-agent-swap.conf
-sysctl -p /etc/sysctl.d/99-ai-agent-swap.conf >/dev/null
-
 id deploy >/dev/null 2>&1 || useradd --create-home --shell /bin/sh deploy
 gpasswd -d deploy docker >/dev/null 2>&1 || true
 install -d -o root -g root -m 0755 /etc/ai-agent /opt/ai-agent /var/lib/ai-agent
 printf '%s\n' "$environment" >/etc/ai-agent/environment
 chmod 0644 /etc/ai-agent/environment
-install -o root -g root -m 0755 ops/lightsail/ai-agent-deploy /usr/local/sbin/ai-agent-deploy
-install -o root -g root -m 0755 ops/lightsail/ai-agent-deploy-dispatch /usr/local/sbin/ai-agent-deploy-dispatch
-install -o root -g root -m 0755 ops/runtime-preflight.sh /usr/local/sbin/ai-agent-runtime-preflight
-install -o root -g root -m 0440 ops/lightsail/ai-agent-deploy.sudoers /etc/sudoers.d/ai-agent-deploy
-visudo -cf /etc/sudoers.d/ai-agent-deploy
+
+# The release-coupled files — compose bundle, deploy script, dispatcher, both
+# preflights, sudoers fragment — are installed by the bundle installer rather
+# than listed again here, so that first-run bootstrap and every later update
+# take the same path and record the same manifest. Before this, bootstrap was
+# the only thing that ever installed them, and nothing recorded which release
+# they came from.
+ops/lightsail/install-host-bundle.sh
 
 install -d -o deploy -g deploy -m 0700 /home/deploy/.ssh
 {
@@ -75,4 +63,4 @@ ufw allow 443/tcp
 ufw --force enable
 
 echo "host boundary installed for $environment / $domain"
-echo 'operator must now install root-owned runtime.env, compose bundle, Nginx site, and certificate'
+echo 'operator must now install root-owned runtime.env, the Nginx site, and the certificate'

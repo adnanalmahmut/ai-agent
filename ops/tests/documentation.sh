@@ -17,6 +17,7 @@ docs/nginx-tls.md
 docs/ci.md
 docs/cd.md
 docs/deployment.md
+docs/host-bundle.md
 docs/rollback.md
 docs/backup-restore.md
 docs/security.md
@@ -39,6 +40,11 @@ grep -Fq '0600' docs/deployment.md
 grep -Fq 'PREVIOUS_RELEASE.json' docs/rollback.md
 grep -Fq 'staging-success-<SHA>' docs/cd.md
 grep -Fq 'explicit environment allowlist' docs/deployment.md
+grep -Fq 'install-host-bundle.sh' docs/host-bundle.md
+grep -Fq 'io.ai-agent.host-bundle.min-version' docs/host-bundle.md
+grep -Fq 'host-bundle.manifest' docs/host-bundle.md
+grep -Fq 'install-host-bundle.sh' docs/deployment.md
+grep -Fq 'host bundle' docs/operations-runbook.md
 grep -Fq '_restore_drill' docs/backup-restore.md
 grep -Fiq 'restore drill' docs/backup-restore.md
 if grep -Fq 'RUNTIME_ENV_FILE=' ops/environments/runtime.env.example; then
