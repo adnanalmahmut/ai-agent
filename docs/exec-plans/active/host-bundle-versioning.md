@@ -243,7 +243,16 @@ human operator action taken after merge.
   destination, malformed mode, empty inventory, and an unparseable sudoers
   fragment — each asserting that the recorded manifest and the working sudoers
   fragment are untouched.
-- [ ] Final-head CI on the repaired head
+- [x] Final-head CI green on the repaired head `a82035c`: run
+  [32950515869](https://github.com/adnanalmahmut/ai-agent/actions/runs/32950515869),
+  all five jobs (agent harness, backend, platform, containers, web) successful.
+  [#38](https://github.com/adnanalmahmut/ai-agent/pull/38) is open, not a draft,
+  based on `main`, `MERGEABLE`/`CLEAN`, with no auto-merge. Awaiting human merge.
+- [ ] Human merge, then local `main` resynchronized
+- [ ] Operator-owned rollout: install and verify the host bundle on Staging.
+  Until an operator does this, Staging keeps deploying with the pre-bundle
+  wrapper and none of the refusals in this change are active. Not an agent
+  action.
 
 ## Considered and accepted
 
