@@ -111,6 +111,11 @@ architecture. Use ADRs and execution plans only under the conventions in
 - Stage explicit paths only. Every PR describes goal, changes, architecture
   impact, validation, risks/tradeoffs, dependency/base, and follow-up work.
 - Leave PRs open for human review. A merge is a live Staging deployment action.
+- One session may run a bounded PR train: at most 3 open implementation PRs by
+  default, 4 supported. Stack only on a real code/data/API dependency; prefer
+  siblings on a shared ancestor. Resume with `pnpm agents:resume` and treat a
+  compaction as a process restart, never as continuity of memory. The contract is
+  [the PR train workflow](.agents/workflows/pr-train.md).
 
 ## Security and operations
 
