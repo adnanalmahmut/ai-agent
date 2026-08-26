@@ -209,7 +209,55 @@ human operator action taken after merge.
   `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`, and
   `docker buildx bake --print`. Mutation probes confirmed each new gate and each
   drift check fails when removed.
-- [ ] Review, remediation, and final-head CI
+- [x] Final-head CI green on `354b2a7`: run
+  [32948974072](https://github.com/adnanalmahmut/ai-agent/actions/runs/32948974072),
+  all five jobs (agent harness, backend, platform, containers, web) successful.
+- [x] Code, test, and security review of that head. Five legitimate findings,
+  all repaired and mutation-probed:
+  1. **Security, medium.** `install-host-bundle.sh` installed the sudoers
+     fragment before validating it, so an invalid fragment replaced the working
+     one and was then refused — leaving a `/etc/sudoers.d` file that does not
+     parse. `sudo` can refuse every command for every user in that state,
+     locking the operator out of the host and the deploy user out of the one
+     command it is allowed to run, and a bundle update runs this path on every
+     release rather than once at host creation. Now validated on the source, in
+     the pre-install pass, so a refusal leaves the host no worse than it found
+     it. Reproduced before the fix.
+  2. **Correctness, low.** `verify_integrity`'s manifest-coverage check was a
+     substring match, so an entry for `<path>.bak` satisfied the check for
+     `<path>` and left the real compose file unrecorded and unverified. Now
+     compared as a whole final field.
+  3. **Test quality, medium.** `refuses` asserted only that *something*
+     refused. Every case now asserts the message it expects, which immediately
+     found finding 4.
+  4. **Test coverage, medium.** The mutable-application-tag gate was never
+     exercised: its fixture dropped a pinned digest, so the pinned-digest gate
+     fired first and the case passed on the wrong refusal. Split into two cases
+     — a dropped digest, and a mutable tag alongside intact digests — each
+     asserting its own cause. A near-miss manifest path case now covers
+     finding 2.
+  5. **Correctness, low.** `install-host-bundle.sh`'s `host bundle inventory is
+     empty` refusal was unreachable: grep's empty-match status aborted under
+     `set -e` first, so the installer exited with no explanation. Guarded.
+- [x] Installer refusal paths now covered: missing source, relative
+  destination, malformed mode, empty inventory, and an unparseable sudoers
+  fragment — each asserting that the recorded manifest and the working sudoers
+  fragment are untouched.
+- [ ] Final-head CI on the repaired head
+
+## Considered and accepted
+
+- The `POSTGRES_PASSWORD must not be the compose development fallback` refusal
+  is relayed over SSH into the CI log, so it discloses that the environment's
+  database password is a published default. Keeping the check is still right:
+  the alternative is deploying with that password unnoticed, and the disclosure
+  only occurs in a state an operator must be told about immediately. No refusal
+  message contains a value read from the runtime file.
+- Enforcement does not begin at merge. A host running the pre-bundle wrapper
+  performs none of these checks, because the wrapper that would perform them is
+  itself part of the bundle. `TODO.md` tracks the install as a separate,
+  operator-owned item so that PR completion and rollout completion are not
+  confused for one another.
 
 ## Blockers
 

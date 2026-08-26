@@ -38,7 +38,7 @@ printf '%s' "$bundle_minimum" | grep -Eq '^[1-9][0-9]*$' ||
 # The inventory is the contract; nothing release-coupled may fall out of it
 # ---------------------------------------------------------------------------
 
-entries=$(grep -v '^[[:space:]]*#' "$inventory" | grep -v '^[[:space:]]*$')
+entries=$(grep -v '^[[:space:]]*#' "$inventory" | grep -v '^[[:space:]]*$' || true)
 [ -n "$entries" ] || fail 'host bundle inventory is empty'
 
 for required in \
@@ -214,8 +214,13 @@ sed \
   ops/lightsail/install-host-bundle.sh >"$tmp_dir/install"
 chmod +x "$tmp_dir/install"
 
+# Rejects a fragment that does not parse, the way the real visudo would: a stub
+# that always succeeds would let the sudoers case below pass without exercising
+# anything.
 cat >"$tmp_dir/bin/visudo" <<'SH'
 #!/bin/sh
+for argument in "$@"; do file=$argument; done
+grep -q 'ALL=(root)' "$file" || { echo "parse error in $file" >&2; exit 1; }
 exit 0
 SH
 cat >"$tmp_dir/bin/curl" <<'SH'
@@ -350,17 +355,26 @@ attempt_deploy() {
     "$web_digest" "$platform_digest"
 }
 
+# The expected message is part of the assertion, not decoration. Without it a
+# case passes as long as *something* refuses, so a later refactor could move a
+# gate, have a different one fire first, and leave the suite green while the
+# refusal being tested no longer exists.
 refuses() {
-  description=$1
-  shift
+  expected=$1
+  description=$2
+  shift 2
   before=$(grep -c 'run --rm migrate' "$TEST_LOG" || true)
   if "$@" >"$tmp_dir/out" 2>&1; then
     fail "deployment was accepted despite $description"
   fi
   after=$(grep -c 'run --rm migrate' "$TEST_LOG" || true)
   [ "$after" = "$before" ] || fail "migrations ran despite $description"
-  grep -Eq 'rejected|failed' "$tmp_dir/out" ||
-    fail "refusal for $description did not explain itself"
+  grep -Fq "$expected" "$tmp_dir/out" || {
+    echo "refusal for $description did not name the expected cause" >&2
+    echo "  expected to contain: $expected" >&2
+    echo "  actual: $(cat "$tmp_dir/out")" >&2
+    exit 1
+  }
 }
 
 # The happy path first, so every refusal below is known to be caused by the one
@@ -374,73 +388,168 @@ grep -Fq "\"sha\":\"$release_sha\"" "$tmp_dir/state/CURRENT_RELEASE.json" ||
 # Staging failure 1: the installed compose file predated the release.
 cp "$tmp_dir/opt/ai-agent/docker-compose.yml" "$tmp_dir/compose.saved"
 printf '\n# hand-edited on the host\n' >>"$tmp_dir/opt/ai-agent/docker-compose.yml"
-refuses 'a compose file that no longer matches the recorded bundle' attempt_deploy
+refuses 'does not match the recorded bundle' \
+  'a compose file that no longer matches the recorded bundle' attempt_deploy
 cp "$tmp_dir/compose.saved" "$tmp_dir/opt/ai-agent/docker-compose.yml"
 attempt_deploy >/dev/null
 
 # Staging failure 2: the deploy script itself was older than the release.
 cp "$deploy" "$tmp_dir/deploy.saved"
 printf '\n# hand-edited on the host\n' >>"$deploy"
-refuses 'a deploy script that no longer matches the recorded bundle' attempt_deploy
+refuses 'does not match the recorded bundle' \
+  'a deploy script that no longer matches the recorded bundle' attempt_deploy
 cp "$tmp_dir/deploy.saved" "$deploy"
 
 # A recorded file that has been made writable by others is as much a bundle
 # mismatch as an edited one.
 chmod 0777 "$tmp_dir/opt/ai-agent/docker-compose.yml"
-refuses 'an installed bundle file with the wrong mode' attempt_deploy
+refuses 'has the wrong mode' \
+  'an installed bundle file with the wrong mode' attempt_deploy
 chmod 0644 "$tmp_dir/opt/ai-agent/docker-compose.yml"
 
 # Staging failure 3: the image had no pgvector, and the migration container was
 # the first thing to find out.
 printf '0\n' >"$control/pg_extension_count"
-refuses 'a PostgreSQL image without the required extension' attempt_deploy
+refuses 'does not provide a required extension: vector' \
+  'a PostgreSQL image without the required extension' attempt_deploy
 printf '1\n' >"$control/pg_extension_count"
 
 # Staging failure 4: APP_ENCRYPTION_KEY was absent, and the backend refused to
 # boot after migrations had already been applied.
 cp "$tmp_dir/etc/ai-agent/runtime.env" "$tmp_dir/runtime.saved"
 grep -v '^APP_ENCRYPTION_KEY=' "$tmp_dir/runtime.saved" >"$tmp_dir/etc/ai-agent/runtime.env"
-refuses 'a runtime environment with no encryption key' attempt_deploy
+refuses 'APP_ENCRYPTION_KEY' \
+  'a runtime environment with no encryption key' attempt_deploy
 cp "$tmp_dir/runtime.saved" "$tmp_dir/etc/ai-agent/runtime.env"
 
 # The release requires a newer bundle than the host has recorded.
 printf '%s\n' "$((bundle_minimum + 1))" >"$control/label.min-version"
-refuses 'a release that requires a newer host bundle' attempt_deploy
+refuses 'reinstall the bundle from the release checkout' \
+  'a release that requires a newer host bundle' attempt_deploy
 printf '%s\n' "$bundle_minimum" >"$control/label.min-version"
 
 # Four immutable digests that do not belong to one release.
 printf '2222222222222222222222222222222222222222\n' >"$control/label.release-sha.platform"
-refuses 'an image that belongs to a different release' attempt_deploy
+refuses 'does not belong to the requested release' \
+  'an image that belongs to a different release' attempt_deploy
 rm -f "$control/label.release-sha.platform"
 
 # One image built from a tree that declared a different host requirement.
 printf '%s\n' "$((bundle_minimum + 1))" >"$control/label.min-version.web"
-refuses 'release images that disagree on the host requirement' attempt_deploy
+refuses 'disagree on the host bundle minimum' \
+  'release images that disagree on the host requirement' attempt_deploy
 rm -f "$control/label.min-version.web"
 
 # An unlabelled image cannot state what it needs, so it cannot be accepted.
 printf '<no value>\n' >"$control/label.min-version"
-refuses 'a release that declares no host requirement' attempt_deploy
+refuses 'does not declare io.ai-agent.host-bundle.min-version' \
+  'a release that declares no host requirement' attempt_deploy
 printf '%s\n' "$bundle_minimum" >"$control/label.min-version"
 
-# The compose file resolving a mutable tag instead of the pinned digest is how a
-# release silently becomes whatever the registry currently points at.
+# A compose file that ignores the exported image variable resolves something
+# other than the digest it was handed, which is how Staging deployed a release
+# against a compose file that predated it.
 cp "$control/compose_images" "$tmp_dir/images.saved"
 sed "s#$registry/web@sha256:$web_digest#$registry/web:$release_sha#" \
   "$tmp_dir/images.saved" >"$control/compose_images"
-refuses 'a compose file that resolves a mutable application tag' attempt_deploy
+refuses 'does not resolve the pinned release images' \
+  'a compose file that drops a pinned digest' attempt_deploy
+
+# Distinct from the case above, and reachable on its own: every pinned digest is
+# present, but some other application service — `worker` shares the backend
+# image through its own `image:` line — still resolves a tag. A release that
+# resolves a mutable tag anywhere silently becomes whatever the registry points
+# at by the time it is pulled.
+{
+  cat "$tmp_dir/images.saved"
+  printf '%s/backend:development\n' "$registry"
+} >"$control/compose_images"
+refuses 'resolves a mutable application tag' \
+  'a compose file that resolves a mutable application tag alongside the digests' attempt_deploy
 cp "$tmp_dir/images.saved" "$control/compose_images"
 
 # A manifest that simply omits the release-coupled files must not verify.
 cp "$manifest" "$tmp_dir/manifest.saved"
 grep -v 'docker-compose.yml' "$tmp_dir/manifest.saved" >"$manifest"
-refuses 'a manifest that does not cover the installed compose file' attempt_deploy
+refuses 'does not cover the installed compose file' \
+  'a manifest that does not cover the installed compose file' attempt_deploy
+cp "$tmp_dir/manifest.saved" "$manifest"
+
+# A near-miss entry must not satisfy the coverage check either: the recorded
+# path is compared as a whole field, so an entry for `<path>.bak` leaves the
+# real compose file unrecorded and therefore unverified.
+sed 's#docker-compose.yml$#docker-compose.yml.bak#' "$tmp_dir/manifest.saved" >"$manifest"
+refuses 'does not cover the installed compose file' \
+  'a manifest whose compose entry is a near-miss path' attempt_deploy
 cp "$tmp_dir/manifest.saved" "$manifest"
 
 # No recorded bundle at all: the host cannot claim to satisfy anything.
 mv "$manifest" "$tmp_dir/manifest.absent"
-refuses 'a host with no recorded bundle' attempt_deploy
+refuses 'no host bundle is recorded' \
+  'a host with no recorded bundle' attempt_deploy
 mv "$tmp_dir/manifest.absent" "$manifest"
+
+# ---------------------------------------------------------------------------
+# The installer refuses before it changes anything
+# ---------------------------------------------------------------------------
+
+# A refusal must leave the host no worse than it found it. The installer
+# validates the whole inventory first for that reason: a half-installed bundle
+# would leave a manifest describing a host that does not exist, and — for the
+# sudoers fragment — a file that does not parse can make sudo refuse every
+# command for every user, locking the operator out of the host and the deploy
+# user out of the one command it is allowed to run.
+installer_refuses() {
+  expected=$1
+  description=$2
+  inventory_body=$3
+
+  cp "$manifest" "$tmp_dir/manifest.keep"
+  printf '%s' "$inventory_body" >"$tmp_dir/files.bad"
+  bad_install=$tmp_dir/install-bad
+  sed "s#^inventory=.*#inventory=$tmp_dir/files.bad#" "$tmp_dir/install" >"$bad_install"
+  chmod +x "$bad_install"
+
+  if "$bad_install" >"$tmp_dir/out" 2>&1; then
+    fail "the installer accepted $description"
+  fi
+  grep -Fq "$expected" "$tmp_dir/out" || {
+    echo "the installer's refusal for $description did not name the expected cause" >&2
+    echo "  expected to contain: $expected" >&2
+    echo "  actual: $(cat "$tmp_dir/out")" >&2
+    exit 1
+  }
+  cmp -s "$manifest" "$tmp_dir/manifest.keep" ||
+    fail "a refused installation rewrote the recorded manifest for $description"
+}
+
+installer_refuses 'host bundle source is missing' 'an inventory naming a source that does not exist' \
+  "$tmp_dir/src/absent.sh $tmp_dir/sbin/absent.sh 0755
+"
+installer_refuses 'host bundle destination must be absolute' 'a relative destination' \
+  "$tmp_dir/src/host-preflight.sh relative/path 0755
+"
+installer_refuses 'host bundle mode is malformed' 'a malformed mode' \
+  "$tmp_dir/src/host-preflight.sh $tmp_dir/sbin/probe 0o755
+"
+installer_refuses 'host bundle inventory is empty' 'an inventory with nothing in it' \
+  "# only a comment
+"
+
+# The sudoers fragment specifically: validated on the source, so a fragment that
+# does not parse is refused while the working one is still in place. Validating
+# after `install` would already have replaced it.
+printf 'this is not valid sudoers syntax %%%%\n' >"$tmp_dir/src/bad.sudoers"
+cp "$tmp_dir/etc/sudoers.d/ai-agent-deploy" "$tmp_dir/sudoers.keep"
+installer_refuses 'sudoers fragment is invalid' 'a sudoers fragment that does not parse' \
+  "$tmp_dir/src/bad.sudoers $tmp_dir/etc/sudoers.d/ai-agent-deploy 0440
+"
+cmp -s "$tmp_dir/etc/sudoers.d/ai-agent-deploy" "$tmp_dir/sudoers.keep" ||
+  fail 'a refused installation replaced the working sudoers fragment'
+
+# The bundle the earlier cases installed must still verify, or one of the
+# refusals above changed the host on its way out.
+"$preflight" integrity >/dev/null
 
 # The host preflight's own contracts, asserted directly so they do not depend on
 # whatever free space the runner happens to have.

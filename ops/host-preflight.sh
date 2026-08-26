@@ -47,9 +47,12 @@ verify_integrity() {
 
   # A manifest that simply omits the release-coupled files would otherwise
   # verify cleanly. Both of these are the reason this check exists at all.
-  grep -Fq " $compose_destination" "$manifest" ||
+  # Matched as a whole final field, not as a substring: an entry for
+  # `<path>.bak` would otherwise satisfy a check for `<path>`.
+  recorded_paths=$(sed -n 's/^file [0-7]* [0-9a-f]* //p' "$manifest")
+  printf '%s\n' "$recorded_paths" | grep -Fxq "$compose_destination" ||
     die 'host bundle manifest does not cover the installed compose file'
-  grep -Fq " $deploy_destination" "$manifest" ||
+  printf '%s\n' "$recorded_paths" | grep -Fxq "$deploy_destination" ||
     die 'host bundle manifest does not cover the installed deploy script'
 
   sed -n 's/^file //p' "$manifest" | while read -r expected_mode expected_digest path; do

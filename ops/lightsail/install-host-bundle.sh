@@ -33,7 +33,10 @@ die() { echo "host bundle installation failed: $*" >&2; exit 64; }
 version=$(sed -n '1p' "$version_file")
 printf '%s' "$version" | grep -Eq '^[1-9][0-9]*$' || die 'host bundle version must be a positive integer'
 
-entries=$(grep -v '^[[:space:]]*#' "$inventory" | grep -v '^[[:space:]]*$')
+# `|| true` so an inventory with no entries reaches the refusal below. Without
+# it grep's empty-match status aborts under `set -e` and the installer exits
+# with no explanation at all.
+entries=$(grep -v '^[[:space:]]*#' "$inventory" | grep -v '^[[:space:]]*$' || true)
 [ -n "$entries" ] || die 'host bundle inventory is empty'
 
 # Validate the whole inventory before installing any of it. A bundle that is
@@ -48,6 +51,16 @@ printf '%s\n' "$entries" | while read -r source destination mode; do
     *) die "host bundle destination must be absolute: $destination" ;;
   esac
   printf '%s' "$mode" | grep -Eq '^0[0-7]{3}$' || die "host bundle mode is malformed: $mode"
+
+  # Checked on the source, not on the installed copy. Validating after `install`
+  # would already have replaced a working fragment with a broken one, and a
+  # /etc/sudoers.d file that does not parse can make sudo refuse every command
+  # for every user — locking the operator out of the host and the deploy user
+  # out of the one command it is allowed to run. A refusal must leave the host
+  # no worse than it found it.
+  case $destination in
+    /etc/sudoers.d/*) visudo -cf "$source" >/dev/null || die "sudoers fragment is invalid: $source" ;;
+  esac
 done
 
 install -d -o root -g root -m 0755 /etc/ai-agent /opt/ai-agent /var/lib/ai-agent
@@ -61,11 +74,10 @@ printf '%s\n' "$entries" | while read -r source destination mode; do
   install -d -o root -g root -m 0755 "$(dirname -- "$destination")"
   install -o root -g root -m "$mode" "$source" "$destination"
 
-  # sudoers is the one destination where a syntactically invalid file locks the
-  # deploy user out of the only command it is allowed to run, so it is checked
-  # in place before anything else is recorded.
+  # The source was already validated above, so this only catches an install that
+  # somehow produced a file the source did not describe.
   case $destination in
-    /etc/sudoers.d/*) visudo -cf "$destination" >/dev/null || die "sudoers fragment is invalid: $destination" ;;
+    /etc/sudoers.d/*) visudo -cf "$destination" >/dev/null || die "installed sudoers fragment is invalid: $destination" ;;
   esac
 
   digest=$(sha256sum "$destination" | cut -d' ' -f1)
