@@ -185,7 +185,8 @@ partial or zero reclaim is visible rather than silent.
 
 ## Current status
 
-Active in the wrapper as of host bundle 3, with `MIN_VERSION` at 2.
+Active in the wrapper as of host bundle 3, with `MIN_VERSION` at 2. Bundle 3 is
+installed and verified on Staging.
 
 The rollout was deliberately split. Bundle 2 shipped the script installed and
 uninvoked, so the removal logic could be reviewed before anything could call it,
@@ -196,10 +197,54 @@ retention does is host-side: the four release images require nothing from it, an
 a host on bundle 2 deploys correctly using its own wrapper, which does not call
 retention. So `MIN_VERSION=2` declares the floor at which the capability exists,
 which is the honest claim. `MIN_VERSION=3` would declare that the invocation
-itself is required and would refuse a host that is running bundle 2 today.
+itself is required and would refuse a host still running bundle 2.
 
-The consequence, stated so it is not discovered later: **merging this does not
-make retention run.** It runs once an operator has reinstalled the bundle from a
-checkout containing it, at which point the host records version 3 and its
-wrapper calls retention. Until then the host deploys exactly as before. See
+That distinction was confirmed rather than assumed. Merging the activation
+triggered the usual release chain, and the automatic Staging deployment ran
+before the operator installed bundle 3. Its log reads `host bundle 2 verified`
+and `host bundle 2 satisfies the required 2`: the release was accepted, the
+bundle-2 wrapper called no retention, and the deployment was healthy. New host
+behaviour arrives with the bundle install, not with the merge. See
 [the host bundle document](host-bundle.md).
+
+## First real execution
+
+**Retention has not yet run on a real host.** It is installed and wired, and
+every guard is covered by tests driving a modelled image store, but its first
+execution will be the first legitimate deployment after bundle 3 was installed.
+
+It must not be forced. A no-op release, an empty commit, or a manual
+`reclaim` on the host would each prove something adjacent to the thing that
+matters — that retention behaves correctly on the deployment path — and a manual
+run would consume the superseded generation the automatic run needs in order to
+demonstrate anything at all.
+
+Acceptance splits into two gates that are not interchangeable, because a guard
+firing correctly proves the guard and not the feature.
+
+**Safety acceptance** is met by a correct fail-closed refusal with an explicit
+stated reason: nothing was removed, the reason was named, and the healthy
+deployment stayed successful. That is real evidence and worth recording.
+
+**Functional retention acceptance** is met only when a legitimate automatic
+post-bundle-3 deployment *successfully performs* retention against the real
+daemon — at least one superseded application image actually removed, where
+candidates existed. A refusal does not close it. Neither does a run reporting
+`removed 0` because there was nothing to remove, which is correct behaviour and
+not proof.
+
+If the first real run refuses: record the refusal as valid safety evidence, keep
+the deployment successful as designed, investigate the stated reason, and leave
+functional acceptance unchecked. Do not force it afterwards either — the next
+legitimate deployment is the next opportunity.
+
+The full evidence list is in the completed execution plan,
+`docs/exec-plans/completed/release-image-retention.md`, under *Operational
+acceptance still open*. In outline: the deployment stayed healthy; the host was
+on bundle 3; retention was invoked automatically from the deploy path after the
+release-state rotation; it completed and reclaimed at least one image; every
+removed reference was in one of the four application repositories; no `CURRENT`
+or `PREVIOUS` digest was removed; all protected references still resolved
+afterwards; `removed`/`blocked`/`failed` and before/after/reclaimed disk were
+reported; the post-retention 4096MiB preflight passed; and no `prune` or forced
+deletion appeared anywhere.

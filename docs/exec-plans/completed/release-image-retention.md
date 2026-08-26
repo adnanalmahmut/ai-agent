@@ -1,9 +1,21 @@
 # Safe application release-image retention and disk reporting
 
-> Status: design approved with mandatory corrections. Gate 1 (image identity)
-> is proven empirically. Delivered as two independently reviewable PRs,
-> OPS-03A then OPS-03B, with an operator bundle install between them.
-> PR #41 is merged and local `main` is resynchronized at `a05a317`.
+> **Completed 2026-08-26.** Delivered as two independently reviewable PRs —
+> [#42](https://github.com/adnanalmahmut/ai-agent/pull/42), merged `b465e31`
+> (capability installed, invoked by nothing) and
+> [#43](https://github.com/adnanalmahmut/ai-agent/pull/43), merged `54c31ce`
+> (activation). Host bundle 3 is installed and verified on Staging.
+>
+> **Operational acceptance remains open and is carried forward.** Retention has
+> never executed on a real Docker daemon. The gate splits in two: a correct
+> fail-closed refusal closes *safety* acceptance, but *functional* acceptance
+> closes only when a legitimate automatic post-bundle-3 deployment actually
+> reclaims a superseded image. See *Operational acceptance still open* at the end
+> of this plan. No further code work is required for either.
+
+> Status: code and documentation delivered and merged. Gate 1 (image identity)
+> was proven empirically before any retention code was written. Both bundle
+> installs are done. Retention has not yet executed on a real host.
 
 ## Goal
 
@@ -721,6 +733,24 @@ host, not by anyone remembering to do it in the right order.
       `ops/tests/release-manifest.sh` and `ops/tests/deploy-service-health.sh`
       now install a stand-in; the latter also asserts that retention runs on the
       success path and on no failure path.
+- [x] OPS-03B merged as PR #43, `54c31ce`, with final head `ecebc2b` and CI run
+      33006868469 green across all five jobs.
+- [x] Post-merge release chain on `54c31ce` succeeded: CI 33008014112, publish
+      33008526134, Staging deployment 33008886408 — the last of which ran on
+      bundle 2 and correctly invoked no retention, confirming the two-stage
+      prediction on the real host. Recorded below.
+- [x] Operator installed bundle 3 on Staging from `54c31ce` and recorded
+      evidence: manifest version 3, integrity passing, retention installed and
+      executable, runtime preflight passing, `disk 4096` passing with 18942MiB
+      available, `health staging` succeeding. Retention never run by hand.
+- [ ] **Gate S — safety acceptance, carried forward:** a correct fail-closed
+      refusal with an explicit reason on a real deployment, with the healthy
+      deployment staying successful.
+- [ ] **Gate F — functional retention acceptance, carried forward:** a legitimate
+      automatic post-bundle-3 deployment actually reclaims at least one
+      superseded application image. A refusal does not close this, and neither
+      does `removed 0` where no candidates existed. No code work remains for
+      either gate; see *Operational acceptance still open*.
 
 ## The two version numbers in OPS-03B
 
@@ -873,9 +903,210 @@ not reclaimed, retention itself already exits non-zero on any blocked or failed
 candidate, and the hard gate is the next deployment's `disk 4096` preflight —
 the same refusal that surfaced the original incident.
 
+## Operator rollout: host bundle 3
+
+Installed and verified on Staging on 2026-08-26 from release checkout
+`54c31ced81be703fa07ace9c1a8cb2b791033328`, which is PR #43's merge commit.
+
+| Check | Result |
+|---|---|
+| `ops/host-bundle/VERSION` in the checkout | 3 |
+| `ops/host-bundle/MIN_VERSION` in the checkout | 2 |
+| `install-host-bundle.sh` | succeeded |
+| `/usr/local/sbin/ai-agent-release-retention` | installed and executable |
+| Recorded manifest | version 3, verified |
+| `ai-agent-host-preflight integrity` | passed |
+| `ai-agent-runtime-preflight staging /etc/ai-agent/runtime.env` | passed |
+| `ai-agent-host-preflight disk 4096` | passed, 18942MiB available |
+| `ai-agent-deploy health staging` | succeeded |
+| Retention invoked manually | no |
+
+Bundle 1 -> 2 -> 3 is now complete, and no deployment was ever expected to fail
+at any point in that sequence.
+
+## The two-stage rollout confirmed itself
+
+The plan predicted that merging OPS-03B would not start retention, because
+`MIN_VERSION=2` is satisfied by the bundle-2 wrapper already installed and that
+wrapper does not call retention. That prediction was tested by accident and held.
+
+Merging #43 triggered the normal release chain on `54c31ce`: CI
+(run 33008014112), publish (33008526134), and an automatic Staging deployment
+(33008886408) — all successful. That deployment ran **before** the operator
+installed bundle 3, and its own log says so:
+
+```
+host bundle 2 verified
+free space 23640MiB satisfies the required 4096MiB
+host bundle 2 satisfies the required 2
+```
+
+`2 >= 2`, so the release was accepted; the installed bundle-2 wrapper contains no
+retention call, so no retention line appears anywhere in that log and no
+`prune`, `--force`, or `image rm` appears either. The deployment was healthy —
+every container reported `Healthy`, health and external smoke checks passed.
+
+This is the behaviour the two-stage rollout was designed for, observed on the
+real host rather than argued for: a release that declares a capability floor
+deploys correctly on a host that satisfies the floor, and the new host behaviour
+arrives with the bundle install rather than with the merge.
+
+It also produced the number that quantifies the problem. Free space fell from
+23640MiB before that deployment to 18942MiB after it — about 4.6GB for one
+release generation that nothing reclaimed, because the wrapper that reclaims had
+not been installed yet. That is the recurrence this plan exists to stop, measured
+one generation at a time.
+
+## Operational acceptance still open
+
+**The first legitimate post-bundle-3 deployment must prove automatic retention on
+the real Docker daemon.** This is the only outstanding item in OPS-03, it is
+operational rather than engineering, and no code change is required for it.
+
+It must be a real deployment. Do not manufacture a no-op release, an empty
+commit, or a manual retention run to close it: retention's whole purpose is to
+behave correctly on the deployment path, and a synthetic trigger would prove
+something adjacent to that at best. Retention must also not be run by hand on
+Staging — a manual run would consume the superseded generation that the automatic
+run needs in order to demonstrate anything.
+
+### Two gates, and they are not interchangeable
+
+There are two separable things to establish, and an earlier draft of this section
+conflated them by treating a correct refusal as sufficient to close the whole
+item. It is not. A guard firing correctly proves the guard; it does not prove
+that retention reclaims disk.
+
+**Gate S — safety acceptance.** A correct fail-closed refusal, with an explicit
+stated reason, is acceptable evidence that the safety controls work and that the
+deployment failure semantics are correct: nothing was removed, the reason was
+named, and the healthy deployment stayed successful. Recording that closes Gate S.
+
+**Gate F — functional retention acceptance.** This stays **open** until at least
+one legitimate automatic post-bundle-3 deployment has *successfully performed
+retention* against the real Docker daemon. A refusal does not close it. Neither
+does a run that reports `removed 0` because there was nothing to remove.
+
+OPS-03 real-host acceptance is complete only when **Gate F** is met. Gate S is
+worth recording on its own, but it is not a substitute.
+
+### What Gate F requires
+
+Every item, from the same automatic deployment:
+
+1. Automatic invocation from the deploy path — not by hand, not by a synthetic
+   trigger.
+2. Invoked after `CURRENT`/`PREVIOUS` rotation.
+3. **At least one superseded application image actually removed**, where
+   candidates existed. This is the item a refusal cannot satisfy.
+4. Every removed reference restricted to the four application repositories.
+5. No `CURRENT` or `PREVIOUS` digest removed.
+6. All protected references resolving after the mutation.
+7. `removed` / `blocked` / `failed` reported.
+8. Disk reported before, after, and reclaimed.
+9. Post-retention `4096MiB` disk preflight passing.
+10. No prune and no forced deletion, anywhere.
+11. The deployment itself remained healthy.
+
+The "where candidates existed" qualifier in item 3 matters both ways. A run that
+correctly reports `release retention: no superseded release images to remove` is
+right, and is not functional proof — so check the precondition before reading the
+outcome. As of this writing candidates do exist, so the next deployment is
+positioned to satisfy Gate F; see the prediction below.
+
+### State at the time of writing
+
+- `CURRENT_RELEASE` is `54c31ce`.
+- `PREVIOUS_RELEASE` is `b465e31`.
+- The generation before those, whose four application images are still on disk
+  and are the ones the next deployment should reclaim, is the release that was
+  current before `b465e31`.
+
+So the falsifiable prediction is: at the next deployment N, `CURRENT` becomes N,
+`PREVIOUS` becomes `54c31ce`, `b465e31`'s four images become superseded and
+eligible, and retention should remove exactly those four — reclaiming roughly
+what one generation occupies, on the order of the 4.6GB measured above.
+
+Because candidates exist, `removed 0` on that deployment is *not* an expected
+outcome. If it happens, read it as a finding to investigate rather than as a
+clean run.
+
+### Evidence the deployment log must contain
+
+Read from the `Deploy staging` workflow run for that SHA. Every item is
+observable in that log; none requires touching the host. The Gate S / Gate F
+column says which gate each item serves.
+
+1. **The deployment itself stayed healthy.** (both) All containers `Healthy`,
+   internal health and external HTTPS smoke checks passing, and the run
+   concluding `success`. Retention runs after this, so a retention problem must
+   not appear as a deployment problem.
+2. **The host was on bundle 3.** (both) `host bundle 3 verified` and
+   `host bundle 3 satisfies the required 2`. On bundle 2 retention will not run
+   at all, and neither gate is met — nor failed.
+3. **Retention ran after rotation, not before.** (both) `release retention`
+   output appears after the release-state rotation, and the reclaimed references
+   belong to the superseded generation rather than to the release just deployed.
+   If the release being deployed ever appears as a candidate, that is a
+   stop-the-line defect.
+4. **Retention completed.** (**Gate F**) `release retention: completed` from the
+   wrapper. A `release retention FAILED (exit <n>)` line with retention's own
+   fail-closed message is Gate S evidence and leaves Gate F unchecked.
+5. **At least one image was actually reclaimed.** (**Gate F**) One or more
+   `reclaimed <repository>@sha256:<digest>` lines, and a `removed <n>` count with
+   `n >= 1`. This is the item that distinguishes "the feature works" from "the
+   guards work", and it is why a refusal cannot close Gate F.
+6. **`CURRENT` and `PREVIOUS` still resolve afterwards.** (both)
+   `release retention: all protected release images verified present`. This is
+   retention's own post-mutation re-resolution of all eight protected
+   references, so its absence on a run that removed anything is itself a failure.
+7. **No protected image was removed.** (both) No `reclaimed` line names a digest
+   recorded in either `CURRENT_RELEASE.json` or `PREVIOUS_RELEASE.json`, and
+   `PROTECTED RELEASE IMAGE IS GONE AFTER RETENTION` appears nowhere.
+8. **Only application images in the four repositories were touched.** (both)
+   Every `reclaimed` reference is under `ghcr.io/adnanalmahmut/ai-agent/` and
+   names one of `backend`, `backend-migration`, `web`, `platform`. No `postgres`,
+   `redis`, `geoipupdate`, no other registry path, and no repository outside
+   those four.
+9. **Disk was reported before, after, and reclaimed.** (both)
+   `release retention: free space before <n>MiB, after <n>MiB, reclaimed <n>MiB`,
+   with a plausible non-negative reclaimed figure. Also
+   `release retention: removed <n>, blocked <n>, failed <n>`.
+10. **The post-retention disk preflight passed.** (both)
+    `free space <n>MiB satisfies the required 4096MiB`, emitted by
+    `ai-agent-host-preflight disk` *after* the retention output rather than the
+    earlier pre-deployment one. Both appear in the same log, so read the
+    ordering, not just the text.
+11. **No prune or forced deletion occurred anywhere.** (both) No `prune` in any
+    form, no `--force` or `-f` on an image removal. Removal must be by explicit
+    `repository@digest`, one reference at a time.
+
+### If the first real run refuses fail-closed
+
+Then, in order:
+
+- **Record the refusal as valid safety evidence.** It closes Gate S: the guard
+  fired, nothing was removed, and the reason was named.
+- **Keep the deployment successful**, as designed. Retention runs after the
+  release is healthy and recorded, and its failure cannot fail or undo it. The
+  wrapper says so explicitly in its own output.
+- **Investigate the stated reason.** The message names which guard fired.
+- **Leave Gate F — functional operational acceptance — unchecked.** It closes
+  only on a deployment that actually reclaims.
+
+Still do not force it afterwards. No artificial deployment, no manual reclaim, no
+empty commit; the next legitimate deployment is the next opportunity.
+
+The expected refusals, all fail-closed and all before any mutation, are: a
+release record missing, unreadable, or malformed; a recorded reference that does
+not resolve locally; an empty protected set; and a candidate held by a container
+— reported distinctly for a running container (release-state drift: the host is
+serving something the recorded state does not describe) versus a stopped one
+(stale operational state). Neither is forced, and neither counts as successful
+cleanup. Record the exact message; it names which guard fired.
+
 ## Blockers
 
-None. Gate 1 is passed and OPS-03A is merged as `b465e31`. The operator has
-installed bundle 2 on Staging from that exact checkout, verified integrity, and
-confirmed `/usr/local/sbin/ai-agent-release-retention` is present and
-executable, so the OPS-03B prerequisite is satisfied.
+None. All code work is delivered and merged, and both operator bundle installs
+are complete. The one remaining item is operational acceptance on the next real
+deployment, which no engineering change can advance.
