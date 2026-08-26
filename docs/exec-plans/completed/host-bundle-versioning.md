@@ -248,11 +248,21 @@ human operator action taken after merge.
   all five jobs (agent harness, backend, platform, containers, web) successful.
   [#38](https://github.com/adnanalmahmut/ai-agent/pull/38) is open, not a draft,
   based on `main`, `MERGEABLE`/`CLEAN`, with no auto-merge. Awaiting human merge.
-- [ ] Human merge, then local `main` resynchronized
-- [ ] Operator-owned rollout: install and verify the host bundle on Staging.
-  Until an operator does this, Staging keeps deploying with the pre-bundle
-  wrapper and none of the refusals in this change are active. Not an agent
-  action.
+- [x] Final-head CI green on `2f77c7b`: run
+  [32951113465](https://github.com/adnanalmahmut/ai-agent/actions/runs/32951113465),
+  all five jobs successful. That head differs from the reviewed head `a82035c`
+  by one markdown file and nothing else.
+- [x] Human merge completed 2026-08-26 as merge commit
+  `785b059e3c8f35cb9416e3420e8bfc4363806dd1`, and local `main` resynchronized
+  from `origin/main` by fast-forward.
+- [x] Post-merge workflows on `785b059` all successful: CI
+  [32954851299](https://github.com/adnanalmahmut/ai-agent/actions/runs/32954851299),
+  Publish immutable images
+  [32955341996](https://github.com/adnanalmahmut/ai-agent/actions/runs/32955341996),
+  Deploy staging
+  [32955692085](https://github.com/adnanalmahmut/ai-agent/actions/runs/32955692085).
+- [x] Operator-owned rollout: host bundle VERSION 1 installed and verified on
+  Staging by the human operator on 2026-08-26. Recorded under Outcome below.
 
 ## Considered and accepted
 
@@ -268,6 +278,79 @@ human operator action taken after merge.
   operator-owned item so that PR completion and rollout completion are not
   confused for one another.
 
+## Outcome
+
+Delivered as [#38](https://github.com/adnanalmahmut/ai-agent/pull/38), merged
+2026-08-26 as `785b059e3c8f35cb9416e3420e8bfc4363806dd1`. Enforcement became
+active on Staging the same day, when the operator installed the bundle.
+
+### Rollout, verified by the human operator
+
+- Host bundle VERSION 1 installed from a checkout of the exact merged release.
+- `/etc/ai-agent/host-bundle.manifest` exists;
+  `ai-agent-host-preflight integrity` reports `host bundle 1 verified`.
+- The installed compose file, deploy wrapper, runtime preflight, and host
+  preflight all match the release checkout; the sudoers fragment parsed.
+- `require-version 1` passes; `require-version 2` refuses with exit 64.
+- `ai-agent-runtime-preflight staging /etc/ai-agent/runtime.env` passes.
+- `ai-agent-deploy health staging` passes; all seven containers healthy
+  (backend, worker, web, platform, postgres, redis, geoipupdate).
+- `CURRENT_RELEASE` remains `785b059e3c8f35cb9416e3420e8bfc4363806dd1`.
+
+Each reported string matches the exact output format of the merged scripts —
+`host bundle $installed_version verified` at `ops/host-preflight.sh`, the
+`free space ...MiB satisfies the required ...MiB` line, exit 64 from `die`, and
+`required_free_mib=4096` in the wrapper. The evidence therefore corroborates
+independently of the report.
+
+### The disk gate refused on its first production use
+
+This is the most useful thing the change produced, and it was not anticipated
+as the first outcome. The disk preflight refused the deployment at 2963 MiB
+free against the required 4096 MiB. It was not a false alarm: the host was at
+58G filesystem, 55G used, 2.9G free, 95% used, carrying 53 images and 52.28 GB
+of Docker images. The gate turned an eventual opaque mid-deployment extraction
+failure into an explicit refusal before anything irreversible ran, which is
+precisely the property this plan set out to add.
+
+The operator remediated by hand, using a protected digest allowlist rather than
+a blanket reclaim:
+
+- 40 obsolete application release images removed.
+- All 8 `CURRENT_RELEASE` and `PREVIOUS_RELEASE` digests verified present
+  afterwards — four images per retained release.
+- Obsolete unused `postgres:16-alpine` and `alpine:latest` also removed.
+- No live containers, volumes, database data, runtime secrets, or
+  current/previous release images were removed.
+- Final state: 58G filesystem, 16G used, 42G free, 28% used.
+- `ai-agent-host-preflight disk 4096` then reported
+  `free space 42400MiB satisfies the required 4096MiB`.
+
+### What this hands to OPS-03
+
+The manual remediation above is the specification for OPS-03, and it must not
+have to be repeated by hand every few days. Required shape: on a successful
+deployment, retain `CURRENT`, retain `PREVIOUS`, safely remove older
+application release images, report reclaimed space, then re-run the disk
+preflight so the result is asserted rather than assumed.
+
+The constraint that matters is what it must *not* be. A blanket image or system
+reclaim cannot distinguish a rollback target from garbage, and rollback
+capability is exactly what is being protected. Retention has to be computed
+from the recorded release state — `CURRENT_RELEASE.json` and
+`PREVIOUS_RELEASE.json`, never tags — behind fail-closed guards: establish the
+protected digest set first, refuse to remove anything when either release file
+is missing, unreadable, or malformed, and verify the protected digests survive.
+Each guard needs a mutation probe, on the standard this plan established.
+
+### Limits of this change
+
+Enforcement is only as current as the last bundle install. A host that has not
+run the installer performs none of these checks, because the wrapper that would
+perform them is part of the bundle. The version gate makes that state visible
+on the next release rather than silent, but it cannot make an un-updated host
+enforce anything. Production remains unprovisioned and was not operated.
+
 ## Blockers
 
-None currently.
+None. This plan is complete.
