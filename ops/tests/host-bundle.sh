@@ -608,6 +608,19 @@ fi
 rm -f "$control/retention_fails"
 probe_wrapper_done
 
+# The verb scoping on the retention requirement. With it gone, a host missing the
+# retention executable can no longer answer `health` -- the diagnostic staging CD
+# and an operator during an incident both call.
+probe_wrapper '[ "${1:-}" != deploy ] || [ -x "$retention" ] ||=>[ -x "$retention" ] ||'
+mv "$tmp_dir/sbin/ai-agent-release-retention" "$tmp_dir/retention.absent"
+if "$deploy" health staging >/dev/null 2>&1; then
+  mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
+  probe_wrapper_done
+  fail 'health still answered with the verb scoping removed; the scoping assertion proves nothing'
+fi
+mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
+probe_wrapper_done
+
 # Leave the sandbox as the happy path left it, so every case below is still
 # caused by the one thing it changes.
 restore_first_sha
