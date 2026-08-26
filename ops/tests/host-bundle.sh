@@ -47,6 +47,7 @@ for required in \
   /usr/local/sbin/ai-agent-deploy-dispatch \
   /usr/local/sbin/ai-agent-runtime-preflight \
   /usr/local/sbin/ai-agent-host-preflight \
+  /usr/local/sbin/ai-agent-release-retention \
   /etc/sudoers.d/ai-agent-deploy; do
   printf '%s\n' "$entries" | awk '{ print $2 }' | grep -Fxq "$required" ||
     fail "host bundle inventory does not cover $required"
@@ -422,8 +423,13 @@ refuses 'APP_ENCRYPTION_KEY' \
   'a runtime environment with no encryption key' attempt_deploy
 cp "$tmp_dir/runtime.saved" "$tmp_dir/etc/ai-agent/runtime.env"
 
-# The release requires a newer bundle than the host has recorded.
-printf '%s\n' "$((bundle_minimum + 1))" >"$control/label.min-version"
+# The release requires a newer bundle than the host has recorded. Derived from
+# the bundle VERSION the sandbox installed, not from MIN_VERSION: those two are
+# equal only while every shipped capability is also required, and a release that
+# adds an installed-but-unused capability deliberately leaves MIN_VERSION behind
+# VERSION. Keying off MIN_VERSION made this case stop refusing the moment that
+# happened, which is precisely when it needs to keep working.
+printf '%s\n' "$((bundle_version + 1))" >"$control/label.min-version"
 refuses 'reinstall the bundle from the release checkout' \
   'a release that requires a newer host bundle' attempt_deploy
 printf '%s\n' "$bundle_minimum" >"$control/label.min-version"

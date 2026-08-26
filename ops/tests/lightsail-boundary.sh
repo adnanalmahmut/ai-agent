@@ -94,4 +94,52 @@ for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune.*--volumes' 'eval 
   fi
 done
 
+# Every host script, not just the ones under ops/lightsail. Retention lives at
+# ops/release-retention.sh, so the narrower sweep above would not have seen it —
+# and it is the first script in this repository with any reason to remove an
+# image at all.
+#
+# The patterns are deliberately wider than the ones above, which only caught a
+# system reclaim carrying --volumes. A bare system reclaim, an -a system
+# reclaim, and an -a image reclaim all passed until now. None of them can
+# distinguish a rollback target from garbage, and rollback capability is exactly
+# what release retention exists to protect.
+#
+# ops/tests is excluded because the tests name these commands to forbid them,
+# and .md files because the runbooks name them to tell operators not to use
+# them. Fragments are split so this file does not contain the literals either.
+host_scripts=$(find ops -type f \( -name '*.sh' -o -name 'ai-agent-deploy' \
+  -o -name 'ai-agent-deploy-dispatch' \) -not -path 'ops/tests/*' | sort)
+[ -n "$host_scripts" ] || {
+  echo 'found no host scripts to check for unsafe reclaims' >&2
+  exit 1
+}
+# The sweep must actually include the scripts that could perform a reclaim, or
+# it is checking nothing.
+for required in ops/release-retention.sh ops/lightsail/ai-agent-deploy; do
+  printf '%s\n' "$host_scripts" | grep -Fxq "$required" || {
+    echo "unsafe-reclaim sweep does not cover $required" >&2
+    exit 1
+  }
+done
+
+for reclaim in \
+  'system'' prune' \
+  'image'' prune' \
+  'volume'' prune' \
+  'container'' prune' \
+  'builder'' prune' \
+  'buildx'' prune'; do
+  if printf '%s\n' "$host_scripts" | xargs grep -En "docker[[:space:]]+$reclaim"; then
+    echo 'a blanket Docker reclaim cannot distinguish a rollback target from garbage' >&2
+    exit 1
+  fi
+done
+
+# Forced image removal defeats the container check that makes retention safe.
+if printf '%s\n' "$host_scripts" | xargs grep -En 'image rm[^|]*(--force|[[:space:]]-f([[:space:]]|$))'; then
+  echo 'forced image removal is never permitted' >&2
+  exit 1
+fi
+
 echo 'Lightsail deployment boundary: ok'
