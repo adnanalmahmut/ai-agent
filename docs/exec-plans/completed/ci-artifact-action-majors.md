@@ -249,7 +249,76 @@ evidence needs than an artifact rename.
      absent file yields no count. Guarded with a readability check.
 - [x] 30 mutation probes across every assertion class, each confirmed to fail
       the suite when applied and to pass when reverted.
+- [x] Final-head CI green on `778bf27`: run
+      [32964177249](https://github.com/adnanalmahmut/ai-agent/actions/runs/32964177249),
+      all five jobs, with `ops/tests/artifact-contract.sh` observed passing.
+- [x] Human merge completed 2026-08-26 as
+      `a1836e18459dc173155e96a2e929002bf654564a`, and local `main`
+      resynchronized from `origin/main` by fast-forward.
+- [x] Exercised end to end in the real release chain. See Outcome.
+
+## Outcome
+
+Delivered as [#40](https://github.com/adnanalmahmut/ai-agent/pull/40), merged
+2026-08-26 as `a1836e18459dc173155e96a2e929002bf654564a`.
+
+### The untestable surface was exercised, and it worked
+
+This plan's stated risk was that the cross-run download could not be exercised
+from a pull request, so the static contract plus post-merge observation were the
+only available evidence. The post-merge chain on the merge commit closes that
+gap:
+
+- CI
+  [32966427951](https://github.com/adnanalmahmut/ai-agent/actions/runs/32966427951)
+  success.
+- Publish immutable images
+  [32966915336](https://github.com/adnanalmahmut/ai-agent/actions/runs/32966915336)
+  success: `actions/upload-artifact@v7` executed, and the immutable release
+  digests were recorded and uploaded.
+- Deploy staging
+  [32967241121](https://github.com/adnanalmahmut/ai-agent/actions/runs/32967241121)
+  success: `Download publish digest manifest` succeeded on
+  `actions/download-artifact@v8`, followed by immutable release metadata
+  validation, migration-gated deployment, restricted host health verification,
+  external HTTPS smoke tests, and the staging evidence upload.
+
+Both new majors are therefore proven on the live path. Every property the
+static contract asserts — the artifact names, the run-id scoping, the pattern
+and `merge-multiple` resolution, and the archived packaging both consumers
+depend on — held in a real release.
+
+### The annotation prediction was checked, not assumed
+
+Predicted before the merge, then verified after:
+
+| Workflow | Before | After |
+| --- | --- | --- |
+| Deploy staging | `download-artifact@v4`, `upload-artifact@v4` | **no annotation at all** |
+| Publish immutable images | `checkout@v4`, `upload-artifact@v4`, `login-action@v3`, `setup-buildx-action@v3` | `checkout@v4`, `login-action@v3`, `setup-buildx-action@v3` |
+| CI | `checkout@v4`, `setup-node@v4`, `pnpm/action-setup@v4`, `setup-buildx-action@v3` | unchanged |
+
+No artifact action is named anywhere in the pipeline's Node-20 annotations. The
+one workflow whose annotation named only artifact actions is now fully clear.
+
+### What this deliberately did not fix
+
+The Node-20 deprecation is not retired repository-wide. `checkout@v4`,
+`setup-node@v4`, `pnpm/action-setup@v4`, `docker/login-action@v3`, and
+`docker/setup-buildx-action@v3` still target it and are still force-run on Node
+24 by the runner. That was the stated non-goal, and the annotation table above
+is the honest record of what remains rather than a claim of completion.
+
+The most useful thing this plan produced beyond the upgrade is the correction
+of its own acceptance criterion: measuring where the annotation actually
+appeared showed that "no warning remains on final-head CI" was unachievable by
+an artifact-only change, because CI never used an artifact action. Restating the
+criterion was the right move; ticking it as written would have been false.
+
+Actions remain pinned to mutable major tags rather than commit SHAs. Raised
+during review and deliberately left alone, since it is the convention for every
+action here; it stays open as a repository-wide policy question.
 
 ## Blockers
 
-None currently.
+None. This plan is complete.
