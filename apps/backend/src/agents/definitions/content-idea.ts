@@ -179,6 +179,10 @@ export const contentIdeaAgent: AgentDefinition = {
   version: CONTENT_IDEA_AGENT_VERSION,
   runtime: AGENT_RUNTIME_NAMES.mastra,
   model: MODEL_IDS.openAiGpt4oMini,
+  modelPolicy: {
+    id: 'content-idea.model-policy.1',
+    allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+  },
   instructions: [
     'You propose content ideas for a marketing team.',
     '',

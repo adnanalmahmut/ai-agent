@@ -20,6 +20,10 @@ import type {
 import { QUEUE_NAMES } from '../../src/core/queue';
 import { PrismaService } from '../../src/database';
 import {
+  APPLICATION_MODEL_CATALOG,
+  MODEL_IDS,
+} from '../../src/model-catalog/model-catalog';
+import {
   activateTestAgentVersion,
   cleanTestAgentInstallations,
   installTestAgent,
@@ -147,17 +151,25 @@ describe('AgentRun foundation (e2e)', () => {
   afterEach(async () => {
     await cleanRuns();
     await Promise.all(
-      organizationIds.map((organizationId) =>
-        prisma.organizationAgentInstallation.update({
+      organizationIds.map(async (organizationId) => {
+        const versionId = baselineVersions.get(organizationId);
+        await prisma.organizationAgentVersion.update({
+          where: { id: versionId },
+          data: {
+            modelPolicyId: `${TEST_AGENT_ID}.model-policy.1`,
+            modelId: MODEL_IDS.openAiGpt4oMini,
+          },
+        });
+        await prisma.organizationAgentInstallation.update({
           where: {
             organizationId_agentId: {
               organizationId,
               agentId: TEST_AGENT_ID,
             },
           },
-          data: { activeVersionId: baselineVersions.get(organizationId) },
-        }),
-      ),
+          data: { activeVersionId: versionId },
+        });
+      }),
     );
   });
 
@@ -172,6 +184,10 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('commits one queued AgentRun and its routed outbox event atomically', async () => {
+    const pricingResolution = jest.spyOn(
+      APPLICATION_MODEL_CATALOG,
+      'pricingRevision',
+    );
     const result = await service.create(request('committed-request'));
 
     const persisted = await prisma.agentRun.findUniqueOrThrow({
@@ -190,8 +206,20 @@ describe('AgentRun foundation (e2e)', () => {
       createdByUserId: userId,
       idempotencyKey: 'committed-request',
       attemptCount: 0,
+      modelPolicyId: `${TEST_AGENT_ID}.model-policy.1`,
+      modelId: MODEL_IDS.openAiGpt4oMini,
     });
     expect(result.agentVersion).toBe(1);
+    expect(result.modelPricingRevisionId).toBe(
+      APPLICATION_MODEL_CATALOG.pricingRevision(
+        MODEL_IDS.openAiGpt4oMini,
+        result.createdAt,
+      ).id,
+    );
+    expect((pricingResolution.mock.calls.at(0)?.[1] as Date).getTime()).toBe(
+      result.createdAt.getTime(),
+    );
+    pricingResolution.mockRestore();
     expect(result.organizationAgentVersionId).toBe(
       baselineVersions.get(organizationIds[0]),
     );
@@ -362,6 +390,8 @@ describe('AgentRun foundation (e2e)', () => {
       agentId: TEST_AGENT_ID,
       agentVersion: 1,
       organizationAgentVersionId: baselineVersions.get(organizationIds[0]),
+      modelPolicyId: `${TEST_AGENT_ID}.model-policy.1`,
+      modelId: MODEL_IDS.openAiGpt4oMini,
     });
     await expect(
       prisma.agentRun.findUniqueOrThrow({ where: { id: second.id } }),
@@ -369,6 +399,8 @@ describe('AgentRun foundation (e2e)', () => {
       agentId: TEST_AGENT_ID,
       agentVersion: 2,
       organizationAgentVersionId: versionTwo.versionId,
+      modelPolicyId: `${TEST_AGENT_ID}.model-policy.2`,
+      modelId: MODEL_IDS.openAiGpt4oMini,
     });
   });
 
@@ -390,21 +422,56 @@ describe('AgentRun foundation (e2e)', () => {
     const second = await service.create(request('effective-version-second'));
     const { runner, runtimeRun } = runnerWith();
 
-    await runner.run(first);
-    await runner.run(first);
-    await runner.run(second);
+    const claimedA1 = await service.claimExecutionAttempt(first.id, 1);
+    if (!claimedA1) throw new Error('expected first durable worker claim');
+    await runner.run(claimedA1);
+    const claimedA2 = await service.claimExecutionAttempt(first.id, 2);
+    if (!claimedA2) throw new Error('expected requeued durable worker claim');
+    await runner.run(claimedA2);
+    const claimedB = await service.claimExecutionAttempt(second.id, 1);
+    if (!claimedB) throw new Error('expected policy B durable worker claim');
+    await runner.run(claimedB);
 
     expect(first.organizationAgentVersionId).toBe(versionA.versionId);
     expect(first.agentVersion).toBe(1);
+    expect(first.modelPolicyId).toBe(`${TEST_AGENT_ID}.model-policy.1`);
+    expect(first.modelId).toBe(MODEL_IDS.openAiGpt4oMini);
+    expect(first.modelPricingRevisionId).toBeTruthy();
     expect(retry.id).toBe(first.id);
     expect(retry.organizationAgentVersionId).toBe(versionA.versionId);
+    expect(retry.modelPolicyId).toBe(first.modelPolicyId);
+    expect(retry.modelId).toBe(first.modelId);
+    expect(retry.modelPricingRevisionId).toBe(first.modelPricingRevisionId);
+    expect(retry.createdAt).toEqual(first.createdAt);
     expect(second.organizationAgentVersionId).toBe(versionB.versionId);
     expect(second.agentVersion).toBe(2);
+    expect(second.modelPolicyId).toBe(`${TEST_AGENT_ID}.model-policy.2`);
+    expect(second.modelId).toBe(MODEL_IDS.openAiGpt4oMini);
+    expect(second.modelPricingRevisionId).toBe(first.modelPricingRevisionId);
+    expect(claimedA1).toMatchObject({
+      modelPolicyId: first.modelPolicyId,
+      modelId: first.modelId,
+      modelPricingRevisionId: first.modelPricingRevisionId,
+      createdAt: first.createdAt,
+    });
+    expect(claimedA2).toMatchObject({
+      modelPolicyId: first.modelPolicyId,
+      modelId: first.modelId,
+      modelPricingRevisionId: first.modelPricingRevisionId,
+      createdAt: first.createdAt,
+    });
     expect(
       runtimeRun.mock.calls.map(
         ([call]) => (call as { configuration: unknown }).configuration,
       ),
     ).toEqual([{ marker: 'A' }, { marker: 'A' }, { marker: 'B' }]);
+    expect(
+      runtimeRun.mock.calls.map(([call]) => (call as { model: unknown }).model),
+    ).toEqual([
+      MODEL_IDS.openAiGpt4oMini,
+      MODEL_IDS.openAiGpt4oMini,
+      MODEL_IDS.openAiGpt4oMini,
+    ]);
     await expect(
       prisma.outboxEvent.count({ where: { dedupeKey: first.id } }),
     ).resolves.toBe(1);
@@ -425,6 +492,88 @@ describe('AgentRun foundation (e2e)', () => {
     expect(accepted.agentVersion).toBe(
       accepted.organizationAgentVersionId === switched.versionId ? 2 : 1,
     );
+  });
+
+  it('derives the definition policy only for a fully legacy organization version', async () => {
+    const legacyVersion = await activateTestAgentVersion(
+      prisma,
+      organizationIds[0],
+      1,
+      { legacyModelPin: true },
+    );
+
+    const accepted = await service.create(request('legacy-policy-version'));
+
+    expect(accepted.organizationAgentVersionId).toBe(legacyVersion.versionId);
+    expect(accepted.modelPolicyId).toBe(`${TEST_AGENT_ID}.model-policy.1`);
+    expect(accepted.modelId).toBe(MODEL_IDS.openAiGpt4oMini);
+    expect(accepted.modelPricingRevisionId).toBeTruthy();
+  });
+
+  it('refuses partial and tampered active model policies before durable acceptance', async () => {
+    const versionId = baselineVersions.get(organizationIds[0]);
+    await prisma.organizationAgentVersion.update({
+      where: { id: versionId },
+      data: { modelPolicyId: null },
+    });
+
+    await expect(
+      service.create(request('partial-active-policy')),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      publicDetails: { reason: 'invalid_active_model_policy' },
+    });
+
+    await prisma.organizationAgentVersion.update({
+      where: { id: versionId },
+      data: {
+        modelPolicyId: `${TEST_AGENT_ID}.model-policy.1`,
+        modelId: null,
+      },
+    });
+    await expect(
+      service.create(request('partial-active-model')),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      publicDetails: { reason: 'invalid_active_model_policy' },
+    });
+
+    await prisma.organizationAgentVersion.update({
+      where: { id: versionId },
+      data: { modelPolicyId: 'tampered-policy' },
+    });
+    await expect(
+      service.create(request('tampered-active-policy')),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      publicDetails: { reason: 'invalid_active_model_policy' },
+    });
+    await prisma.organizationAgentVersion.update({
+      where: { id: versionId },
+      data: {
+        modelPolicyId: `${TEST_AGENT_ID}.model-policy.1`,
+        modelId: 'unknown.model',
+      },
+    });
+    await expect(
+      service.create(request('unknown-active-model')),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      publicDetails: { reason: 'invalid_active_model_policy' },
+    });
+    await prisma.organizationAgentVersion.update({
+      where: { id: versionId },
+      data: { modelId: MODEL_IDS.openAiTextEmbedding3Small },
+    });
+    await expect(
+      service.create(request('incompatible-active-model')),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      publicDetails: { reason: 'invalid_active_model_policy' },
+    });
+    await expect(
+      prisma.agentRun.count({ where: { organizationId: organizationIds[0] } }),
+    ).resolves.toBe(0);
   });
 
   it('rejects cross-tenant version references at the database boundary', async () => {
@@ -497,6 +646,10 @@ describe('AgentRun foundation (e2e)', () => {
         runtime: legacy.runtime,
         organizationId: legacy.organizationId,
         organizationAgentVersionId: null,
+        modelPolicyId: legacy.modelPolicyId,
+        modelId: legacy.modelId as never,
+        modelPricingRevisionId: legacy.modelPricingRevisionId,
+        createdAt: legacy.createdAt,
         input: {},
       }),
     ).resolves.toEqual({ output: 'done' });

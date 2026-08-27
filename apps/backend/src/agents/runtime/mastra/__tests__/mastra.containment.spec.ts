@@ -190,6 +190,10 @@ describe('Mastra credential containment', () => {
       runtime: AGENT_RUNTIME_NAMES.mastra,
       instructions: SYSTEM_INSTRUCTIONS_CANARY,
       model: MODEL_IDS.openAiGpt4oMini,
+      modelPolicy: {
+        id: 'credential-containment-agent.model-policy.1',
+        allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+      },
       input: z.unknown(),
       output: z.object({ answer: z.string() }),
     } satisfies AgentDefinition;
@@ -206,6 +210,7 @@ describe('Mastra credential containment', () => {
     const failure = await runtime
       .run({
         definition,
+        model: MODEL_IDS.openAiGpt4oMini,
         configuration: {},
         input: USER_PROMPT_CANARY,
         context: [],

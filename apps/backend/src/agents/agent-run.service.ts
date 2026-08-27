@@ -4,6 +4,10 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database';
 import { AppException } from '../core/errors';
 import { OutboxRepository } from '../core/outbox';
+import {
+  APPLICATION_MODEL_CATALOG,
+  type AgentModelId,
+} from '../model-catalog/model-catalog';
 import { AgentConfigurationError } from './agent-configuration.error';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
 import {
@@ -138,6 +142,11 @@ export class AgentRunService {
 
         const effective = await this.resolveEffectiveVersion(tx, input);
         await assertCapacity(tx, input);
+        const acceptedAt = new Date();
+        const pricingRevision = APPLICATION_MODEL_CATALOG.pricingRevision(
+          effective.modelId,
+          acceptedAt,
+        );
 
         const created = await tx.agentRun.create({
           data: {
@@ -146,9 +155,13 @@ export class AgentRunService {
             runtime: effective.runtime,
             organizationId: input.organizationId,
             organizationAgentVersionId: effective.id,
+            modelPolicyId: effective.modelPolicyId,
+            modelId: effective.modelId,
+            modelPricingRevisionId: pricingRevision.id,
             createdByUserId: input.createdByUserId,
             input: input.input as Prisma.InputJsonValue,
             idempotencyKey: input.idempotencyKey,
+            createdAt: acceptedAt,
           },
         });
 
@@ -460,6 +473,8 @@ export class AgentRunService {
     id: string;
     definitionVersion: number;
     runtime: string;
+    modelPolicyId: string;
+    modelId: AgentModelId;
   }> {
     const installation = await tx.organizationAgentInstallation.findUnique({
       where: {
@@ -475,6 +490,8 @@ export class AgentRunService {
             definitionVersion: true,
             enabled: true,
             configuration: true,
+            modelPolicyId: true,
+            modelId: true,
           },
         },
       },
@@ -518,10 +535,14 @@ export class AgentRunService {
       });
     }
 
+    const model = effectiveModelSelection(definition, active);
+
     return {
       id: active.id,
       definitionVersion: definition.version,
       runtime: definition.runtime,
+      modelPolicyId: model.modelPolicyId,
+      modelId: model.modelId,
     };
   }
 
@@ -598,6 +619,9 @@ function toAgentRun(run: PersistedAgentRun): AgentRun {
     agentId: run.agentId,
     agentVersion: run.agentVersion,
     organizationAgentVersionId: run.organizationAgentVersionId,
+    modelPolicyId: run.modelPolicyId,
+    modelId: run.modelId as AgentModelId | null,
+    modelPricingRevisionId: run.modelPricingRevisionId,
     runtime: run.runtime,
     status: run.status,
     organizationId: run.organizationId,
@@ -612,4 +636,43 @@ function toAgentRun(run: PersistedAgentRun): AgentRun {
     createdAt: run.createdAt,
     updatedAt: run.updatedAt,
   };
+}
+
+function effectiveModelSelection(
+  definition: ReturnType<AgentDefinitionRegistry['resolve']>,
+  version: { modelPolicyId: string | null; modelId: string | null },
+): { modelPolicyId: string; modelId: AgentModelId } {
+  if (version.modelPolicyId === null && version.modelId === null) {
+    return {
+      modelPolicyId: definition.modelPolicy.id,
+      modelId: definition.model,
+    };
+  }
+  if (version.modelPolicyId === null || version.modelId === null) {
+    throw invalidActiveModelPolicy();
+  }
+  if (
+    version.modelPolicyId !== definition.modelPolicy.id ||
+    !definition.modelPolicy.allowedModelIds.includes(
+      version.modelId as AgentModelId,
+    )
+  ) {
+    throw invalidActiveModelPolicy();
+  }
+  try {
+    APPLICATION_MODEL_CATALOG.agentModel(version.modelId);
+  } catch {
+    throw invalidActiveModelPolicy();
+  }
+  return {
+    modelPolicyId: version.modelPolicyId,
+    modelId: version.modelId as AgentModelId,
+  };
+}
+
+function invalidActiveModelPolicy(): AppException {
+  return new AppException('CONFLICT', {
+    context: { resource: 'organizationAgentModelPolicy' },
+    publicDetails: { reason: 'invalid_active_model_policy' },
+  });
 }

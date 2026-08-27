@@ -60,8 +60,10 @@ infrastructure. `AgentRunService` commits an application-owned AgentRun and its
 idempotency. Each accepted run persists `agentVersion`, pinning it to the exact
 definition revision it was accepted against, plus the immutable organization-
 agent version selected from the enabled active installation in the same
-transaction. Definition revision and runtime are code-derived rather than
-caller-selected. `createdByUserId` is nullable so work with no authenticated
+transaction. It also pins that definition's stable model-policy revision, the
+organization-selected stable model identity, and the catalog price revision
+effective at the persisted acceptance instant. Definition revision and runtime
+are code-derived rather than caller-selected. `createdByUserId` is nullable so work with no authenticated
 initiating user is representable. The worker conditionally claims attempts,
 reloads and revalidates the pinned organization configuration from PostgreSQL
 on every attempt, and invokes Mastra behind the minimal application-owned
@@ -95,6 +97,16 @@ revision's Zod schema. `content-idea@1` deliberately accepts only a strict empty
 object: it has no organization knob the runtime consumes, so arbitrary JSON —
 especially credentials — is refused rather than persisted as speculative
 product contract.
+
+Every definition also owns an immutable model-policy identity, a finite allowed
+model set, and one default member. Registry composition rejects empty,
+duplicate, capability-incompatible, or default-excluding policies. Installation
+create/replace may select only a stable catalog `modelId` inside that exact
+definition revision's set; provider router aliases and arbitrary strings never
+cross the request schema. The policy and selected model are copied to the new
+immutable organization version. Today's production set is intentionally the
+single justified generation model, so this is an enforced policy boundary, not
+a speculative model picker.
 
 `OrganizationAgentInstallationService` owns one installation per organization
 and agent plus append-only effective versions. Creating commits the
@@ -179,13 +191,17 @@ half-open, so resolving model X at instant T returns exactly one stable revision
 or fails. The initial entries record official OpenAI source URLs and retrieval
 dates. This is operational application policy, not a claim that provider prices
 are immutable: a changed price adds a new non-overlapping revision and leaves
-historical entries intact. MOD-01A resolves price identity only; run pinning is
-owned by MOD-01B and token quantities, aggregation, usage ledgers, and billing
-remain outside this slice.
+historical entries intact. At run acceptance, the applicable price identity is
+resolved inside the same transaction and the exact instant is written as
+`AgentRun.createdAt`. Workers revalidate the pinned policy, model capability,
+and price interval on every attempt before the runtime call. Token quantities,
+aggregation, usage ledgers, and billing remain outside this slice.
 
 The provider credential is resolved per run from the encrypted store and passed
-to the SDK on the model config. The Mastra adapter translates the stable catalog
-identity to the catalog's exact `provider/model` router identity; handing Mastra
+to the SDK on the model config. The Mastra adapter translates the run-pinned
+stable identity to the catalog's exact `provider/model` router identity; it
+never re-reads the installation pointer or substitutes the definition default
+for a newly accepted run. Handing Mastra
 a bare router string would otherwise make it read a provider environment
 variable. That would leave the platform key in the worker environment for its
 whole life and make rotation require a deployment. A catalog provider for which

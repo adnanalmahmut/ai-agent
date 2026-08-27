@@ -65,6 +65,13 @@ version. It remains nullable only for pre-migration and rolling-rollback runs;
 new application acceptance always writes it. A legacy null-reference run uses
 the pinned code definition's owned default and never today's active pointer.
 
+`modelPolicyId`, `modelId`, and `modelPricingRevisionId` make each new run's
+model decision self-contained. Acceptance resolves all three inside the
+run/outbox transaction and writes the exact price-resolution instant as
+`createdAt`. The fields remain nullable together for expand/rollback
+compatibility: an all-null legacy run uses its pinned definition revision's
+default, while a partial or mismatched triple fails before a provider call.
+
 `createdByUserId` is nullable. Null means only that no authenticated
 application User initiated the run, which is the honest representation for
 scheduled or system-initiated work. It is not an actor abstraction, a trigger
@@ -106,13 +113,17 @@ Migration order:
 12. Super-admin floor enforcement.
 13. Organization-agent installations and immutable versions.
 14. Agent-run effective organization-version reference.
+15. Organization model policy and AgentRun model/price pinning.
 
 `organization_agent_installation` is the mutable aggregate root for one
 `(organizationId, agentId)`. Only its integer revision and active-version
 pointer change. `organization_agent_version` is append-only application state:
 it records the installation revision, exact code definition revision, enabled
 state, definition-validated configuration, creator attribution, and creation
-time. Attribution intentionally has no user foreign key so future user
+time. It also records the exact definition-owned model-policy revision and its
+selected stable model. Those two fields remain nullable together for rows
+written by the preceding image; new writes always populate both, and a partial
+pair is invalid. Attribution intentionally has no user foreign key so future user
 lifecycle work cannot delete or block historical state.
 
 The nullable active pointer permits cyclic installation/version creation in one

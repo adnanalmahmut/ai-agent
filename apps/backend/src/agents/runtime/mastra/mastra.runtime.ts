@@ -87,9 +87,9 @@ export class MastraRuntime implements AgentRuntime {
       id: definition.id,
       name: definition.id,
       instructions: definition.instructions,
-      model: (await this.toModelConfig(
-        definition.model,
-      )) as ConstructorParameters<typeof Agent>[0]['model'],
+      model: (await this.toModelConfig(request.model)) as ConstructorParameters<
+        typeof Agent
+      >[0]['model'],
     });
 
     /**

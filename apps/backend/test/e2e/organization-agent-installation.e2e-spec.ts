@@ -33,6 +33,10 @@ const configurableDefinitions: AgentDefinition[] = [
     runtime: 'mastra',
     instructions: 'test',
     model: MODEL_IDS.openAiGpt4oMini,
+    modelPolicy: {
+      id: 'e2e-configurable-agent.model-policy.1',
+      allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+    },
     input: z.unknown(),
     output: z.unknown(),
     organizationConfiguration: {
@@ -46,6 +50,10 @@ const configurableDefinitions: AgentDefinition[] = [
     runtime: 'mastra',
     instructions: 'test v2',
     model: MODEL_IDS.openAiGpt4oMini,
+    modelPolicy: {
+      id: 'e2e-configurable-agent.model-policy.2',
+      allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+    },
     input: z.unknown(),
     output: z.unknown(),
     organizationConfiguration: {
@@ -107,6 +115,7 @@ describe('Organization agent installations (e2e)', () => {
       agentId: CONTENT_IDEA_AGENT_ID,
       definitionVersion: CONTENT_IDEA_AGENT_VERSION,
       enabled,
+      modelId: MODEL_IDS.openAiGpt4oMini,
     });
     expect(response.status).toBe(201);
     return dataOf<{
@@ -169,6 +178,9 @@ describe('Organization agent installations (e2e)', () => {
       {
         agentId: CONTENT_IDEA_AGENT_ID,
         latestDefinitionVersion: CONTENT_IDEA_AGENT_VERSION,
+        modelPolicyId: 'content-idea.model-policy.1',
+        defaultModelId: MODEL_IDS.openAiGpt4oMini,
+        allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
         defaultConfiguration: {},
       },
     ]);
@@ -214,6 +226,8 @@ describe('Organization agent installations (e2e)', () => {
         activeVersion: expect.objectContaining({
           enabled: true,
           definitionVersion: CONTENT_IDEA_AGENT_VERSION,
+          modelPolicyId: 'content-idea.model-policy.1',
+          modelId: MODEL_IDS.openAiGpt4oMini,
           configuration: {},
           createdByUserId: admin.id,
         }),
@@ -257,7 +271,7 @@ describe('Organization agent installations (e2e)', () => {
     ).resolves.toBe(0);
   });
 
-  it('refuses caller-selected models on installation create and update', async () => {
+  it('accepts only stable policy-bounded model selection fields', async () => {
     const create = await as(harness, owner).post(route(), {
       agentId: CONTENT_IDEA_AGENT_ID,
       definitionVersion: CONTENT_IDEA_AGENT_VERSION,
@@ -287,6 +301,26 @@ describe('Organization agent installations (e2e)', () => {
         where: { installationId: installed.id },
       }),
     ).resolves.toBe(1);
+
+    await cleanInstallations();
+    const providerAlias = await as(harness, owner).post(route(), {
+      agentId: CONTENT_IDEA_AGENT_ID,
+      definitionVersion: CONTENT_IDEA_AGENT_VERSION,
+      enabled: true,
+      modelId: 'openai/gpt-4o-mini',
+    });
+    expect(providerAlias.status).toBe(400);
+
+    const disallowedCapability = await as(harness, owner).post(route(), {
+      agentId: CONTENT_IDEA_AGENT_ID,
+      definitionVersion: CONTENT_IDEA_AGENT_VERSION,
+      enabled: true,
+      modelId: MODEL_IDS.openAiTextEmbedding3Small,
+    });
+    expect(disallowedCapability.status).toBe(400);
+    expect(errorBody(disallowedCapability).error?.details).toEqual({
+      reason: 'invalid_model_selection',
+    });
   });
 
   it('enforces one installation per organization and agent', async () => {
@@ -466,11 +500,19 @@ describe('Organization agent installations (e2e)', () => {
     );
     expect(firstPage.status).toBe(200);
     const firstData = dataOf<{
-      items: Array<{ revision: number }>;
+      items: Array<{
+        revision: number;
+        modelPolicyId: string | null;
+        modelId: string | null;
+      }>;
       nextCursor: string | null;
     }>(firstPage);
     expect(firstData.items).toHaveLength(1);
-    expect(firstData.items[0]).toMatchObject({ revision: 2 });
+    expect(firstData.items[0]).toMatchObject({
+      revision: 2,
+      modelPolicyId: 'content-idea.model-policy.1',
+      modelId: MODEL_IDS.openAiGpt4oMini,
+    });
     expect(firstData.nextCursor).toEqual(expect.any(String));
 
     const secondPage = await as(harness, owner).get(
@@ -482,11 +524,21 @@ describe('Organization agent installations (e2e)', () => {
     );
     expect(secondPage.status).toBe(200);
     const secondData = dataOf<{
-      items: Array<{ revision: number; enabled: boolean }>;
+      items: Array<{
+        revision: number;
+        enabled: boolean;
+        modelPolicyId: string | null;
+        modelId: string | null;
+      }>;
       nextCursor: string | null;
     }>(secondPage);
     expect(secondData.items).toEqual([
-      expect.objectContaining({ revision: 1, enabled: true }),
+      expect.objectContaining({
+        revision: 1,
+        enabled: true,
+        modelPolicyId: 'content-idea.model-policy.1',
+        modelId: MODEL_IDS.openAiGpt4oMini,
+      }),
     ]);
     expect(secondData.nextCursor).toBeNull();
   });
