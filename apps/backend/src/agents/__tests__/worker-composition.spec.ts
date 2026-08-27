@@ -3,6 +3,7 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 
 import { AppModule } from '../../app.module';
+import { APPLICATION_MODEL_CATALOG } from '../../model-catalog/model-catalog';
 import {
   QUEUE_JOB_HANDLERS,
   QUEUE_NAMES,
@@ -22,10 +23,7 @@ import { AgentContextAssembler } from '../agent-context.assembler';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import { AgentRunner } from '../agent-runner.service';
 import { AgentRuntimeRegistry } from '../agent-runtime.registry';
-import {
-  AUTHENTICATABLE_PROVIDERS,
-  MastraRuntime,
-} from '../runtime/mastra/mastra.runtime';
+import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
 import {
   KNOWLEDGE_SPACE_SLUGS,
   isKnowledgeSpaceSlug,
@@ -146,9 +144,9 @@ describe('WorkerModule agent composition', () => {
   /**
    * Every registered definition must be runnable by this build.
    *
-   * A definition naming a provider with no credential mapping constructs
-   * fine, registers fine, and fails deterministically the first time somebody
-   * pays attention — after a run has been accepted and a caller is waiting.
+   * A definition naming an unknown or capability-incompatible catalog model
+   * fails deterministically before a provider call rather than after a run has
+   * been accepted and a caller is waiting.
    */
   it('registers only definitions this build can authenticate and run', () => {
     const runtimes = moduleRef.get(AgentRuntimeRegistry);
@@ -157,9 +155,9 @@ describe('WorkerModule agent composition', () => {
 
     for (const definition of PRODUCTION_AGENT_DEFINITIONS) {
       expect(() => runtimes.resolve(definition.runtime)).not.toThrow();
-      expect(AUTHENTICATABLE_PROVIDERS).toContain(
-        definition.model.split('/')[0],
-      );
+      expect(() =>
+        APPLICATION_MODEL_CATALOG.agentModel(definition.model),
+      ).not.toThrow();
     }
   });
 

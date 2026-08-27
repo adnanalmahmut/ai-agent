@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
 import type { AgentDefinition } from '../../src/agents/agent.types';
 import type { PrismaService } from '../../src/database';
+import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
 
 export const TEST_AGENT_ID = 'test-only-agent';
 
@@ -11,7 +12,7 @@ const definition = (version: number): AgentDefinition => ({
   version,
   runtime: 'mastra',
   instructions: `Test-only agent revision ${version}.`,
-  model: 'test/model',
+  model: MODEL_IDS.openAiGpt4oMini,
   input: z.unknown(),
   output: z.unknown(),
   organizationConfiguration: {

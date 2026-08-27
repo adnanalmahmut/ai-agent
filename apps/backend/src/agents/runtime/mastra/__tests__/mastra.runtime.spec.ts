@@ -8,6 +8,8 @@ import {
 } from '@jest/globals';
 import { z } from 'zod';
 
+import { MODEL_IDS } from '../../../../model-catalog/model-catalog';
+
 /**
  * Mocks `@mastra/core/agent` wholesale to test the adapter's input/output
  * conversion and its logger installation cheaply and in isolation.
@@ -57,7 +59,7 @@ const definitionOf = (overrides: Record<string, unknown> = {}) =>
     version: 1,
     runtime: 'mastra',
     instructions: 'Test instructions',
-    model: 'openai/test-model',
+    model: MODEL_IDS.openAiGpt4oMini,
     input: z.unknown(),
     output: z.object({ answer: z.string() }),
     ...overrides,
@@ -106,7 +108,7 @@ describe('MastraRuntime', () => {
 
     expect(Agent).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: { id: 'openai/test-model', apiKey: SECRET },
+        model: { id: 'openai/gpt-4o-mini', apiKey: SECRET },
       }),
     );
     expect(process.env.OPENAI_API_KEY).toBeUndefined();
@@ -120,7 +122,7 @@ describe('MastraRuntime', () => {
    * full retry budget with backoff on a definition that is code and will say
    * the same thing on every attempt.
    */
-  it('refuses a model whose provider this build cannot authenticate', async () => {
+  it('refuses a model outside the application catalog', async () => {
     const { AgentConfigurationError } =
       await import('../../../agent-configuration.error');
     const runtime = new MastraRuntime(runtimeConfig());
@@ -133,19 +135,31 @@ describe('MastraRuntime', () => {
     });
 
     await expect(refusal).rejects.toThrow(
-      'names no provider this build can authenticate',
+      'is not registered for application agent execution',
     );
     await expect(refusal).rejects.toBeInstanceOf(AgentConfigurationError);
 
     expect(Agent).not.toHaveBeenCalled();
   });
 
+  it('refuses a non-string model before constructing an SDK agent', async () => {
+    const runtime = new MastraRuntime(runtimeConfig());
+
+    await expect(
+      runtime.run({
+        definition: definitionOf({ model: { provider: 'openai' } }),
+        configuration: {},
+        input: 'hello',
+        context: [],
+      }),
+    ).rejects.toThrow('must be a stable application catalog identity');
+
+    expect(Agent).not.toHaveBeenCalled();
+  });
+
   /**
-   * `PROVIDER_SECRETS` is an object literal, so a membership test written with
-   * `in` answers true for every key on `Object.prototype`. A definition
-   * reading `toString/x` would then pass an inherited function into the secret
-   * lookup, and a deterministic configuration mistake would come back as a
-   * retryable runtime failure.
+   * Catalog lookup is exact rather than an `in` check against an object, so an
+   * inherited property can never masquerade as a provider identity.
    */
   it('does not mistake an inherited property for a provider', async () => {
     const runtime = new MastraRuntime(runtimeConfig());
@@ -157,7 +171,7 @@ describe('MastraRuntime', () => {
         input: 'hello',
         context: [],
       }),
-    ).rejects.toThrow('names no provider this build can authenticate');
+    ).rejects.toThrow('is not registered for application agent execution');
   });
 
   /**

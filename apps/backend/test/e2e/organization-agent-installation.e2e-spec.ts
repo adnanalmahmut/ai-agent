@@ -16,6 +16,7 @@ import {
   CONTENT_IDEA_AGENT_VERSION,
 } from '../../src/agents/definitions/content-idea';
 import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
+import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
 import {
   as,
   createHarness,
@@ -31,7 +32,7 @@ const configurableDefinitions: AgentDefinition[] = [
     version: 1,
     runtime: 'mastra',
     instructions: 'test',
-    model: 'test/model',
+    model: MODEL_IDS.openAiGpt4oMini,
     input: z.unknown(),
     output: z.unknown(),
     organizationConfiguration: {
@@ -44,7 +45,7 @@ const configurableDefinitions: AgentDefinition[] = [
     version: 2,
     runtime: 'mastra',
     instructions: 'test v2',
-    model: 'test/model',
+    model: MODEL_IDS.openAiGpt4oMini,
     input: z.unknown(),
     output: z.unknown(),
     organizationConfiguration: {
@@ -254,6 +255,38 @@ describe('Organization agent installations (e2e)', () => {
         where: { organizationId },
       }),
     ).resolves.toBe(0);
+  });
+
+  it('refuses caller-selected models on installation create and update', async () => {
+    const create = await as(harness, owner).post(route(), {
+      agentId: CONTENT_IDEA_AGENT_ID,
+      definitionVersion: CONTENT_IDEA_AGENT_VERSION,
+      enabled: true,
+      model: MODEL_IDS.openAiGpt4oMini,
+    });
+
+    expect(create.status).toBe(400);
+    await expect(
+      harness.prisma.organizationAgentInstallation.count({
+        where: { organizationId },
+      }),
+    ).resolves.toBe(0);
+
+    const installed = await installContentIdea();
+    const update = await as(harness, owner).put(route(`/${installed.id}`), {
+      expectedRevision: 1,
+      definitionVersion: CONTENT_IDEA_AGENT_VERSION,
+      enabled: false,
+      configuration: {},
+      model: MODEL_IDS.openAiGpt4oMini,
+    });
+
+    expect(update.status).toBe(400);
+    await expect(
+      harness.prisma.organizationAgentVersion.count({
+        where: { installationId: installed.id },
+      }),
+    ).resolves.toBe(1);
   });
 
   it('enforces one installation per organization and agent', async () => {
