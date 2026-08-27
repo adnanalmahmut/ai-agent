@@ -159,10 +159,18 @@ You may begin work on an independent or sibling PR while an earlier PR's CI is
 still running. This is decided by `slotEligibility`, which answers one question:
 may this `PLANNED` slot become `ACTIVE`?
 
-A `PLANNED` slot is eligible when **all** of these hold:
+A `PLANNED` slot is eligible to become `ACTIVE` when **all** of these hold:
 
-1. `progressionGate` allows a new slot (capacity and evidence, above);
+1. its activation shape is valid;
+2. `progressionGate` allows new-slot progression (capacity and evidence, above);
+3. every one of **its own** dependencies is verified by live evidence;
+4. its task appears as `[APPROVED]` in the execution window with its
    `Approved to start` box checked.
+
+Explicit rules:
+- `CLOSED` without merge is **never** verified, even if historical checks are `SUCCESS`.
+- A `PLANNED` child of a merged dependency must be reconciled to base `main` before activation.
+- Already-live dependents preserve the human-safe retarget workflow without failing structural parsing.
 
 Nothing else is consulted. In particular, creation order is never consulted, and
 a *sibling* being `CI_PENDING` is irrelevant.
