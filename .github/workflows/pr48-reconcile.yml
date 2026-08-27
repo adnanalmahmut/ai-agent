@@ -15,6 +15,8 @@ jobs:
     if: github.repository == 'adnanalmahmut/ai-agent' && github.ref == 'refs/heads/feat/organization-agent-versions'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_agent_reconcile
     steps:
       - name: Check out PR branch
         uses: actions/checkout@v4
