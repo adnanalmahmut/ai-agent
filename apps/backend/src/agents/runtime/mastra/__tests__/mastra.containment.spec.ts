@@ -216,6 +216,7 @@ describe('Mastra credential containment', () => {
     const failure = await runtime
       .run({
         definition,
+        configuration: {},
         input: USER_PROMPT_CANARY,
         context: [],
       })
@@ -319,6 +320,7 @@ describe('Mastra provider-material containment', () => {
     await expect(
       new MastraRuntime(unreachableRuntimeConfig).run({
         definition,
+        configuration: {},
         input: USER_PROMPT_CANARY,
         context: [],
       }),

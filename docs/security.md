@@ -124,6 +124,22 @@ Primary boundaries:
   only the CAS winner can write the next version, and any later failure rolls
   the pointer change back. Versions have no update/delete route, and
   installations have no delete route.
+- Agent run entitlement: control-plane flags authorize product execution but do
+  not create tenant product state. A new run must resolve an explicit
+  organization installation and its enabled active version inside the same
+  tenant-scoped transaction that writes the run and outbox event. Missing and
+  disabled installations produce only the bounded `agent_not_installed` and
+  `agent_disabled` reasons; there is no backfill, lazy or first-run install,
+  feature-flag-as-install shortcut, or fallback to a global definition. That
+  separation prevents the application from fabricating organization-owned
+  state the organization never selected. The run/version composite foreign key
+  includes `organizationId`, worker lookup also binds agent id and definition
+  revision, and BullMQ carries only `{ runId }`, so neither a caller nor Redis
+  can substitute another tenant's version. Historical null-version runs are a
+  narrow pre-AGT-02 compatibility case: they execute the pinned definition's
+  code-owned default and never read today's installation. The current Platform
+  has no installation-management UI; the frontend reports the bounded state and
+  never converts it into an install action.
 - Browser storage: the Platform's ambiguous-submission record in
   `sessionStorage` holds only `{ idempotencyKey, requestDigest }`, where the
   digest is SHA-256 over the canonical normalized request. Sameness across a

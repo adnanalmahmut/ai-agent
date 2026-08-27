@@ -226,6 +226,7 @@ export const AgentRunScalarFieldEnum = {
   runtime: 'runtime',
   status: 'status',
   organizationId: 'organizationId',
+  organizationAgentVersionId: 'organizationAgentVersionId',
   createdByUserId: 'createdByUserId',
   input: 'input',
   output: 'output',

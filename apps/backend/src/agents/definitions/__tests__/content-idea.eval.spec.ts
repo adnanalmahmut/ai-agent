@@ -200,13 +200,16 @@ const buildHarness = (): Harness => {
   const runtimes = new AgentRuntimeRegistry(
     new MastraRuntime(runtimeConfig as never),
   );
-  const runner = new AgentRunner(definitions, runtimes, assembler);
+  const runner = new AgentRunner(definitions, runtimes, assembler, {
+    configurationFor: () => Promise.resolve(null),
+  } as never);
 
   return {
     run: (organizationId, input) =>
       runner.run({
         agentId: CONTENT_IDEA_AGENT_ID,
         agentVersion: CONTENT_IDEA_AGENT_VERSION,
+        organizationAgentVersionId: null,
         runtime: contentIdeaAgent.runtime,
         organizationId,
         input: input as never,

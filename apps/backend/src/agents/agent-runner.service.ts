@@ -5,7 +5,14 @@ import { AgentContextAssembler } from './agent-context.assembler';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
 import { AgentOutputContractError } from './agent-output-contract.error';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
-import type { AgentRun, AgentRuntimeResult, AgentValue } from './agent.types';
+import { AgentRunService } from './agent-run.service';
+import type {
+  AgentConfiguration,
+  AgentDefinition,
+  AgentRun,
+  AgentRuntimeResult,
+  AgentValue,
+} from './agent.types';
 
 /** Resolves application definitions before crossing a runtime boundary. */
 @Injectable()
@@ -14,12 +21,18 @@ export class AgentRunner {
     private readonly definitions: AgentDefinitionRegistry,
     private readonly runtimes: AgentRuntimeRegistry,
     private readonly context: AgentContextAssembler,
+    private readonly runs: AgentRunService,
   ) {}
 
   async run(
     run: Pick<
       AgentRun,
-      'agentId' | 'agentVersion' | 'runtime' | 'input' | 'organizationId'
+      | 'agentId'
+      | 'agentVersion'
+      | 'runtime'
+      | 'input'
+      | 'organizationId'
+      | 'organizationAgentVersionId'
     >,
   ): Promise<AgentRuntimeResult> {
     // The persisted pair, not just the id: this run must execute the revision
@@ -33,6 +46,17 @@ export class AgentRunner {
         `AgentRun runtime "${run.runtime}" does not match definition runtime "${definition.runtime}"`,
       );
     }
+
+    const { organizationAgentVersionId } = run;
+    const storedConfiguration = await this.runs.configurationFor({
+      ...run,
+      organizationAgentVersionId,
+    });
+    const configuration = parseConfiguration(
+      definition,
+      storedConfiguration,
+      organizationAgentVersionId !== null,
+    );
 
     /**
      * Parsed here rather than trusted from the row.
@@ -60,6 +84,7 @@ export class AgentRunner {
 
     const result = await this.runtimes.resolve(definition.runtime).run({
       definition,
+      configuration,
       input: parsedInput.data as AgentValue,
       context,
     });
@@ -118,6 +143,31 @@ export class AgentRunner {
     }
 
     return { output: parsedOutput.data as AgentValue };
+  }
+}
+
+function parseConfiguration(
+  definition: AgentDefinition,
+  stored: AgentConfiguration | null,
+  pinned: boolean,
+): AgentConfiguration {
+  const contract = definition.organizationConfiguration;
+
+  // Definitions that predate the installation contract historically executed
+  // with no organization configuration. Only a legacy run may keep that shape.
+  if (!contract) {
+    if (!pinned) return {};
+    throw new AgentConfigurationError(
+      `Pinned definition "${definition.id}@${definition.version}" is not installable`,
+    );
+  }
+
+  try {
+    return contract.schema.parse(stored ?? contract.defaultValue);
+  } catch {
+    throw new AgentConfigurationError(
+      `AgentRun configuration does not satisfy definition "${definition.id}@${definition.version}"`,
+    );
   }
 }
 

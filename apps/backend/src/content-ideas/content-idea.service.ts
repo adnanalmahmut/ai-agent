@@ -2,10 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
 import {
-  AGENT_RUNTIME_NAMES,
   AgentRunService,
   CONTENT_IDEA_AGENT_ID,
-  CONTENT_IDEA_AGENT_VERSION,
   contentIdeaInput,
   type AgentRun,
   type AgentValue,
@@ -29,6 +27,8 @@ import { AppException } from '../core/errors';
 export const CONTENT_IDEA_UNAVAILABLE_REASONS = [
   'agents_disabled',
   'content_ideas_disabled',
+  'agent_not_installed',
+  'agent_disabled',
 ] as const;
 
 export type ContentIdeaUnavailableReason =
@@ -104,6 +104,14 @@ export class ContentIdeaService {
       return { available: false, reason: 'content_ideas_disabled' };
     }
 
+    const installation = await this.runs.installationAvailability({
+      organizationId: input.organizationId,
+      agentId: CONTENT_IDEA_AGENT_ID,
+    });
+    if (installation !== null) {
+      return { available: false, reason: installation };
+    }
+
     return { available: true, reason: null };
   }
 
@@ -174,8 +182,6 @@ export class ContentIdeaService {
     const run = await this.runs.create({
       maxInFlight,
       agentId: CONTENT_IDEA_AGENT_ID,
-      agentVersion: CONTENT_IDEA_AGENT_VERSION,
-      runtime: AGENT_RUNTIME_NAMES.mastra,
       organizationId: input.organizationId,
       createdByUserId: input.actorUserId,
       input: parsed.data,

@@ -344,6 +344,8 @@ export type ContentIdeaOperation = {
 export const CONTENT_IDEA_UNAVAILABLE_REASONS = [
   'agents_disabled',
   'content_ideas_disabled',
+  'agent_not_installed',
+  'agent_disabled',
 ] as const;
 
 export type ContentIdeaUnavailableReason =

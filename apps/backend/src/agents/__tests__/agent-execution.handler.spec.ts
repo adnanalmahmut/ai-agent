@@ -21,6 +21,7 @@ const run: AgentRun = {
   id: 'run-1',
   agentId: 'test-agent',
   agentVersion: 1,
+  organizationAgentVersionId: null,
   runtime: 'mastra',
   status: 'RUNNING',
   organizationId: 'org-1',
@@ -506,6 +507,7 @@ describe('a declared output contract violation, through the worker', () => {
         })),
       } as never,
       { assemble: () => Promise.resolve([]) } as never,
+      { configurationFor: () => Promise.resolve(null) } as never,
     );
 
   const contractedRun: AgentRun = { ...run, input: { wanted: 3 } };

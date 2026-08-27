@@ -254,6 +254,7 @@ export type OrganizationAgentVersionWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"OrganizationAgentVersion"> | Date | string
   installation?: Prisma.XOR<Prisma.OrganizationAgentInstallationScalarRelationFilter, Prisma.OrganizationAgentInstallationWhereInput>
   activeFor?: Prisma.OrganizationAgentInstallationListRelationFilter
+  runs?: Prisma.AgentRunListRelationFilter
 }
 
 export type OrganizationAgentVersionOrderByWithRelationInput = {
@@ -268,11 +269,13 @@ export type OrganizationAgentVersionOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   installation?: Prisma.OrganizationAgentInstallationOrderByWithRelationInput
   activeFor?: Prisma.OrganizationAgentInstallationOrderByRelationAggregateInput
+  runs?: Prisma.AgentRunOrderByRelationAggregateInput
 }
 
 export type OrganizationAgentVersionWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   id_installationId?: Prisma.OrganizationAgentVersionIdInstallationIdCompoundUniqueInput
+  id_organizationId?: Prisma.OrganizationAgentVersionIdOrganizationIdCompoundUniqueInput
   installationId_revision?: Prisma.OrganizationAgentVersionInstallationIdRevisionCompoundUniqueInput
   AND?: Prisma.OrganizationAgentVersionWhereInput | Prisma.OrganizationAgentVersionWhereInput[]
   OR?: Prisma.OrganizationAgentVersionWhereInput[]
@@ -287,7 +290,8 @@ export type OrganizationAgentVersionWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"OrganizationAgentVersion"> | Date | string
   installation?: Prisma.XOR<Prisma.OrganizationAgentInstallationScalarRelationFilter, Prisma.OrganizationAgentInstallationWhereInput>
   activeFor?: Prisma.OrganizationAgentInstallationListRelationFilter
-}, "id" | "id_installationId" | "installationId_revision">
+  runs?: Prisma.AgentRunListRelationFilter
+}, "id" | "id_installationId" | "id_organizationId" | "installationId_revision">
 
 export type OrganizationAgentVersionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -331,6 +335,7 @@ export type OrganizationAgentVersionCreateInput = {
   createdAt?: Date | string
   installation: Prisma.OrganizationAgentInstallationCreateNestedOneWithoutVersionsInput
   activeFor?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutActiveVersionInput
+  runs?: Prisma.AgentRunCreateNestedManyWithoutOrganizationAgentVersionInput
 }
 
 export type OrganizationAgentVersionUncheckedCreateInput = {
@@ -344,6 +349,7 @@ export type OrganizationAgentVersionUncheckedCreateInput = {
   createdByUserId?: string | null
   createdAt?: Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutActiveVersionInput
+  runs?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationAgentVersionInput
 }
 
 export type OrganizationAgentVersionUpdateInput = {
@@ -356,6 +362,7 @@ export type OrganizationAgentVersionUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   installation?: Prisma.OrganizationAgentInstallationUpdateOneRequiredWithoutVersionsNestedInput
   activeFor?: Prisma.OrganizationAgentInstallationUpdateManyWithoutActiveVersionNestedInput
+  runs?: Prisma.AgentRunUpdateManyWithoutOrganizationAgentVersionNestedInput
 }
 
 export type OrganizationAgentVersionUncheckedUpdateInput = {
@@ -369,6 +376,7 @@ export type OrganizationAgentVersionUncheckedUpdateInput = {
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutActiveVersionNestedInput
+  runs?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionNestedInput
 }
 
 export type OrganizationAgentVersionCreateManyInput = {
@@ -425,6 +433,11 @@ export type OrganizationAgentVersionIdInstallationIdCompoundUniqueInput = {
   installationId: string
 }
 
+export type OrganizationAgentVersionIdOrganizationIdCompoundUniqueInput = {
+  id: string
+  organizationId: string
+}
+
 export type OrganizationAgentVersionInstallationIdRevisionCompoundUniqueInput = {
   installationId: string
   revision: number
@@ -472,6 +485,22 @@ export type OrganizationAgentVersionMinOrderByAggregateInput = {
 export type OrganizationAgentVersionSumOrderByAggregateInput = {
   revision?: Prisma.SortOrder
   definitionVersion?: Prisma.SortOrder
+}
+
+export type OrganizationAgentVersionCreateNestedOneWithoutRunsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationAgentVersionCreateWithoutRunsInput, Prisma.OrganizationAgentVersionUncheckedCreateWithoutRunsInput>
+  connectOrCreate?: Prisma.OrganizationAgentVersionCreateOrConnectWithoutRunsInput
+  connect?: Prisma.OrganizationAgentVersionWhereUniqueInput
+}
+
+export type OrganizationAgentVersionUpdateOneWithoutRunsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationAgentVersionCreateWithoutRunsInput, Prisma.OrganizationAgentVersionUncheckedCreateWithoutRunsInput>
+  connectOrCreate?: Prisma.OrganizationAgentVersionCreateOrConnectWithoutRunsInput
+  upsert?: Prisma.OrganizationAgentVersionUpsertWithoutRunsInput
+  disconnect?: Prisma.OrganizationAgentVersionWhereInput | boolean
+  delete?: Prisma.OrganizationAgentVersionWhereInput | boolean
+  connect?: Prisma.OrganizationAgentVersionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationAgentVersionUpdateToOneWithWhereWithoutRunsInput, Prisma.OrganizationAgentVersionUpdateWithoutRunsInput>, Prisma.OrganizationAgentVersionUncheckedUpdateWithoutRunsInput>
 }
 
 export type OrganizationAgentVersionCreateNestedOneWithoutActiveForInput = {
@@ -532,6 +561,72 @@ export type OrganizationAgentVersionUncheckedUpdateManyWithoutInstallationNested
   deleteMany?: Prisma.OrganizationAgentVersionScalarWhereInput | Prisma.OrganizationAgentVersionScalarWhereInput[]
 }
 
+export type OrganizationAgentVersionCreateWithoutRunsInput = {
+  id?: string
+  revision: number
+  definitionVersion: number
+  enabled: boolean
+  configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdByUserId?: string | null
+  createdAt?: Date | string
+  installation: Prisma.OrganizationAgentInstallationCreateNestedOneWithoutVersionsInput
+  activeFor?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutActiveVersionInput
+}
+
+export type OrganizationAgentVersionUncheckedCreateWithoutRunsInput = {
+  id?: string
+  organizationId: string
+  installationId: string
+  revision: number
+  definitionVersion: number
+  enabled: boolean
+  configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdByUserId?: string | null
+  createdAt?: Date | string
+  activeFor?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutActiveVersionInput
+}
+
+export type OrganizationAgentVersionCreateOrConnectWithoutRunsInput = {
+  where: Prisma.OrganizationAgentVersionWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationAgentVersionCreateWithoutRunsInput, Prisma.OrganizationAgentVersionUncheckedCreateWithoutRunsInput>
+}
+
+export type OrganizationAgentVersionUpsertWithoutRunsInput = {
+  update: Prisma.XOR<Prisma.OrganizationAgentVersionUpdateWithoutRunsInput, Prisma.OrganizationAgentVersionUncheckedUpdateWithoutRunsInput>
+  create: Prisma.XOR<Prisma.OrganizationAgentVersionCreateWithoutRunsInput, Prisma.OrganizationAgentVersionUncheckedCreateWithoutRunsInput>
+  where?: Prisma.OrganizationAgentVersionWhereInput
+}
+
+export type OrganizationAgentVersionUpdateToOneWithWhereWithoutRunsInput = {
+  where?: Prisma.OrganizationAgentVersionWhereInput
+  data: Prisma.XOR<Prisma.OrganizationAgentVersionUpdateWithoutRunsInput, Prisma.OrganizationAgentVersionUncheckedUpdateWithoutRunsInput>
+}
+
+export type OrganizationAgentVersionUpdateWithoutRunsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
+  definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  installation?: Prisma.OrganizationAgentInstallationUpdateOneRequiredWithoutVersionsNestedInput
+  activeFor?: Prisma.OrganizationAgentInstallationUpdateManyWithoutActiveVersionNestedInput
+}
+
+export type OrganizationAgentVersionUncheckedUpdateWithoutRunsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  installationId?: Prisma.StringFieldUpdateOperationsInput | string
+  revision?: Prisma.IntFieldUpdateOperationsInput | number
+  definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  activeFor?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutActiveVersionNestedInput
+}
+
 export type OrganizationAgentVersionCreateWithoutActiveForInput = {
   id?: string
   revision: number
@@ -541,6 +636,7 @@ export type OrganizationAgentVersionCreateWithoutActiveForInput = {
   createdByUserId?: string | null
   createdAt?: Date | string
   installation: Prisma.OrganizationAgentInstallationCreateNestedOneWithoutVersionsInput
+  runs?: Prisma.AgentRunCreateNestedManyWithoutOrganizationAgentVersionInput
 }
 
 export type OrganizationAgentVersionUncheckedCreateWithoutActiveForInput = {
@@ -553,6 +649,7 @@ export type OrganizationAgentVersionUncheckedCreateWithoutActiveForInput = {
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdByUserId?: string | null
   createdAt?: Date | string
+  runs?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationAgentVersionInput
 }
 
 export type OrganizationAgentVersionCreateOrConnectWithoutActiveForInput = {
@@ -569,6 +666,7 @@ export type OrganizationAgentVersionCreateWithoutInstallationInput = {
   createdByUserId?: string | null
   createdAt?: Date | string
   activeFor?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutActiveVersionInput
+  runs?: Prisma.AgentRunCreateNestedManyWithoutOrganizationAgentVersionInput
 }
 
 export type OrganizationAgentVersionUncheckedCreateWithoutInstallationInput = {
@@ -580,6 +678,7 @@ export type OrganizationAgentVersionUncheckedCreateWithoutInstallationInput = {
   createdByUserId?: string | null
   createdAt?: Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutActiveVersionInput
+  runs?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationAgentVersionInput
 }
 
 export type OrganizationAgentVersionCreateOrConnectWithoutInstallationInput = {
@@ -612,6 +711,7 @@ export type OrganizationAgentVersionUpdateWithoutActiveForInput = {
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   installation?: Prisma.OrganizationAgentInstallationUpdateOneRequiredWithoutVersionsNestedInput
+  runs?: Prisma.AgentRunUpdateManyWithoutOrganizationAgentVersionNestedInput
 }
 
 export type OrganizationAgentVersionUncheckedUpdateWithoutActiveForInput = {
@@ -624,6 +724,7 @@ export type OrganizationAgentVersionUncheckedUpdateWithoutActiveForInput = {
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  runs?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionNestedInput
 }
 
 export type OrganizationAgentVersionUpsertWithWhereUniqueWithoutInstallationInput = {
@@ -676,6 +777,7 @@ export type OrganizationAgentVersionUpdateWithoutInstallationInput = {
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUpdateManyWithoutActiveVersionNestedInput
+  runs?: Prisma.AgentRunUpdateManyWithoutOrganizationAgentVersionNestedInput
 }
 
 export type OrganizationAgentVersionUncheckedUpdateWithoutInstallationInput = {
@@ -687,6 +789,7 @@ export type OrganizationAgentVersionUncheckedUpdateWithoutInstallationInput = {
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutActiveVersionNestedInput
+  runs?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionNestedInput
 }
 
 export type OrganizationAgentVersionUncheckedUpdateManyWithoutInstallationInput = {
@@ -706,10 +809,12 @@ export type OrganizationAgentVersionUncheckedUpdateManyWithoutInstallationInput 
 
 export type OrganizationAgentVersionCountOutputType = {
   activeFor: number
+  runs: number
 }
 
 export type OrganizationAgentVersionCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   activeFor?: boolean | OrganizationAgentVersionCountOutputTypeCountActiveForArgs
+  runs?: boolean | OrganizationAgentVersionCountOutputTypeCountRunsArgs
 }
 
 /**
@@ -729,6 +834,13 @@ export type OrganizationAgentVersionCountOutputTypeCountActiveForArgs<ExtArgs ex
   where?: Prisma.OrganizationAgentInstallationWhereInput
 }
 
+/**
+ * OrganizationAgentVersionCountOutputType without action
+ */
+export type OrganizationAgentVersionCountOutputTypeCountRunsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.AgentRunWhereInput
+}
+
 
 export type OrganizationAgentVersionSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -742,6 +854,7 @@ export type OrganizationAgentVersionSelect<ExtArgs extends runtime.Types.Extensi
   createdAt?: boolean
   installation?: boolean | Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs>
   activeFor?: boolean | Prisma.OrganizationAgentVersion$activeForArgs<ExtArgs>
+  runs?: boolean | Prisma.OrganizationAgentVersion$runsArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationAgentVersionCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["organizationAgentVersion"]>
 
@@ -787,6 +900,7 @@ export type OrganizationAgentVersionOmit<ExtArgs extends runtime.Types.Extension
 export type OrganizationAgentVersionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   installation?: boolean | Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs>
   activeFor?: boolean | Prisma.OrganizationAgentVersion$activeForArgs<ExtArgs>
+  runs?: boolean | Prisma.OrganizationAgentVersion$runsArgs<ExtArgs>
   _count?: boolean | Prisma.OrganizationAgentVersionCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type OrganizationAgentVersionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -801,6 +915,7 @@ export type $OrganizationAgentVersionPayload<ExtArgs extends runtime.Types.Exten
   objects: {
     installation: Prisma.$OrganizationAgentInstallationPayload<ExtArgs>
     activeFor: Prisma.$OrganizationAgentInstallationPayload<ExtArgs>[]
+    runs: Prisma.$AgentRunPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1212,6 +1327,7 @@ export interface Prisma__OrganizationAgentVersionClient<T, Null = never, ExtArgs
   readonly [Symbol.toStringTag]: "PrismaPromise"
   installation<T extends Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs>>): Prisma.Prisma__OrganizationAgentInstallationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationAgentInstallationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   activeFor<T extends Prisma.OrganizationAgentVersion$activeForArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationAgentVersion$activeForArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationAgentInstallationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  runs<T extends Prisma.OrganizationAgentVersion$runsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationAgentVersion$runsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentRunPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1672,6 +1788,30 @@ export type OrganizationAgentVersion$activeForArgs<ExtArgs extends runtime.Types
   take?: number
   skip?: number
   distinct?: Prisma.OrganizationAgentInstallationScalarFieldEnum | Prisma.OrganizationAgentInstallationScalarFieldEnum[]
+}
+
+/**
+ * OrganizationAgentVersion.runs
+ */
+export type OrganizationAgentVersion$runsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the AgentRun
+   */
+  select?: Prisma.AgentRunSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the AgentRun
+   */
+  omit?: Prisma.AgentRunOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.AgentRunInclude<ExtArgs> | null
+  where?: Prisma.AgentRunWhereInput
+  orderBy?: Prisma.AgentRunOrderByWithRelationInput | Prisma.AgentRunOrderByWithRelationInput[]
+  cursor?: Prisma.AgentRunWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.AgentRunScalarFieldEnum | Prisma.AgentRunScalarFieldEnum[]
 }
 
 /**

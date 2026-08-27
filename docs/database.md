@@ -58,6 +58,13 @@ so `agentId` alone is ambiguous the moment a definition changes: a run accepted
 before a deployment must still execute the revision it was accepted against.
 The pair `(agentId, agentVersion)` is therefore what a worker resolves.
 
+`organizationAgentVersionId` names the immutable organization-owned enabled
+state selected when the run was accepted. Its composite foreign key includes
+`organizationId`, so PostgreSQL rejects a run that references another tenant's
+version. It remains nullable only for pre-migration and rolling-rollback runs;
+new application acceptance always writes it. A legacy null-reference run uses
+the pinned code definition's owned default and never today's active pointer.
+
 `createdByUserId` is nullable. Null means only that no authenticated
 application User initiated the run, which is the honest representation for
 scheduled or system-initiated work. It is not an actor abstraction, a trigger
@@ -98,6 +105,7 @@ Migration order:
 11. Control-plane audit history.
 12. Super-admin floor enforcement.
 13. Organization-agent installations and immutable versions.
+14. Agent-run effective organization-version reference.
 
 `organization_agent_installation` is the mutable aggregate root for one
 `(organizationId, agentId)`. Only its integer revision and active-version

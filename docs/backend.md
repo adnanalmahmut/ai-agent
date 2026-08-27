@@ -58,12 +58,16 @@ The agent feature provides internal durable acceptance and background execution
 infrastructure. `AgentRunService` commits an application-owned AgentRun and its
 `agent-run.queued` outbox event atomically, with organization-scoped PostgreSQL
 idempotency. Each accepted run persists `agentVersion`, pinning it to the exact
-definition revision it was accepted against, and `createdByUserId` is nullable
-so work with no authenticated initiating user is representable. The worker
-conditionally claims attempts and invokes Mastra behind the minimal
-application-owned `AgentRuntime.run` boundary, with the SDK's own no-op logger
-installed so provider request and response payloads cannot bypass Pino
-redaction into container logs.
+definition revision it was accepted against, plus the immutable organization-
+agent version selected from the enabled active installation in the same
+transaction. Definition revision and runtime are code-derived rather than
+caller-selected. `createdByUserId` is nullable so work with no authenticated
+initiating user is representable. The worker conditionally claims attempts,
+reloads and revalidates the pinned organization configuration from PostgreSQL
+on every attempt, and invokes Mastra behind the minimal application-owned
+`AgentRuntime.run` boundary, with the SDK's own no-op logger installed so
+provider request and response payloads cannot bypass Pino redaction into
+container logs.
 
 A worker-only reconciliation sweep finalizes runs whose queue job the transport
 failed terminally without ever invoking the handler, which BullMQ does when a
@@ -105,8 +109,27 @@ the next version; different installations may independently use the same
 revision numbers. The
 authorized management and history routes use path-scoped `organization:update`
 and always include that organization in database predicates. Agent-run
-acceptance and execution do not consume this state yet; pinning runs is owned by
-the next dependent slice.
+acceptance now resolves the enabled active version inside its run/outbox
+transaction, and execution reloads that immutable version by the run's durable
+tenant-bound reference rather than consulting the current pointer.
+
+New-run entitlement deliberately uses the explicit-installation cutover
+(Option A). Control-plane permission (`agents.enabled` and the agent-specific
+flag) and organization product state are separate gates: a feature flag never
+creates or implies an installation. An existing organization with no
+installation receives the bounded `agent_not_installed` result; an installation
+whose active version is disabled receives `agent_disabled`; only an installed,
+enabled active version may proceed to the remaining acceptance gates. The run
+path does not backfill, lazily create, or first-run-create an installation and
+does not fall back to the global code definition as an effective installation.
+Installation is organization-owned state selected through the authorized
+installation API. This train adds no Platform management UI, so an authorized
+API caller must install the agent before the existing content-idea surface can
+accept a run; the frontend reports the bounded state and never auto-installs.
+Historical pre-AGT-02 rows with a null organization-agent-version reference
+remain valid and execute their pinned definition revision's code-owned default.
+That compatibility path never consults today's installation and is not
+available to newly accepted runs.
 
 `ContextPolicy` names the knowledge spaces an agent may read, by registry slug,
 with an explicit chunk budget and an explicit character budget. The slug type is

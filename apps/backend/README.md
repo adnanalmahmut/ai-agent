@@ -161,10 +161,11 @@ trade.
 
 The worker composes one explicit `agent-execution` / `execute` handler. It loads
 the durable AgentRun by `{ runId }`, conditionally claims the BullMQ attempt,
-resolves the code-owned definition the run was pinned to, and passes
-application-owned input through `AgentRunner` to an explicit runtime registry.
-Production definitions are empty until a real product agent is selected, so
-there is still no user-facing agent capability or provider-secret requirement.
+resolves the code-owned definition the run was pinned to, reloads the exact
+immutable organization-agent configuration selected at acceptance, and passes
+application-owned input and parsed configuration through `AgentRunner` to an
+explicit runtime registry. The queue payload remains only `{ runId }`;
+PostgreSQL is the version and configuration authority.
 
 The runtime contract intentionally has only `name` and `run`. Mastra is the
 first adapter, and every Mastra import must stay within
@@ -194,9 +195,13 @@ configuration in that feature. The first one starts at version 1.
 Definitions are identified by the exact `(id, version)` pair, and a definition
 is immutable once published under a version. `AgentRunner` resolves the pair
 persisted on the run, never the id alone, so a run accepted before a deployment
-still executes the revision it was accepted against. A duplicate `(id, version)`
-is a composition error, distinct versions of one id are valid, and an unknown
-pair fails loudly — there is deliberately no fallback to a latest version. Any
+still executes the revision it was accepted against. New runs also carry a
+tenant-bound immutable organization-agent version id. Every worker attempt
+reloads it from PostgreSQL and validates tenant, agent, definition revision,
+and configuration before reaching the runtime; legacy null-reference runs use
+the pinned definition's owned default. A duplicate `(id, version)` is a
+composition error, distinct versions of one id are valid, and an unknown pair
+fails loudly — there is deliberately no fallback to a latest version. Any
 version still referenced by a `QUEUED` or `RUNNING` AgentRun must therefore
 remain resolvable throughout a rolling deployment. Automated retention of
 superseded versions is not implemented.

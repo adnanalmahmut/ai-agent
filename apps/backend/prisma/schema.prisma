@@ -241,11 +241,12 @@ model Member {
   id             String       @id @default(uuid())
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   /// Comma-separated organization role names.
-  role           String       @default("member")
-  createdAt      DateTime     @default(now())
+  role      String   @default("member")
+  createdAt DateTime @default(now())
 
   @@index([organizationId])
   @@index([userId])
@@ -308,6 +309,12 @@ model AgentRun {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
+  /// The immutable organization-owned effective state selected at acceptance.
+  /// Nullable only for runs accepted before this relation existed and for
+  /// rolling/rollback compatibility with the preceding image.
+  organizationAgentVersionId String?
+  organizationAgentVersion   OrganizationAgentVersion? @relation(fields: [organizationAgentVersionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
   /// Null means no authenticated application User initiated this run — for
   /// example scheduled or system-initiated work. It is not an actor
   /// abstraction and carries no other meaning.
@@ -335,6 +342,7 @@ model AgentRun {
 
   @@unique([organizationId, idempotencyKey])
   @@index([createdByUserId])
+  @@index([organizationAgentVersionId])
   /// Serves the reconciliation sweep, which repeatedly asks for the oldest
   /// non-terminal runs. Without it that bounded query degrades into a full
   /// scan of a table whose terminal rows are never deleted, so its cost would
@@ -397,10 +405,13 @@ model OrganizationAgentVersion {
   createdAt       DateTime @default(now())
 
   activeFor OrganizationAgentInstallation[] @relation("ActiveOrganizationAgentVersion")
+  runs      AgentRun[]
 
   /// Target for the installation's active pointer; including installation id
   /// makes a cross-installation pointer a database constraint violation.
   @@unique([id, installationId])
+  /// Target for AgentRun's tenant-bound immutable version reference.
+  @@unique([id, organizationId])
   /// No installation may commit two immutable versions with one revision.
   @@unique([installationId, revision], map: "organization_agent_version_installationId_revision_key")
   @@index([organizationId])

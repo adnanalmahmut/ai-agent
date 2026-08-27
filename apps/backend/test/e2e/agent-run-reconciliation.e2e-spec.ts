@@ -21,6 +21,12 @@ import type { AgentRunner } from '../../src/agents/agent-runner.service';
 import { OutboxRepository } from '../../src/core/outbox';
 import { QueueProducer, QUEUE_NAMES } from '../../src/core/queue';
 import { PrismaService } from '../../src/database';
+import {
+  cleanTestAgentInstallations,
+  installTestAgent,
+  TEST_AGENT_ID,
+  testAgentRegistry,
+} from '../support/agent-run-fixtures';
 
 const fixtureId = `agent-reconcile-e2e-${process.pid}`;
 const organizationId = `${fixtureId}-org`;
@@ -91,9 +97,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
   let runs: AgentRunService;
 
   const request = (idempotencyKey: string): CreateAgentRun => ({
-    agentId: 'test-only-agent',
-    agentVersion: 1,
-    runtime: 'test-only-runtime',
+    agentId: TEST_AGENT_ID,
     organizationId,
     createdByUserId: null,
     input: { prompt: 'deterministic test input' },
@@ -132,8 +136,13 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
         slug: `${fixtureId}-org`,
       },
     });
+    await installTestAgent(prisma, organizationId);
 
-    runs = new AgentRunService(prisma, new OutboxRepository(prisma));
+    runs = new AgentRunService(
+      prisma,
+      new OutboxRepository(prisma),
+      testAgentRegistry(),
+    );
   }, 60_000);
 
   afterEach(async () => {
@@ -142,6 +151,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
 
   afterAll(async () => {
     await cleanRuns();
+    await cleanTestAgentInstallations(prisma, [organizationId]);
     await prisma.organization.deleteMany({ where: { id: organizationId } });
     await prisma.onModuleDestroy();
   });

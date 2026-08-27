@@ -47,6 +47,7 @@ export type AgentRunMinAggregateOutputType = {
   runtime: string | null
   status: $Enums.AgentRunStatus | null
   organizationId: string | null
+  organizationAgentVersionId: string | null
   createdByUserId: string | null
   lastError: string | null
   attemptCount: number | null
@@ -64,6 +65,7 @@ export type AgentRunMaxAggregateOutputType = {
   runtime: string | null
   status: $Enums.AgentRunStatus | null
   organizationId: string | null
+  organizationAgentVersionId: string | null
   createdByUserId: string | null
   lastError: string | null
   attemptCount: number | null
@@ -81,6 +83,7 @@ export type AgentRunCountAggregateOutputType = {
   runtime: number
   status: number
   organizationId: number
+  organizationAgentVersionId: number
   createdByUserId: number
   input: number
   output: number
@@ -112,6 +115,7 @@ export type AgentRunMinAggregateInputType = {
   runtime?: true
   status?: true
   organizationId?: true
+  organizationAgentVersionId?: true
   createdByUserId?: true
   lastError?: true
   attemptCount?: true
@@ -129,6 +133,7 @@ export type AgentRunMaxAggregateInputType = {
   runtime?: true
   status?: true
   organizationId?: true
+  organizationAgentVersionId?: true
   createdByUserId?: true
   lastError?: true
   attemptCount?: true
@@ -146,6 +151,7 @@ export type AgentRunCountAggregateInputType = {
   runtime?: true
   status?: true
   organizationId?: true
+  organizationAgentVersionId?: true
   createdByUserId?: true
   input?: true
   output?: true
@@ -252,6 +258,7 @@ export type AgentRunGroupByOutputType = {
   runtime: string
   status: $Enums.AgentRunStatus
   organizationId: string
+  organizationAgentVersionId: string | null
   createdByUserId: string | null
   input: runtime.JsonValue
   output: runtime.JsonValue | null
@@ -294,6 +301,7 @@ export type AgentRunWhereInput = {
   runtime?: Prisma.StringFilter<"AgentRun"> | string
   status?: Prisma.EnumAgentRunStatusFilter<"AgentRun"> | $Enums.AgentRunStatus
   organizationId?: Prisma.StringFilter<"AgentRun"> | string
+  organizationAgentVersionId?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   createdByUserId?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   input?: Prisma.JsonFilter<"AgentRun">
   output?: Prisma.JsonNullableFilter<"AgentRun">
@@ -305,6 +313,7 @@ export type AgentRunWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"AgentRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"AgentRun"> | Date | string
   organization?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
+  organizationAgentVersion?: Prisma.XOR<Prisma.OrganizationAgentVersionNullableScalarRelationFilter, Prisma.OrganizationAgentVersionWhereInput> | null
   createdByUser?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
 }
 
@@ -315,6 +324,7 @@ export type AgentRunOrderByWithRelationInput = {
   runtime?: Prisma.SortOrder
   status?: Prisma.SortOrder
   organizationId?: Prisma.SortOrder
+  organizationAgentVersionId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   input?: Prisma.SortOrder
   output?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -326,6 +336,7 @@ export type AgentRunOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   organization?: Prisma.OrganizationOrderByWithRelationInput
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionOrderByWithRelationInput
   createdByUser?: Prisma.UserOrderByWithRelationInput
 }
 
@@ -340,6 +351,7 @@ export type AgentRunWhereUniqueInput = Prisma.AtLeast<{
   runtime?: Prisma.StringFilter<"AgentRun"> | string
   status?: Prisma.EnumAgentRunStatusFilter<"AgentRun"> | $Enums.AgentRunStatus
   organizationId?: Prisma.StringFilter<"AgentRun"> | string
+  organizationAgentVersionId?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   createdByUserId?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   input?: Prisma.JsonFilter<"AgentRun">
   output?: Prisma.JsonNullableFilter<"AgentRun">
@@ -351,6 +363,7 @@ export type AgentRunWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"AgentRun"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"AgentRun"> | Date | string
   organization?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
+  organizationAgentVersion?: Prisma.XOR<Prisma.OrganizationAgentVersionNullableScalarRelationFilter, Prisma.OrganizationAgentVersionWhereInput> | null
   createdByUser?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
 }, "id" | "organizationId_idempotencyKey">
 
@@ -361,6 +374,7 @@ export type AgentRunOrderByWithAggregationInput = {
   runtime?: Prisma.SortOrder
   status?: Prisma.SortOrder
   organizationId?: Prisma.SortOrder
+  organizationAgentVersionId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   input?: Prisma.SortOrder
   output?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -388,6 +402,7 @@ export type AgentRunScalarWhereWithAggregatesInput = {
   runtime?: Prisma.StringWithAggregatesFilter<"AgentRun"> | string
   status?: Prisma.EnumAgentRunStatusWithAggregatesFilter<"AgentRun"> | $Enums.AgentRunStatus
   organizationId?: Prisma.StringWithAggregatesFilter<"AgentRun"> | string
+  organizationAgentVersionId?: Prisma.StringNullableWithAggregatesFilter<"AgentRun"> | string | null
   createdByUserId?: Prisma.StringNullableWithAggregatesFilter<"AgentRun"> | string | null
   input?: Prisma.JsonWithAggregatesFilter<"AgentRun">
   output?: Prisma.JsonNullableWithAggregatesFilter<"AgentRun">
@@ -416,6 +431,7 @@ export type AgentRunCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   organization: Prisma.OrganizationCreateNestedOneWithoutAgentRunsInput
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
   createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
 }
 
@@ -426,6 +442,7 @@ export type AgentRunUncheckedCreateInput = {
   runtime: string
   status?: $Enums.AgentRunStatus
   organizationId: string
+  organizationAgentVersionId?: string | null
   createdByUserId?: string | null
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -454,6 +471,7 @@ export type AgentRunUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
   createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
 }
 
@@ -464,6 +482,7 @@ export type AgentRunUncheckedUpdateInput = {
   runtime?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationAgentVersionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -483,6 +502,7 @@ export type AgentRunCreateManyInput = {
   runtime: string
   status?: $Enums.AgentRunStatus
   organizationId: string
+  organizationAgentVersionId?: string | null
   createdByUserId?: string | null
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -519,6 +539,7 @@ export type AgentRunUncheckedUpdateManyInput = {
   runtime?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationAgentVersionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -553,6 +574,7 @@ export type AgentRunCountOrderByAggregateInput = {
   runtime?: Prisma.SortOrder
   status?: Prisma.SortOrder
   organizationId?: Prisma.SortOrder
+  organizationAgentVersionId?: Prisma.SortOrder
   createdByUserId?: Prisma.SortOrder
   input?: Prisma.SortOrder
   output?: Prisma.SortOrder
@@ -577,6 +599,7 @@ export type AgentRunMaxOrderByAggregateInput = {
   runtime?: Prisma.SortOrder
   status?: Prisma.SortOrder
   organizationId?: Prisma.SortOrder
+  organizationAgentVersionId?: Prisma.SortOrder
   createdByUserId?: Prisma.SortOrder
   lastError?: Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
@@ -594,6 +617,7 @@ export type AgentRunMinOrderByAggregateInput = {
   runtime?: Prisma.SortOrder
   status?: Prisma.SortOrder
   organizationId?: Prisma.SortOrder
+  organizationAgentVersionId?: Prisma.SortOrder
   createdByUserId?: Prisma.SortOrder
   lastError?: Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
@@ -697,6 +721,48 @@ export type EnumAgentRunStatusFieldUpdateOperationsInput = {
   set?: $Enums.AgentRunStatus
 }
 
+export type AgentRunCreateNestedManyWithoutOrganizationAgentVersionInput = {
+  create?: Prisma.XOR<Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput> | Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput[] | Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput[]
+  connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput | Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput[]
+  createMany?: Prisma.AgentRunCreateManyOrganizationAgentVersionInputEnvelope
+  connect?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+}
+
+export type AgentRunUncheckedCreateNestedManyWithoutOrganizationAgentVersionInput = {
+  create?: Prisma.XOR<Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput> | Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput[] | Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput[]
+  connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput | Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput[]
+  createMany?: Prisma.AgentRunCreateManyOrganizationAgentVersionInputEnvelope
+  connect?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+}
+
+export type AgentRunUpdateManyWithoutOrganizationAgentVersionNestedInput = {
+  create?: Prisma.XOR<Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput> | Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput[] | Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput[]
+  connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput | Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput[]
+  upsert?: Prisma.AgentRunUpsertWithWhereUniqueWithoutOrganizationAgentVersionInput | Prisma.AgentRunUpsertWithWhereUniqueWithoutOrganizationAgentVersionInput[]
+  createMany?: Prisma.AgentRunCreateManyOrganizationAgentVersionInputEnvelope
+  set?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  disconnect?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  delete?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  connect?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  update?: Prisma.AgentRunUpdateWithWhereUniqueWithoutOrganizationAgentVersionInput | Prisma.AgentRunUpdateWithWhereUniqueWithoutOrganizationAgentVersionInput[]
+  updateMany?: Prisma.AgentRunUpdateManyWithWhereWithoutOrganizationAgentVersionInput | Prisma.AgentRunUpdateManyWithWhereWithoutOrganizationAgentVersionInput[]
+  deleteMany?: Prisma.AgentRunScalarWhereInput | Prisma.AgentRunScalarWhereInput[]
+}
+
+export type AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionNestedInput = {
+  create?: Prisma.XOR<Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput> | Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput[] | Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput[]
+  connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput | Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput[]
+  upsert?: Prisma.AgentRunUpsertWithWhereUniqueWithoutOrganizationAgentVersionInput | Prisma.AgentRunUpsertWithWhereUniqueWithoutOrganizationAgentVersionInput[]
+  createMany?: Prisma.AgentRunCreateManyOrganizationAgentVersionInputEnvelope
+  set?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  disconnect?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  delete?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  connect?: Prisma.AgentRunWhereUniqueInput | Prisma.AgentRunWhereUniqueInput[]
+  update?: Prisma.AgentRunUpdateWithWhereUniqueWithoutOrganizationAgentVersionInput | Prisma.AgentRunUpdateWithWhereUniqueWithoutOrganizationAgentVersionInput[]
+  updateMany?: Prisma.AgentRunUpdateManyWithWhereWithoutOrganizationAgentVersionInput | Prisma.AgentRunUpdateManyWithWhereWithoutOrganizationAgentVersionInput[]
+  deleteMany?: Prisma.AgentRunScalarWhereInput | Prisma.AgentRunScalarWhereInput[]
+}
+
 export type AgentRunCreateWithoutCreatedByUserInput = {
   id?: string
   agentId: string
@@ -713,6 +779,7 @@ export type AgentRunCreateWithoutCreatedByUserInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   organization: Prisma.OrganizationCreateNestedOneWithoutAgentRunsInput
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
 }
 
 export type AgentRunUncheckedCreateWithoutCreatedByUserInput = {
@@ -722,6 +789,7 @@ export type AgentRunUncheckedCreateWithoutCreatedByUserInput = {
   runtime: string
   status?: $Enums.AgentRunStatus
   organizationId: string
+  organizationAgentVersionId?: string | null
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
@@ -769,6 +837,7 @@ export type AgentRunScalarWhereInput = {
   runtime?: Prisma.StringFilter<"AgentRun"> | string
   status?: Prisma.EnumAgentRunStatusFilter<"AgentRun"> | $Enums.AgentRunStatus
   organizationId?: Prisma.StringFilter<"AgentRun"> | string
+  organizationAgentVersionId?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   createdByUserId?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   input?: Prisma.JsonFilter<"AgentRun">
   output?: Prisma.JsonNullableFilter<"AgentRun">
@@ -796,6 +865,7 @@ export type AgentRunCreateWithoutOrganizationInput = {
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
   createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
 }
 
@@ -805,6 +875,7 @@ export type AgentRunUncheckedCreateWithoutOrganizationInput = {
   agentVersion: number
   runtime: string
   status?: $Enums.AgentRunStatus
+  organizationAgentVersionId?: string | null
   createdByUserId?: string | null
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -843,6 +914,69 @@ export type AgentRunUpdateManyWithWhereWithoutOrganizationInput = {
   data: Prisma.XOR<Prisma.AgentRunUpdateManyMutationInput, Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationInput>
 }
 
+export type AgentRunCreateWithoutOrganizationAgentVersionInput = {
+  id?: string
+  agentId: string
+  agentVersion: number
+  runtime: string
+  status?: $Enums.AgentRunStatus
+  input: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: string | null
+  attemptCount?: number
+  idempotencyKey: string
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  organization: Prisma.OrganizationCreateNestedOneWithoutAgentRunsInput
+  createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
+}
+
+export type AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput = {
+  id?: string
+  agentId: string
+  agentVersion: number
+  runtime: string
+  status?: $Enums.AgentRunStatus
+  createdByUserId?: string | null
+  input: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: string | null
+  attemptCount?: number
+  idempotencyKey: string
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput = {
+  where: Prisma.AgentRunWhereUniqueInput
+  create: Prisma.XOR<Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput>
+}
+
+export type AgentRunCreateManyOrganizationAgentVersionInputEnvelope = {
+  data: Prisma.AgentRunCreateManyOrganizationAgentVersionInput | Prisma.AgentRunCreateManyOrganizationAgentVersionInput[]
+  skipDuplicates?: boolean
+}
+
+export type AgentRunUpsertWithWhereUniqueWithoutOrganizationAgentVersionInput = {
+  where: Prisma.AgentRunWhereUniqueInput
+  update: Prisma.XOR<Prisma.AgentRunUpdateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedUpdateWithoutOrganizationAgentVersionInput>
+  create: Prisma.XOR<Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput>
+}
+
+export type AgentRunUpdateWithWhereUniqueWithoutOrganizationAgentVersionInput = {
+  where: Prisma.AgentRunWhereUniqueInput
+  data: Prisma.XOR<Prisma.AgentRunUpdateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedUpdateWithoutOrganizationAgentVersionInput>
+}
+
+export type AgentRunUpdateManyWithWhereWithoutOrganizationAgentVersionInput = {
+  where: Prisma.AgentRunScalarWhereInput
+  data: Prisma.XOR<Prisma.AgentRunUpdateManyMutationInput, Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionInput>
+}
+
 export type AgentRunCreateManyCreatedByUserInput = {
   id?: string
   agentId: string
@@ -850,6 +984,7 @@ export type AgentRunCreateManyCreatedByUserInput = {
   runtime: string
   status?: $Enums.AgentRunStatus
   organizationId: string
+  organizationAgentVersionId?: string | null
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
@@ -877,6 +1012,7 @@ export type AgentRunUpdateWithoutCreatedByUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
 }
 
 export type AgentRunUncheckedUpdateWithoutCreatedByUserInput = {
@@ -886,6 +1022,7 @@ export type AgentRunUncheckedUpdateWithoutCreatedByUserInput = {
   runtime?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationAgentVersionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -904,6 +1041,7 @@ export type AgentRunUncheckedUpdateManyWithoutCreatedByUserInput = {
   runtime?: Prisma.StringFieldUpdateOperationsInput | string
   status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationAgentVersionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -921,6 +1059,7 @@ export type AgentRunCreateManyOrganizationInput = {
   agentVersion: number
   runtime: string
   status?: $Enums.AgentRunStatus
+  organizationAgentVersionId?: string | null
   createdByUserId?: string | null
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
@@ -948,10 +1087,86 @@ export type AgentRunUpdateWithoutOrganizationInput = {
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
   createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
 }
 
 export type AgentRunUncheckedUpdateWithoutOrganizationInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  runtime?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
+  organizationAgentVersionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type AgentRunUncheckedUpdateManyWithoutOrganizationInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  runtime?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
+  organizationAgentVersionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
+export type AgentRunCreateManyOrganizationAgentVersionInput = {
+  id?: string
+  agentId: string
+  agentVersion: number
+  runtime: string
+  status?: $Enums.AgentRunStatus
+  createdByUserId?: string | null
+  input: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: string | null
+  attemptCount?: number
+  idempotencyKey: string
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type AgentRunUpdateWithoutOrganizationAgentVersionInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  runtime?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
+  input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  organization?: Prisma.OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput
+  createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
+}
+
+export type AgentRunUncheckedUpdateWithoutOrganizationAgentVersionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   agentVersion?: Prisma.IntFieldUpdateOperationsInput | number
@@ -969,7 +1184,7 @@ export type AgentRunUncheckedUpdateWithoutOrganizationInput = {
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
 
-export type AgentRunUncheckedUpdateManyWithoutOrganizationInput = {
+export type AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   agentId?: Prisma.StringFieldUpdateOperationsInput | string
   agentVersion?: Prisma.IntFieldUpdateOperationsInput | number
@@ -996,6 +1211,7 @@ export type AgentRunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   runtime?: boolean
   status?: boolean
   organizationId?: boolean
+  organizationAgentVersionId?: boolean
   createdByUserId?: boolean
   input?: boolean
   output?: boolean
@@ -1007,6 +1223,7 @@ export type AgentRunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   createdAt?: boolean
   updatedAt?: boolean
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
+  organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
 }, ExtArgs["result"]["agentRun"]>
 
@@ -1017,6 +1234,7 @@ export type AgentRunSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   runtime?: boolean
   status?: boolean
   organizationId?: boolean
+  organizationAgentVersionId?: boolean
   createdByUserId?: boolean
   input?: boolean
   output?: boolean
@@ -1028,6 +1246,7 @@ export type AgentRunSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   createdAt?: boolean
   updatedAt?: boolean
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
+  organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
 }, ExtArgs["result"]["agentRun"]>
 
@@ -1038,6 +1257,7 @@ export type AgentRunSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   runtime?: boolean
   status?: boolean
   organizationId?: boolean
+  organizationAgentVersionId?: boolean
   createdByUserId?: boolean
   input?: boolean
   output?: boolean
@@ -1049,6 +1269,7 @@ export type AgentRunSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   createdAt?: boolean
   updatedAt?: boolean
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
+  organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
 }, ExtArgs["result"]["agentRun"]>
 
@@ -1059,6 +1280,7 @@ export type AgentRunSelectScalar = {
   runtime?: boolean
   status?: boolean
   organizationId?: boolean
+  organizationAgentVersionId?: boolean
   createdByUserId?: boolean
   input?: boolean
   output?: boolean
@@ -1071,17 +1293,20 @@ export type AgentRunSelectScalar = {
   updatedAt?: boolean
 }
 
-export type AgentRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "agentId" | "agentVersion" | "runtime" | "status" | "organizationId" | "createdByUserId" | "input" | "output" | "lastError" | "attemptCount" | "idempotencyKey" | "startedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["agentRun"]>
+export type AgentRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "agentId" | "agentVersion" | "runtime" | "status" | "organizationId" | "organizationAgentVersionId" | "createdByUserId" | "input" | "output" | "lastError" | "attemptCount" | "idempotencyKey" | "startedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["agentRun"]>
 export type AgentRunInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
+  organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
 }
 export type AgentRunIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
+  organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
 }
 export type AgentRunIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
+  organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
 }
 
@@ -1089,6 +1314,7 @@ export type $AgentRunPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   name: "AgentRun"
   objects: {
     organization: Prisma.$OrganizationPayload<ExtArgs>
+    organizationAgentVersion: Prisma.$OrganizationAgentVersionPayload<ExtArgs> | null
     createdByUser: Prisma.$UserPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
@@ -1104,6 +1330,12 @@ export type $AgentRunPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     runtime: string
     status: $Enums.AgentRunStatus
     organizationId: string
+    /**
+     * The immutable organization-owned effective state selected at acceptance.
+     * Nullable only for runs accepted before this relation existed and for
+     * rolling/rollback compatibility with the preceding image.
+     */
+    organizationAgentVersionId: string | null
     /**
      * Null means no authenticated application User initiated this run — for
      * example scheduled or system-initiated work. It is not an actor
@@ -1526,6 +1758,7 @@ readonly fields: AgentRunFieldRefs;
 export interface Prisma__AgentRunClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   organization<T extends Prisma.OrganizationDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationDefaultArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  organizationAgentVersion<T extends Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>>): Prisma.Prisma__OrganizationAgentVersionClient<runtime.Types.Result.GetResult<Prisma.$OrganizationAgentVersionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   createdByUser<T extends Prisma.AgentRun$createdByUserArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AgentRun$createdByUserArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
@@ -1562,6 +1795,7 @@ export interface AgentRunFieldRefs {
   readonly runtime: Prisma.FieldRef<"AgentRun", 'String'>
   readonly status: Prisma.FieldRef<"AgentRun", 'AgentRunStatus'>
   readonly organizationId: Prisma.FieldRef<"AgentRun", 'String'>
+  readonly organizationAgentVersionId: Prisma.FieldRef<"AgentRun", 'String'>
   readonly createdByUserId: Prisma.FieldRef<"AgentRun", 'String'>
   readonly input: Prisma.FieldRef<"AgentRun", 'Json'>
   readonly output: Prisma.FieldRef<"AgentRun", 'Json'>
@@ -1970,6 +2204,25 @@ export type AgentRunDeleteManyArgs<ExtArgs extends runtime.Types.Extensions.Inte
    * Limit how many AgentRuns to delete.
    */
   limit?: number
+}
+
+/**
+ * AgentRun.organizationAgentVersion
+ */
+export type AgentRun$organizationAgentVersionArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the OrganizationAgentVersion
+   */
+  select?: Prisma.OrganizationAgentVersionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the OrganizationAgentVersion
+   */
+  omit?: Prisma.OrganizationAgentVersionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrganizationAgentVersionInclude<ExtArgs> | null
+  where?: Prisma.OrganizationAgentVersionWhereInput
 }
 
 /**

@@ -4,9 +4,12 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../database';
 import { AppException } from '../core/errors';
 import { OutboxRepository } from '../core/outbox';
+import { AgentConfigurationError } from './agent-configuration.error';
+import { AgentDefinitionRegistry } from './agent-definition.registry';
 import {
   TERMINAL_TRANSPORT_FAILURE,
   type AgentFailureDiagnostic,
+  type AgentConfiguration,
   type AgentRun,
   type AgentRunStatus,
   type AgentValue,
@@ -55,6 +58,7 @@ export class AgentRunService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly outbox: OutboxRepository,
+    private readonly definitions: AgentDefinitionRegistry,
   ) {}
 
   /**
@@ -132,14 +136,16 @@ export class AgentRunService {
 
         if (accepted) return accepted;
 
+        const effective = await this.resolveEffectiveVersion(tx, input);
         await assertCapacity(tx, input);
 
         const created = await tx.agentRun.create({
           data: {
             agentId: input.agentId,
-            agentVersion: input.agentVersion,
-            runtime: input.runtime,
+            agentVersion: effective.definitionVersion,
+            runtime: effective.runtime,
             organizationId: input.organizationId,
+            organizationAgentVersionId: effective.id,
             createdByUserId: input.createdByUserId,
             input: input.input as Prisma.InputJsonValue,
             idempotencyKey: input.idempotencyKey,
@@ -386,6 +392,139 @@ export class AgentRunService {
     return run === null ? null : toAgentRun(run);
   }
 
+  /** Bounded product availability without exposing installation metadata. */
+  async installationAvailability(input: {
+    organizationId: string;
+    agentId: string;
+  }): Promise<'agent_not_installed' | 'agent_disabled' | null> {
+    const installation =
+      await this.prisma.organizationAgentInstallation.findUnique({
+        where: {
+          organizationId_agentId: {
+            organizationId: input.organizationId,
+            agentId: input.agentId,
+          },
+        },
+        select: { activeVersion: { select: { enabled: true } } },
+      });
+
+    if (!installation?.activeVersion) return 'agent_not_installed';
+    return installation.activeVersion.enabled ? null : 'agent_disabled';
+  }
+
+  /**
+   * Reloads the immutable organization configuration named by the run.
+   *
+   * The queue carries only `runId`; every attempt asks PostgreSQL again. A null
+   * result is the explicit legacy case and tells the runner to use the pinned
+   * code definition's owned default, never today's installation pointer.
+   */
+  async configurationFor(
+    run: Pick<
+      AgentRun,
+      | 'organizationAgentVersionId'
+      | 'organizationId'
+      | 'agentId'
+      | 'agentVersion'
+    >,
+  ): Promise<AgentConfiguration | null> {
+    if (run.organizationAgentVersionId === null) return null;
+
+    const version = await this.prisma.organizationAgentVersion.findFirst({
+      where: {
+        id: run.organizationAgentVersionId,
+        organizationId: run.organizationId,
+        definitionVersion: run.agentVersion,
+        installation: {
+          organizationId: run.organizationId,
+          agentId: run.agentId,
+        },
+      },
+      select: { configuration: true },
+    });
+
+    if (!version) {
+      throw new AgentConfigurationError(
+        'AgentRun organization version does not match its durable identity',
+      );
+    }
+
+    return version.configuration as AgentConfiguration;
+  }
+
+  /** The effective installation snapshot selected inside run acceptance. */
+  private async resolveEffectiveVersion(
+    tx: Prisma.TransactionClient,
+    input: CreateAgentRun,
+  ): Promise<{
+    id: string;
+    definitionVersion: number;
+    runtime: string;
+  }> {
+    const installation = await tx.organizationAgentInstallation.findUnique({
+      where: {
+        organizationId_agentId: {
+          organizationId: input.organizationId,
+          agentId: input.agentId,
+        },
+      },
+      select: {
+        activeVersion: {
+          select: {
+            id: true,
+            definitionVersion: true,
+            enabled: true,
+            configuration: true,
+          },
+        },
+      },
+    });
+
+    const active = installation?.activeVersion;
+    if (!active) {
+      throw new AppException('NOT_FOUND', {
+        context: { resource: 'organizationAgentInstallation' },
+        publicDetails: { reason: 'agent_not_installed' },
+      });
+    }
+    if (!active.enabled) {
+      throw new AppException('FEATURE_DISABLED', {
+        context: { resource: 'organizationAgentInstallation' },
+        publicDetails: { reason: 'agent_disabled' },
+      });
+    }
+
+    let definition;
+    try {
+      definition = this.definitions.resolve(
+        input.agentId,
+        active.definitionVersion,
+      );
+      this.definitions.parseOrganizationConfiguration(
+        input.agentId,
+        active.definitionVersion,
+        active.configuration,
+      );
+    } catch (error) {
+      if (error instanceof AgentConfigurationError) {
+        throw new AppException('NOT_FOUND', {
+          context: { resource: 'agentDefinition' },
+          publicDetails: { reason: 'agent_definition_unavailable' },
+        });
+      }
+      throw new AppException('CONFLICT', {
+        context: { resource: 'organizationAgentConfiguration' },
+        publicDetails: { reason: 'invalid_active_configuration' },
+      });
+    }
+
+    return {
+      id: active.id,
+      definitionVersion: definition.version,
+      runtime: definition.runtime,
+    };
+  }
+
   private findByIdempotencyKey(
     input: Pick<CreateAgentRun, 'organizationId' | 'idempotencyKey'>,
   ) {
@@ -458,6 +597,7 @@ function toAgentRun(run: PersistedAgentRun): AgentRun {
     id: run.id,
     agentId: run.agentId,
     agentVersion: run.agentVersion,
+    organizationAgentVersionId: run.organizationAgentVersionId,
     runtime: run.runtime,
     status: run.status,
     organizationId: run.organizationId,

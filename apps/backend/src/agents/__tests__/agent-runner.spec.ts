@@ -32,6 +32,14 @@ const noContext = {
   assemble: jest.fn<() => Promise<never[]>>(() => Promise.resolve([])),
 };
 
+type TestRun = Omit<
+  Parameters<AgentRunner['run']>[0],
+  'organizationAgentVersionId'
+> & { organizationAgentVersionId?: string | null };
+type TestRunner = Omit<AgentRunner, 'run'> & {
+  run(run: TestRun): ReturnType<AgentRunner['run']>;
+};
+
 const runnerFor = (
   definitions: Parameters<
     typeof AgentDefinitionRegistry.prototype.resolve
@@ -40,12 +48,22 @@ const runnerFor = (
     : ConstructorParameters<typeof AgentDefinitionRegistry>[0],
   runtimes: AgentRuntimeRegistry,
   context: { assemble: (input: unknown) => Promise<unknown> } = noContext,
-) =>
-  new AgentRunner(
+) => {
+  const runner = new AgentRunner(
     new AgentDefinitionRegistry(definitions),
     runtimes,
     context as never,
+    { configurationFor: () => Promise.resolve(null) } as never,
   );
+
+  return {
+    run: (run: TestRun) =>
+      runner.run({
+        ...run,
+        organizationAgentVersionId: run.organizationAgentVersionId ?? null,
+      }),
+  } as TestRunner;
+};
 
 const definitionV2 = {
   ...definition,
@@ -79,6 +97,7 @@ describe('AgentRunner', () => {
     expect(resolve).toHaveBeenCalledWith('mastra');
     expect(run).toHaveBeenCalledWith({
       definition,
+      configuration: {},
       input: { question: 'hello' },
       context: [],
     });
@@ -127,6 +146,7 @@ describe('AgentRunner', () => {
 
     expect(run).toHaveBeenCalledWith({
       definition,
+      configuration: {},
       input: 'hello',
       context: [],
     });
@@ -141,6 +161,7 @@ describe('AgentRunner', () => {
 
     expect(run).toHaveBeenLastCalledWith({
       definition: definitionV2,
+      configuration: {},
       input: 'hello',
       context: [],
     });
@@ -164,6 +185,79 @@ describe('AgentRunner', () => {
       'Agent definition "test-support-agent@7" is not registered',
     );
     expect(resolve).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgentRunner organization configuration', () => {
+  const configuredDefinition = {
+    ...definition,
+    id: 'configured-agent',
+    organizationConfiguration: {
+      schema: z.object({ tone: z.enum(['plain', 'warm']) }).strict(),
+      defaultValue: { tone: 'plain' as const },
+    },
+  } as const;
+
+  const configuredRunner = (stored: unknown) => {
+    const runtimeRun = jest
+      .fn<(request: unknown) => Promise<{ output: string }>>()
+      .mockResolvedValue({ output: 'done' });
+    const configurationFor = jest
+      .fn<(run: unknown) => Promise<unknown>>()
+      .mockResolvedValue(stored);
+    const runtime: AgentRuntime = {
+      name: 'mastra',
+      run: (request) => runtimeRun(request),
+    };
+    const runner = new AgentRunner(
+      new AgentDefinitionRegistry([configuredDefinition]),
+      { resolve: () => runtime } as unknown as AgentRuntimeRegistry,
+      noContext as never,
+      { configurationFor } as never,
+    );
+
+    return { runner, runtimeRun, configurationFor };
+  };
+
+  const run = (organizationAgentVersionId: string | null) => ({
+    agentId: configuredDefinition.id,
+    agentVersion: 1,
+    runtime: 'mastra',
+    organizationId: 'org_1',
+    organizationAgentVersionId,
+    input: 'hello',
+  });
+
+  it('reloads and passes the parsed pinned configuration', async () => {
+    const { runner, runtimeRun, configurationFor } = configuredRunner({
+      tone: 'warm',
+    });
+
+    await expect(runner.run(run('version_1'))).resolves.toEqual({
+      output: 'done',
+    });
+    expect(configurationFor).toHaveBeenCalledWith(run('version_1'));
+    expect(runtimeRun).toHaveBeenCalledWith(
+      expect.objectContaining({ configuration: { tone: 'warm' } }),
+    );
+  });
+
+  it('refuses invalid pinned configuration before calling the runtime', async () => {
+    const { runner, runtimeRun } = configuredRunner({ tone: 'untrusted' });
+
+    await expect(runner.run(run('version_1'))).rejects.toBeInstanceOf(
+      AgentConfigurationError,
+    );
+    expect(runtimeRun).not.toHaveBeenCalled();
+  });
+
+  it('uses the definition-owned default for a legacy null-reference run', async () => {
+    const { runner, runtimeRun } = configuredRunner(null);
+
+    await expect(runner.run(run(null))).resolves.toEqual({ output: 'done' });
+    expect(runtimeRun).toHaveBeenCalledWith(
+      expect.objectContaining({ configuration: { tone: 'plain' } }),
+    );
   });
 });
 
