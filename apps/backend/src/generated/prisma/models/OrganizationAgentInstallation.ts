@@ -857,6 +857,10 @@ export type $OrganizationAgentInstallationPayload<ExtArgs extends runtime.Types.
   name: "OrganizationAgentInstallation"
   objects: {
     organization: Prisma.$OrganizationPayload<ExtArgs>
+    /**
+     * The owning migration defers this foreign key to transaction commit so a
+     * replacement can win pointer CAS before inserting its immutable version.
+     */
     activeVersion: Prisma.$OrganizationAgentVersionPayload<ExtArgs> | null
     versions: Prisma.$OrganizationAgentVersionPayload<ExtArgs>[]
   }

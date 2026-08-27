@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { ZodError } from 'zod';
 
@@ -168,18 +169,7 @@ export class OrganizationAgentInstallationService {
           throw new InstallationPointerConflict();
         }
 
-        const candidate = await tx.organizationAgentVersion.create({
-          data: {
-            organizationId,
-            installationId,
-            revision: current.revision + 1,
-            definitionVersion: desired.definitionVersion,
-            enabled: desired.enabled,
-            configuration: asJson(desired.configuration),
-            createdByUserId: actorUserId,
-          },
-          select: { id: true },
-        });
+        const candidateId = randomUUID();
 
         const switched = await tx.organizationAgentInstallation.updateMany({
           where: {
@@ -190,12 +180,28 @@ export class OrganizationAgentInstallationService {
           },
           data: {
             revision: { increment: 1 },
-            activeVersionId: candidate.id,
+            activeVersionId: candidateId,
           },
         });
 
-        // Throwing rolls the losing candidate row back with the transaction.
+        // The deferred active-pointer FK lets CAS run before candidate insert.
+        // A loser therefore writes no candidate; a later insert failure rolls
+        // this pointer change back with the transaction.
         if (switched.count !== 1) throw new InstallationPointerConflict();
+
+        await tx.organizationAgentVersion.create({
+          data: {
+            id: candidateId,
+            organizationId,
+            installationId,
+            revision: current.revision + 1,
+            definitionVersion: desired.definitionVersion,
+            enabled: desired.enabled,
+            configuration: asJson(desired.configuration),
+            createdByUserId: actorUserId,
+          },
+          select: { id: true },
+        });
 
         return tx.organizationAgentInstallation.findUniqueOrThrow({
           where: { id: installationId },

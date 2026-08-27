@@ -85,6 +85,13 @@ version.installationId)`, preventing one installation from pointing at another's
 version. Versions reference `(installation.id, installation.organizationId)`,
 so a version cannot claim a tenant different from its installation. The
 organization itself is restricted on delete, preserving this business history.
+`UNIQUE (installationId, revision)` prevents duplicate immutable revisions in
+one installation while allowing different installations to use the same
+revision numbers. The active-pointer foreign key is deferred to transaction
+commit so replacement can compare-and-swap the pointer before inserting the
+candidate: only the CAS winner writes revision N+1, while the unique constraint
+remains a separate database invariant. A candidate insert failure rolls the
+pointer update back with the same transaction.
 Version history keyset-pages by `(createdAt, id)` descending through the
 installation/organization predicates.
 

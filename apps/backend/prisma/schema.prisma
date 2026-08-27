@@ -224,11 +224,11 @@ model Member {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  userId         String
-  user           User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
   /// Comma-separated organization role names.
-  role           String       @default("member")
-  createdAt      DateTime     @default(now())
+  role      String   @default("member")
+  createdAt DateTime @default(now())
 
   @@index([organizationId])
   @@index([userId])
@@ -349,6 +349,8 @@ model OrganizationAgentInstallation {
   revision Int    @default(0)
 
   activeVersionId String?
+  /// The owning migration defers this foreign key to transaction commit so a
+  /// replacement can win pointer CAS before inserting its immutable version.
   activeVersion   OrganizationAgentVersion?  @relation("ActiveOrganizationAgentVersion", fields: [activeVersionId, id], references: [id, installationId], onDelete: Restrict)
   versions        OrganizationAgentVersion[] @relation("OrganizationAgentVersions")
 
@@ -392,6 +394,8 @@ model OrganizationAgentVersion {
   @@unique([id, installationId])
   /// Target for AgentRun's tenant-bound immutable version reference.
   @@unique([id, organizationId])
+  /// No installation may commit two immutable versions with one revision.
+  @@unique([installationId, revision], map: "organization_agent_version_installationId_revision_key")
   @@index([organizationId])
   @@index([installationId, createdAt, id])
   @@map("organization_agent_version")
@@ -660,9 +664,9 @@ model ControlPlaneAuditEvent {
   /// Which control-plane resource: `featureFlag`, `runtimeSetting`, or
   /// `managedSecret`. A string rather than an enum because adding a resource
   /// should not be a migration on a log table.
-  resource String
+  resource    String
   /// What was done to it, as `resource.verb` — `featureFlag.setOrganizationOverride`.
-  action String
+  action      String
   /// The registry key the action addressed.
   resourceKey String
 

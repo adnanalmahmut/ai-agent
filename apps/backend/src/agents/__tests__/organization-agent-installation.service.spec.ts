@@ -224,6 +224,75 @@ describe('OrganizationAgentInstallationService', () => {
     expect(createVersion).not.toHaveBeenCalled();
   });
 
+  it('wins pointer CAS before inserting the next immutable version', async () => {
+    const current = persistedInstallation();
+    const winner = persistedInstallation(
+      persistedVersion({
+        id: 'version-2',
+        revision: 2,
+        definitionVersion: 2,
+        configuration: { tone: 'warm', count: 4 },
+      }),
+    );
+    const switchPointer = jest.fn<
+      (input: unknown) => Promise<{ count: number }>
+    >(() => Promise.resolve({ count: 1 }));
+    const createVersion = jest.fn<(input: unknown) => Promise<{ id: string }>>(
+      () => Promise.resolve({ id: 'ignored' }),
+    );
+    const tx = {
+      organizationAgentInstallation: {
+        findFirst: jest.fn(() => Promise.resolve(current)),
+        updateMany: switchPointer,
+        findUniqueOrThrow: jest.fn(() => Promise.resolve(winner)),
+      },
+      organizationAgentVersion: { create: createVersion },
+    };
+    const prisma = {
+      $transaction: jest.fn((operation: (client: typeof tx) => unknown) =>
+        operation(tx),
+      ),
+    } as unknown as PrismaService;
+    const service = new OrganizationAgentInstallationService(
+      prisma,
+      registry(),
+    );
+
+    await expect(
+      service.replace(
+        'org-1',
+        'installation-1',
+        {
+          expectedRevision: 1,
+          definitionVersion: 2,
+          enabled: true,
+          configuration: { tone: 'warm', count: 4 },
+        },
+        'actor-1',
+      ),
+    ).resolves.toMatchObject({ revision: 2 });
+
+    const switchInput = switchPointer.mock.calls.at(0)?.[0];
+    if (switchInput === undefined)
+      throw new Error('pointer CAS was not called');
+    const candidateId = (switchInput as { data: { activeVersionId: string } })
+      .data.activeVersionId;
+    expect(createVersion).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: candidateId,
+        installationId: 'installation-1',
+        revision: 2,
+      }),
+      select: { id: true },
+    });
+    const switchOrder = switchPointer.mock.invocationCallOrder.at(0);
+    const createOrder = createVersion.mock.invocationCallOrder.at(0);
+    if (switchOrder === undefined || createOrder === undefined) {
+      throw new Error('expected both pointer CAS and version insert');
+    }
+    expect(switchOrder).toBeLessThan(createOrder);
+  });
+
   it('treats a stale request matching the winner as an idempotent success', async () => {
     const before = persistedInstallation();
     const winner = persistedInstallation(
@@ -269,6 +338,7 @@ describe('OrganizationAgentInstallationService', () => {
         'actor-1',
       ),
     ).resolves.toMatchObject({ revision: 2, activeVersionId: 'version-2' });
+    expect(tx.organizationAgentVersion.create).not.toHaveBeenCalled();
   });
 
   it('reports a stale different winner as a conflict', async () => {
