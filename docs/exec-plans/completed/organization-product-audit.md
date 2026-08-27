@@ -181,7 +181,25 @@ mutation introduced by PR 1.
 - [x] Focused validation
 - [x] Self-review and specialist reviews
 - [x] Aggregate validation
-- [ ] PR handoff
+- [x] PR handoff
+
+## Outcome
+
+- Added a separate organization-owned, append-only product-audit model with an
+  additive migration and committed generated Prisma client.
+- Added the closed `organizationBusinessProfile.replaced` writer with a bounded
+  safe before/after projection and authenticated actor attribution.
+- Made the business-profile compare-and-swap and audit append one PostgreSQL
+  transaction, preserving no-op, stale-conflict, and identical-winner
+  semantics while guaranteeing exactly one event for one durable change.
+- Added an owner/admin, tenant-rooted, cursor-paginated read API with no
+  mutation surface and tested negative role/cross-tenant behavior.
+- Verified rollback on forced append failure, both concurrent-writer cases,
+  canary exclusion, migration application from current and empty databases,
+  aggregate unit/E2E/build/docs contracts, and code/security review.
+- Opened PR #47 against `feat/organization-business-settings`; all five GitHub
+  checks passed on implementation handoff head
+  `6f665e1bdfd83fda0a82c7ba3a54c8be2b76aed8`.
 
 ## Decision log
 
@@ -210,6 +228,10 @@ mutation introduced by PR 1.
   server-derived, the organization id is guard-checked before query/body pipes,
   Prisma parameterizes every database value, and the only persisted payload is
   the closed business-profile projection verified with a secret-like canary.
+- 2026-08-27: PR #47 was opened on the recorded stacked base and its
+  implementation head passed agent harness, web, Platform, backend, and
+  container checks. The PR remains open for human review; no merge or
+  auto-merge action was taken.
 
 ## Blockers
 
