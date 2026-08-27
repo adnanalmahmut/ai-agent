@@ -20,8 +20,18 @@ export type OrganizationModel = runtime.Types.Result.DefaultSelection<Prisma.$Or
 
 export type AggregateOrganization = {
   _count: OrganizationCountAggregateOutputType | null
+  _avg: OrganizationAvgAggregateOutputType | null
+  _sum: OrganizationSumAggregateOutputType | null
   _min: OrganizationMinAggregateOutputType | null
   _max: OrganizationMaxAggregateOutputType | null
+}
+
+export type OrganizationAvgAggregateOutputType = {
+  businessProfileVersion: number | null
+}
+
+export type OrganizationSumAggregateOutputType = {
+  businessProfileVersion: number | null
 }
 
 export type OrganizationMinAggregateOutputType = {
@@ -31,6 +41,15 @@ export type OrganizationMinAggregateOutputType = {
   logo: string | null
   createdAt: Date | null
   metadata: string | null
+  locale: string | null
+  timezone: string | null
+  currency: string | null
+  legalName: string | null
+  industry: string | null
+  websiteUrl: string | null
+  businessDescription: string | null
+  businessProfileVersion: number | null
+  businessProfileUpdatedAt: Date | null
   archivedAt: Date | null
   archivedByUserId: string | null
   archiveReason: string | null
@@ -43,6 +62,15 @@ export type OrganizationMaxAggregateOutputType = {
   logo: string | null
   createdAt: Date | null
   metadata: string | null
+  locale: string | null
+  timezone: string | null
+  currency: string | null
+  legalName: string | null
+  industry: string | null
+  websiteUrl: string | null
+  businessDescription: string | null
+  businessProfileVersion: number | null
+  businessProfileUpdatedAt: Date | null
   archivedAt: Date | null
   archivedByUserId: string | null
   archiveReason: string | null
@@ -55,12 +83,29 @@ export type OrganizationCountAggregateOutputType = {
   logo: number
   createdAt: number
   metadata: number
+  locale: number
+  timezone: number
+  currency: number
+  legalName: number
+  industry: number
+  websiteUrl: number
+  businessDescription: number
+  businessProfileVersion: number
+  businessProfileUpdatedAt: number
   archivedAt: number
   archivedByUserId: number
   archiveReason: number
   _all: number
 }
 
+
+export type OrganizationAvgAggregateInputType = {
+  businessProfileVersion?: true
+}
+
+export type OrganizationSumAggregateInputType = {
+  businessProfileVersion?: true
+}
 
 export type OrganizationMinAggregateInputType = {
   id?: true
@@ -69,6 +114,15 @@ export type OrganizationMinAggregateInputType = {
   logo?: true
   createdAt?: true
   metadata?: true
+  locale?: true
+  timezone?: true
+  currency?: true
+  legalName?: true
+  industry?: true
+  websiteUrl?: true
+  businessDescription?: true
+  businessProfileVersion?: true
+  businessProfileUpdatedAt?: true
   archivedAt?: true
   archivedByUserId?: true
   archiveReason?: true
@@ -81,6 +135,15 @@ export type OrganizationMaxAggregateInputType = {
   logo?: true
   createdAt?: true
   metadata?: true
+  locale?: true
+  timezone?: true
+  currency?: true
+  legalName?: true
+  industry?: true
+  websiteUrl?: true
+  businessDescription?: true
+  businessProfileVersion?: true
+  businessProfileUpdatedAt?: true
   archivedAt?: true
   archivedByUserId?: true
   archiveReason?: true
@@ -93,6 +156,15 @@ export type OrganizationCountAggregateInputType = {
   logo?: true
   createdAt?: true
   metadata?: true
+  locale?: true
+  timezone?: true
+  currency?: true
+  legalName?: true
+  industry?: true
+  websiteUrl?: true
+  businessDescription?: true
+  businessProfileVersion?: true
+  businessProfileUpdatedAt?: true
   archivedAt?: true
   archivedByUserId?: true
   archiveReason?: true
@@ -137,6 +209,18 @@ export type OrganizationAggregateArgs<ExtArgs extends runtime.Types.Extensions.I
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: OrganizationAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: OrganizationSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: OrganizationMinAggregateInputType
@@ -167,6 +251,8 @@ export type OrganizationGroupByArgs<ExtArgs extends runtime.Types.Extensions.Int
   take?: number
   skip?: number
   _count?: OrganizationCountAggregateInputType | true
+  _avg?: OrganizationAvgAggregateInputType
+  _sum?: OrganizationSumAggregateInputType
   _min?: OrganizationMinAggregateInputType
   _max?: OrganizationMaxAggregateInputType
 }
@@ -178,10 +264,21 @@ export type OrganizationGroupByOutputType = {
   logo: string | null
   createdAt: Date
   metadata: string | null
+  locale: string
+  timezone: string
+  currency: string
+  legalName: string | null
+  industry: string | null
+  websiteUrl: string | null
+  businessDescription: string | null
+  businessProfileVersion: number
+  businessProfileUpdatedAt: Date
   archivedAt: Date | null
   archivedByUserId: string | null
   archiveReason: string | null
   _count: OrganizationCountAggregateOutputType | null
+  _avg: OrganizationAvgAggregateOutputType | null
+  _sum: OrganizationSumAggregateOutputType | null
   _min: OrganizationMinAggregateOutputType | null
   _max: OrganizationMaxAggregateOutputType | null
 }
@@ -211,6 +308,15 @@ export type OrganizationWhereInput = {
   logo?: Prisma.StringNullableFilter<"Organization"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   metadata?: Prisma.StringNullableFilter<"Organization"> | string | null
+  locale?: Prisma.StringFilter<"Organization"> | string
+  timezone?: Prisma.StringFilter<"Organization"> | string
+  currency?: Prisma.StringFilter<"Organization"> | string
+  legalName?: Prisma.StringNullableFilter<"Organization"> | string | null
+  industry?: Prisma.StringNullableFilter<"Organization"> | string | null
+  websiteUrl?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessDescription?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessProfileVersion?: Prisma.IntFilter<"Organization"> | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   archivedAt?: Prisma.DateTimeNullableFilter<"Organization"> | Date | string | null
   archivedByUserId?: Prisma.StringNullableFilter<"Organization"> | string | null
   archiveReason?: Prisma.StringNullableFilter<"Organization"> | string | null
@@ -218,6 +324,7 @@ export type OrganizationWhereInput = {
   invitations?: Prisma.InvitationListRelationFilter
   agentRuns?: Prisma.AgentRunListRelationFilter
   agentInstallations?: Prisma.OrganizationAgentInstallationListRelationFilter
+  auditEvents?: Prisma.OrganizationAuditEventListRelationFilter
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
   knowledgeSpaces?: Prisma.KnowledgeSpaceListRelationFilter
   knowledgeDocuments?: Prisma.KnowledgeDocumentListRelationFilter
@@ -231,6 +338,15 @@ export type OrganizationOrderByWithRelationInput = {
   logo?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrderInput | Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrderInput | Prisma.SortOrder
+  industry?: Prisma.SortOrderInput | Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessDescription?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   archiveReason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -238,6 +354,7 @@ export type OrganizationOrderByWithRelationInput = {
   invitations?: Prisma.InvitationOrderByRelationAggregateInput
   agentRuns?: Prisma.AgentRunOrderByRelationAggregateInput
   agentInstallations?: Prisma.OrganizationAgentInstallationOrderByRelationAggregateInput
+  auditEvents?: Prisma.OrganizationAuditEventOrderByRelationAggregateInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideOrderByRelationAggregateInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceOrderByRelationAggregateInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentOrderByRelationAggregateInput
@@ -254,6 +371,15 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   logo?: Prisma.StringNullableFilter<"Organization"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   metadata?: Prisma.StringNullableFilter<"Organization"> | string | null
+  locale?: Prisma.StringFilter<"Organization"> | string
+  timezone?: Prisma.StringFilter<"Organization"> | string
+  currency?: Prisma.StringFilter<"Organization"> | string
+  legalName?: Prisma.StringNullableFilter<"Organization"> | string | null
+  industry?: Prisma.StringNullableFilter<"Organization"> | string | null
+  websiteUrl?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessDescription?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessProfileVersion?: Prisma.IntFilter<"Organization"> | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   archivedAt?: Prisma.DateTimeNullableFilter<"Organization"> | Date | string | null
   archivedByUserId?: Prisma.StringNullableFilter<"Organization"> | string | null
   archiveReason?: Prisma.StringNullableFilter<"Organization"> | string | null
@@ -261,6 +387,7 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   invitations?: Prisma.InvitationListRelationFilter
   agentRuns?: Prisma.AgentRunListRelationFilter
   agentInstallations?: Prisma.OrganizationAgentInstallationListRelationFilter
+  auditEvents?: Prisma.OrganizationAuditEventListRelationFilter
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
   knowledgeSpaces?: Prisma.KnowledgeSpaceListRelationFilter
   knowledgeDocuments?: Prisma.KnowledgeDocumentListRelationFilter
@@ -274,12 +401,23 @@ export type OrganizationOrderByWithAggregationInput = {
   logo?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrderInput | Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrderInput | Prisma.SortOrder
+  industry?: Prisma.SortOrderInput | Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessDescription?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   archiveReason?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.OrganizationCountOrderByAggregateInput
+  _avg?: Prisma.OrganizationAvgOrderByAggregateInput
   _max?: Prisma.OrganizationMaxOrderByAggregateInput
   _min?: Prisma.OrganizationMinOrderByAggregateInput
+  _sum?: Prisma.OrganizationSumOrderByAggregateInput
 }
 
 export type OrganizationScalarWhereWithAggregatesInput = {
@@ -292,6 +430,15 @@ export type OrganizationScalarWhereWithAggregatesInput = {
   logo?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Organization"> | Date | string
   metadata?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  locale?: Prisma.StringWithAggregatesFilter<"Organization"> | string
+  timezone?: Prisma.StringWithAggregatesFilter<"Organization"> | string
+  currency?: Prisma.StringWithAggregatesFilter<"Organization"> | string
+  legalName?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  industry?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  websiteUrl?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  businessDescription?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  businessProfileVersion?: Prisma.IntWithAggregatesFilter<"Organization"> | number
+  businessProfileUpdatedAt?: Prisma.DateTimeWithAggregatesFilter<"Organization"> | Date | string
   archivedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Organization"> | Date | string | null
   archivedByUserId?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
   archiveReason?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
@@ -304,6 +451,15 @@ export type OrganizationCreateInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -311,6 +467,7 @@ export type OrganizationCreateInput = {
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
@@ -324,6 +481,15 @@ export type OrganizationUncheckedCreateInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -331,6 +497,7 @@ export type OrganizationUncheckedCreateInput = {
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
@@ -344,6 +511,15 @@ export type OrganizationUpdateInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -351,6 +527,7 @@ export type OrganizationUpdateInput = {
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
@@ -364,6 +541,15 @@ export type OrganizationUncheckedUpdateInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -371,6 +557,7 @@ export type OrganizationUncheckedUpdateInput = {
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -384,6 +571,15 @@ export type OrganizationCreateManyInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -396,6 +592,15 @@ export type OrganizationUpdateManyMutationInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -408,6 +613,15 @@ export type OrganizationUncheckedUpdateManyInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -420,9 +634,22 @@ export type OrganizationCountOrderByAggregateInput = {
   logo?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrder
+  industry?: Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrder
+  businessDescription?: Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrder
   archiveReason?: Prisma.SortOrder
+}
+
+export type OrganizationAvgOrderByAggregateInput = {
+  businessProfileVersion?: Prisma.SortOrder
 }
 
 export type OrganizationMaxOrderByAggregateInput = {
@@ -432,6 +659,15 @@ export type OrganizationMaxOrderByAggregateInput = {
   logo?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrder
+  industry?: Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrder
+  businessDescription?: Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrder
   archiveReason?: Prisma.SortOrder
@@ -444,9 +680,22 @@ export type OrganizationMinOrderByAggregateInput = {
   logo?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrder
+  industry?: Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrder
+  businessDescription?: Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrder
   archiveReason?: Prisma.SortOrder
+}
+
+export type OrganizationSumOrderByAggregateInput = {
+  businessProfileVersion?: Prisma.SortOrder
 }
 
 export type OrganizationScalarRelationFilter = {
@@ -524,6 +773,20 @@ export type OrganizationUpdateOneRequiredWithoutFeatureFlagOverridesNestedInput 
   update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutFeatureFlagOverridesInput, Prisma.OrganizationUpdateWithoutFeatureFlagOverridesInput>, Prisma.OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput>
 }
 
+export type OrganizationCreateNestedOneWithoutAuditEventsInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAuditEventsInput, Prisma.OrganizationUncheckedCreateWithoutAuditEventsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAuditEventsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+}
+
+export type OrganizationUpdateOneRequiredWithoutAuditEventsNestedInput = {
+  create?: Prisma.XOR<Prisma.OrganizationCreateWithoutAuditEventsInput, Prisma.OrganizationUncheckedCreateWithoutAuditEventsInput>
+  connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutAuditEventsInput
+  upsert?: Prisma.OrganizationUpsertWithoutAuditEventsInput
+  connect?: Prisma.OrganizationWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.OrganizationUpdateToOneWithWhereWithoutAuditEventsInput, Prisma.OrganizationUpdateWithoutAuditEventsInput>, Prisma.OrganizationUncheckedUpdateWithoutAuditEventsInput>
+}
+
 export type OrganizationCreateNestedOneWithoutKnowledgeSpacesInput = {
   create?: Prisma.XOR<Prisma.OrganizationCreateWithoutKnowledgeSpacesInput, Prisma.OrganizationUncheckedCreateWithoutKnowledgeSpacesInput>
   connectOrCreate?: Prisma.OrganizationCreateOrConnectWithoutKnowledgeSpacesInput
@@ -573,12 +836,22 @@ export type OrganizationCreateWithoutMembersInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
@@ -592,12 +865,22 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
@@ -627,12 +910,22 @@ export type OrganizationUpdateWithoutMembersInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
@@ -646,12 +939,22 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -665,12 +968,22 @@ export type OrganizationCreateWithoutInvitationsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
@@ -684,12 +997,22 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
@@ -719,12 +1042,22 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
@@ -738,12 +1071,22 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -757,12 +1100,22 @@ export type OrganizationCreateWithoutAgentRunsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
@@ -776,12 +1129,22 @@ export type OrganizationUncheckedCreateWithoutAgentRunsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
@@ -811,12 +1174,22 @@ export type OrganizationUpdateWithoutAgentRunsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
@@ -830,12 +1203,22 @@ export type OrganizationUncheckedUpdateWithoutAgentRunsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -849,12 +1232,22 @@ export type OrganizationCreateWithoutAgentInstallationsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
@@ -868,12 +1261,22 @@ export type OrganizationUncheckedCreateWithoutAgentInstallationsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
   members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
@@ -903,12 +1306,22 @@ export type OrganizationUpdateWithoutAgentInstallationsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
@@ -922,12 +1335,22 @@ export type OrganizationUncheckedUpdateWithoutAgentInstallationsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -941,6 +1364,15 @@ export type OrganizationCreateWithoutFeatureFlagOverridesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -948,6 +1380,7 @@ export type OrganizationCreateWithoutFeatureFlagOverridesInput = {
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
   knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
@@ -960,6 +1393,15 @@ export type OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -967,6 +1409,7 @@ export type OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput = {
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
@@ -995,6 +1438,15 @@ export type OrganizationUpdateWithoutFeatureFlagOverridesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1002,6 +1454,7 @@ export type OrganizationUpdateWithoutFeatureFlagOverridesInput = {
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
   knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
@@ -1014,6 +1467,15 @@ export type OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1021,6 +1483,139 @@ export type OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput = {
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationCreateWithoutAuditEventsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
+  agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationUncheckedCreateWithoutAuditEventsInput = {
+  id?: string
+  name: string
+  slug: string
+  logo?: string | null
+  createdAt?: Date | string
+  metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
+  archivedAt?: Date | string | null
+  archivedByUserId?: string | null
+  archiveReason?: string | null
+  members?: Prisma.MemberUncheckedCreateNestedManyWithoutOrganizationInput
+  invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
+  agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
+  agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
+}
+
+export type OrganizationCreateOrConnectWithoutAuditEventsInput = {
+  where: Prisma.OrganizationWhereUniqueInput
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAuditEventsInput, Prisma.OrganizationUncheckedCreateWithoutAuditEventsInput>
+}
+
+export type OrganizationUpsertWithoutAuditEventsInput = {
+  update: Prisma.XOR<Prisma.OrganizationUpdateWithoutAuditEventsInput, Prisma.OrganizationUncheckedUpdateWithoutAuditEventsInput>
+  create: Prisma.XOR<Prisma.OrganizationCreateWithoutAuditEventsInput, Prisma.OrganizationUncheckedCreateWithoutAuditEventsInput>
+  where?: Prisma.OrganizationWhereInput
+}
+
+export type OrganizationUpdateToOneWithWhereWithoutAuditEventsInput = {
+  where?: Prisma.OrganizationWhereInput
+  data: Prisma.XOR<Prisma.OrganizationUpdateWithoutAuditEventsInput, Prisma.OrganizationUncheckedUpdateWithoutAuditEventsInput>
+}
+
+export type OrganizationUpdateWithoutAuditEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
+  agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
+  knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
+  knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
+  knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
+}
+
+export type OrganizationUncheckedUpdateWithoutAuditEventsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  slug?: Prisma.StringFieldUpdateOperationsInput | string
+  logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  members?: Prisma.MemberUncheckedUpdateManyWithoutOrganizationNestedInput
+  invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
+  agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
+  agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -1033,6 +1628,15 @@ export type OrganizationCreateWithoutKnowledgeSpacesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1040,6 +1644,7 @@ export type OrganizationCreateWithoutKnowledgeSpacesInput = {
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
   knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
@@ -1052,6 +1657,15 @@ export type OrganizationUncheckedCreateWithoutKnowledgeSpacesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1059,6 +1673,7 @@ export type OrganizationUncheckedCreateWithoutKnowledgeSpacesInput = {
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
@@ -1087,6 +1702,15 @@ export type OrganizationUpdateWithoutKnowledgeSpacesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1094,6 +1718,7 @@ export type OrganizationUpdateWithoutKnowledgeSpacesInput = {
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
   knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
@@ -1106,6 +1731,15 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeSpacesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1113,6 +1747,7 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeSpacesInput = {
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -1125,6 +1760,15 @@ export type OrganizationCreateWithoutKnowledgeDocumentsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1132,6 +1776,7 @@ export type OrganizationCreateWithoutKnowledgeDocumentsInput = {
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeChunks?: Prisma.KnowledgeChunkCreateNestedManyWithoutOrganizationInput
@@ -1144,6 +1789,15 @@ export type OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1151,6 +1805,7 @@ export type OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput = {
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeChunks?: Prisma.KnowledgeChunkUncheckedCreateNestedManyWithoutOrganizationInput
@@ -1179,6 +1834,15 @@ export type OrganizationUpdateWithoutKnowledgeDocumentsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1186,6 +1850,7 @@ export type OrganizationUpdateWithoutKnowledgeDocumentsInput = {
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeChunks?: Prisma.KnowledgeChunkUpdateManyWithoutOrganizationNestedInput
@@ -1198,6 +1863,15 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeDocumentsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1205,6 +1879,7 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeDocumentsInput = {
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeChunks?: Prisma.KnowledgeChunkUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -1217,6 +1892,15 @@ export type OrganizationCreateWithoutKnowledgeChunksInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1224,6 +1908,7 @@ export type OrganizationCreateWithoutKnowledgeChunksInput = {
   invitations?: Prisma.InvitationCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentCreateNestedManyWithoutOrganizationInput
@@ -1236,6 +1921,15 @@ export type OrganizationUncheckedCreateWithoutKnowledgeChunksInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1243,6 +1937,7 @@ export type OrganizationUncheckedCreateWithoutKnowledgeChunksInput = {
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutOrganizationInput
   agentRuns?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutOrganizationInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedCreateNestedManyWithoutOrganizationInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedCreateNestedManyWithoutOrganizationInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedCreateNestedManyWithoutOrganizationInput
@@ -1271,6 +1966,15 @@ export type OrganizationUpdateWithoutKnowledgeChunksInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1278,6 +1982,7 @@ export type OrganizationUpdateWithoutKnowledgeChunksInput = {
   invitations?: Prisma.InvitationUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUpdateManyWithoutOrganizationNestedInput
@@ -1290,6 +1995,15 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeChunksInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1297,6 +2011,7 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeChunksInput = {
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutOrganizationNestedInput
   agentRuns?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationNestedInput
   agentInstallations?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutOrganizationNestedInput
+  auditEvents?: Prisma.OrganizationAuditEventUncheckedUpdateManyWithoutOrganizationNestedInput
   featureFlagOverrides?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeSpaces?: Prisma.KnowledgeSpaceUncheckedUpdateManyWithoutOrganizationNestedInput
   knowledgeDocuments?: Prisma.KnowledgeDocumentUncheckedUpdateManyWithoutOrganizationNestedInput
@@ -1312,6 +2027,7 @@ export type OrganizationCountOutputType = {
   invitations: number
   agentRuns: number
   agentInstallations: number
+  auditEvents: number
   featureFlagOverrides: number
   knowledgeSpaces: number
   knowledgeDocuments: number
@@ -1323,6 +2039,7 @@ export type OrganizationCountOutputTypeSelect<ExtArgs extends runtime.Types.Exte
   invitations?: boolean | OrganizationCountOutputTypeCountInvitationsArgs
   agentRuns?: boolean | OrganizationCountOutputTypeCountAgentRunsArgs
   agentInstallations?: boolean | OrganizationCountOutputTypeCountAgentInstallationsArgs
+  auditEvents?: boolean | OrganizationCountOutputTypeCountAuditEventsArgs
   featureFlagOverrides?: boolean | OrganizationCountOutputTypeCountFeatureFlagOverridesArgs
   knowledgeSpaces?: boolean | OrganizationCountOutputTypeCountKnowledgeSpacesArgs
   knowledgeDocuments?: boolean | OrganizationCountOutputTypeCountKnowledgeDocumentsArgs
@@ -1370,6 +2087,13 @@ export type OrganizationCountOutputTypeCountAgentInstallationsArgs<ExtArgs exten
 /**
  * OrganizationCountOutputType without action
  */
+export type OrganizationCountOutputTypeCountAuditEventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.OrganizationAuditEventWhereInput
+}
+
+/**
+ * OrganizationCountOutputType without action
+ */
 export type OrganizationCountOutputTypeCountFeatureFlagOverridesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.FeatureFlagOrganizationOverrideWhereInput
 }
@@ -1403,6 +2127,15 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
@@ -1410,6 +2143,7 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   agentRuns?: boolean | Prisma.Organization$agentRunsArgs<ExtArgs>
   agentInstallations?: boolean | Prisma.Organization$agentInstallationsArgs<ExtArgs>
+  auditEvents?: boolean | Prisma.Organization$auditEventsArgs<ExtArgs>
   featureFlagOverrides?: boolean | Prisma.Organization$featureFlagOverridesArgs<ExtArgs>
   knowledgeSpaces?: boolean | Prisma.Organization$knowledgeSpacesArgs<ExtArgs>
   knowledgeDocuments?: boolean | Prisma.Organization$knowledgeDocumentsArgs<ExtArgs>
@@ -1424,6 +2158,15 @@ export type OrganizationSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
@@ -1436,6 +2179,15 @@ export type OrganizationSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
@@ -1448,17 +2200,27 @@ export type OrganizationSelectScalar = {
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
 }
 
-export type OrganizationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "slug" | "logo" | "createdAt" | "metadata" | "archivedAt" | "archivedByUserId" | "archiveReason", ExtArgs["result"]["organization"]>
+export type OrganizationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "slug" | "logo" | "createdAt" | "metadata" | "locale" | "timezone" | "currency" | "legalName" | "industry" | "websiteUrl" | "businessDescription" | "businessProfileVersion" | "businessProfileUpdatedAt" | "archivedAt" | "archivedByUserId" | "archiveReason", ExtArgs["result"]["organization"]>
 export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
   agentRuns?: boolean | Prisma.Organization$agentRunsArgs<ExtArgs>
   agentInstallations?: boolean | Prisma.Organization$agentInstallationsArgs<ExtArgs>
+  auditEvents?: boolean | Prisma.Organization$auditEventsArgs<ExtArgs>
   featureFlagOverrides?: boolean | Prisma.Organization$featureFlagOverridesArgs<ExtArgs>
   knowledgeSpaces?: boolean | Prisma.Organization$knowledgeSpacesArgs<ExtArgs>
   knowledgeDocuments?: boolean | Prisma.Organization$knowledgeDocumentsArgs<ExtArgs>
@@ -1475,6 +2237,7 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     invitations: Prisma.$InvitationPayload<ExtArgs>[]
     agentRuns: Prisma.$AgentRunPayload<ExtArgs>[]
     agentInstallations: Prisma.$OrganizationAgentInstallationPayload<ExtArgs>[]
+    auditEvents: Prisma.$OrganizationAuditEventPayload<ExtArgs>[]
     featureFlagOverrides: Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>[]
     knowledgeSpaces: Prisma.$KnowledgeSpacePayload<ExtArgs>[]
     knowledgeDocuments: Prisma.$KnowledgeDocumentPayload<ExtArgs>[]
@@ -1487,6 +2250,24 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     logo: string | null
     createdAt: Date
     metadata: string | null
+    /**
+     * Product defaults and a deliberately small typed business profile.
+     * Better Auth ignores these extra columns; application routes own them.
+     */
+    locale: string
+    timezone: string
+    currency: string
+    legalName: string | null
+    industry: string | null
+    websiteUrl: string | null
+    businessDescription: string | null
+    /**
+     * Optimistic compare-and-swap token for the business settings surface.
+     * Kept separate from Better Auth's name/slug writes so unrelated profile
+     * changes cannot manufacture a settings conflict.
+     */
+    businessProfileVersion: number
+    businessProfileUpdatedAt: Date
     /**
      * Set when the organization is archived. Every member, invitation and
      * business resource survives; the organization simply becomes operationally
@@ -1898,6 +2679,7 @@ export interface Prisma__OrganizationClient<T, Null = never, ExtArgs extends run
   invitations<T extends Prisma.Organization$invitationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$invitationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InvitationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   agentRuns<T extends Prisma.Organization$agentRunsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentRunsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentRunPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   agentInstallations<T extends Prisma.Organization$agentInstallationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$agentInstallationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationAgentInstallationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  auditEvents<T extends Prisma.Organization$auditEventsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$auditEventsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$OrganizationAuditEventPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   featureFlagOverrides<T extends Prisma.Organization$featureFlagOverridesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$featureFlagOverridesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   knowledgeSpaces<T extends Prisma.Organization$knowledgeSpacesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$knowledgeSpacesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$KnowledgeSpacePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   knowledgeDocuments<T extends Prisma.Organization$knowledgeDocumentsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.Organization$knowledgeDocumentsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$KnowledgeDocumentPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -1937,6 +2719,15 @@ export interface OrganizationFieldRefs {
   readonly logo: Prisma.FieldRef<"Organization", 'String'>
   readonly createdAt: Prisma.FieldRef<"Organization", 'DateTime'>
   readonly metadata: Prisma.FieldRef<"Organization", 'String'>
+  readonly locale: Prisma.FieldRef<"Organization", 'String'>
+  readonly timezone: Prisma.FieldRef<"Organization", 'String'>
+  readonly currency: Prisma.FieldRef<"Organization", 'String'>
+  readonly legalName: Prisma.FieldRef<"Organization", 'String'>
+  readonly industry: Prisma.FieldRef<"Organization", 'String'>
+  readonly websiteUrl: Prisma.FieldRef<"Organization", 'String'>
+  readonly businessDescription: Prisma.FieldRef<"Organization", 'String'>
+  readonly businessProfileVersion: Prisma.FieldRef<"Organization", 'Int'>
+  readonly businessProfileUpdatedAt: Prisma.FieldRef<"Organization", 'DateTime'>
   readonly archivedAt: Prisma.FieldRef<"Organization", 'DateTime'>
   readonly archivedByUserId: Prisma.FieldRef<"Organization", 'String'>
   readonly archiveReason: Prisma.FieldRef<"Organization", 'String'>
@@ -2426,6 +3217,30 @@ export type Organization$agentInstallationsArgs<ExtArgs extends runtime.Types.Ex
   take?: number
   skip?: number
   distinct?: Prisma.OrganizationAgentInstallationScalarFieldEnum | Prisma.OrganizationAgentInstallationScalarFieldEnum[]
+}
+
+/**
+ * Organization.auditEvents
+ */
+export type Organization$auditEventsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the OrganizationAuditEvent
+   */
+  select?: Prisma.OrganizationAuditEventSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the OrganizationAuditEvent
+   */
+  omit?: Prisma.OrganizationAuditEventOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.OrganizationAuditEventInclude<ExtArgs> | null
+  where?: Prisma.OrganizationAuditEventWhereInput
+  orderBy?: Prisma.OrganizationAuditEventOrderByWithRelationInput | Prisma.OrganizationAuditEventOrderByWithRelationInput[]
+  cursor?: Prisma.OrganizationAuditEventWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.OrganizationAuditEventScalarFieldEnum | Prisma.OrganizationAuditEventScalarFieldEnum[]
 }
 
 /**

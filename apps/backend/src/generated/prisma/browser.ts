@@ -165,6 +165,18 @@ export type ManagedSecret = Prisma.ManagedSecretModel
  */
 export type ControlPlaneAuditEvent = Prisma.ControlPlaneAuditEventModel
 /**
+ * Model OrganizationAuditEvent
+ * An append-only record of one organization-owned product mutation.
+ * 
+ * This is deliberately separate from `ControlPlaneAuditEvent`: product
+ * history belongs to a tenant and is authorized through organization
+ * membership, while control-plane history belongs to platform operators.
+ * Application code only creates and lists these rows; it exposes no update or
+ * delete operation. The owning migration also installs a PostgreSQL trigger
+ * that rejects UPDATE and DELETE issued through any database client.
+ */
+export type OrganizationAuditEvent = Prisma.OrganizationAuditEventModel
+/**
  * Model KnowledgeSpace
  * A named collection of documents inside one organization.
  * 

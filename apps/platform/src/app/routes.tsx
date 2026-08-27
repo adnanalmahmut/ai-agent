@@ -13,6 +13,7 @@ import {
 } from '@/features/auth/routes';
 import {
   invitationLoader,
+  organizationBusinessProfileLoader,
   organizationLoader,
   organizationsLoader,
   ORGANIZATION_ROUTE_ID,
@@ -266,6 +267,7 @@ export function createRoutes(): RouteObject[] {
                                 },
                                 {
                                   path: 'settings',
+                                  loader: organizationBusinessProfileLoader,
                                   lazy: {
                                     Component: async () =>
                                       (await organizationModule())
@@ -291,9 +293,8 @@ export function createRoutes(): RouteObject[] {
                           path: rel(PLATFORM_ROUTES.adminUsers),
                           lazy: {
                             Component: async () =>
-                              (
-                                await import('@/routes/admin/admin-users-route')
-                              ).AdminUsersRoute,
+                              (await import('@/routes/admin/admin-users-route'))
+                                .AdminUsersRoute,
                           },
                         },
 
