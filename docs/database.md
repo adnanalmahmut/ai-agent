@@ -26,7 +26,19 @@ deletion is restricted so tenant history cannot be orphaned or silently
 removed. Reads are served by `(organizationId, occurredAt, id)` descending;
 the second index supports the history of one subject without weakening the
 tenant predicate. The application exposes create-in-transaction and bounded
-list operations only—no update or delete operation.
+list operations only—no update or delete operation. PostgreSQL independently
+enforces the same boundary with a `BEFORE UPDATE OR DELETE` trigger that raises
+`organization_audit_event_append_only`, so direct Prisma and raw-SQL mutation
+attempts using the application role fail as well. INSERT and SELECT remain
+available.
+
+Product audit history is retained indefinitely until a concrete product or
+legal retention requirement is approved. Current volume is bounded by real
+product mutations and reads are tenant-indexed and paginated; guessing a
+deletion window now could destroy accountability evidence. If retention is
+introduced later, a separately reviewed migration/policy must deliberately
+revise the PostgreSQL append-only protection. There is no hidden deletion
+bypass for hypothetical future retention.
 
 `agent_run` is the durable business authority for accepted background agent
 work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,

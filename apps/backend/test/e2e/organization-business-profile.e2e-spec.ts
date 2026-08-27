@@ -72,6 +72,7 @@ describe('organization business profile', () => {
   let superAdmin: TestUser;
   let organizationId: string;
   let otherOrganizationId: string;
+  let organizationSequence = 0;
 
   const path = (id = organizationId) =>
     `/organizations/${encodeURIComponent(id)}/business-profile`;
@@ -121,10 +122,7 @@ describe('organization business profile', () => {
     outsider = await createUser(harness);
     superAdmin = await createUser(harness, { role: 'super_admin' });
 
-    organizationId = await createOrganization(owner, 'profile-acme');
     otherOrganizationId = await createOrganization(outsider, 'profile-other');
-    await addMember(admin, 'admin');
-    await addMember(member, 'member');
   });
 
   afterAll(async () => {
@@ -132,23 +130,16 @@ describe('organization business profile', () => {
   });
 
   beforeEach(async () => {
-    await harness.prisma.organizationAuditEvent.deleteMany({
-      where: { organizationId },
-    });
-    await harness.prisma.organization.update({
-      where: { id: organizationId },
-      data: {
-        locale: 'ar',
-        timezone: 'UTC',
-        currency: 'USD',
-        legalName: null,
-        industry: null,
-        websiteUrl: null,
-        businessDescription: null,
-        businessProfileVersion: 1,
-        businessProfileUpdatedAt: new Date('2026-08-27T00:00:00.000Z'),
-      },
-    });
+    // Audit rows cannot be deleted even by the application's database role.
+    // Give every case a fresh tenant instead of weakening the invariant for
+    // test cleanup or relying on history left by an earlier case.
+    organizationSequence += 1;
+    organizationId = await createOrganization(
+      owner,
+      `profile-acme-${organizationSequence}`,
+    );
+    await addMember(admin, 'admin');
+    await addMember(member, 'member');
   });
 
   it('returns complete defaults to an authorized organization admin', async () => {
@@ -230,6 +221,55 @@ describe('organization business profile', () => {
       },
     });
     expect(JSON.stringify(events[0])).not.toContain('metadata');
+  });
+
+  it('allows insert/list but rejects direct database update and delete', async () => {
+    const inserted = await harness.prisma.organizationAuditEvent.create({
+      data: {
+        organizationId,
+        actorUserId: owner.id,
+        action: 'organizationBusinessProfile.replaced',
+        subjectType: 'organizationBusinessProfile',
+        subjectId: organizationId,
+      },
+    });
+
+    await expect(
+      harness.prisma.organizationAuditEvent.update({
+        where: { id: inserted.id },
+        data: { action: 'tampered' },
+      }),
+    ).rejects.toThrow(/organization_audit_event_append_only/);
+
+    await expect(
+      harness.prisma.$executeRaw`
+        UPDATE "organization_audit_event"
+        SET "action" = 'raw-sql-tampered'
+        WHERE "id" = ${inserted.id}
+      `,
+    ).rejects.toThrow(/organization_audit_event_append_only/);
+
+    await expect(
+      harness.prisma.$executeRaw`
+        DELETE FROM "organization_audit_event"
+        WHERE "id" = ${inserted.id}
+      `,
+    ).rejects.toThrow(/organization_audit_event_append_only/);
+
+    await expect(
+      harness.prisma.organizationAuditEvent.findUniqueOrThrow({
+        where: { id: inserted.id },
+      }),
+    ).resolves.toMatchObject({
+      id: inserted.id,
+      action: 'organizationBusinessProfile.replaced',
+      subjectId: organizationId,
+    });
+
+    const response = await as(harness, owner).get(auditPath()).expect(200);
+    expect(dataOf<AuditPageBody>(response.body).items).toEqual([
+      expect.objectContaining({ id: inserted.id, organizationId }),
+    ]);
   });
 
   it('runs authorization before validation on writes', async () => {
@@ -336,12 +376,19 @@ describe('organization business profile', () => {
   });
 
   it('rolls back the profile update when the audit append fails', async () => {
+    const original =
+      OrganizationAuditService.prototype.recordBusinessProfileReplacement.bind(
+        OrganizationAuditService.prototype,
+      );
     const append = jest
       .spyOn(
         OrganizationAuditService.prototype,
         'recordBusinessProfileReplacement',
       )
-      .mockRejectedValueOnce(new Error('forced audit append failure'));
+      .mockImplementationOnce(async (...args) => {
+        await original(...args);
+        throw new Error('forced failure after audit append');
+      });
 
     try {
       await as(harness, owner).put(path(), replacement()).expect(500);

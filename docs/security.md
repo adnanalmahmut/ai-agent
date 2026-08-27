@@ -57,7 +57,11 @@ Primary boundaries:
   `organization:update`, so only organization admins/owners who may see those
   settings can see their history; ordinary members, outsiders, and non-member
   global operators gain no tenant visibility. No update/delete service or HTTP
-  route exists for product audit rows.
+  route exists for product audit rows, and a PostgreSQL trigger rejects direct
+  UPDATE/DELETE statements issued through the shared application role. History
+  is retained indefinitely until an approved product/legal requirement defines
+  another policy; any future deletion path must deliberately revise that
+  database invariant in a separately reviewed migration.
 - Agent context: what an agent may read is declared on its definition as a
   `ContextPolicy` naming knowledge spaces by slug, and the slugs are resolved
   against the caller's own organization at assembly time — so a definition

@@ -20,7 +20,8 @@ import type * as Prisma from "../internal/prismaNamespace.js"
  * history belongs to a tenant and is authorized through organization
  * membership, while control-plane history belongs to platform operators.
  * Application code only creates and lists these rows; it exposes no update or
- * delete operation.
+ * delete operation. The owning migration also installs a PostgreSQL trigger
+ * that rejects UPDATE and DELETE issued through any database client.
  */
 export type OrganizationAuditEventModel = runtime.Types.Result.DefaultSelection<Prisma.$OrganizationAuditEventPayload>
 

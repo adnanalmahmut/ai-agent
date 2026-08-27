@@ -49,7 +49,10 @@ business-profile fields. There is no generic metadata or request-body input.
 `GET /organizations/:organizationId/audit-events` is rooted in the path tenant,
 guarded by `organization:update`, bounded to 100 rows, and keyset-paged newest
 first on `(occurredAt, id)`. No application route or service updates or deletes
-product history.
+product history; PostgreSQL also rejects direct UPDATE and DELETE statements on
+the table. Organizations must treat the API as indefinitely retained history
+until a separately approved product/legal retention policy revises the database
+guard.
 
 The agent feature provides internal durable acceptance and background execution
 infrastructure. `AgentRunService` commits an application-owned AgentRun and its

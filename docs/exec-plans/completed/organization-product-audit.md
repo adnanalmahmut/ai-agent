@@ -47,7 +47,8 @@ mutation introduced by PR 1.
 - A Platform activity screen. The authorized paginated API is the visibility
   surface for this bounded foundation; a UI can be added only with separately
   approved product scope.
-- Retention, export, search, reporting, webhooks, queues, or notifications.
+- Retention workers, queues, cron, archival, partitioning, TTL, automatic
+  deletion, legal holds, export, search, reporting, webhooks, or notifications.
 - Reading or changing Staging, Production, secrets, deployment state, or the
   stale OPS-03 documentation carried outside this train.
 
@@ -65,8 +66,9 @@ mutation introduced by PR 1.
 - A real mutation and its audit row commit or roll back together. The audit
   service exposes no standalone write path.
 - No-op, stale-conflict, invalid, and unauthorized requests append nothing.
-- Rows are immutable through the application: no update/delete service method
-  and no update/delete HTTP route.
+- Rows are immutable through the application and PostgreSQL: no update/delete
+  service method or route exists, and a table trigger refuses every UPDATE or
+  DELETE issued through Prisma or raw SQL using the application role.
 - Listing defaults to 25 items, refuses limits outside 1..100, and uses a
   `(occurredAt, id)` descending keyset cursor.
 - The migration is additive and rollback-compatible with the ORG-01 image.
@@ -102,6 +104,15 @@ mutation introduced by PR 1.
 - Control-plane cursor mechanics are followed as a proven local convention but
   not generalized into shared audit infrastructure; the domains remain
   deliberately independent.
+- The migration and runtime currently share one PostgreSQL role. Rather than
+  inventing a role/grant framework, the owning migration installs a focused
+  `BEFORE UPDATE OR DELETE` trigger on `organization_audit_event`. INSERT and
+  SELECT remain available; there is no application escape hatch.
+- Audit history is retained indefinitely until a concrete product/legal
+  retention requirement exists. Volume is currently bounded by real product
+  mutations and reads are tenant-indexed and paginated; guessing a deletion
+  period could destroy accountability evidence. Any later retention policy
+  must deliberately revise the trigger in a separately reviewed migration.
 
 ## Acceptance criteria
 
@@ -123,7 +134,8 @@ mutation introduced by PR 1.
   query validation.
 - Audit rows expose no arbitrary request data, unrelated organization data, or
   secret-like canary sent in an unknown field.
-- No application update/delete operation exists for product audit events.
+- No application update/delete operation exists for product audit events, and
+  direct database UPDATE/DELETE attempts are rejected without changing rows.
 - Existing control-plane audit, organization settings, auth, and tenant
   behavior remain unchanged.
 
@@ -149,8 +161,8 @@ mutation introduced by PR 1.
 
 - Focused unit and E2E output, including negative tenant/authorization and
   concurrent-writer results.
-- Direct database assertions for exactly-once append and safe before/after
-  state.
+- Direct database assertions for insert/list success, UPDATE/DELETE refusal,
+  unchanged original state, exactly-once append, and safe before/after state.
 - A forced audit-append failure proving transaction rollback.
 - Migration SQL/schema diff and clean migration application evidence.
 - Final reviewed diff, commit SHA, PR URL/base/head, and final-head GitHub
@@ -164,9 +176,11 @@ mutation introduced by PR 1.
 - A transaction changes the timing of the existing optimistic update. Focused
   concurrent E2E preserves both different-writer conflict behavior and
   identical-writer idempotency.
-- Audit history grows monotonically. This slice bounds reads and indexes the
-  tenant timeline; retention is deferred until product/legal requirements
-  exist rather than guessed here.
+- Audit history grows monotonically and is intentionally retained indefinitely.
+  This slice bounds reads and indexes the tenant timeline; retention is deferred
+  until product/legal requirements exist rather than guessed here. Introducing
+  it later requires deliberate revision of the PostgreSQL trigger, not a hidden
+  bypass today.
 - Rollback is the ORG-01 image. Its additive profile code ignores the new table;
   the table remains until a separately planned contraction.
 
@@ -232,6 +246,13 @@ mutation introduced by PR 1.
   implementation head passed agent harness, web, Platform, backend, and
   container checks. The PR remains open for human review; no merge or
   auto-merge action was taken.
+- 2026-08-27: Review hardening made append-only behavior a database invariant.
+  Because migration and runtime use the same PostgreSQL role, the smallest
+  compatible mechanism is a table-local trigger refusing UPDATE and DELETE;
+  no role hierarchy or operational secret change was introduced. Retention is
+  explicitly indefinite until an approved product/legal requirement exists,
+  and any future retention policy must revise the trigger through separate
+  review.
 
 ## Blockers
 
