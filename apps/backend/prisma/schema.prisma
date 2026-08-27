@@ -189,6 +189,23 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
+  // --- Application-owned business settings -------------------------------
+  /// Product defaults and a deliberately small typed business profile.
+  /// Better Auth ignores these extra columns; application routes own them.
+  locale              String  @default("ar")
+  timezone            String  @default("UTC")
+  currency            String  @default("USD")
+  legalName           String?
+  industry            String?
+  websiteUrl          String?
+  businessDescription String?
+
+  /// Optimistic compare-and-swap token for the business settings surface.
+  /// Kept separate from Better Auth's name/slug writes so unrelated profile
+  /// changes cannot manufacture a settings conflict.
+  businessProfileVersion   Int      @default(1)
+  businessProfileUpdatedAt DateTime @default(now())
+
   // --- Application organization lifecycle -----------------------------------
   /// Set when the organization is archived. Every member, invitation and
   /// business resource survives; the organization simply becomes operationally
@@ -207,6 +224,7 @@ model Organization {
   agentRuns   AgentRun[]
 
   agentInstallations OrganizationAgentInstallation[]
+  auditEvents OrganizationAuditEvent[]
 
   featureFlagOverrides FeatureFlagOrganizationOverride[]
 
@@ -688,6 +706,45 @@ model ControlPlaneAuditEvent {
   @@index([resource, resourceKey, occurredAt])
   @@index([organizationId, occurredAt])
   @@map("control_plane_audit_event")
+}
+
+/// An append-only record of one organization-owned product mutation.
+///
+/// This is deliberately separate from `ControlPlaneAuditEvent`: product
+/// history belongs to a tenant and is authorized through organization
+/// membership, while control-plane history belongs to platform operators.
+/// Application code only creates and lists these rows; it exposes no update or
+/// delete operation. The owning migration also installs a PostgreSQL trigger
+/// that rejects UPDATE and DELETE issued through any database client.
+model OrganizationAuditEvent {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  /// When the mutation committed. The listing pages on `(occurredAt, id)` so
+  /// events sharing a timestamp still have a stable total order.
+  occurredAt DateTime @default(now())
+
+  /// Who performed the mutation. Deliberately not a relation: attribution must
+  /// survive a future actor-lifecycle change rather than blocking it or being
+  /// nulled by a foreign-key action.
+  actorUserId String?
+
+  /// Closed by application types, stored as strings so widening the product
+  /// vocabulary does not require a database enum migration.
+  action      String
+  subjectType String
+  subjectId   String
+
+  /// Closed safe projections owned by each product action. Never request
+  /// bodies or general-purpose metadata.
+  before Json?
+  after  Json?
+
+  @@index([organizationId, occurredAt, id])
+  @@index([organizationId, subjectType, subjectId, occurredAt])
+  @@map("organization_audit_event")
 }
 
 // ---------------------------------------------------------------------------

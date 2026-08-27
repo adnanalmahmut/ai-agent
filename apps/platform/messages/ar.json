@@ -347,7 +347,16 @@
       "organizationSlugRequired": "أدخل عنوانًا للمؤسسة.",
       "organizationSlugTooShort": "العنوان قصير جدًا.",
       "organizationSlugTooLong": "العنوان طويل جدًا.",
-      "organizationSlugInvalid": "استخدم حروفًا إنجليزية صغيرة وأرقامًا وشرطات مفردة."
+      "organizationSlugInvalid": "استخدم حروفًا إنجليزية صغيرة وأرقامًا وشرطات مفردة.",
+      "businessLocaleInvalid": "اختر لغة مدعومة.",
+      "businessTimezoneRequired": "اختر منطقة زمنية.",
+      "businessTimezoneInvalid": "اختر معرّف منطقة زمنية صحيحًا من IANA.",
+      "businessCurrencyInvalid": "اختر رمز عملة ISO صحيحًا.",
+      "businessLegalNameTooLong": "الاسم القانوني طويل جدًا.",
+      "businessIndustryTooLong": "اسم القطاع طويل جدًا.",
+      "businessWebsiteTooLong": "عنوان الموقع طويل جدًا.",
+      "businessWebsiteInvalid": "استخدم عنوان موقع يبدأ بـ http أو https.",
+      "businessDescriptionTooLong": "وصف النشاط طويل جدًا."
     },
     "errors": {
       "title": "حدث خطأ ما",
@@ -436,6 +445,7 @@
       "ROLE_NOT_ALLOWED": "لا يُسمح لك بمنح هذا الدور.",
       "LAST_OWNER": "لا بد أن يكون للمؤسسة مالك واحد على الأقل. عيّن شخصًا آخر مالكًا أولًا.",
       "EMAIL_VERIFICATION_REQUIRED": "أكّد بريدك الإلكتروني قبل القيام بذلك.",
+      "PROFILE_CONFLICT": "تغيّرت هذه الإعدادات في مكان آخر. راجع القيم الأحدث ثم أعد المحاولة.",
       "RATE_LIMITED": "محاولات كثيرة. انتظر قليلًا ثم أعد المحاولة.",
       "NETWORK_ERROR": "تعذّر الوصول إلى الخادم. تحقّق من اتصالك وأعد المحاولة.",
       "UNKNOWN": "حدث خطأ ما. أعد المحاولة."
@@ -548,7 +558,26 @@
       "archiveConfirmDescription": "ستخرج {organization} من الخدمة لكل الأعضاء حتى يستعيدها أحدهم.",
       "archiveConfirm": "أرشفة المؤسسة",
       "cancel": "إلغاء",
-      "restoreAction": "استعادة"
+      "restoreAction": "استعادة",
+      "business": {
+        "title": "الإعدادات الافتراضية للنشاط",
+        "description": "إعدادات منظّمة تستخدمها لاحقًا المطالبات والجداول الزمنية والتحليلات والفوترة.",
+        "locale": "اللغة الافتراضية",
+        "timezone": "المنطقة الزمنية",
+        "currency": "العملة",
+        "locales": {
+          "ar": "العربية",
+          "en": "الإنجليزية"
+        },
+        "legalName": "الاسم القانوني للنشاط",
+        "industry": "القطاع",
+        "website": "الموقع الإلكتروني",
+        "websiteHint": "عنوان يبدأ بـ http أو https.",
+        "businessDescription": "وصف النشاط",
+        "businessDescriptionHint": "وصف واقعي وموجز. لا تدخل بيانات اعتماد أو بيانات خاصة بالعملاء.",
+        "save": "حفظ إعدادات النشاط",
+        "saved": "تم حفظ إعدادات النشاط."
+      }
     },
     "archived": {
       "title": "هذه المؤسسة مؤرشفة",

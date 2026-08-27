@@ -6,6 +6,7 @@ import {
   ORGANIZATION_SLUG_MAX_LENGTH,
   createOrganizationSchema,
   inviteMemberSchema,
+  organizationBusinessProfileSchema,
   suggestSlug,
   updateOrganizationSchema,
 } from './organization-validation';
@@ -47,7 +48,9 @@ describe('creating an organization', () => {
   });
 
   it('accepts digits and single hyphens', () => {
-    expect(issues({ name: 'Acme', slug: 'acme-2026-labs' }).slug).toBeUndefined();
+    expect(
+      issues({ name: 'Acme', slug: 'acme-2026-labs' }).slug,
+    ).toBeUndefined();
   });
 
   it('lowercases a slug rather than rejecting the case', () => {
@@ -70,6 +73,56 @@ describe('creating an organization', () => {
 
     expect(issues({ name: 'Acme', slug }).slug).toBe('organizationSlugTooLong');
   });
+});
+
+describe('validating organization business defaults', () => {
+  const valid = () => ({
+    version: 1,
+    locale: 'ar',
+    timezone: 'UTC',
+    currency: 'USD',
+    legalName: '',
+    industry: '',
+    websiteUrl: '',
+    businessDescription: '',
+  });
+
+  it('normalizes identifiers and empty optional fields', () => {
+    const parsed = validate(organizationBusinessProfileSchema, {
+      ...valid(),
+      timezone: 'europe/istanbul',
+      currency: 'try',
+    });
+
+    expect(parsed.ok && parsed.values).toMatchObject({
+      timezone: 'Europe/Istanbul',
+      currency: 'TRY',
+      legalName: null,
+      websiteUrl: null,
+    });
+  });
+
+  it.each([
+    ['locale', { locale: 'fr' }, 'businessLocaleInvalid'],
+    ['timezone', { timezone: 'Mars/Olympus' }, 'businessTimezoneInvalid'],
+    ['currency', { currency: 'ZZZ' }, 'businessCurrencyInvalid'],
+    [
+      'websiteUrl',
+      { websiteUrl: 'javascript:alert(1)' },
+      'businessWebsiteInvalid',
+    ],
+  ] as const)(
+    'returns a translation key for an invalid %s',
+    (field, changed, issue) => {
+      const parsed = validate(organizationBusinessProfileSchema, {
+        ...valid(),
+        ...changed,
+      });
+
+      expect(parsed.ok).toBe(false);
+      expect(parsed.ok === false && parsed.issues[field]).toBe(issue);
+    },
+  );
 });
 
 describe('updating an organization', () => {

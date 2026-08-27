@@ -25,6 +25,35 @@ Mail is provider-selected (`log`, SMTP, Resend, or SES) behind `MailService`.
 Provider credentials are validated only when active, and outbound locale is
 resolved from validated account/request state.
 
+The organization business-settings domain (`src/organization-settings/`) owns
+the typed defaults and profile that sit beside Better Auth's name, slug, and
+logo. `GET` and full-replacement `PUT` at
+`/organizations/:organizationId/business-profile` are path-scoped by the
+existing `organization:update` permission; the guard runs before body parsing,
+so a caller cannot use validation failures to probe an organization they cannot
+administer. The contract accepts only the application's `ar`/`en` locales,
+runtime-supported IANA timezones and ISO 4217 currencies, bounded nullable
+business text, and HTTP(S) website URLs. Writes enumerate owned fields and use
+an application-specific version token for compare-and-swap. Repeating an
+already-applied replacement is a no-op, while a stale replacement that would
+change state is a conflict rather than a silent overwrite.
+
+The organization product-audit domain (`src/organization-audit/`) records
+meaningful tenant mutations separately from application logs, agent execution,
+and the operator-only control-plane history. Its initial closed action is
+`organizationBusinessProfile.replaced`. A real profile change and its event are
+written in one Prisma transaction; no-ops and losing compare-and-swap attempts
+append nothing. The event carries the organization, authenticated actor,
+subject, time, and a closed before/after projection containing only the bounded
+business-profile fields. There is no generic metadata or request-body input.
+`GET /organizations/:organizationId/audit-events` is rooted in the path tenant,
+guarded by `organization:update`, bounded to 100 rows, and keyset-paged newest
+first on `(occurredAt, id)`. No application route or service updates or deletes
+product history; PostgreSQL also rejects direct UPDATE and DELETE statements on
+the table. Organizations must treat the API as indefinitely retained history
+until a separately approved product/legal retention policy revises the database
+guard.
+
 The agent feature provides internal durable acceptance and background execution
 infrastructure. `AgentRunService` commits an application-owned AgentRun and its
 `agent-run.queued` outbox event atomically, with organization-scoped PostgreSQL

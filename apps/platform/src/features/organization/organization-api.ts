@@ -2,7 +2,9 @@ import { apiRequest } from '@/lib/application-api';
 
 import type {
   ArchivedOrganization,
+  OrganizationBusinessProfile,
   OrganizationLifecycleResult,
+  ReplaceOrganizationBusinessProfile,
 } from './organization-types';
 
 /**
@@ -59,6 +61,28 @@ export function listArchivedOrganizations(
   signal?: AbortSignal,
 ): Promise<ArchivedOrganization[]> {
   return apiRequest(`${ORGANIZATIONS}/archived`, { signal });
+}
+
+/* ------------------------- business settings -------------------------- */
+
+const businessProfilePath = (organizationId: string) =>
+  `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/business-profile`;
+
+export function getOrganizationBusinessProfile(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationBusinessProfile> {
+  return apiRequest(businessProfilePath(organizationId), { signal });
+}
+
+export function replaceOrganizationBusinessProfile(
+  organizationId: string,
+  profile: ReplaceOrganizationBusinessProfile,
+): Promise<OrganizationBusinessProfile> {
+  return apiRequest(businessProfilePath(organizationId), {
+    method: 'PUT',
+    body: profile,
+  });
 }
 
 /* ----------------------------- knowledge ------------------------------ */

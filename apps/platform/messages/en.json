@@ -347,7 +347,16 @@
       "organizationSlugRequired": "Enter an address for the organization.",
       "organizationSlugTooShort": "The address is too short.",
       "organizationSlugTooLong": "The address is too long.",
-      "organizationSlugInvalid": "Use lowercase letters, numbers and single hyphens."
+      "organizationSlugInvalid": "Use lowercase letters, numbers and single hyphens.",
+      "businessLocaleInvalid": "Choose a supported language.",
+      "businessTimezoneRequired": "Choose a timezone.",
+      "businessTimezoneInvalid": "Choose a valid IANA timezone.",
+      "businessCurrencyInvalid": "Choose a valid ISO currency.",
+      "businessLegalNameTooLong": "The legal name is too long.",
+      "businessIndustryTooLong": "The industry is too long.",
+      "businessWebsiteTooLong": "The website address is too long.",
+      "businessWebsiteInvalid": "Use an http or https website address.",
+      "businessDescriptionTooLong": "The business description is too long."
     },
     "errors": {
       "title": "Something went wrong",
@@ -436,6 +445,7 @@
       "ROLE_NOT_ALLOWED": "You are not allowed to assign that role.",
       "LAST_OWNER": "An organization needs at least one owner. Make somebody else an owner first.",
       "EMAIL_VERIFICATION_REQUIRED": "Confirm your email address before doing that.",
+      "PROFILE_CONFLICT": "These settings changed elsewhere. Review the latest values and try again.",
       "RATE_LIMITED": "Too many attempts. Wait a moment and try again.",
       "NETWORK_ERROR": "We could not reach the server. Check your connection and try again.",
       "UNKNOWN": "Something went wrong. Try again."
@@ -548,7 +558,26 @@
       "archiveConfirmDescription": "{organization} will go offline for every member until somebody restores it.",
       "archiveConfirm": "Archive organization",
       "cancel": "Cancel",
-      "restoreAction": "Restore"
+      "restoreAction": "Restore",
+      "business": {
+        "title": "Business defaults",
+        "description": "Typed defaults used by future prompts, schedules, analytics, and billing.",
+        "locale": "Default language",
+        "timezone": "Timezone",
+        "currency": "Currency",
+        "locales": {
+          "ar": "Arabic",
+          "en": "English"
+        },
+        "legalName": "Legal business name",
+        "industry": "Industry",
+        "website": "Website",
+        "websiteHint": "An http or https address.",
+        "businessDescription": "Business description",
+        "businessDescriptionHint": "A concise factual description. Do not enter credentials or private customer data.",
+        "save": "Save business defaults",
+        "saved": "Business defaults were saved."
+      }
     },
     "archived": {
       "title": "This organization is archived",

@@ -9,7 +9,10 @@ import {
   type InvitationLookup,
   invitationFailureFrom,
 } from './invitation-state';
-import { listArchivedOrganizations } from './organization-api';
+import {
+  getOrganizationBusinessProfile,
+  listArchivedOrganizations,
+} from './organization-api';
 import {
   type OrganizationError,
   organizationErrorFrom,
@@ -17,8 +20,29 @@ import {
 import type {
   ArchivedOrganization,
   FullOrganization,
+  OrganizationBusinessProfile,
   OrganizationSummary,
 } from './organization-types';
+
+export type OrganizationBusinessProfileData = {
+  profile: OrganizationBusinessProfile | null;
+  error: OrganizationError | null;
+};
+
+export async function organizationBusinessProfileLoader({
+  params,
+}: LoaderFunctionArgs): Promise<OrganizationBusinessProfileData> {
+  try {
+    return {
+      profile: await getOrganizationBusinessProfile(
+        params.organizationId ?? '',
+      ),
+      error: null,
+    };
+  } catch (thrown) {
+    return { profile: null, error: organizationErrorFrom(thrown) };
+  }
+}
 
 /** Stable id, so the four organization tabs can share one fetch. */
 export const ORGANIZATION_ROUTE_ID = 'organization';

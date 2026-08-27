@@ -5,6 +5,43 @@ organizations, members, invitations, Better Auth rate-limit rows, agent runs,
 outbox events, control-plane state, organization-agent installations and
 versions, and organization knowledge. Prisma schema and generated client are
 committed and CI verifies that generation is current.
+outbox events, control-plane state, organization product-audit history, and
+organization knowledge. Prisma schema and generated client are committed and
+CI verifies that generation is current.
+
+The `organization` row also owns application business settings separately from
+Better Auth's profile fields: `locale`, `timezone`, `currency`, `legalName`,
+`industry`, `websiteUrl`, and `businessDescription`. The defaults (`ar`, `UTC`,
+and `USD`) make every existing row immediately readable. The schema stores a
+dedicated `businessProfileVersion` and `businessProfileUpdatedAt`; application
+writes compare and increment that version so Better Auth name/slug changes do
+not cause false conflicts. These are typed columns rather than entries in the
+legacy metadata string because they are stable product inputs with one owner,
+validation contract, and future consumers.
+
+`organization_audit_event` is append-only product history rooted in a required
+organization foreign key. It records the authenticated actor when one exists,
+an application-owned action and subject identity, commit time, and closed safe
+JSON projections before and after a mutation. `actorUserId` is intentionally
+not a foreign key: an audit fact must survive a future actor-lifecycle change
+without blocking it or erasing attribution through `SET NULL`. Organization
+deletion is restricted so tenant history cannot be orphaned or silently
+removed. Reads are served by `(organizationId, occurredAt, id)` descending;
+the second index supports the history of one subject without weakening the
+tenant predicate. The application exposes create-in-transaction and bounded
+list operations only—no update or delete operation. PostgreSQL independently
+enforces the same boundary with a `BEFORE UPDATE OR DELETE` trigger that raises
+`organization_audit_event_append_only`, so direct Prisma and raw-SQL mutation
+attempts using the application role fail as well. INSERT and SELECT remain
+available.
+
+Product audit history is retained indefinitely until a concrete product or
+legal retention requirement is approved. Current volume is bounded by real
+product mutations and reads are tenant-indexed and paginated; guessing a
+deletion window now could destroy accountability evidence. If retention is
+introduced later, a separately reviewed migration/policy must deliberately
+revise the PostgreSQL append-only protection. There is no hidden deletion
+bypass for hypothetical future retention.
 
 `agent_run` is the durable business authority for accepted background agent
 work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,
@@ -94,6 +131,9 @@ remains a separate database invariant. A candidate insert failure rolls the
 pointer update back with the same transaction.
 Version history keyset-pages by `(createdAt, id)` descending through the
 installation/organization predicates.
+9. Knowledge storage and management.
+10. Control-plane audit history and the super-admin floor.
+11. Additive organization business settings.
 
 Feature-flag overrides are two tables — one platform-wide, one per
 organization — rather than one table with a nullable `organizationId`.
@@ -120,6 +160,7 @@ Deployments run `prisma migrate deploy` before application rollout. Migration
 failure stops deployment. Schema evolution must remain backward compatible via
 expand → migrate/backfill → switch → contract-later; rollback never executes a
 down migration. See [backup/restore](backup-restore.md) for recovery.
+
 ## Knowledge
 
 `knowledge_space`, `knowledge_document`, and `knowledge_chunk` hold
