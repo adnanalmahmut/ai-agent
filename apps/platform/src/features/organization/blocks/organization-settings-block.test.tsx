@@ -24,22 +24,46 @@ vi.mock('@/features/auth/auth-client', async () => {
 vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
 
 const archiveOrganization = vi.fn();
+const replaceOrganizationBusinessProfile = vi.fn();
 
 vi.mock('../organization-api', () => ({
   archiveOrganization: (...args: unknown[]) => archiveOrganization(...args),
+  replaceOrganizationBusinessProfile: (...args: unknown[]) =>
+    replaceOrganizationBusinessProfile(...args),
+  getOrganizationBusinessProfile: vi.fn(),
   restoreOrganization: vi.fn(),
   listArchivedOrganizations: vi.fn(),
 }));
 
-const { OrganizationSettingsBlock } = await import(
-  './organization-settings-block'
-);
+const { OrganizationSettingsBlock } =
+  await import('./organization-settings-block');
 
 beforeEach(() => {
   resetAuthClientStub();
   resetNavigationStub();
   archiveOrganization.mockReset();
   archiveOrganization.mockResolvedValue({ organizationId: 'org_1' });
+  replaceOrganizationBusinessProfile.mockReset();
+  replaceOrganizationBusinessProfile.mockResolvedValue({
+    organizationId: 'org_1',
+    version: 2,
+  });
+});
+
+const businessProfile = () => ({
+  profile: {
+    organizationId: 'org_1',
+    version: 1,
+    locale: 'ar' as const,
+    timezone: 'UTC',
+    currency: 'USD',
+    legalName: 'Acme Research LLC',
+    industry: 'Research',
+    websiteUrl: 'https://example.com',
+    businessDescription: 'A research studio.',
+    updatedAt: '2026-08-27T00:00:00.000Z',
+  },
+  error: null,
 });
 
 describe('the profile form', () => {
@@ -94,7 +118,9 @@ describe('the profile form', () => {
     await user.click(screen.getByRole('button', { name: 'Save changes' }));
 
     expect(
-      await screen.findByText('That address is already taken. Try another one.'),
+      await screen.findByText(
+        'That address is already taken. Try another one.',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -123,6 +149,78 @@ describe('without the update permission', () => {
       screen.getByText('You cannot change these settings'),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText('Organization name')).toBeNull();
+  });
+});
+
+describe('the business defaults form', () => {
+  beforeEach(() => allow('organization:update'));
+
+  it('starts from the typed profile returned for this organization', () => {
+    renderInOrganization(
+      <OrganizationSettingsBlock businessProfile={businessProfile()} />,
+      context(),
+    );
+
+    expect(screen.getByLabelText('Legal business name')).toHaveValue(
+      'Acme Research LLC',
+    );
+    expect(screen.getByLabelText('Website')).toHaveValue('https://example.com');
+    expect(screen.getByLabelText('Business description')).toHaveValue(
+      'A research studio.',
+    );
+  });
+
+  it('saves only the typed profile contract and revalidates', async () => {
+    const user = userEvent.setup();
+    renderInOrganization(
+      <OrganizationSettingsBlock businessProfile={businessProfile()} />,
+      context(),
+    );
+
+    await user.clear(screen.getByLabelText('Legal business name'));
+    await user.type(screen.getByLabelText('Legal business name'), 'Acme Labs');
+    await user.click(
+      screen.getByRole('button', { name: 'Save business defaults' }),
+    );
+
+    await waitFor(() =>
+      expect(replaceOrganizationBusinessProfile).toHaveBeenCalledWith('org_1', {
+        version: 1,
+        locale: 'ar',
+        timezone: 'UTC',
+        currency: 'USD',
+        legalName: 'Acme Labs',
+        industry: 'Research',
+        websiteUrl: 'https://example.com',
+        businessDescription: 'A research studio.',
+      }),
+    );
+    expect(
+      await screen.findByText('Business defaults were saved.'),
+    ).toBeInTheDocument();
+    expect(revalidateSpy).toHaveBeenCalled();
+  });
+
+  it('reports a concurrent update instead of claiming success', async () => {
+    const { ApiError } = await import('@/lib/application-api');
+    replaceOrganizationBusinessProfile.mockRejectedValue(
+      new ApiError(409, 'CONFLICT'),
+    );
+    const user = userEvent.setup();
+    renderInOrganization(
+      <OrganizationSettingsBlock businessProfile={businessProfile()} />,
+      context(),
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'Save business defaults' }),
+    );
+
+    expect(
+      await screen.findByText(
+        'These settings changed elsewhere. Review the latest values and try again.',
+      ),
+    ).toBeInTheDocument();
   });
 });
 

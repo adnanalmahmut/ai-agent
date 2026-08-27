@@ -64,6 +64,17 @@ beneath the message — the per-user rate limit and the organization's in-flight
 ceiling share a status and are different problems. The form is hidden from a
 reader without `contentIdea:create`, which is UX; the backend decides.
 
+An organization's Settings page separates Better Auth's name/slug form from
+the application-owned business-settings form. Owners and admins can select the
+default content locale, IANA timezone, and ISO currency and maintain bounded
+legal name, industry, HTTP(S) website, and business description fields. The
+route loads the settings for the organization in the URL, validates before
+sending, and refreshes its loader data after a successful replacement. A
+server-side version conflict is rendered as a closed organization error so the
+screen never silently overwrites a newer edit. Members see the existing
+read-only state; the client gate is UX and the backend permission guard remains
+authoritative.
+
 The production image serves static files with unprivileged Nginx.
 
 Platform public configuration is compiled into the immutable Vite artifact at
