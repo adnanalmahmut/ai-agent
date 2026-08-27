@@ -815,10 +815,10 @@ test('removing the base/dependency agreement check lets siblings become a deep s
   const moduleDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
   const source = readFileSync(resolve(moduleDir, 'pr-train.mjs'), 'utf8');
 
-  const guard = `      if (parent.branch && slot.base && slot.base !== parent.branch && parent.state !== 'MERGED') {`;
+  const guard = `parent.branch && slot.base !== parent.branch && parent.state !== 'MERGED'`;
   assert.ok(source.includes(guard), 'probe anchor missing; the agreement check was renamed or removed');
 
-  const mutated = source.replace(guard, `      if (false) {`);
+  const mutated = source.replace(guard, 'false');
   const probePath = resolve(moduleDir, '__tests__', '.pr-train.stack-probe.mjs');
   writeFileSync(probePath, mutated);
 
@@ -1415,4 +1415,244 @@ test('a PLANNED slot may not record a PR number, because PLANNED releases capaci
   assert.equal(result.valid, false);
   assert.match(result.errors.join('\n'), /state PLANNED records PR #105/);
   assert.match(result.errors.join('\n'), /PLANNED releases train capacity/);
+});
+
+// ===========================================================================
+// Activation-shape invariant, executable (BLOCKER 1 repair)
+//
+// A PLANNED slot may stay partially specified, but `slotEligibility` must not
+// return MAY START for a base/dependency shape that would be structurally
+// invalid the moment State flips to ACTIVE. Before this fix, the "non-main
+// base with no dependency" check excluded PLANNED, so a slot recording
+// State: PLANNED / Base: feat/task-1 / Depends on: none / Dependency type:
+// independent could be reported eligible.
+// ===========================================================================
+
+const SHAPE_WINDOW = ['', '# APPROVED EXECUTION WINDOW', '', '## [APPROVED] TASK-02 — second task', '', '**Approved to start:** [x]', ''].join(
+  '\n',
+);
+
+/** PR1 verified and CI_GREEN; PR2 in a configurable base/dependency/type shape. */
+function shapeTrain({ base, dependsOn, dependencyType, state = 'PLANNED' }) {
+  return [
+    '# ACTIVE PR TRAIN',
+    '',
+    'Train: t',
+    'Train state: IN_PROGRESS',
+    'Anchor main SHA: 9a90e1f',
+    'Configured max open PRs: 3',
+    'Current PR: 1',
+    'Merge order if constrained: none',
+    '',
+    slot({ number: 1, state: 'CI_GREEN', prNumber: 101 }),
+    slot({
+      number: 2,
+      state,
+      prNumber: null,
+      headSha: null,
+      base,
+      dependsOn,
+      dependencyType,
+      nextAction: 'none',
+      checklist: 'Checklist:\n- [ ] discovery',
+    }),
+    SHAPE_WINDOW,
+  ].join('\n');
+}
+
+const SHAPE_EVIDENCE = { prs: { 101: { state: 'OPEN', checks: 'SUCCESS' } } };
+
+const VALID_SHAPES = [
+  { name: 'independent on main', base: 'main', dependsOn: 'none', dependencyType: 'independent' },
+  { name: 'stacked on the correct dependency branch', base: 'feat/task-1', dependsOn: 'PR 1', dependencyType: 'stacked' },
+];
+
+const INVALID_SHAPES = [
+  {
+    name: 'independent based on a dependency branch',
+    base: 'feat/task-1',
+    dependsOn: 'none',
+    dependencyType: 'independent',
+    expect: /base is "feat\/task-1" rather than main but no dependency is recorded/,
+  },
+  {
+    name: 'independent with a missing Base',
+    base: 'none',
+    dependsOn: 'none',
+    dependencyType: 'independent',
+    expect: /is independent but records no "Base"/,
+  },
+  {
+    name: 'stacked with a missing Base',
+    base: 'none',
+    dependsOn: 'PR 1',
+    dependencyType: 'stacked',
+    expect: /depends on PR 1 but records no "Base"/,
+  },
+  {
+    name: 'stacked with the wrong Base',
+    base: 'feat/other',
+    dependsOn: 'PR 1',
+    dependencyType: 'stacked',
+    expect: /its base is "feat\/other", not "feat\/task-1"/,
+  },
+];
+
+test('a PLANNED slot with a structurally valid shape may be eligible', () => {
+  for (const shape of VALID_SHAPES) {
+    const result = analyze(shapeTrain(shape), SHAPE_EVIDENCE);
+    const second = result.eligibility.find((entry) => entry.slot === 2);
+    assert.equal(second.eligible, true, `${shape.name}: ${second.reasons.join('\n')}`);
+  }
+});
+
+test('a PLANNED slot with an invalid activation shape must not start', () => {
+  for (const shape of INVALID_SHAPES) {
+    const result = analyze(shapeTrain(shape), SHAPE_EVIDENCE);
+    const second = result.eligibility.find((entry) => entry.slot === 2);
+    assert.equal(second.eligible, false, shape.name);
+    assert.match(second.reasons.join('\n'), shape.expect, shape.name);
+  }
+});
+
+test('eligible implies the hypothetical ACTIVE slot passes the same activation-shape invariants', () => {
+  // Falsification target: "MAY START" must never leave a slot whose only
+  // change is PLANNED -> ACTIVE structurally invalid. Re-parse each shape with
+  // State: ACTIVE instead of PLANNED and confirm eligibility agrees with
+  // whether the activated slot actually parses clean on PR 2's own account.
+  for (const shape of [...VALID_SHAPES, ...INVALID_SHAPES]) {
+    const eligibility = analyze(shapeTrain(shape), SHAPE_EVIDENCE).eligibility.find((entry) => entry.slot === 2);
+    const activated = parseTrain(shapeTrain({ ...shape, state: 'ACTIVE' }));
+    const activeShapeErrors = activated.errors.filter((error) => error.startsWith('PR 2:'));
+    assert.equal(eligibility.eligible, activeShapeErrors.length === 0, shape.name ?? JSON.stringify(shape));
+  }
+});
+
+test('mutation probe: removing the activation-shape check from slotEligibility lets an invalid base slip through', async () => {
+  const { loaded, cleanup } = await mutant(
+    '  reasons.push(...activationShapeErrors(slot, bySlot));',
+    '  reasons.push();',
+    'shape',
+  );
+  try {
+    const shape = INVALID_SHAPES[0]; // independent based on a dependency branch
+    const text = shapeTrain(shape);
+    const baseline = analyze(text, SHAPE_EVIDENCE).eligibility.find((entry) => entry.slot === 2);
+    assert.equal(baseline.eligible, false, 'baseline expectation changed');
+
+    const parsed = loaded.parseTrain(text);
+    const mutated = loaded.slotEligibility(parsed.train, parsed.train.slots[1], SHAPE_EVIDENCE, loaded.parseApprovedWindow(text));
+    assert.equal(mutated.eligible, true, 'removing the activation-shape check still refused; the check is not load-bearing');
+  } finally {
+    cleanup();
+  }
+});
+
+// ===========================================================================
+// Live CI failure propagation, executable (BLOCKER 2 repair)
+//
+// The CI_PENDING sibling/independent concurrency exception assumes a
+// genuinely still-running check. It must not survive a live FAILURE the
+// dashboard has not caught up to yet, and a dependent current PR must not
+// keep going on a dependency whose live verification has regressed -- in
+// either case regardless of whether "# UNRESOLVED FINDINGS" mentions it yet.
+// ===========================================================================
+
+test('a live CI FAILURE on a CI_PENDING PR blocks new-slot progression for an unrelated sibling', () => {
+  // The reviewer's exact shape: PR1 CI_GREEN/SUCCESS, PR2 recorded CI_PENDING
+  // but GitHub reports FAILURE, PR3 PLANNED sibling of PR2 depending on PR1.
+  const text = concurrencyTrain();
+  const pending = analyze(text, CONCURRENCY_EVIDENCE).eligibility.find((entry) => entry.slot === 3);
+  assert.equal(pending.eligible, true, 'a genuinely pending sibling must still be allowed to start');
+
+  const failing = { prs: { 101: { state: 'OPEN', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'FAILURE' } } };
+  const result = analyze(text, failing);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.train.findings.length, 0, 'must not depend on an unresolved-finding entry existing first');
+  const third = result.eligibility.find((entry) => entry.slot === 3);
+  assert.equal(third.eligible, false);
+  assert.match(third.reasons.join('\n'), /PR 2 \(#102\) has a live CI FAILURE/);
+});
+
+test('progression resumes once the failing PR is repaired and live checks return SUCCESS', () => {
+  const text = concurrencyTrain();
+  const repaired = { prs: { 101: { state: 'OPEN', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'SUCCESS' } } };
+  const result = analyze(text, repaired);
+  const third = result.eligibility.find((entry) => entry.slot === 3);
+  assert.equal(third.eligible, true, third.reasons.join('\n'));
+});
+
+test('an already-active unrelated independent PR is not stopped by a live failure elsewhere', () => {
+  const text = concurrencyTrain().replace('Current PR: 2', 'Current PR: 1');
+  const { train } = parseTrain(text);
+  const failing = { prs: { 101: { state: 'OPEN', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'FAILURE' } } };
+  const resolved = resolveCurrent(train, failing);
+  assert.equal(resolved.current.slot, 1);
+  assert.equal(resolved.blocked, false);
+});
+
+test('an already-active dependent PR is blocked when its dependency regresses under live evidence', () => {
+  // PR2 is current and depends on PR1, recorded CI_GREEN; live evidence says
+  // otherwise.
+  const text = concurrencyTrain();
+  const { train } = parseTrain(text);
+  for (const parentChecks of ['FAILURE', 'PENDING', undefined, null]) {
+    const evidence = { prs: { 101: { state: 'OPEN', checks: parentChecks }, 102: { state: 'OPEN', checks: 'PENDING' } } };
+    const resolved = resolveCurrent(train, evidence);
+    assert.equal(resolved.current.slot, 2);
+    assert.equal(resolved.blocked, true, `checks=${parentChecks}`);
+    assert.match(resolved.nextAction, /must not build on an unverified change/, `checks=${parentChecks}`);
+  }
+});
+
+test('a dependent current PR is not blocked while its dependency is confirmed by live evidence', () => {
+  const text = concurrencyTrain();
+  const { train } = parseTrain(text);
+  const verified = { prs: { 101: { state: 'OPEN', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'PENDING' } } };
+  const resolved = resolveCurrent(train, verified);
+  assert.equal(resolved.blocked, false);
+});
+
+test('losing GitHub access does not itself strand a dependent PR already confirmed', () => {
+  // No evidence at all was fetched for PR1 (`prs` is empty) -- this must fall
+  // back to the recorded state rather than manufacturing a block, matching the
+  // rest of the module's stance that losing GitHub access must not strand work
+  // already in flight.
+  const text = concurrencyTrain();
+  const { train } = parseTrain(text);
+  const resolved = resolveCurrent(train, { prs: {} });
+  assert.equal(resolved.blocked, false);
+});
+
+test('mutation probe: removing the live-CI-failure check lets new-slot progression proceed', async () => {
+  const { loaded, cleanup } = await mutant("    if (actual && actual.checks === 'FAILURE') {", '    if (false) {', 'failure-gate');
+  try {
+    const text = concurrencyTrain();
+    const failing = { prs: { 101: { state: 'OPEN', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'FAILURE' } } };
+    const baseline = analyze(text, failing).eligibility.find((entry) => entry.slot === 3);
+    assert.equal(baseline.eligible, false, 'baseline expectation changed');
+
+    const parsed = loaded.parseTrain(text);
+    const mutated = loaded.slotEligibility(parsed.train, parsed.train.slots[2], failing, loaded.parseApprovedWindow(text));
+    assert.equal(mutated.eligible, true, 'removing the live-failure check still refused; the check is not load-bearing');
+  } finally {
+    cleanup();
+  }
+});
+
+test('mutation probe: removing live-evidence contradiction lets a dependent PR continue on a regressed dependency', async () => {
+  const { loaded, cleanup } = await mutant("  return actual.checks !== 'SUCCESS';", '  return false;', 'contradiction');
+  try {
+    const text = concurrencyTrain();
+    const { train: baselineTrain } = parseTrain(text);
+    const regressed = { prs: { 101: { state: 'OPEN', checks: 'FAILURE' }, 102: { state: 'OPEN', checks: 'PENDING' } } };
+    const baseline = resolveCurrent(baselineTrain, regressed);
+    assert.equal(baseline.blocked, true, 'baseline expectation changed');
+
+    const mutatedTrain = loaded.parseTrain(text).train;
+    const mutated = loaded.resolveCurrent(mutatedTrain, regressed);
+    assert.equal(mutated.blocked, false, 'removing the contradiction check still blocked; the check is not load-bearing');
+  } finally {
+    cleanup();
+  }
 });

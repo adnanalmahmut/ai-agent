@@ -329,6 +329,68 @@ function parseFindings(block) {
   return findings;
 }
 
+/**
+ * Base/dependency/type invariants a slot must satisfy to *be* ACTIVE.
+ *
+ * Shared by structural parsing, applied to a slot already past PLANNED, and by
+ * `slotEligibility`, applied hypothetically to a PLANNED slot considering the
+ * transition to ACTIVE. One function means "eligible" and "structurally valid
+ * once active" cannot drift apart: a PLANNED slot must clear exactly the shape
+ * its non-PLANNED neighbors are already held to, no more and no less.
+ *
+ * State itself is deliberately not consulted here — that is what makes the
+ * function safe to run against a PLANNED slot as a hypothetical.
+ */
+function activationShapeErrors(slot, bySlot) {
+  const label = `PR ${slot.slot}`;
+  const errors = [];
+
+  // Dependency and base must agree. This is the guard that stops a sibling
+  // from silently becoming a link in a deep stack: the base branch is the
+  // only physical evidence of a dependency, so the recorded dependency has to
+  // match it in both directions.
+  if (slot.dependencyType === 'independent' && slot.dependsOn.length > 0) {
+    errors.push(`${label}: dependency type "independent" contradicts "Depends on: PR ${slot.dependsOn.join(', PR ')}"`);
+  }
+  if (slot.dependencyType === 'stacked' && slot.dependsOn.length === 0) {
+    errors.push(`${label}: dependency type "stacked" requires a "Depends on" slot`);
+  }
+  if (slot.dependencyType !== 'independent' && slot.dependencyType !== 'stacked') {
+    errors.push(`${label}: "Dependency type" must be independent or stacked to activate, got "${slot.dependencyType ?? '(none)'}"`);
+  }
+
+  for (const dependency of slot.dependsOn) {
+    const parent = bySlot.get(dependency);
+    if (!parent) {
+      errors.push(`${label}: depends on PR ${dependency}, which is not a slot in this train`);
+      continue;
+    }
+    if (dependency === slot.slot) errors.push(`${label}: depends on itself`);
+    if (!slot.base) {
+      errors.push(`${label}: depends on PR ${dependency} but records no "Base"; base must equal the dependency's branch`);
+      // A stacked PR's base must be its dependency's branch. If the base says
+      // `main`, the dependency is imaginary and the merge order it implies is
+      // unenforceable.
+    } else if (parent.branch && slot.base !== parent.branch && parent.state !== 'MERGED') {
+      errors.push(
+        `${label}: depends on PR ${dependency} but its base is "${slot.base}", not "${parent.branch}"; either rebase onto the dependency or record it as independent`,
+      );
+    }
+  }
+
+  if (slot.dependsOn.length === 0) {
+    if (!slot.base) {
+      errors.push(`${label}: is independent but records no "Base"; an independent slot's base must be "main"`);
+    } else if (slot.base !== 'main') {
+      errors.push(
+        `${label}: base is "${slot.base}" rather than main but no dependency is recorded; an undeclared stack has no reviewable merge order`,
+      );
+    }
+  }
+
+  return errors;
+}
+
 /** Contradictions that make the recorded train impossible rather than merely odd. */
 function structuralContradictions(train) {
   const errors = [];
@@ -356,38 +418,12 @@ function structuralContradictions(train) {
       );
     }
 
-    // Dependency and base must agree. This is the guard that stops a sibling
-    // from silently becoming a link in a deep stack: the base branch is the
-    // only physical evidence of a dependency, so the recorded dependency has to
-    // match it in both directions.
-    if (slot.dependencyType === 'independent' && slot.dependsOn.length > 0) {
-      errors.push(`${label}: dependency type "independent" contradicts "Depends on: PR ${slot.dependsOn.join(', PR ')}"`);
-    }
-    if (slot.dependencyType === 'stacked' && slot.dependsOn.length === 0) {
-      errors.push(`${label}: dependency type "stacked" requires a "Depends on" slot`);
-    }
-
-    for (const dependency of slot.dependsOn) {
-      const parent = bySlot.get(dependency);
-      if (!parent) {
-        errors.push(`${label}: depends on PR ${dependency}, which is not a slot in this train`);
-        continue;
-      }
-      if (dependency === slot.slot) errors.push(`${label}: depends on itself`);
-      // A stacked PR's base must be its dependency's branch. If the base says
-      // `main`, the dependency is imaginary and the merge order it implies is
-      // unenforceable.
-      if (parent.branch && slot.base && slot.base !== parent.branch && parent.state !== 'MERGED') {
-        errors.push(
-          `${label}: depends on PR ${dependency} but its base is "${slot.base}", not "${parent.branch}"; either rebase onto the dependency or record it as independent`,
-        );
-      }
-    }
-
-    if (slot.dependsOn.length === 0 && slot.base && slot.base !== 'main' && slot.state !== 'PLANNED') {
-      errors.push(
-        `${label}: base is "${slot.base}" rather than main but no dependency is recorded; an undeclared stack has no reviewable merge order`,
-      );
+    // A PLANNED slot may stay partially specified — `slotEligibility` is where
+    // its base/dependency shape is held to the same invariant before it may be
+    // authorized to become ACTIVE. Applying it here too would turn "not ready
+    // yet" into a parse failure for work nobody has tried to start.
+    if (slot.state !== 'PLANNED') {
+      errors.push(...activationShapeErrors(slot, bySlot));
     }
   }
 
@@ -528,7 +564,7 @@ export function siblingGroups(train) {
  * that wrote it knew something the file cannot re-derive. When it is absent, the
  * lowest-numbered live slot is used, which matches merge order.
  */
-export function resolveCurrent(train) {
+export function resolveCurrent(train, evidence = {}) {
   const bySlot = new Map(train.slots.map((slot) => [slot.slot, slot]));
   const declared = train.currentSlot === null ? null : bySlot.get(train.currentSlot);
 
@@ -543,7 +579,7 @@ export function resolveCurrent(train) {
     return { current: null, inferred: false, nextAction: 'No live PR slot. The train is complete; await human merge or a new checkpoint.' };
   }
 
-  const blocked = blockingReason(train, current);
+  const blocked = blockingReason(train, current, evidence);
   const unchecked = current.checklist.find((item) => !item.done);
   const nextAction =
     blocked ??
@@ -554,21 +590,42 @@ export function resolveCurrent(train) {
 }
 
 /**
+ * Whether live evidence, where any was fetched for this PR, contradicts a
+ * claimed verification. Absence of evidence is a different question --
+ * answered by `isVerifiedByEvidence` for gating *new* work -- and is not a
+ * contradiction here: losing GitHub access must not strand work already in
+ * flight. This only fires when something was actually read back and disagrees.
+ */
+function contradictsVerification(actual) {
+  if (!actual) return false;
+  if (actual.state === 'MERGED') return false;
+  return actual.checks !== 'SUCCESS';
+}
+
+/**
  * A dependency that is not itself verified blocks *dependent* work only. A
  * sibling may proceed while an ancestor's CI is still running, because it builds
  * on the same ancestor commit and not on the unverified change.
+ *
+ * The recorded state is a claim, and live evidence outranks it in both
+ * directions here: a parent recorded CI_GREEN whose live checks have since
+ * regressed to FAILURE, PENDING, or an unreadable rollup no longer supports a
+ * dependent's continuation, even though the dashboard has not caught up yet.
  */
-function blockingReason(train, slot) {
+function blockingReason(train, slot, evidence = {}) {
   if (slot.state === BLOCKED) {
     return `PR ${slot.slot} is BLOCKED. Resolve the recorded blocker before continuing.`;
   }
   const bySlot = new Map(train.slots.map((entry) => [entry.slot, entry]));
+  const prs = evidence.prs ?? {};
   for (const dependency of slot.dependsOn) {
     const parent = bySlot.get(dependency);
     if (!parent) continue;
-    const verified = ['CI_GREEN', 'REVIEW_FINDINGS', 'READY_FOR_HUMAN', 'MERGED'].includes(parent.state);
-    if (!verified) {
-      return `PR ${slot.slot} depends on PR ${parent.slot}, which is ${parent.state}. Dependent work must not build on an unverified change; finish PR ${parent.slot} to CI_GREEN first.`;
+    const recordedVerified = VERIFIED_STATES.has(parent.state);
+    const actual = parent.prNumber === null ? null : (prs[parent.prNumber] ?? prs[String(parent.prNumber)]);
+    if (!recordedVerified || contradictsVerification(actual)) {
+      const liveDetail = actual ? ` (live checks: ${actual.checks ?? 'unknown'})` : '';
+      return `PR ${slot.slot} depends on PR ${parent.slot}, which is ${parent.state}${liveDetail}. Dependent work must not build on an unverified change; finish PR ${parent.slot} to CI_GREEN first.`;
     }
   }
   return null;
@@ -597,7 +654,7 @@ export function reconcile(train, evidence = {}) {
     );
   }
 
-  const { current } = resolveCurrent(train);
+  const { current } = resolveCurrent(train, evidence);
   if (current && current.branch && evidence.branch && current.branch !== evidence.branch) {
     add(
       'drift',
@@ -881,6 +938,23 @@ export function progressionGate(train, evidence = {}) {
     }
   }
 
+  // A live FAILURE anywhere in the active train outranks a dashboard that has
+  // not caught up to it. The CI_PENDING sibling/independent exception assumes
+  // a genuinely still-running check; a run that already failed is not merely
+  // pending, whatever the dashboard still says. This does not require the
+  // failure to already be recorded as an unresolved finding -- GitHub evidence
+  // outranks the TODO, not the other way around.
+  for (const slot of train.slots) {
+    if (slot.state === 'PLANNED' || slot.state === 'MERGED') continue;
+    if (slot.prNumber === null) continue;
+    const actual = prs[slot.prNumber] ?? prs[String(slot.prNumber)];
+    if (actual && actual.checks === 'FAILURE') {
+      reasons.push(
+        `PR ${slot.slot} (#${slot.prNumber}) has a live CI FAILURE; new-slot progression is blocked until it is reconciled, recorded, or repaired`,
+      );
+    }
+  }
+
   for (const finding of train.findings.filter((entry) => !entry.resolved)) {
     reasons.push(`unresolved finding must be resolved or explicitly carried first: ${finding.text}`);
   }
@@ -916,10 +990,17 @@ export function slotEligibility(train, slot, evidence = {}, approvals = new Map(
     return { eligible: false, reasons: [`PR ${slot.slot} is ${slot.state}, not PLANNED`], notApplicable: true };
   }
 
+  const bySlot = new Map(train.slots.map((entry) => [entry.slot, entry]));
+
+  // The same invariant a non-PLANNED slot is already held to, checked here
+  // against the *hypothetical* transition PLANNED -> ACTIVE: MAY START must
+  // mean the slot is structurally ready to become ACTIVE, not merely that its
+  // dependencies happen to be verified.
+  reasons.push(...activationShapeErrors(slot, bySlot));
+
   const gate = progressionGate(train, evidence);
   if (!gate.allowed) reasons.push(...gate.reasons);
 
-  const bySlot = new Map(train.slots.map((entry) => [entry.slot, entry]));
   const prs = evidence.prs ?? {};
 
   for (const dependency of slot.dependsOn) {
@@ -1034,7 +1115,7 @@ export function analyze(text, evidence = {}) {
   if (!parsed.valid) {
     return { ...parsed, limit: null, progression: null, eligibility: [], current: null, siblings: [], reconciliation: [] };
   }
-  const resolved = resolveCurrent(parsed.train);
+  const resolved = resolveCurrent(parsed.train, evidence);
   const reconciliation = reconcile(parsed.train, evidence);
   const approvals = parseApprovedWindow(text);
   const progression = progressionGate(parsed.train, evidence);
