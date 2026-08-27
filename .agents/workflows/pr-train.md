@@ -76,8 +76,9 @@ anything new either.
 ### A verification claim must be backed by evidence
 
 `CI_GREEN` and later are claims. For the purpose of authorizing *new* work they
-are believed only when GitHub agrees: checks rolled up to `SUCCESS`, or the PR
-merged. An unknown or null rollup is **not** a pass — that is the case where
+are believed only when GitHub agrees: the PR merged, or the PR is open with checks
+rolled up to `SUCCESS`. `CLOSED` without merge is never verified regardless of previous
+checks. An unknown or null rollup is **not** a pass — that is the case where
 nothing is known, and it was previously accepted by a short-circuit that skipped
 the comparison when the rollup was absent.
 
@@ -161,8 +162,6 @@ may this `PLANNED` slot become `ACTIVE`?
 A `PLANNED` slot is eligible when **all** of these hold:
 
 1. `progressionGate` allows a new slot (capacity and evidence, above);
-2. every one of **its own** dependencies is verified by evidence;
-3. its task appears as `[APPROVED]` in the execution window with its
    `Approved to start` box checked.
 
 Nothing else is consulted. In particular, creation order is never consulted, and

@@ -599,7 +599,8 @@ export function resolveCurrent(train, evidence = {}) {
 function contradictsVerification(actual) {
   if (!actual) return false;
   if (actual.state === 'MERGED') return false;
-  return actual.checks !== 'SUCCESS';
+  if (actual.state === 'OPEN' && actual.checks === 'SUCCESS') return false;
+  return true;
 }
 
 /**
@@ -850,7 +851,7 @@ export function isVerifiedByEvidence(slot, actual) {
   if (!VERIFIED_STATES.has(slot.state)) return false;
   if (!actual) return false;
   if (actual.state === 'MERGED') return true;
-  return actual.checks === 'SUCCESS';
+  return actual.state === 'OPEN' && actual.checks === 'SUCCESS';
 }
 
 /**
@@ -1010,6 +1011,12 @@ export function slotEligibility(train, slot, evidence = {}, approvals = new Map(
       continue;
     }
     const actual = parent.prNumber === null ? null : (prs[parent.prNumber] ?? prs[String(parent.prNumber)]);
+    const parentMerged = parent.state === 'MERGED' || actual?.state === 'MERGED';
+    if (parentMerged && slot.base !== 'main') {
+      reasons.push(
+        `depends on PR ${parent.slot}, which is merged; base must be reconciled to "main" before it may start, got "${slot.base ?? '(none)'}"`,
+      );
+    }
     if (!isVerifiedByEvidence(parent, actual)) {
       reasons.push(
         `its dependency PR ${parent.slot} is ${parent.state}${actual ? ` with checks ${actual.checks ?? 'unknown'}` : ' with no readable GitHub state'}; dependent work must not build on an unverified change`,

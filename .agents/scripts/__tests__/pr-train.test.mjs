@@ -10,7 +10,6 @@ import {
   TRAIN_LIMIT_REACHED,
   analyze,
   dashboardFileDecision,
-  effectiveOccupancy,
   isVerifiedByEvidence,
   occupiedSlots,
   parseApprovedWindow,
@@ -21,7 +20,7 @@ import {
   resolveCurrent,
   siblingGroups,
   slotEligibility,
-  trainLimitStatus,
+  trainLimitStatus
 } from '../pr-train.mjs';
 
 /**
@@ -1432,8 +1431,16 @@ const SHAPE_WINDOW = ['', '# APPROVED EXECUTION WINDOW', '', '## [APPROVED] TASK
   '\n',
 );
 
-/** PR1 verified and CI_GREEN; PR2 in a configurable base/dependency/type shape. */
-function shapeTrain({ base, dependsOn, dependencyType, state = 'PLANNED' }) {
+/** PR1 verified and CI_GREEN (or configurable); PR2 in a configurable base/dependency/type shape. */
+function shapeTrain({
+  base,
+  dependsOn,
+  dependencyType,
+  state = 'PLANNED',
+  firstState = 'CI_GREEN',
+  current = null,
+}) {
+  const currentPr = current !== null ? current : firstState === 'MERGED' ? (state === 'PLANNED' ? 'none' : 2) : 1;
   return [
     '# ACTIVE PR TRAIN',
     '',
@@ -1441,10 +1448,10 @@ function shapeTrain({ base, dependsOn, dependencyType, state = 'PLANNED' }) {
     'Train state: IN_PROGRESS',
     'Anchor main SHA: 9a90e1f',
     'Configured max open PRs: 3',
-    'Current PR: 1',
+    `Current PR: ${currentPr}`,
     'Merge order if constrained: none',
     '',
-    slot({ number: 1, state: 'CI_GREEN', prNumber: 101 }),
+    slot({ number: 1, state: firstState, prNumber: 101 }),
     slot({
       number: 2,
       state,
@@ -1641,7 +1648,11 @@ test('mutation probe: removing the live-CI-failure check lets new-slot progressi
 });
 
 test('mutation probe: removing live-evidence contradiction lets a dependent PR continue on a regressed dependency', async () => {
-  const { loaded, cleanup } = await mutant("  return actual.checks !== 'SUCCESS';", '  return false;', 'contradiction');
+  const { loaded, cleanup } = await mutant(
+    "  if (actual.state === 'OPEN' && actual.checks === 'SUCCESS') return false;\n  return true;",
+    '  return false;',
+    'contradiction',
+  );
   try {
     const text = concurrencyTrain();
     const { train: baselineTrain } = parseTrain(text);
@@ -1656,3 +1667,234 @@ test('mutation probe: removing live-evidence contradiction lets a dependent PR c
     cleanup();
   }
 });
+
+// ===========================================================================
+// CLOSED-not-merged verification contract (BLOCKER repair)
+//
+// CLOSED-not-merged on GitHub must never satisfy a dependency, even if its
+// historical checks were SUCCESS. Verification requires MERGED or OPEN with
+// checks SUCCESS.
+// ===========================================================================
+
+test('isVerifiedByEvidence satisfies the evidence verification contract across all states', () => {
+  const verifiedSlot = { state: 'CI_GREEN' };
+  const mergedSlot = { state: 'MERGED' };
+  const plannedSlot = { state: 'PLANNED' };
+
+  // 1. OPEN + SUCCESS => verified
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'OPEN', checks: 'SUCCESS' }), true);
+
+  // 2. OPEN + PENDING => not verified
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'OPEN', checks: 'PENDING' }), false);
+
+  // 3. OPEN + FAILURE => not verified
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'OPEN', checks: 'FAILURE' }), false);
+
+  // 4. OPEN + unknown/null => not verified
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'OPEN', checks: null }), false);
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'OPEN', checks: undefined }), false);
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'OPEN' }), false);
+  assert.equal(isVerifiedByEvidence(verifiedSlot, null), false);
+  assert.equal(isVerifiedByEvidence(verifiedSlot, undefined), false);
+
+  // 5. MERGED => verified
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'MERGED' }), true);
+  assert.equal(isVerifiedByEvidence(mergedSlot, { state: 'MERGED' }), true);
+
+  // 6. CLOSED + SUCCESS => NOT verified
+  assert.equal(isVerifiedByEvidence(verifiedSlot, { state: 'CLOSED', checks: 'SUCCESS' }), false);
+  assert.equal(isVerifiedByEvidence(mergedSlot, { state: 'CLOSED', checks: 'SUCCESS' }), false);
+  assert.equal(isVerifiedByEvidence({ state: 'READY_FOR_HUMAN' }, { state: 'CLOSED', checks: 'SUCCESS' }), false);
+
+  // Non-verified recorded state cannot be verified by evidence
+  assert.equal(isVerifiedByEvidence(plannedSlot, { state: 'OPEN', checks: 'SUCCESS' }), false);
+  assert.equal(isVerifiedByEvidence(plannedSlot, { state: 'MERGED' }), false);
+});
+
+test('a PLANNED dependent PR cannot start on a CLOSED-not-merged dependency even with SUCCESS checks', () => {
+  // 7. A PLANNED dependent PR cannot start on CLOSED-not-merged + SUCCESS.
+  const text = concurrencyTrain({ thirdDependsOn: 'PR 1', thirdBase: 'feat/task-1' });
+  const closedSuccess = { prs: { 101: { state: 'CLOSED', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'PENDING' } } };
+  const result = analyze(text, closedSuccess);
+  const third = result.eligibility.find((entry) => entry.slot === 3);
+  assert.equal(third.eligible, false);
+  assert.match(third.reasons.join('\n'), /dependency PR 1 is CI_GREEN with checks SUCCESS/);
+  assert.match(third.reasons.join('\n'), /dependent work must not build on an unverified change/);
+});
+
+test('an already-active dependent PR is blocked when its dependency becomes CLOSED-not-merged even with SUCCESS checks', () => {
+  // 8. An already-active dependent PR is blocked when its dependency becomes CLOSED-not-merged, even if its last checks were SUCCESS.
+  const text = concurrencyTrain();
+  const { train } = parseTrain(text);
+  const closedSuccess = { prs: { 101: { state: 'CLOSED', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'PENDING' } } };
+  const resolved = resolveCurrent(train, closedSuccess);
+  assert.equal(resolved.current.slot, 2);
+  assert.equal(resolved.blocked, true);
+  assert.match(resolved.nextAction, /must not build on an unverified change/);
+});
+
+test('an unrelated already-active sibling remains unaffected when another PR is CLOSED-not-merged', () => {
+  // 9. An unrelated already-active sibling remains unaffected.
+  const text = concurrencyTrain().replace('Current PR: 2', 'Current PR: 1');
+  const { train } = parseTrain(text);
+  // PR 1 is independent and current; PR 2 is closed-not-merged.
+  const evidence = { prs: { 101: { state: 'OPEN', checks: 'SUCCESS' }, 102: { state: 'CLOSED', checks: 'SUCCESS' } } };
+  const resolved = resolveCurrent(train, evidence);
+  assert.equal(resolved.current.slot, 1);
+  assert.equal(resolved.blocked, false);
+});
+
+test('mutation probe: accepting CLOSED with SUCCESS checks in isVerifiedByEvidence lets a dependent slot start', async () => {
+  const { loaded, cleanup } = await mutant(
+    "  return actual.state === 'OPEN' && actual.checks === 'SUCCESS';",
+    "  return actual.checks === 'SUCCESS';",
+    'closed-verification',
+  );
+  try {
+    const slot = { state: 'CI_GREEN' };
+    const closedActual = { state: 'CLOSED', checks: 'SUCCESS' };
+    assert.equal(isVerifiedByEvidence(slot, closedActual), false, 'baseline expectation changed');
+    assert.equal(
+      loaded.isVerifiedByEvidence(slot, closedActual),
+      true,
+      'mutant should have accepted CLOSED+SUCCESS; probe failed to mutate behavior',
+    );
+
+    const text = concurrencyTrain({ thirdDependsOn: 'PR 1', thirdBase: 'feat/task-1' });
+    const closedEvidence = { prs: { 101: { state: 'CLOSED', checks: 'SUCCESS' }, 102: { state: 'OPEN', checks: 'PENDING' } } };
+    const baselineEligibility = analyze(text, closedEvidence).eligibility.find((entry) => entry.slot === 3);
+    assert.equal(baselineEligibility.eligible, false, 'baseline eligibility changed');
+
+    const parsed = loaded.parseTrain(text);
+    const mutatedEligibility = loaded.slotEligibility(
+      parsed.train,
+      parsed.train.slots[2],
+      closedEvidence,
+      loaded.parseApprovedWindow(text),
+    );
+    assert.equal(
+      mutatedEligibility.eligible,
+      true,
+      'removing the OPEN state requirement still refused; the state check is not load-bearing',
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+// ===========================================================================
+// Merged-ancestor activation shape (PLANNED -> ACTIVE eligibility)
+//
+// Once a dependency has merged, a PLANNED child must be reconciled onto
+// `main` before it may start. An already-active stacked PR preserves the
+// human-safe retarget workflow without failing structural parsing.
+// ===========================================================================
+
+test('a PLANNED child of a MERGED parent is eligible only when base is main', () => {
+  // parent MERGED, child PLANNED, depends on parent, base main => eligible
+  const eligibleText = shapeTrain({
+    state: 'PLANNED',
+    base: 'main',
+    dependsOn: 'PR 1',
+    dependencyType: 'stacked',
+    firstState: 'MERGED',
+  });
+  const mergedEvidence = { prs: { 101: { state: 'MERGED' } } };
+  const eligibleResult = analyze(eligibleText, mergedEvidence);
+  const secondEligible = eligibleResult.eligibility.find((entry) => entry.slot === 2);
+  assert.equal(secondEligible.eligible, true, secondEligible.reasons.join('\n'));
+
+  // parent MERGED, child PLANNED, depends on parent, base old dependency branch => NOT eligible
+  const oldBaseText = shapeTrain({
+    state: 'PLANNED',
+    base: 'feat/task-1',
+    dependsOn: 'PR 1',
+    dependencyType: 'stacked',
+    firstState: 'MERGED',
+  });
+  const oldBaseResult = analyze(oldBaseText, mergedEvidence);
+  const secondOldBase = oldBaseResult.eligibility.find((entry) => entry.slot === 2);
+  assert.equal(secondOldBase.eligible, false);
+  assert.match(secondOldBase.reasons.join('\n'), /depends on PR 1, which is merged; base must be reconciled to "main"/);
+
+  // parent MERGED, child PLANNED, depends on parent, arbitrary base => NOT eligible
+  const arbitraryBaseText = shapeTrain({
+    state: 'PLANNED',
+    base: 'feat/arbitrary',
+    dependsOn: 'PR 1',
+    dependencyType: 'stacked',
+    firstState: 'MERGED',
+  });
+  const arbitraryResult = analyze(arbitraryBaseText, mergedEvidence);
+  const secondArbitrary = arbitraryResult.eligibility.find((entry) => entry.slot === 2);
+  assert.equal(secondArbitrary.eligible, false);
+  assert.match(secondArbitrary.reasons.join('\n'), /depends on PR 1, which is merged; base must be reconciled to "main"/);
+});
+
+test('a PLANNED child of a parent MERGED via live evidence requires base main', () => {
+  // Parent recorded CI_GREEN on dashboard, but GitHub reports MERGED.
+  const text = shapeTrain({
+    state: 'PLANNED',
+    base: 'feat/task-1',
+    dependsOn: 'PR 1',
+    dependencyType: 'stacked',
+  });
+  const mergedEvidence = { prs: { 101: { state: 'MERGED' } } };
+  const result = analyze(text, mergedEvidence);
+  const second = result.eligibility.find((entry) => entry.slot === 2);
+  assert.equal(second.eligible, false);
+  assert.match(second.reasons.join('\n'), /depends on PR 1, which is merged; base must be reconciled to "main"/);
+});
+
+test('an already-active stacked PR preserves the human-safe retarget workflow without parse errors', () => {
+  const text = shapeTrain({
+    state: 'ACTIVE',
+    base: 'feat/task-1',
+    dependsOn: 'PR 1',
+    dependencyType: 'stacked',
+    firstState: 'MERGED',
+  });
+  const parsed = parseTrain(text);
+  assert.equal(parsed.valid, true);
+  const findings = reconcile(parsed.train, { prs: { 101: { state: 'MERGED' } } });
+  const retarget = findings.find((entry) => entry.severity === 'retarget');
+  assert.ok(retarget);
+  assert.match(retarget.message, /PR 2 depends on PR 1, which is merged; its base "feat\/task-1" needs human-safe reconciliation to main/);
+  assert.match(retarget.action, /do not force-push history/);
+});
+
+test('mutation probe: removing the merged-parent base check lets an un-reconciled child start', async () => {
+  const { loaded, cleanup } = await mutant(
+    "    if (parentMerged && slot.base !== 'main') {",
+    '    if (false) {',
+    'merged-base',
+  );
+  try {
+    const text = shapeTrain({
+      state: 'PLANNED',
+      base: 'feat/task-1',
+      dependsOn: 'PR 1',
+      dependencyType: 'stacked',
+      firstState: 'MERGED',
+    });
+    const mergedEvidence = { prs: { 101: { state: 'MERGED' } } };
+    const baseline = analyze(text, mergedEvidence).eligibility.find((entry) => entry.slot === 2);
+    assert.equal(baseline.eligible, false, 'baseline expectation changed');
+
+    const parsed = loaded.parseTrain(text);
+    const mutated = loaded.slotEligibility(
+      parsed.train,
+      parsed.train.slots[1],
+      mergedEvidence,
+      loaded.parseApprovedWindow(text),
+    );
+    assert.equal(
+      mutated.eligible,
+      true,
+      'removing the merged-parent base check still refused; the check is not load-bearing',
+    );
+  } finally {
+    cleanup();
+  }
+});
+
