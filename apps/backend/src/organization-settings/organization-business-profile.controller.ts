@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 
 import {
   OrganizationPermissionGuard,
@@ -40,7 +41,8 @@ export class OrganizationBusinessProfileController {
   replace(
     @Param('organizationId') organizationId: string,
     @Body() body: ReplaceOrganizationBusinessProfileDto,
+    @Session() session: UserSession,
   ) {
-    return this.profiles.replace(organizationId, body);
+    return this.profiles.replace(organizationId, body, session.user.id);
   }
 }

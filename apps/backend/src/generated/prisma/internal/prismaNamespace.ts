@@ -412,6 +412,7 @@ export const ModelName = {
   RuntimeSetting: 'RuntimeSetting',
   ManagedSecret: 'ManagedSecret',
   ControlPlaneAuditEvent: 'ControlPlaneAuditEvent',
+  OrganizationAuditEvent: 'OrganizationAuditEvent',
   KnowledgeSpace: 'KnowledgeSpace',
   KnowledgeDocument: 'KnowledgeDocument',
   KnowledgeChunk: 'KnowledgeChunk'
@@ -430,7 +431,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk"
+    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "organizationAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1544,6 +1545,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    OrganizationAuditEvent: {
+      payload: Prisma.$OrganizationAuditEventPayload<ExtArgs>
+      fields: Prisma.OrganizationAuditEventFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OrganizationAuditEventFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OrganizationAuditEventFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>
+        }
+        findFirst: {
+          args: Prisma.OrganizationAuditEventFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OrganizationAuditEventFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>
+        }
+        findMany: {
+          args: Prisma.OrganizationAuditEventFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>[]
+        }
+        create: {
+          args: Prisma.OrganizationAuditEventCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>
+        }
+        createMany: {
+          args: Prisma.OrganizationAuditEventCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OrganizationAuditEventCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>[]
+        }
+        delete: {
+          args: Prisma.OrganizationAuditEventDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>
+        }
+        update: {
+          args: Prisma.OrganizationAuditEventUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>
+        }
+        deleteMany: {
+          args: Prisma.OrganizationAuditEventDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OrganizationAuditEventUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OrganizationAuditEventUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>[]
+        }
+        upsert: {
+          args: Prisma.OrganizationAuditEventUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAuditEventPayload>
+        }
+        aggregate: {
+          args: Prisma.OrganizationAuditEventAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOrganizationAuditEvent>
+        }
+        groupBy: {
+          args: Prisma.OrganizationAuditEventGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrganizationAuditEventGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OrganizationAuditEventCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrganizationAuditEventCountAggregateOutputType> | number
+        }
+      }
+    }
     KnowledgeSpace: {
       payload: Prisma.$KnowledgeSpacePayload<ExtArgs>
       fields: Prisma.KnowledgeSpaceFieldRefs
@@ -2039,6 +2114,21 @@ export const ControlPlaneAuditEventScalarFieldEnum = {
 export type ControlPlaneAuditEventScalarFieldEnum = (typeof ControlPlaneAuditEventScalarFieldEnum)[keyof typeof ControlPlaneAuditEventScalarFieldEnum]
 
 
+export const OrganizationAuditEventScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  occurredAt: 'occurredAt',
+  actorUserId: 'actorUserId',
+  action: 'action',
+  subjectType: 'subjectType',
+  subjectId: 'subjectId',
+  before: 'before',
+  after: 'after'
+} as const
+
+export type OrganizationAuditEventScalarFieldEnum = (typeof OrganizationAuditEventScalarFieldEnum)[keyof typeof OrganizationAuditEventScalarFieldEnum]
+
+
 export const KnowledgeSpaceScalarFieldEnum = {
   id: 'id',
   organizationId: 'organizationId',
@@ -2432,6 +2522,7 @@ export type GlobalOmitConfig = {
   runtimeSetting?: Prisma.RuntimeSettingOmit
   managedSecret?: Prisma.ManagedSecretOmit
   controlPlaneAuditEvent?: Prisma.ControlPlaneAuditEventOmit
+  organizationAuditEvent?: Prisma.OrganizationAuditEventOmit
   knowledgeSpace?: Prisma.KnowledgeSpaceOmit
   knowledgeDocument?: Prisma.KnowledgeDocumentOmit
   knowledgeChunk?: Prisma.KnowledgeChunkOmit

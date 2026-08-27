@@ -16,6 +16,7 @@ import { ControlPlaneModule } from './control-plane';
 import { ContentIdeaModule } from './content-ideas';
 import { KnowledgeModule } from './knowledge';
 import { OrganizationBusinessProfileModule } from './organization-settings';
+import { OrganizationAuditModule } from './organization-audit';
 import { DatabaseModule } from './database';
 
 @Module({
@@ -34,6 +35,7 @@ import { DatabaseModule } from './database';
     ControlPlaneModule,
     KnowledgeModule,
     ContentIdeaModule,
+    OrganizationAuditModule,
     OrganizationBusinessProfileModule,
     AppI18nModule,
     HttpInfrastructureModule,
