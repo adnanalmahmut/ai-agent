@@ -195,7 +195,7 @@ here.
 - [x] Focused validation
 - [x] Self-review and specialist reviews
 - [x] Aggregate validation
-- [ ] PR handoff
+- [x] PR handoff
 
 ## Decision log
 
@@ -224,6 +224,10 @@ here.
   diff checks. The first unit/build invocations exposed only missing local test
   environment and stale worktree Next cache; both passed unchanged under the
   CI-equivalent environment and a recoverable clean-cache build.
+- 2026-08-27: Implementation commit
+  `d8ae26d8c759eb884c5df3f3cb4cb5ca941deff0` was pushed and PR #48 opened
+  against `main`. The plan is complete; final-head CI remains an external PR
+  gate recorded in the local train dashboard.
 
 ## Blockers
 
