@@ -932,7 +932,9 @@
     "unavailable": {
       "title": "Generation is switched off for this organization.",
       "agents_disabled": "A platform operator has paused every agent. Nothing can be generated until they turn agents back on.",
-      "content_ideas_disabled": "A platform operator has switched content ideas off for this organization. Existing results are still readable."
+      "content_ideas_disabled": "A platform operator has switched content ideas off for this organization. Existing results are still readable.",
+      "agent_not_installed": "The content-idea agent is not installed for this organization. Install it before generating new ideas.",
+      "agent_disabled": "The content-idea agent is disabled for this organization. Existing results are still readable."
     },
     "form": {
       "topic": "Topic",

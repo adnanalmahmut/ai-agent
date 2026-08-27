@@ -10,6 +10,12 @@ import {
 import { AgentRunService, type CreateAgentRun } from '../../src/agents';
 import { OutboxRepository } from '../../src/core/outbox';
 import { PrismaService } from '../../src/database';
+import {
+  cleanTestAgentInstallations,
+  installTestAgent,
+  TEST_AGENT_ID,
+  testAgentRegistry,
+} from '../support/agent-run-fixtures';
 
 const fixtureId = `agent-claim-e2e-${process.pid}`;
 const organizationId = `${fixtureId}-org`;
@@ -29,9 +35,7 @@ describe('AgentRun execution claim (e2e)', () => {
   let service: AgentRunService;
 
   const request = (idempotencyKey: string): CreateAgentRun => ({
-    agentId: 'test-only-agent',
-    agentVersion: 1,
-    runtime: 'test-only-runtime',
+    agentId: TEST_AGENT_ID,
     organizationId,
     createdByUserId: null,
     input: { prompt: 'deterministic test input' },
@@ -70,8 +74,13 @@ describe('AgentRun execution claim (e2e)', () => {
         slug: `${fixtureId}-org`,
       },
     });
+    await installTestAgent(prisma, organizationId);
 
-    service = new AgentRunService(prisma, new OutboxRepository(prisma));
+    service = new AgentRunService(
+      prisma,
+      new OutboxRepository(prisma),
+      testAgentRegistry(),
+    );
   }, 60_000);
 
   afterEach(async () => {
@@ -80,6 +89,7 @@ describe('AgentRun execution claim (e2e)', () => {
 
   afterAll(async () => {
     await cleanRuns();
+    await cleanTestAgentInstallations(prisma, [organizationId]);
     await prisma.organization.deleteMany({ where: { id: organizationId } });
     await prisma.onModuleDestroy();
   });

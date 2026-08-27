@@ -5,9 +5,13 @@ import {
   describe,
   expect,
   it,
+  jest,
 } from '@jest/globals';
 
 import { AgentRunService, type CreateAgentRun } from '../../src/agents';
+import { AgentConfigurationError } from '../../src/agents/agent-configuration.error';
+import type { AgentRuntime } from '../../src/agents/agent-runtime';
+import { AgentRunner } from '../../src/agents/agent-runner.service';
 import { OUTBOX_EVENT_ROUTES, OutboxRepository } from '../../src/core/outbox';
 import type {
   NewOutboxEvent,
@@ -15,6 +19,13 @@ import type {
 } from '../../src/core/outbox/outbox.repository';
 import { QUEUE_NAMES } from '../../src/core/queue';
 import { PrismaService } from '../../src/database';
+import {
+  activateTestAgentVersion,
+  cleanTestAgentInstallations,
+  installTestAgent,
+  TEST_AGENT_ID,
+  testAgentRegistry,
+} from '../support/agent-run-fixtures';
 
 const fixtureId = `agent-run-e2e-${process.pid}`;
 const userId = `${fixtureId}-user`;
@@ -41,6 +52,7 @@ class AppendThenFailOutboxRepository extends OutboxRepository {
 describe('AgentRun foundation (e2e)', () => {
   let prisma: PrismaService;
   let service: AgentRunService;
+  const baselineVersions = new Map<string, string>();
 
   const cleanRuns = async () => {
     const runs = await prisma.agentRun.findMany({
@@ -65,15 +77,31 @@ describe('AgentRun foundation (e2e)', () => {
     organizationId: string = organizationIds[0],
     overrides: Partial<CreateAgentRun> = {},
   ): CreateAgentRun => ({
-    agentId: 'test-only-agent',
-    agentVersion: 1,
-    runtime: 'test-only-runtime',
+    agentId: TEST_AGENT_ID,
     organizationId,
     createdByUserId: userId,
     input: { prompt: 'deterministic test input' },
     idempotencyKey,
     ...overrides,
   });
+
+  const runnerWith = () => {
+    const runtimeRun = jest
+      .fn<(input: unknown) => Promise<{ output: string }>>()
+      .mockResolvedValue({ output: 'done' });
+    const runtime: AgentRuntime = {
+      name: 'mastra',
+      run: (input) => runtimeRun(input),
+    };
+    const runner = new AgentRunner(
+      testAgentRegistry(),
+      { resolve: () => runtime } as never,
+      { assemble: () => Promise.resolve([]) } as never,
+      service,
+    );
+
+    return { runner, runtimeRun };
+  };
 
   beforeAll(async () => {
     prisma = new PrismaService({
@@ -104,16 +132,38 @@ describe('AgentRun foundation (e2e)', () => {
         slug: `${fixtureId}-org-${index + 1}`,
       })),
     });
+    for (const organizationId of organizationIds) {
+      const installed = await installTestAgent(prisma, organizationId);
+      baselineVersions.set(organizationId, installed.versionId);
+    }
 
-    service = new AgentRunService(prisma, new OutboxRepository(prisma));
+    service = new AgentRunService(
+      prisma,
+      new OutboxRepository(prisma),
+      testAgentRegistry(),
+    );
   }, 60_000);
 
   afterEach(async () => {
     await cleanRuns();
+    await Promise.all(
+      organizationIds.map((organizationId) =>
+        prisma.organizationAgentInstallation.update({
+          where: {
+            organizationId_agentId: {
+              organizationId,
+              agentId: TEST_AGENT_ID,
+            },
+          },
+          data: { activeVersionId: baselineVersions.get(organizationId) },
+        }),
+      ),
+    );
   });
 
   afterAll(async () => {
     await cleanRuns();
+    await cleanTestAgentInstallations(prisma, organizationIds);
     await prisma.organization.deleteMany({
       where: { id: { in: [...organizationIds] } },
     });
@@ -142,6 +192,9 @@ describe('AgentRun foundation (e2e)', () => {
       attemptCount: 0,
     });
     expect(result.agentVersion).toBe(1);
+    expect(result.organizationAgentVersionId).toBe(
+      baselineVersions.get(organizationIds[0]),
+    );
     expect(events).toHaveLength(1);
     expect(events[0]).toMatchObject({
       type: 'agent-run.queued',
@@ -157,7 +210,11 @@ describe('AgentRun foundation (e2e)', () => {
 
   it('rolls back both the AgentRun and outbox event when append fails', async () => {
     const failingOutbox = new AppendThenFailOutboxRepository(prisma);
-    const failingService = new AgentRunService(prisma, failingOutbox);
+    const failingService = new AgentRunService(
+      prisma,
+      failingOutbox,
+      testAgentRegistry(),
+    );
 
     await expect(
       failingService.create(request('rolled-back-request')),
@@ -228,22 +285,224 @@ describe('AgentRun foundation (e2e)', () => {
     ).resolves.toBe(1);
   });
 
-  it('pins the accepted run to the requested definition version', async () => {
-    // Two runs of the same agent at different revisions must stay
-    // independently resolvable; acceptance is what fixes the version.
-    const [first, second] = await Promise.all([
-      service.create(request('pinned-v1', organizationIds[0])),
-      service.create(
-        request('pinned-v2', organizationIds[0], { agentVersion: 2 }),
-      ),
-    ]);
+  it.each([['a missing installation', 'absent-test-agent', 'NOT_FOUND']])(
+    'refuses %s without creating durable work',
+    async (_name, agentId, code) => {
+      await expect(
+        service.create(
+          request('missing-installation', organizationIds[0], { agentId }),
+        ),
+      ).rejects.toMatchObject({
+        code,
+        publicDetails: { reason: 'agent_not_installed' },
+      });
+      await expect(
+        prisma.agentRun.count({
+          where: { organizationId: organizationIds[0] },
+        }),
+      ).resolves.toBe(0);
+    },
+  );
+
+  it('refuses a disabled active version without creating durable work', async () => {
+    await activateTestAgentVersion(prisma, organizationIds[0], 1, {
+      enabled: false,
+    });
+
+    await expect(
+      service.create(request('disabled-installation')),
+    ).rejects.toMatchObject({
+      code: 'FEATURE_DISABLED',
+      publicDetails: { reason: 'agent_disabled' },
+    });
+    await expect(
+      prisma.agentRun.count({ where: { organizationId: organizationIds[0] } }),
+    ).resolves.toBe(0);
+  });
+
+  it('refuses an unregistered active definition and invalid configuration', async () => {
+    await activateTestAgentVersion(prisma, organizationIds[0], 7);
+    await expect(
+      service.create(request('unregistered-definition')),
+    ).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+      publicDetails: { reason: 'agent_definition_unavailable' },
+    });
+
+    await activateTestAgentVersion(prisma, organizationIds[0], 1, {
+      configuration: { unexpected: true },
+    });
+    await expect(
+      service.create(request('invalid-configuration')),
+    ).rejects.toMatchObject({
+      code: 'CONFLICT',
+      publicDetails: { reason: 'invalid_active_configuration' },
+    });
+    await expect(
+      prisma.agentRun.count({ where: { organizationId: organizationIds[0] } }),
+    ).resolves.toBe(0);
+  });
+
+  it('pins each accepted run to the active immutable definition version', async () => {
+    const first = await service.create(
+      request('pinned-v1', organizationIds[0]),
+    );
+    const versionTwo = await activateTestAgentVersion(
+      prisma,
+      organizationIds[0],
+      2,
+    );
+    const second = await service.create(
+      request('pinned-v2', organizationIds[0]),
+    );
 
     await expect(
       prisma.agentRun.findUniqueOrThrow({ where: { id: first.id } }),
-    ).resolves.toMatchObject({ agentId: 'test-only-agent', agentVersion: 1 });
+    ).resolves.toMatchObject({
+      agentId: TEST_AGENT_ID,
+      agentVersion: 1,
+      organizationAgentVersionId: baselineVersions.get(organizationIds[0]),
+    });
     await expect(
       prisma.agentRun.findUniqueOrThrow({ where: { id: second.id } }),
-    ).resolves.toMatchObject({ agentId: 'test-only-agent', agentVersion: 2 });
+    ).resolves.toMatchObject({
+      agentId: TEST_AGENT_ID,
+      agentVersion: 2,
+      organizationAgentVersionId: versionTwo.versionId,
+    });
+  });
+
+  it('keeps A through pointer switches, retries, and repeated worker execution', async () => {
+    const versionA = await activateTestAgentVersion(
+      prisma,
+      organizationIds[0],
+      1,
+      { configuration: { marker: 'A' } },
+    );
+    const first = await service.create(request('effective-version-retry'));
+    const versionB = await activateTestAgentVersion(
+      prisma,
+      organizationIds[0],
+      2,
+      { configuration: { marker: 'B' } },
+    );
+    const retry = await service.create(request('effective-version-retry'));
+    const second = await service.create(request('effective-version-second'));
+    const { runner, runtimeRun } = runnerWith();
+
+    await runner.run(first);
+    await runner.run(first);
+    await runner.run(second);
+
+    expect(first.organizationAgentVersionId).toBe(versionA.versionId);
+    expect(first.agentVersion).toBe(1);
+    expect(retry.id).toBe(first.id);
+    expect(retry.organizationAgentVersionId).toBe(versionA.versionId);
+    expect(second.organizationAgentVersionId).toBe(versionB.versionId);
+    expect(second.agentVersion).toBe(2);
+    expect(
+      runtimeRun.mock.calls.map(
+        ([call]) => (call as { configuration: unknown }).configuration,
+      ),
+    ).toEqual([{ marker: 'A' }, { marker: 'A' }, { marker: 'B' }]);
+    await expect(
+      prisma.outboxEvent.count({ where: { dedupeKey: first.id } }),
+    ).resolves.toBe(1);
+  });
+
+  it('linearizes a concurrent pointer switch to one valid immutable version', async () => {
+    const initialVersionId = baselineVersions.get(organizationIds[0]);
+    const [accepted, switched] = await Promise.all([
+      service.create(request('concurrent-pointer-switch')),
+      activateTestAgentVersion(prisma, organizationIds[0], 2, {
+        configuration: { marker: 'B' },
+      }),
+    ]);
+
+    expect([initialVersionId, switched.versionId]).toContain(
+      accepted.organizationAgentVersionId,
+    );
+    expect(accepted.agentVersion).toBe(
+      accepted.organizationAgentVersionId === switched.versionId ? 2 : 1,
+    );
+  });
+
+  it('rejects cross-tenant version references at the database boundary', async () => {
+    await expect(
+      prisma.agentRun.create({
+        data: {
+          agentId: TEST_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          organizationId: organizationIds[0],
+          organizationAgentVersionId: baselineVersions.get(organizationIds[1]),
+          createdByUserId: null,
+          input: {},
+          idempotencyKey: 'cross-tenant-version',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'P2003' });
+  });
+
+  it('refuses worker identity tampering and invalid pinned configuration', async () => {
+    const pinned = await activateTestAgentVersion(
+      prisma,
+      organizationIds[0],
+      1,
+      { configuration: { marker: 'valid' } },
+    );
+    const accepted = await service.create(request('worker-tampering'));
+
+    await expect(
+      service.configurationFor({ ...accepted, agentId: 'another-agent' }),
+    ).rejects.toBeInstanceOf(AgentConfigurationError);
+    await expect(
+      service.configurationFor({ ...accepted, agentVersion: 2 }),
+    ).rejects.toBeInstanceOf(AgentConfigurationError);
+
+    await prisma.organizationAgentVersion.update({
+      where: { id: pinned.versionId },
+      data: { configuration: { unexpected: true } },
+    });
+    const { runner, runtimeRun } = runnerWith();
+    await expect(runner.run(accepted)).rejects.toBeInstanceOf(
+      AgentConfigurationError,
+    );
+    expect(runtimeRun).not.toHaveBeenCalled();
+  });
+
+  it('executes a legacy null-reference run with the pinned definition default', async () => {
+    await activateTestAgentVersion(prisma, organizationIds[0], 2, {
+      enabled: false,
+      configuration: { marker: 'current-but-disabled' },
+    });
+    const legacy = await prisma.agentRun.create({
+      data: {
+        agentId: TEST_AGENT_ID,
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: organizationIds[0],
+        organizationAgentVersionId: null,
+        createdByUserId: null,
+        input: {},
+        idempotencyKey: 'legacy-null-version',
+      },
+    });
+    const { runner, runtimeRun } = runnerWith();
+
+    await expect(
+      runner.run({
+        agentId: legacy.agentId,
+        agentVersion: legacy.agentVersion,
+        runtime: legacy.runtime,
+        organizationId: legacy.organizationId,
+        organizationAgentVersionId: null,
+        input: {},
+      }),
+    ).resolves.toEqual({ output: 'done' });
+    expect(runtimeRun).toHaveBeenCalledWith(
+      expect.objectContaining({ configuration: { marker: 'default' } }),
+    );
   });
 
   it('accepts a run with no authenticated initiating user', async () => {

@@ -55,6 +55,11 @@ export type AgentRun = {
   agentId: string;
   /** The definition revision this run is pinned to for its whole lifetime. */
   agentVersion: number;
+  /**
+   * Immutable organization configuration selected at acceptance. Null only for
+   * legacy runs created before organization-agent pinning existed.
+   */
+  organizationAgentVersionId: string | null;
   runtime: string;
   status: AgentRunStatus;
   organizationId: string;
@@ -81,8 +86,6 @@ export type AgentRun = {
  */
 export type CreateAgentRun = {
   agentId: string;
-  agentVersion: number;
-  runtime: string;
   organizationId: string;
   createdByUserId: string | null;
   input: AgentValue;
@@ -273,6 +276,8 @@ export type AgentContextPassage = {
 
 export type AgentRuntimeRequest = {
   definition: AgentDefinition;
+  /** Parsed application-owned configuration for the pinned organization version. */
+  configuration: AgentConfiguration;
   input: AgentValue;
   /**
    * Retrieved material, kept separate from `input` all the way to the prompt.

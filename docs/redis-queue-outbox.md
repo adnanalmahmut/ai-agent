@@ -32,7 +32,9 @@ metrics.
 The internal AgentRun acceptance boundary follows that existing path: one
 PostgreSQL transaction creates a `QUEUED` `agent_run` and an
 `agent-run.queued` outbox event whose payload is only `{ runId }` and whose
-dedupe key is that run id. The existing route publishes `execute` to
+dedupe key is that run id. Before inserting, acceptance resolves the enabled
+active organization-agent version and stores its immutable id; configuration
+never enters the outbox or queue. The existing route publishes `execute` to
 `agent-execution`. `WorkerModule` registers the handlers —
 `AgentExecutionHandler` and `KnowledgeEmbeddingHandler`; `QueueModule` contains
 publication only, so the API composition root cannot consume jobs.
@@ -74,9 +76,12 @@ The worker resolves the definition by the persisted `(agentId, agentVersion)`
 pair, never by id alone. A definition is immutable once published under a
 version, and any version still referenced by a `QUEUED` or `RUNNING` AgentRun
 must stay resolvable through a rolling deployment. Unknown pairs fail loudly
-rather than falling back to a newer revision. Automated retention of
-superseded versions is not implemented; the first real agent feature starts at
-v1.
+rather than falling back to a newer revision. On every attempt it also reloads
+the exact `organizationAgentVersionId` through tenant, agent, and definition-
+revision predicates, parses that immutable configuration again, and passes the
+application-owned value to the runtime. Retries therefore cannot drift to a
+new active pointer. Automated retention of superseded versions is not
+implemented.
 
 A process can call a model and die before recording `SUCCEEDED`; the later
 attempt may call the model again. This is accepted for the current

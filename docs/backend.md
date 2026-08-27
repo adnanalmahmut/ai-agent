@@ -29,12 +29,16 @@ The agent feature provides internal durable acceptance and background execution
 infrastructure. `AgentRunService` commits an application-owned AgentRun and its
 `agent-run.queued` outbox event atomically, with organization-scoped PostgreSQL
 idempotency. Each accepted run persists `agentVersion`, pinning it to the exact
-definition revision it was accepted against, and `createdByUserId` is nullable
-so work with no authenticated initiating user is representable. The worker
-conditionally claims attempts and invokes Mastra behind the minimal
-application-owned `AgentRuntime.run` boundary, with the SDK's own no-op logger
-installed so provider request and response payloads cannot bypass Pino
-redaction into container logs.
+definition revision it was accepted against, plus the immutable organization-
+agent version selected from the enabled active installation in the same
+transaction. Definition revision and runtime are code-derived rather than
+caller-selected. `createdByUserId` is nullable so work with no authenticated
+initiating user is representable. The worker conditionally claims attempts,
+reloads and revalidates the pinned organization configuration from PostgreSQL
+on every attempt, and invokes Mastra behind the minimal application-owned
+`AgentRuntime.run` boundary, with the SDK's own no-op logger installed so
+provider request and response payloads cannot bypass Pino redaction into
+container logs.
 
 A worker-only reconciliation sweep finalizes runs whose queue job the transport
 failed terminally without ever invoking the handler, which BullMQ does when a
@@ -71,8 +75,9 @@ transaction. A losing candidate is rolled back; a stale request matching the
 winner is an idempotent success, while a different winner is a conflict. The
 authorized management and history routes use path-scoped `organization:update`
 and always include that organization in database predicates. Agent-run
-acceptance and execution do not consume this state yet; pinning runs is owned by
-the next dependent slice.
+acceptance now resolves the enabled active version inside its run/outbox
+transaction, and execution reloads that immutable version by the run's durable
+tenant-bound reference rather than consulting the current pointer.
 
 `ContextPolicy` names the knowledge spaces an agent may read, by registry slug,
 with an explicit chunk budget and an explicit character budget. The slug type is

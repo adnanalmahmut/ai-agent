@@ -1361,6 +1361,8 @@ describe('the content ideas screen', () => {
     it.each([
       ['agents_disabled', /paused every agent/i],
       ['content_ideas_disabled', /switched content ideas off/i],
+      ['agent_not_installed', /agent is not installed/i],
+      ['agent_disabled', /agent is disabled/i],
     ])('says why generation is off when the reason is %s', async (
       reason,
       copy,

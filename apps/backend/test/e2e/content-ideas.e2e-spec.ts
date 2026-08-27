@@ -14,6 +14,7 @@ import {
   AGENT_RUN_CAPACITY_LOCK,
   CONTENT_IDEA_AGENT_ID,
 } from '../../src/agents';
+import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
 import {
   FeatureFlagService,
   RuntimeSettingService,
@@ -159,6 +160,33 @@ describe('content ideas', () => {
       .post(base(organization), body)
       .set('idempotency-key', key);
 
+  const installContentIdeaAgent = (target: string) =>
+    harness.app.get(OrganizationAgentInstallationService).create(
+      target,
+      {
+        agentId: CONTENT_IDEA_AGENT_ID,
+        definitionVersion: 1,
+        enabled: true,
+        configuration: {},
+      },
+      superAdmin.id,
+    );
+
+  const removeContentIdeaAgent = async (target: string) => {
+    const where = { organizationId: target, agentId: CONTENT_IDEA_AGENT_ID };
+    await harness.prisma.organizationAgentInstallation.updateMany({
+      where,
+      data: { activeVersionId: null },
+    });
+    await harness.prisma.organizationAgentVersion.deleteMany({
+      where: {
+        organizationId: target,
+        installation: { agentId: CONTENT_IDEA_AGENT_ID },
+      },
+    });
+    await harness.prisma.organizationAgentInstallation.deleteMany({ where });
+  };
+
   // The real Better Auth flow deliberately creates eight independently signed
   // in users. Password hashing can exceed Jest's generic five-second hook
   // budget on a loaded CI worker; this is setup cost, not a product retry.
@@ -207,6 +235,9 @@ describe('content ideas', () => {
         });
       }
     }
+
+    await installContentIdeaAgent(organizationId);
+    await installContentIdeaAgent(otherOrganizationId);
   }, 30_000);
 
   afterAll(async () => {
@@ -221,6 +252,8 @@ describe('content ideas', () => {
     }
 
     await clearRuns();
+    await removeContentIdeaAgent(organizationId);
+    await removeContentIdeaAgent(otherOrganizationId);
     await harness.close();
   });
 
@@ -269,6 +302,7 @@ describe('content ideas', () => {
       });
       expect(run.agentId).toBe(CONTENT_IDEA_AGENT_ID);
       expect(run.agentVersion).toBe(1);
+      expect(run.organizationAgentVersionId).not.toBeNull();
       expect(run.organizationId).toBe(organizationId);
       expect(run.createdByUserId).toBe(owner.id);
     });
@@ -716,6 +750,82 @@ describe('content ideas', () => {
             ).toBe('agents_disabled');
           });
         });
+      });
+
+      it('reports a missing installation and acceptance refuses it', async () => {
+        await removeContentIdeaAgent(organizationId);
+
+        try {
+          expect(
+            dataOf<Availability>((await availability(orgAdmin)).body),
+          ).toEqual({ available: false, reason: 'agent_not_installed' });
+
+          const refused = await request(rejector);
+          expect(refused.status).toBe(404);
+          expect(errorBody(refused).errorCode).toBe('NOT_FOUND');
+          await expect(
+            harness.prisma.agentRun.count({ where: { organizationId } }),
+          ).resolves.toBe(0);
+        } finally {
+          await installContentIdeaAgent(organizationId);
+        }
+      });
+
+      it('reports a disabled installation and acceptance refuses it', async () => {
+        const installations = harness.app.get(
+          OrganizationAgentInstallationService,
+        );
+        const current =
+          await harness.prisma.organizationAgentInstallation.findUniqueOrThrow({
+            where: {
+              organizationId_agentId: {
+                organizationId,
+                agentId: CONTENT_IDEA_AGENT_ID,
+              },
+            },
+          });
+        await installations.replace(
+          organizationId,
+          current.id,
+          {
+            expectedRevision: current.revision,
+            definitionVersion: 1,
+            enabled: false,
+            configuration: {},
+          },
+          superAdmin.id,
+        );
+
+        try {
+          expect(
+            dataOf<Availability>((await availability(orgAdmin)).body),
+          ).toEqual({ available: false, reason: 'agent_disabled' });
+
+          const refused = await request(rejector);
+          expect(refused.status).toBe(403);
+          expect(errorBody(refused).errorCode).toBe('FEATURE_DISABLED');
+          await expect(
+            harness.prisma.agentRun.count({ where: { organizationId } }),
+          ).resolves.toBe(0);
+        } finally {
+          const disabled =
+            await harness.prisma.organizationAgentInstallation.findUniqueOrThrow(
+              {
+                where: { id: current.id },
+              },
+            );
+          await installations.replace(
+            organizationId,
+            current.id,
+            {
+              expectedRevision: disabled.revision,
+              definitionVersion: 1,
+              enabled: true,
+              configuration: {},
+            },
+            superAdmin.id,
+          );
+        }
       });
 
       /**
