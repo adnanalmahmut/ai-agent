@@ -1,0 +1,144 @@
+name: PR49 reconcile with main
+
+on:
+  push:
+    branches:
+      - feat/agent-run-effective-snapshots
+    paths:
+      - .github/workflows/pr49-reconcile.yml
+
+permissions:
+  contents: write
+
+jobs:
+  reconcile:
+    if: github.repository == 'adnanalmahmut/ai-agent' && github.ref == 'refs/heads/feat/agent-run-effective-snapshots'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ai_agent_reconcile
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/agent-run-effective-snapshots
+          fetch-depth: 0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Merge main and resolve only expected conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+
+          set +e
+          git merge --no-commit --no-ff origin/main
+          merge_rc=$?
+          set -e
+
+          if [ "$merge_rc" -ne 0 ]; then
+            mapfile -t conflicts < <(git diff --name-only --diff-filter=U)
+            printf 'Conflicts detected:\n'
+            printf '  %s\n' "${conflicts[@]}"
+
+            allowed=(
+              "apps/backend/prisma/schema.prisma"
+              "apps/backend/src/agents/agent.types.ts"
+              "apps/backend/src/generated/prisma/browser.ts"
+              "apps/backend/src/generated/prisma/client.ts"
+              "apps/backend/src/generated/prisma/internal/class.ts"
+              "apps/backend/src/generated/prisma/internal/prismaNamespace.ts"
+              "apps/backend/src/generated/prisma/internal/prismaNamespaceBrowser.ts"
+              "apps/backend/src/generated/prisma/models.ts"
+              "apps/backend/src/generated/prisma/models/AgentRun.ts"
+              "apps/backend/src/generated/prisma/models/Organization.ts"
+              "apps/backend/src/generated/prisma/models/OrganizationAgentInstallation.ts"
+              "apps/backend/src/generated/prisma/models/OrganizationAgentVersion.ts"
+              "docs/backend.md"
+              "docs/database.md"
+              "docs/feature-inventory.md"
+              "docs/security.md"
+            )
+
+            for path in "${conflicts[@]}"; do
+              permitted=false
+              for candidate in "${allowed[@]}"; do
+                if [ "$path" = "$candidate" ]; then
+                  permitted=true
+                  break
+                fi
+              done
+              if [ "$permitted" != true ]; then
+                echo "Unexpected conflict: $path" >&2
+                exit 1
+              fi
+            done
+
+            for path in "${conflicts[@]}"; do
+              case "$path" in
+                apps/backend/src/generated/prisma/*)
+                  git checkout --ours -- "$path"
+                  git add "$path"
+                  ;;
+                *)
+                  base_file="$(mktemp)"
+                  ours_file="$(mktemp)"
+                  theirs_file="$(mktemp)"
+                  merged_file="$(mktemp)"
+                  git show ":1:$path" > "$base_file"
+                  git show ":2:$path" > "$ours_file"
+                  git show ":3:$path" > "$theirs_file"
+                  git merge-file -p --union "$ours_file" "$base_file" "$theirs_file" > "$merged_file" || true
+                  cat "$merged_file" > "$path"
+                  git add "$path"
+                  rm -f "$base_file" "$ours_file" "$theirs_file" "$merged_file"
+                  ;;
+              esac
+            done
+          fi
+
+          leftovers="$(git diff --name-only --diff-filter=U)"
+          if [ -n "$leftovers" ]; then
+            echo "Unresolved conflicts remain:" >&2
+            printf '%s\n' "$leftovers" >&2
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate and validate Prisma client
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm --filter backend prisma:generate
+          pnpm --filter backend prisma:validate
+          git add apps/backend/src/generated/prisma
+
+      - name: Validate reconciled tree before push
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm agents:check
+          pnpm typecheck
+          pnpm lint
+          pnpm build
+          git diff --check
+
+      - name: Commit and push merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          git status --short
+          git commit -m "Merge main into feat/agent-run-effective-snapshots after AGT-01"
+          git push origin HEAD:feat/agent-run-effective-snapshots
