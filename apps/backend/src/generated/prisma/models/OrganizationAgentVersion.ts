@@ -273,6 +273,7 @@ export type OrganizationAgentVersionOrderByWithRelationInput = {
 export type OrganizationAgentVersionWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   id_installationId?: Prisma.OrganizationAgentVersionIdInstallationIdCompoundUniqueInput
+  installationId_revision?: Prisma.OrganizationAgentVersionInstallationIdRevisionCompoundUniqueInput
   AND?: Prisma.OrganizationAgentVersionWhereInput | Prisma.OrganizationAgentVersionWhereInput[]
   OR?: Prisma.OrganizationAgentVersionWhereInput[]
   NOT?: Prisma.OrganizationAgentVersionWhereInput | Prisma.OrganizationAgentVersionWhereInput[]
@@ -286,7 +287,7 @@ export type OrganizationAgentVersionWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"OrganizationAgentVersion"> | Date | string
   installation?: Prisma.XOR<Prisma.OrganizationAgentInstallationScalarRelationFilter, Prisma.OrganizationAgentInstallationWhereInput>
   activeFor?: Prisma.OrganizationAgentInstallationListRelationFilter
-}, "id" | "id_installationId">
+}, "id" | "id_installationId" | "installationId_revision">
 
 export type OrganizationAgentVersionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -422,6 +423,11 @@ export type OrganizationAgentVersionOrderByRelationAggregateInput = {
 export type OrganizationAgentVersionIdInstallationIdCompoundUniqueInput = {
   id: string
   installationId: string
+}
+
+export type OrganizationAgentVersionInstallationIdRevisionCompoundUniqueInput = {
+  installationId: string
+  revision: number
 }
 
 export type OrganizationAgentVersionCountOrderByAggregateInput = {

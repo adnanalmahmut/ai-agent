@@ -69,8 +69,12 @@ here.
   `(id, organizationId)` key.
 - Version rows are immutable through the application. There is no update/delete
   method or route; only the installation's pointer/revision changes.
-- A real replacement inserts a version and switches the active pointer in one
-  PostgreSQL transaction. Losing concurrent work rolls back its candidate row.
+- A real replacement switches the active pointer and inserts its version in one
+  PostgreSQL transaction. Losing concurrent work inserts no candidate row.
+- PostgreSQL enforces one immutable row per `(installationId, revision)` with a
+  compound unique constraint. A deferred active-pointer foreign key lets the
+  service run pointer CAS before inserting the candidate, so CAS remains the
+  concurrency decision and uniqueness independently rejects duplicates.
 - No-op replacements do not increment revision or add history. Stale requests
   matching the winner are idempotent successes; stale different requests are
   conflicts.
@@ -110,10 +114,11 @@ here.
   disabling, or changing configuration is organization administration, and the
   history exposes the same configuration. Admins/owners may use it; members,
   outsiders, and non-member global operators may not.
-- Concurrent replacements insert candidate versions before pointer CAS because
-  the pointer's foreign key must reference an existing row. A missed CAS throws
-  out of the transaction so the losing candidate rolls back; the service then
-  re-reads once to distinguish an identical winner from a real conflict.
+- Concurrent replacements generate a candidate id and compare-and-swap the
+  pointer before inserting its version. The pointer foreign key is deferred to
+  commit, so the CAS loser writes no candidate; a winner's later insert failure
+  rolls the pointer update back. The service then re-reads once to distinguish
+  an identical winner from a real conflict.
 
 ## Acceptance criteria
 
@@ -130,6 +135,8 @@ here.
 - A unique organization/agent constraint prevents duplicate installations.
 - Each real replacement adds exactly one immutable version, increments the
   installation revision, and atomically switches the pointer.
+- Two versions in one installation cannot share a revision, while revisions
+  may repeat across different installations.
 - Enabled-state changes are versioned rather than overwritten. A disabled
   current version remains durable and explainable.
 - No-op/repeated identical replacements create no extra version. Concurrent
@@ -151,7 +158,8 @@ here.
   cross-tenant ids, guard-before-pipe behavior, strict config/canary refusal,
   duplicate installation, immutability, and concurrent replacements.
 - Direct database constraint assertions for cross-installation active pointers
-  and tenant-disagreeing versions.
+  tenant-disagreeing versions, duplicate same-installation revisions, and
+  valid repeated revisions across installations.
 - Prisma format, validate, generate, current/empty migration deployment and
   migration-status checks.
 - `pnpm agents:check`
@@ -179,8 +187,13 @@ here.
 - Nullable `activeVersionId` permits cyclic installation/version creation. The
   service transaction is the only create path and never commits null; reads
   fail loudly if the invariant is violated rather than guessing a version.
-- Concurrent candidates briefly exist inside their transactions. CAS failure
-  throws and rolls them back; concurrency E2E asserts no orphan version commits.
+- Concurrent requests may generate candidate ids, but pointer CAS happens before
+  version insertion. CAS failure throws without writing a candidate; concurrency
+  E2E asserts no orphan or duplicate version commits.
+- The active-pointer foreign key is `DEFERRABLE INITIALLY DEFERRED`, while
+  revision uniqueness remains immediate. CAS therefore runs before candidate
+  insertion, avoiding unique-key contention and leaving no loser candidate;
+  commit still refuses dangling/cross-installation pointers.
 - The previous application ignores both additive tables. Rollback is the
   current main image; tables remain until a separately planned contraction.
 
@@ -217,6 +230,12 @@ here.
   with structural equality and made catalog defaults pass through the owning
   definition schema before exposure. Focused unit (19 assertions across the
   service and composition suites) and E2E (11 cases) are green.
+- 2026-08-27: Review hardening added database uniqueness for
+  `(installationId, revision)`. Focused falsification found that deferring the
+  unique constraint deadlocked identical replacements, so the final design
+  defers the active-pointer foreign key and performs CAS before candidate
+  insertion. Direct database and concurrency tests verify uniqueness scope,
+  CAS conflict semantics, idempotency, and absence of orphan candidates.
 - 2026-08-27: Aggregate validation is green: agent harness, monorepo typecheck,
   lint, 1,094 backend unit tests, 766 Platform tests, 26 web tests, 558 backend
   E2E tests, all-app production build, documentation assertions, Prisma

@@ -103,7 +103,11 @@ Primary boundaries:
   outsiders and non-member platform administrators receive the same 404 as an
   unknown organization. Every resource predicate repeats the path tenant, and
   composite foreign keys bind both a version and the active pointer to their
-  installation identity. Versions have no update/delete route, and
+  installation identity. A compound database constraint makes revision numbers
+  unique within, but only within, one installation. The active-pointer foreign
+  key is commit-deferred so pointer CAS happens before candidate insertion;
+  only the CAS winner can write the next version, and any later failure rolls
+  the pointer change back. Versions have no update/delete route, and
   installations have no delete route.
 - Browser storage: the Platform's ambiguous-submission record in
   `sessionStorage` holds only `{ idempotencyKey, requestDigest }`, where the

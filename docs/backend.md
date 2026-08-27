@@ -67,8 +67,13 @@ and agent plus append-only effective versions. Creating commits the
 installation, revision 1, and its active pointer together. Replacing enabled
 state, definition revision, or configuration inserts one immutable version and
 switches the pointer with an optimistic revision comparison in the same
-transaction. A losing candidate is rolled back; a stale request matching the
+transaction. A CAS loser inserts no candidate; a stale request matching the
 winner is an idempotent success, while a different winner is a conflict. The
+database also enforces unique `(installationId, revision)` pairs. That compound
+constraint is scoped to one installation, while a deferred active-pointer
+foreign key lets CAS run before candidate insertion. Only the CAS winner writes
+the next version; different installations may independently use the same
+revision numbers. The
 authorized management and history routes use path-scoped `organization:update`
 and always include that organization in database predicates. Agent-run
 acceptance and execution do not consume this state yet; pinning runs is owned by
