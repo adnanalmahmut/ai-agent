@@ -214,6 +214,12 @@ export const contentIdeaAgent: AgentDefinition = {
   ].join('\n'),
   input: contentIdeaInput,
   output: contentIdeaOutput,
+  organizationConfiguration: {
+    // There is no legitimate organization knob yet. Strict-empty is the
+    // product contract, not a placeholder for arbitrary runtime options.
+    schema: z.object({}).strict(),
+    defaultValue: {},
+  },
   outputContract: contentIdeaOutputContract,
   /**
    * The only spaces this agent may ever read, named by registry slug and

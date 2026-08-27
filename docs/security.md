@@ -109,6 +109,21 @@ Primary boundaries:
   refuses (`unverifiable`) rather than passing, so the promise cannot switch
   itself off silently. The class is read by the worker only to choose the word
   `contract_violation` in its log; the retry classification is unchanged.
+- Agent installation configuration: code definitions own the Zod schema and
+  default for each exact installable revision. The database is never a generic
+  agent-definition or arbitrary-JSON authority, and the current production
+  definition accepts only `{}`; unknown keys, including credential-shaped
+  values, are refused before persistence. Installation management and history
+  require path-scoped organization `update`, so members receive 403 while
+  outsiders and non-member platform administrators receive the same 404 as an
+  unknown organization. Every resource predicate repeats the path tenant, and
+  composite foreign keys bind both a version and the active pointer to their
+  installation identity. A compound database constraint makes revision numbers
+  unique within, but only within, one installation. The active-pointer foreign
+  key is commit-deferred so pointer CAS happens before candidate insertion;
+  only the CAS winner can write the next version, and any later failure rolls
+  the pointer change back. Versions have no update/delete route, and
+  installations have no delete route.
 - Browser storage: the Platform's ambiguous-submission record in
   `sessionStorage` holds only `{ idempotencyKey, requestDigest }`, where the
   digest is SHA-256 over the canonical normalized request. Sameness across a

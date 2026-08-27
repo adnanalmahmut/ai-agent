@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 
 import { AgentConfigurationError } from './agent-configuration.error';
-import type { AgentDefinition } from './agent.types';
+import type { AgentConfiguration, AgentDefinition } from './agent.types';
 
 export const AGENT_DEFINITIONS = Symbol('AGENT_DEFINITIONS');
 
@@ -13,6 +13,7 @@ function key(id: string, version: number): string {
 @Injectable()
 export class AgentDefinitionRegistry {
   private readonly definitions: ReadonlyMap<string, AgentDefinition>;
+  private readonly registered: readonly AgentDefinition[];
 
   constructor(
     @Inject(AGENT_DEFINITIONS) definitions: readonly AgentDefinition[],
@@ -33,6 +34,7 @@ export class AgentDefinitionRegistry {
     }
 
     this.definitions = indexed;
+    this.registered = [...definitions];
   }
 
   /**
@@ -52,5 +54,43 @@ export class AgentDefinitionRegistry {
         `Agent definition "${identity}" is not registered`,
       );
     return definition;
+  }
+
+  /** Latest installable revision of every code-owned agent, stable by id. */
+  listInstallable(): readonly AgentDefinition[] {
+    const latest = new Map<string, AgentDefinition>();
+
+    for (const definition of this.registered) {
+      if (!definition.organizationConfiguration) continue;
+      const current = latest.get(definition.id);
+      if (!current || definition.version > current.version) {
+        latest.set(definition.id, definition);
+      }
+    }
+
+    return [...latest.values()].sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+  }
+
+  /**
+   * Parses configuration against the exact requested definition revision.
+   * There is no fallback to latest and no runtime-owned validation path.
+   */
+  parseOrganizationConfiguration(
+    id: string,
+    version: number,
+    value: unknown,
+  ): AgentConfiguration {
+    const definition = this.resolve(id, version);
+    const contract = definition.organizationConfiguration;
+
+    if (!contract) {
+      throw new AgentConfigurationError(
+        `Agent definition "${id}@${version}" is not installable`,
+      );
+    }
+
+    return contract.schema.parse(value ?? contract.defaultValue);
   }
 }
