@@ -68,6 +68,25 @@ export type Invitation = Prisma.InvitationModel
  */
 export type AgentRun = Prisma.AgentRunModel
 /**
+ * Model OrganizationAgentInstallation
+ * One code-owned agent installed inside one organization.
+ * 
+ * The mutable facts are only `revision` and the pointer to the current
+ * immutable version. `activeVersionId` is nullable so the installation and its
+ * first version can be created in one transaction; application-created
+ * committed rows always point at a version.
+ */
+export type OrganizationAgentInstallation = Prisma.OrganizationAgentInstallationModel
+/**
+ * Model OrganizationAgentVersion
+ * One immutable effective state of an organization's installed agent.
+ * 
+ * Definition behavior remains code-owned. This row pins the exact code
+ * definition revision plus the organization-owned, definition-validated
+ * configuration and whether that effective state is enabled.
+ */
+export type OrganizationAgentVersion = Prisma.OrganizationAgentVersionModel
+/**
  * Model OutboxEvent
  * 
  */

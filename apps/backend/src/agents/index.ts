@@ -5,6 +5,7 @@ export {
 } from './agent-output-contract.error';
 export type { AgentRuntime } from './agent-runtime';
 export type {
+  AgentConfiguration,
   AgentDefinition,
   AgentOutputContract,
   AgentOutputContractViolation,
@@ -23,6 +24,7 @@ export {
   AGENT_RUNTIME_NAMES,
 } from './agent.types';
 export { AgentsModule } from './agents.module';
+export { OrganizationAgentInstallationsModule } from './organization-agent-installations.module';
 export type { AgentContextPassage, ContextPolicy } from './agent.types';
 export {
   contentIdeaAgent,

@@ -380,7 +380,6 @@ describe('AppModule agent composition', () => {
       AgentRunner,
       AgentContextAssembler,
       AgentRuntimeRegistry,
-      AgentDefinitionRegistry,
       MastraRuntime,
       QueueProducer,
       AgentRunReconciler,
@@ -389,8 +388,11 @@ describe('AppModule agent composition', () => {
       expect(providers).not.toContain(provider);
     }
 
-    // Not vacuous: the walk really did find the API's own agent provider.
+    // Not vacuous: the API owns run persistence and the code-definition
+    // registry used to validate organization installation configuration. It
+    // still owns no execution runtime, queue producer, runner, or handler.
     expect(providers).toContain(AgentRunService);
+    expect(providers).toContain(AgentDefinitionRegistry);
   });
 
   /**

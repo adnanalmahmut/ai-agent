@@ -406,6 +406,8 @@ export const ModelName = {
   Member: 'Member',
   Invitation: 'Invitation',
   AgentRun: 'AgentRun',
+  OrganizationAgentInstallation: 'OrganizationAgentInstallation',
+  OrganizationAgentVersion: 'OrganizationAgentVersion',
   OutboxEvent: 'OutboxEvent',
   FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
   FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
@@ -430,7 +432,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk"
+    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "organizationAgentInstallation" | "organizationAgentVersion" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1097,6 +1099,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.AgentRunCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.AgentRunCountAggregateOutputType> | number
+        }
+      }
+    }
+    OrganizationAgentInstallation: {
+      payload: Prisma.$OrganizationAgentInstallationPayload<ExtArgs>
+      fields: Prisma.OrganizationAgentInstallationFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OrganizationAgentInstallationFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OrganizationAgentInstallationFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>
+        }
+        findFirst: {
+          args: Prisma.OrganizationAgentInstallationFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OrganizationAgentInstallationFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>
+        }
+        findMany: {
+          args: Prisma.OrganizationAgentInstallationFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>[]
+        }
+        create: {
+          args: Prisma.OrganizationAgentInstallationCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>
+        }
+        createMany: {
+          args: Prisma.OrganizationAgentInstallationCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OrganizationAgentInstallationCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>[]
+        }
+        delete: {
+          args: Prisma.OrganizationAgentInstallationDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>
+        }
+        update: {
+          args: Prisma.OrganizationAgentInstallationUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>
+        }
+        deleteMany: {
+          args: Prisma.OrganizationAgentInstallationDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OrganizationAgentInstallationUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OrganizationAgentInstallationUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>[]
+        }
+        upsert: {
+          args: Prisma.OrganizationAgentInstallationUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentInstallationPayload>
+        }
+        aggregate: {
+          args: Prisma.OrganizationAgentInstallationAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOrganizationAgentInstallation>
+        }
+        groupBy: {
+          args: Prisma.OrganizationAgentInstallationGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrganizationAgentInstallationGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OrganizationAgentInstallationCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrganizationAgentInstallationCountAggregateOutputType> | number
+        }
+      }
+    }
+    OrganizationAgentVersion: {
+      payload: Prisma.$OrganizationAgentVersionPayload<ExtArgs>
+      fields: Prisma.OrganizationAgentVersionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.OrganizationAgentVersionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.OrganizationAgentVersionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>
+        }
+        findFirst: {
+          args: Prisma.OrganizationAgentVersionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.OrganizationAgentVersionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>
+        }
+        findMany: {
+          args: Prisma.OrganizationAgentVersionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>[]
+        }
+        create: {
+          args: Prisma.OrganizationAgentVersionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>
+        }
+        createMany: {
+          args: Prisma.OrganizationAgentVersionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.OrganizationAgentVersionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>[]
+        }
+        delete: {
+          args: Prisma.OrganizationAgentVersionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>
+        }
+        update: {
+          args: Prisma.OrganizationAgentVersionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>
+        }
+        deleteMany: {
+          args: Prisma.OrganizationAgentVersionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.OrganizationAgentVersionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.OrganizationAgentVersionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>[]
+        }
+        upsert: {
+          args: Prisma.OrganizationAgentVersionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$OrganizationAgentVersionPayload>
+        }
+        aggregate: {
+          args: Prisma.OrganizationAgentVersionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateOrganizationAgentVersion>
+        }
+        groupBy: {
+          args: Prisma.OrganizationAgentVersionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrganizationAgentVersionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.OrganizationAgentVersionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.OrganizationAgentVersionCountAggregateOutputType> | number
         }
       }
     }
@@ -1947,6 +2097,34 @@ export const AgentRunScalarFieldEnum = {
 export type AgentRunScalarFieldEnum = (typeof AgentRunScalarFieldEnum)[keyof typeof AgentRunScalarFieldEnum]
 
 
+export const OrganizationAgentInstallationScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  agentId: 'agentId',
+  revision: 'revision',
+  activeVersionId: 'activeVersionId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type OrganizationAgentInstallationScalarFieldEnum = (typeof OrganizationAgentInstallationScalarFieldEnum)[keyof typeof OrganizationAgentInstallationScalarFieldEnum]
+
+
+export const OrganizationAgentVersionScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  installationId: 'installationId',
+  revision: 'revision',
+  definitionVersion: 'definitionVersion',
+  enabled: 'enabled',
+  configuration: 'configuration',
+  createdByUserId: 'createdByUserId',
+  createdAt: 'createdAt'
+} as const
+
+export type OrganizationAgentVersionScalarFieldEnum = (typeof OrganizationAgentVersionScalarFieldEnum)[keyof typeof OrganizationAgentVersionScalarFieldEnum]
+
+
 export const OutboxEventScalarFieldEnum = {
   id: 'id',
   type: 'type',
@@ -2417,6 +2595,8 @@ export type GlobalOmitConfig = {
   member?: Prisma.MemberOmit
   invitation?: Prisma.InvitationOmit
   agentRun?: Prisma.AgentRunOmit
+  organizationAgentInstallation?: Prisma.OrganizationAgentInstallationOmit
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionOmit
   outboxEvent?: Prisma.OutboxEventOmit
   featureFlagPlatformOverride?: Prisma.FeatureFlagPlatformOverrideOmit
   featureFlagOrganizationOverride?: Prisma.FeatureFlagOrganizationOverrideOmit

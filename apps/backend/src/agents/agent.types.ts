@@ -47,6 +47,9 @@ export type AgentValue =
   | AgentValue[]
   | { [key: string]: AgentValue };
 
+/** Definition-owned organization configuration; always a JSON object. */
+export type AgentConfiguration = { [key: string]: AgentValue };
+
 export type AgentRun = {
   id: string;
   agentId: string;
@@ -132,6 +135,18 @@ export type AgentDefinition = {
    */
   input: ZodType;
   output: ZodType;
+  /**
+   * The organization-owned configuration this definition understands.
+   *
+   * Optional means the definition is internal-only and cannot be installed.
+   * When present, both the schema and default are code-owned parts of this
+   * immutable definition revision. Runtime adapters never validate or own this
+   * value, and callers never get an arbitrary JSON escape hatch.
+   */
+  organizationConfiguration?: {
+    schema: ZodType<AgentConfiguration>;
+    defaultValue: AgentConfiguration;
+  };
   /**
    * What the parsed answer must additionally be true of, given the request.
    *

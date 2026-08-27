@@ -206,6 +206,8 @@ model Organization {
   invitations Invitation[]
   agentRuns   AgentRun[]
 
+  agentInstallations OrganizationAgentInstallation[]
+
   featureFlagOverrides FeatureFlagOrganizationOverride[]
 
   knowledgeSpaces    KnowledgeSpace[]
@@ -321,6 +323,67 @@ model AgentRun {
   /// grow with total history rather than with the backlog it is meant to find.
   @@index([status, updatedAt])
   @@map("agent_run")
+}
+
+/// One code-owned agent installed inside one organization.
+///
+/// The mutable facts are only `revision` and the pointer to the current
+/// immutable version. `activeVersionId` is nullable so the installation and its
+/// first version can be created in one transaction; application-created
+/// committed rows always point at a version.
+model OrganizationAgentInstallation {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  agentId  String
+  revision Int    @default(0)
+
+  activeVersionId String?
+  activeVersion   OrganizationAgentVersion?  @relation("ActiveOrganizationAgentVersion", fields: [activeVersionId, id], references: [id, installationId], onDelete: Restrict)
+  versions        OrganizationAgentVersion[] @relation("OrganizationAgentVersions")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, agentId])
+  /// Target for version ownership; the database keeps tenant identity aligned.
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@map("organization_agent_installation")
+}
+
+/// One immutable effective state of an organization's installed agent.
+///
+/// Definition behavior remains code-owned. This row pins the exact code
+/// definition revision plus the organization-owned, definition-validated
+/// configuration and whether that effective state is enabled.
+model OrganizationAgentVersion {
+  id String @id @default(uuid())
+
+  organizationId String
+  installationId String
+  installation   OrganizationAgentInstallation @relation("OrganizationAgentVersions", fields: [installationId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  revision          Int
+  definitionVersion Int
+  enabled           Boolean
+  configuration     Json
+
+  /// Attribution without a foreign key so history cannot block or lose its
+  /// actor during a future user lifecycle change.
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  activeFor OrganizationAgentInstallation[] @relation("ActiveOrganizationAgentVersion")
+
+  /// Target for the installation's active pointer; including installation id
+  /// makes a cross-installation pointer a database constraint violation.
+  @@unique([id, installationId])
+  @@index([organizationId])
+  @@index([installationId, createdAt, id])
+  @@map("organization_agent_version")
 }
 
 // ---------------------------------------------------------------------------

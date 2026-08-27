@@ -2,8 +2,9 @@
 
 PostgreSQL stores identity, sessions, accounts, verification records,
 organizations, members, invitations, Better Auth rate-limit rows, agent runs,
-outbox events, control-plane state, and organization knowledge. Prisma schema and generated client are committed and CI
-verifies that generation is current.
+outbox events, control-plane state, organization-agent installations and
+versions, and organization knowledge. Prisma schema and generated client are
+committed and CI verifies that generation is current.
 
 `agent_run` is the durable business authority for accepted background agent
 work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,
@@ -55,6 +56,29 @@ Migration order:
 6. Durable agent-run foundation.
 7. Agent-run reconciliation index.
 8. Control plane: feature-flag overrides, runtime settings, managed secrets.
+9. Knowledge retrieval core.
+10. Knowledge management.
+11. Control-plane audit history.
+12. Super-admin floor enforcement.
+13. Organization-agent installations and immutable versions.
+
+`organization_agent_installation` is the mutable aggregate root for one
+`(organizationId, agentId)`. Only its integer revision and active-version
+pointer change. `organization_agent_version` is append-only application state:
+it records the installation revision, exact code definition revision, enabled
+state, definition-validated configuration, creator attribution, and creation
+time. Attribution intentionally has no user foreign key so future user
+lifecycle work cannot delete or block historical state.
+
+The nullable active pointer permits cyclic installation/version creation in one
+transaction; application reads reject a committed installation with no active
+version. Its composite foreign key references `(version.id,
+version.installationId)`, preventing one installation from pointing at another's
+version. Versions reference `(installation.id, installation.organizationId)`,
+so a version cannot claim a tenant different from its installation. The
+organization itself is restricted on delete, preserving this business history.
+Version history keyset-pages by `(createdAt, id)` descending through the
+installation/organization predicates.
 
 Feature-flag overrides are two tables — one platform-wide, one per
 organization — rather than one table with a nullable `organizationId`.

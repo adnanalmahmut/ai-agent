@@ -52,6 +52,28 @@ happens to pay for, so a run that stored whatever came back would make
 execution against the *pinned* version's schema, because a run accepted days
 earlier must be checked against the definition it will actually run with.
 
+Definitions may additionally own an organization-configuration schema and
+default. Presence makes that exact definition revision installable; absence
+keeps it internal-only. The API exposes the latest installable revision of each
+agent as a finite catalog, but create and replace always resolve the exact
+requested `(agentId, definitionVersion)` and parse configuration with that
+revision's Zod schema. `content-idea@1` deliberately accepts only a strict empty
+object: it has no organization knob the runtime consumes, so arbitrary JSON —
+especially credentials — is refused rather than persisted as speculative
+product contract.
+
+`OrganizationAgentInstallationService` owns one installation per organization
+and agent plus append-only effective versions. Creating commits the
+installation, revision 1, and its active pointer together. Replacing enabled
+state, definition revision, or configuration inserts one immutable version and
+switches the pointer with an optimistic revision comparison in the same
+transaction. A losing candidate is rolled back; a stale request matching the
+winner is an idempotent success, while a different winner is a conflict. The
+authorized management and history routes use path-scoped `organization:update`
+and always include that organization in database predicates. Agent-run
+acceptance and execution do not consume this state yet; pinning runs is owned by
+the next dependent slice.
+
 `ContextPolicy` names the knowledge spaces an agent may read, by registry slug,
 with an explicit chunk budget and an explicit character budget. The slug type is
 the knowledge registry's rather than `string`, so a policy naming a space that
