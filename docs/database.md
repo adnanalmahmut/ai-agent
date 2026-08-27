@@ -2,8 +2,18 @@
 
 PostgreSQL stores identity, sessions, accounts, verification records,
 organizations, members, invitations, Better Auth rate-limit rows, agent runs,
-outbox events, control-plane state, and organization knowledge. Prisma schema and generated client are committed and CI
-verifies that generation is current.
+outbox events, control-plane state, and organization knowledge. Prisma schema
+and generated client are committed and CI verifies that generation is current.
+
+The `organization` row also owns application business settings separately from
+Better Auth's profile fields: `locale`, `timezone`, `currency`, `legalName`,
+`industry`, `websiteUrl`, and `businessDescription`. The defaults (`ar`, `UTC`,
+and `USD`) make every existing row immediately readable. The schema stores a
+dedicated `businessProfileVersion` and `businessProfileUpdatedAt`; application
+writes compare and increment that version so Better Auth name/slug changes do
+not cause false conflicts. These are typed columns rather than entries in the
+legacy metadata string because they are stable product inputs with one owner,
+validation contract, and future consumers.
 
 `agent_run` is the durable business authority for accepted background agent
 work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,
@@ -55,6 +65,9 @@ Migration order:
 6. Durable agent-run foundation.
 7. Agent-run reconciliation index.
 8. Control plane: feature-flag overrides, runtime settings, managed secrets.
+9. Knowledge storage and management.
+10. Control-plane audit history and the super-admin floor.
+11. Additive organization business settings.
 
 Feature-flag overrides are two tables — one platform-wide, one per
 organization — rather than one table with a nullable `organizationId`.

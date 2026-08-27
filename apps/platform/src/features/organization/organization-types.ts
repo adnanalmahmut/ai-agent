@@ -97,3 +97,22 @@ export type OrganizationLifecycleResult = {
   canceledInvitations: number;
   clearedActiveSessions: number;
 };
+
+/** Typed application-owned settings, separate from Better Auth's profile. */
+export type OrganizationBusinessProfile = {
+  organizationId: string;
+  version: number;
+  locale: 'ar' | 'en';
+  timezone: string;
+  currency: string;
+  legalName: string | null;
+  industry: string | null;
+  websiteUrl: string | null;
+  businessDescription: string | null;
+  updatedAt: string;
+};
+
+export type ReplaceOrganizationBusinessProfile = Omit<
+  OrganizationBusinessProfile,
+  'organizationId' | 'updatedAt'
+>;

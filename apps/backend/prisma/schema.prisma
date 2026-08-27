@@ -189,6 +189,23 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
+  // --- Application-owned business settings -------------------------------
+  /// Product defaults and a deliberately small typed business profile.
+  /// Better Auth ignores these extra columns; application routes own them.
+  locale              String  @default("ar")
+  timezone            String  @default("UTC")
+  currency            String  @default("USD")
+  legalName           String?
+  industry            String?
+  websiteUrl          String?
+  businessDescription String?
+
+  /// Optimistic compare-and-swap token for the business settings surface.
+  /// Kept separate from Better Auth's name/slug writes so unrelated profile
+  /// changes cannot manufacture a settings conflict.
+  businessProfileVersion   Int      @default(1)
+  businessProfileUpdatedAt DateTime @default(now())
+
   // --- Application organization lifecycle -----------------------------------
   /// Set when the organization is archived. Every member, invitation and
   /// business resource survives; the organization simply becomes operationally
@@ -586,9 +603,9 @@ model ControlPlaneAuditEvent {
   /// Which control-plane resource: `featureFlag`, `runtimeSetting`, or
   /// `managedSecret`. A string rather than an enum because adding a resource
   /// should not be a migration on a log table.
-  resource String
+  resource    String
   /// What was done to it, as `resource.verb` — `featureFlag.setOrganizationOverride`.
-  action String
+  action      String
   /// The registry key the action addressed.
   resourceKey String
 

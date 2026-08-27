@@ -25,6 +25,19 @@ Mail is provider-selected (`log`, SMTP, Resend, or SES) behind `MailService`.
 Provider credentials are validated only when active, and outbound locale is
 resolved from validated account/request state.
 
+The organization business-settings domain (`src/organization-settings/`) owns
+the typed defaults and profile that sit beside Better Auth's name, slug, and
+logo. `GET` and full-replacement `PUT` at
+`/organizations/:organizationId/business-profile` are path-scoped by the
+existing `organization:update` permission; the guard runs before body parsing,
+so a caller cannot use validation failures to probe an organization they cannot
+administer. The contract accepts only the application's `ar`/`en` locales,
+runtime-supported IANA timezones and ISO 4217 currencies, bounded nullable
+business text, and HTTP(S) website URLs. Writes enumerate owned fields and use
+an application-specific version token for compare-and-swap. Repeating an
+already-applied replacement is a no-op, while a stale replacement that would
+change state is a conflict rather than a silent overwrite.
+
 The agent feature provides internal durable acceptance and background execution
 infrastructure. `AgentRunService` commits an application-owned AgentRun and its
 `agent-run.queued` outbox event atomically, with organization-scoped PostgreSQL

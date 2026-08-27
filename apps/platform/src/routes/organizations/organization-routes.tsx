@@ -12,6 +12,7 @@ import { OrganizationsBlock } from '@/features/organization/blocks/organizations
 import { useOrganizationContext } from '@/features/organization/organization-context';
 import type {
   OrganizationData,
+  OrganizationBusinessProfileData,
   OrganizationsListData,
 } from '@/features/organization/loaders';
 
@@ -80,5 +81,9 @@ export function OrganizationContentIdeasRoute() {
 }
 
 export function OrganizationSettingsRoute() {
-  return <OrganizationSettingsBlock />;
+  return (
+    <OrganizationSettingsBlock
+      businessProfile={useLoaderData<OrganizationBusinessProfileData>()}
+    />
+  );
 }

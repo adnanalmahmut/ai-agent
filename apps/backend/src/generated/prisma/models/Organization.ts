@@ -20,8 +20,18 @@ export type OrganizationModel = runtime.Types.Result.DefaultSelection<Prisma.$Or
 
 export type AggregateOrganization = {
   _count: OrganizationCountAggregateOutputType | null
+  _avg: OrganizationAvgAggregateOutputType | null
+  _sum: OrganizationSumAggregateOutputType | null
   _min: OrganizationMinAggregateOutputType | null
   _max: OrganizationMaxAggregateOutputType | null
+}
+
+export type OrganizationAvgAggregateOutputType = {
+  businessProfileVersion: number | null
+}
+
+export type OrganizationSumAggregateOutputType = {
+  businessProfileVersion: number | null
 }
 
 export type OrganizationMinAggregateOutputType = {
@@ -31,6 +41,15 @@ export type OrganizationMinAggregateOutputType = {
   logo: string | null
   createdAt: Date | null
   metadata: string | null
+  locale: string | null
+  timezone: string | null
+  currency: string | null
+  legalName: string | null
+  industry: string | null
+  websiteUrl: string | null
+  businessDescription: string | null
+  businessProfileVersion: number | null
+  businessProfileUpdatedAt: Date | null
   archivedAt: Date | null
   archivedByUserId: string | null
   archiveReason: string | null
@@ -43,6 +62,15 @@ export type OrganizationMaxAggregateOutputType = {
   logo: string | null
   createdAt: Date | null
   metadata: string | null
+  locale: string | null
+  timezone: string | null
+  currency: string | null
+  legalName: string | null
+  industry: string | null
+  websiteUrl: string | null
+  businessDescription: string | null
+  businessProfileVersion: number | null
+  businessProfileUpdatedAt: Date | null
   archivedAt: Date | null
   archivedByUserId: string | null
   archiveReason: string | null
@@ -55,12 +83,29 @@ export type OrganizationCountAggregateOutputType = {
   logo: number
   createdAt: number
   metadata: number
+  locale: number
+  timezone: number
+  currency: number
+  legalName: number
+  industry: number
+  websiteUrl: number
+  businessDescription: number
+  businessProfileVersion: number
+  businessProfileUpdatedAt: number
   archivedAt: number
   archivedByUserId: number
   archiveReason: number
   _all: number
 }
 
+
+export type OrganizationAvgAggregateInputType = {
+  businessProfileVersion?: true
+}
+
+export type OrganizationSumAggregateInputType = {
+  businessProfileVersion?: true
+}
 
 export type OrganizationMinAggregateInputType = {
   id?: true
@@ -69,6 +114,15 @@ export type OrganizationMinAggregateInputType = {
   logo?: true
   createdAt?: true
   metadata?: true
+  locale?: true
+  timezone?: true
+  currency?: true
+  legalName?: true
+  industry?: true
+  websiteUrl?: true
+  businessDescription?: true
+  businessProfileVersion?: true
+  businessProfileUpdatedAt?: true
   archivedAt?: true
   archivedByUserId?: true
   archiveReason?: true
@@ -81,6 +135,15 @@ export type OrganizationMaxAggregateInputType = {
   logo?: true
   createdAt?: true
   metadata?: true
+  locale?: true
+  timezone?: true
+  currency?: true
+  legalName?: true
+  industry?: true
+  websiteUrl?: true
+  businessDescription?: true
+  businessProfileVersion?: true
+  businessProfileUpdatedAt?: true
   archivedAt?: true
   archivedByUserId?: true
   archiveReason?: true
@@ -93,6 +156,15 @@ export type OrganizationCountAggregateInputType = {
   logo?: true
   createdAt?: true
   metadata?: true
+  locale?: true
+  timezone?: true
+  currency?: true
+  legalName?: true
+  industry?: true
+  websiteUrl?: true
+  businessDescription?: true
+  businessProfileVersion?: true
+  businessProfileUpdatedAt?: true
   archivedAt?: true
   archivedByUserId?: true
   archiveReason?: true
@@ -137,6 +209,18 @@ export type OrganizationAggregateArgs<ExtArgs extends runtime.Types.Extensions.I
   /**
    * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
    * 
+   * Select which fields to average
+  **/
+  _avg?: OrganizationAvgAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
+   * Select which fields to sum
+  **/
+  _sum?: OrganizationSumAggregateInputType
+  /**
+   * {@link https://www.prisma.io/docs/concepts/components/prisma-client/aggregations Aggregation Docs}
+   * 
    * Select which fields to find the minimum value
   **/
   _min?: OrganizationMinAggregateInputType
@@ -167,6 +251,8 @@ export type OrganizationGroupByArgs<ExtArgs extends runtime.Types.Extensions.Int
   take?: number
   skip?: number
   _count?: OrganizationCountAggregateInputType | true
+  _avg?: OrganizationAvgAggregateInputType
+  _sum?: OrganizationSumAggregateInputType
   _min?: OrganizationMinAggregateInputType
   _max?: OrganizationMaxAggregateInputType
 }
@@ -178,10 +264,21 @@ export type OrganizationGroupByOutputType = {
   logo: string | null
   createdAt: Date
   metadata: string | null
+  locale: string
+  timezone: string
+  currency: string
+  legalName: string | null
+  industry: string | null
+  websiteUrl: string | null
+  businessDescription: string | null
+  businessProfileVersion: number
+  businessProfileUpdatedAt: Date
   archivedAt: Date | null
   archivedByUserId: string | null
   archiveReason: string | null
   _count: OrganizationCountAggregateOutputType | null
+  _avg: OrganizationAvgAggregateOutputType | null
+  _sum: OrganizationSumAggregateOutputType | null
   _min: OrganizationMinAggregateOutputType | null
   _max: OrganizationMaxAggregateOutputType | null
 }
@@ -211,6 +308,15 @@ export type OrganizationWhereInput = {
   logo?: Prisma.StringNullableFilter<"Organization"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   metadata?: Prisma.StringNullableFilter<"Organization"> | string | null
+  locale?: Prisma.StringFilter<"Organization"> | string
+  timezone?: Prisma.StringFilter<"Organization"> | string
+  currency?: Prisma.StringFilter<"Organization"> | string
+  legalName?: Prisma.StringNullableFilter<"Organization"> | string | null
+  industry?: Prisma.StringNullableFilter<"Organization"> | string | null
+  websiteUrl?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessDescription?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessProfileVersion?: Prisma.IntFilter<"Organization"> | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   archivedAt?: Prisma.DateTimeNullableFilter<"Organization"> | Date | string | null
   archivedByUserId?: Prisma.StringNullableFilter<"Organization"> | string | null
   archiveReason?: Prisma.StringNullableFilter<"Organization"> | string | null
@@ -230,6 +336,15 @@ export type OrganizationOrderByWithRelationInput = {
   logo?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrderInput | Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrderInput | Prisma.SortOrder
+  industry?: Prisma.SortOrderInput | Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessDescription?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   archiveReason?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -252,6 +367,15 @@ export type OrganizationWhereUniqueInput = Prisma.AtLeast<{
   logo?: Prisma.StringNullableFilter<"Organization"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   metadata?: Prisma.StringNullableFilter<"Organization"> | string | null
+  locale?: Prisma.StringFilter<"Organization"> | string
+  timezone?: Prisma.StringFilter<"Organization"> | string
+  currency?: Prisma.StringFilter<"Organization"> | string
+  legalName?: Prisma.StringNullableFilter<"Organization"> | string | null
+  industry?: Prisma.StringNullableFilter<"Organization"> | string | null
+  websiteUrl?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessDescription?: Prisma.StringNullableFilter<"Organization"> | string | null
+  businessProfileVersion?: Prisma.IntFilter<"Organization"> | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFilter<"Organization"> | Date | string
   archivedAt?: Prisma.DateTimeNullableFilter<"Organization"> | Date | string | null
   archivedByUserId?: Prisma.StringNullableFilter<"Organization"> | string | null
   archiveReason?: Prisma.StringNullableFilter<"Organization"> | string | null
@@ -271,12 +395,23 @@ export type OrganizationOrderByWithAggregationInput = {
   logo?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrderInput | Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrderInput | Prisma.SortOrder
+  industry?: Prisma.SortOrderInput | Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessDescription?: Prisma.SortOrderInput | Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   archiveReason?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.OrganizationCountOrderByAggregateInput
+  _avg?: Prisma.OrganizationAvgOrderByAggregateInput
   _max?: Prisma.OrganizationMaxOrderByAggregateInput
   _min?: Prisma.OrganizationMinOrderByAggregateInput
+  _sum?: Prisma.OrganizationSumOrderByAggregateInput
 }
 
 export type OrganizationScalarWhereWithAggregatesInput = {
@@ -289,6 +424,15 @@ export type OrganizationScalarWhereWithAggregatesInput = {
   logo?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Organization"> | Date | string
   metadata?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  locale?: Prisma.StringWithAggregatesFilter<"Organization"> | string
+  timezone?: Prisma.StringWithAggregatesFilter<"Organization"> | string
+  currency?: Prisma.StringWithAggregatesFilter<"Organization"> | string
+  legalName?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  industry?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  websiteUrl?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  businessDescription?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
+  businessProfileVersion?: Prisma.IntWithAggregatesFilter<"Organization"> | number
+  businessProfileUpdatedAt?: Prisma.DateTimeWithAggregatesFilter<"Organization"> | Date | string
   archivedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Organization"> | Date | string | null
   archivedByUserId?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
   archiveReason?: Prisma.StringNullableWithAggregatesFilter<"Organization"> | string | null
@@ -301,6 +445,15 @@ export type OrganizationCreateInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -320,6 +473,15 @@ export type OrganizationUncheckedCreateInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -339,6 +501,15 @@ export type OrganizationUpdateInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -358,6 +529,15 @@ export type OrganizationUncheckedUpdateInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -377,6 +557,15 @@ export type OrganizationCreateManyInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -389,6 +578,15 @@ export type OrganizationUpdateManyMutationInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -401,6 +599,15 @@ export type OrganizationUncheckedUpdateManyInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -413,9 +620,22 @@ export type OrganizationCountOrderByAggregateInput = {
   logo?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrder
+  industry?: Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrder
+  businessDescription?: Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrder
   archiveReason?: Prisma.SortOrder
+}
+
+export type OrganizationAvgOrderByAggregateInput = {
+  businessProfileVersion?: Prisma.SortOrder
 }
 
 export type OrganizationMaxOrderByAggregateInput = {
@@ -425,6 +645,15 @@ export type OrganizationMaxOrderByAggregateInput = {
   logo?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrder
+  industry?: Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrder
+  businessDescription?: Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrder
   archiveReason?: Prisma.SortOrder
@@ -437,9 +666,22 @@ export type OrganizationMinOrderByAggregateInput = {
   logo?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   metadata?: Prisma.SortOrder
+  locale?: Prisma.SortOrder
+  timezone?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  legalName?: Prisma.SortOrder
+  industry?: Prisma.SortOrder
+  websiteUrl?: Prisma.SortOrder
+  businessDescription?: Prisma.SortOrder
+  businessProfileVersion?: Prisma.SortOrder
+  businessProfileUpdatedAt?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
   archivedByUserId?: Prisma.SortOrder
   archiveReason?: Prisma.SortOrder
+}
+
+export type OrganizationSumOrderByAggregateInput = {
+  businessProfileVersion?: Prisma.SortOrder
 }
 
 export type OrganizationScalarRelationFilter = {
@@ -552,6 +794,15 @@ export type OrganizationCreateWithoutMembersInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -570,6 +821,15 @@ export type OrganizationUncheckedCreateWithoutMembersInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -604,6 +864,15 @@ export type OrganizationUpdateWithoutMembersInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -622,6 +891,15 @@ export type OrganizationUncheckedUpdateWithoutMembersInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -640,6 +918,15 @@ export type OrganizationCreateWithoutInvitationsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -658,6 +945,15 @@ export type OrganizationUncheckedCreateWithoutInvitationsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -692,6 +988,15 @@ export type OrganizationUpdateWithoutInvitationsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -710,6 +1015,15 @@ export type OrganizationUncheckedUpdateWithoutInvitationsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -728,6 +1042,15 @@ export type OrganizationCreateWithoutAgentRunsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -746,6 +1069,15 @@ export type OrganizationUncheckedCreateWithoutAgentRunsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -780,6 +1112,15 @@ export type OrganizationUpdateWithoutAgentRunsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -798,6 +1139,15 @@ export type OrganizationUncheckedUpdateWithoutAgentRunsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -816,6 +1166,15 @@ export type OrganizationCreateWithoutFeatureFlagOverridesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -834,6 +1193,15 @@ export type OrganizationUncheckedCreateWithoutFeatureFlagOverridesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -868,6 +1236,15 @@ export type OrganizationUpdateWithoutFeatureFlagOverridesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -886,6 +1263,15 @@ export type OrganizationUncheckedUpdateWithoutFeatureFlagOverridesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -904,6 +1290,15 @@ export type OrganizationCreateWithoutKnowledgeSpacesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -922,6 +1317,15 @@ export type OrganizationUncheckedCreateWithoutKnowledgeSpacesInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -956,6 +1360,15 @@ export type OrganizationUpdateWithoutKnowledgeSpacesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -974,6 +1387,15 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeSpacesInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -992,6 +1414,15 @@ export type OrganizationCreateWithoutKnowledgeDocumentsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1010,6 +1441,15 @@ export type OrganizationUncheckedCreateWithoutKnowledgeDocumentsInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1044,6 +1484,15 @@ export type OrganizationUpdateWithoutKnowledgeDocumentsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1062,6 +1511,15 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeDocumentsInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1080,6 +1538,15 @@ export type OrganizationCreateWithoutKnowledgeChunksInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1098,6 +1565,15 @@ export type OrganizationUncheckedCreateWithoutKnowledgeChunksInput = {
   logo?: string | null
   createdAt?: Date | string
   metadata?: string | null
+  locale?: string
+  timezone?: string
+  currency?: string
+  legalName?: string | null
+  industry?: string | null
+  websiteUrl?: string | null
+  businessDescription?: string | null
+  businessProfileVersion?: number
+  businessProfileUpdatedAt?: Date | string
   archivedAt?: Date | string | null
   archivedByUserId?: string | null
   archiveReason?: string | null
@@ -1132,6 +1608,15 @@ export type OrganizationUpdateWithoutKnowledgeChunksInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1150,6 +1635,15 @@ export type OrganizationUncheckedUpdateWithoutKnowledgeChunksInput = {
   logo?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   metadata?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  locale?: Prisma.StringFieldUpdateOperationsInput | string
+  timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  currency?: Prisma.StringFieldUpdateOperationsInput | string
+  legalName?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  industry?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  websiteUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessDescription?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  businessProfileVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  businessProfileUpdatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   archivedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   archiveReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
@@ -1253,6 +1747,15 @@ export type OrganizationSelect<ExtArgs extends runtime.Types.Extensions.Internal
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
@@ -1273,6 +1776,15 @@ export type OrganizationSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
@@ -1285,6 +1797,15 @@ export type OrganizationSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
@@ -1297,12 +1818,21 @@ export type OrganizationSelectScalar = {
   logo?: boolean
   createdAt?: boolean
   metadata?: boolean
+  locale?: boolean
+  timezone?: boolean
+  currency?: boolean
+  legalName?: boolean
+  industry?: boolean
+  websiteUrl?: boolean
+  businessDescription?: boolean
+  businessProfileVersion?: boolean
+  businessProfileUpdatedAt?: boolean
   archivedAt?: boolean
   archivedByUserId?: boolean
   archiveReason?: boolean
 }
 
-export type OrganizationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "slug" | "logo" | "createdAt" | "metadata" | "archivedAt" | "archivedByUserId" | "archiveReason", ExtArgs["result"]["organization"]>
+export type OrganizationOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "name" | "slug" | "logo" | "createdAt" | "metadata" | "locale" | "timezone" | "currency" | "legalName" | "industry" | "websiteUrl" | "businessDescription" | "businessProfileVersion" | "businessProfileUpdatedAt" | "archivedAt" | "archivedByUserId" | "archiveReason", ExtArgs["result"]["organization"]>
 export type OrganizationInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   members?: boolean | Prisma.Organization$membersArgs<ExtArgs>
   invitations?: boolean | Prisma.Organization$invitationsArgs<ExtArgs>
@@ -1334,6 +1864,24 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     logo: string | null
     createdAt: Date
     metadata: string | null
+    /**
+     * Product defaults and a deliberately small typed business profile.
+     * Better Auth ignores these extra columns; application routes own them.
+     */
+    locale: string
+    timezone: string
+    currency: string
+    legalName: string | null
+    industry: string | null
+    websiteUrl: string | null
+    businessDescription: string | null
+    /**
+     * Optimistic compare-and-swap token for the business settings surface.
+     * Kept separate from Better Auth's name/slug writes so unrelated profile
+     * changes cannot manufacture a settings conflict.
+     */
+    businessProfileVersion: number
+    businessProfileUpdatedAt: Date
     /**
      * Set when the organization is archived. Every member, invitation and
      * business resource survives; the organization simply becomes operationally
@@ -1783,6 +2331,15 @@ export interface OrganizationFieldRefs {
   readonly logo: Prisma.FieldRef<"Organization", 'String'>
   readonly createdAt: Prisma.FieldRef<"Organization", 'DateTime'>
   readonly metadata: Prisma.FieldRef<"Organization", 'String'>
+  readonly locale: Prisma.FieldRef<"Organization", 'String'>
+  readonly timezone: Prisma.FieldRef<"Organization", 'String'>
+  readonly currency: Prisma.FieldRef<"Organization", 'String'>
+  readonly legalName: Prisma.FieldRef<"Organization", 'String'>
+  readonly industry: Prisma.FieldRef<"Organization", 'String'>
+  readonly websiteUrl: Prisma.FieldRef<"Organization", 'String'>
+  readonly businessDescription: Prisma.FieldRef<"Organization", 'String'>
+  readonly businessProfileVersion: Prisma.FieldRef<"Organization", 'Int'>
+  readonly businessProfileUpdatedAt: Prisma.FieldRef<"Organization", 'DateTime'>
   readonly archivedAt: Prisma.FieldRef<"Organization", 'DateTime'>
   readonly archivedByUserId: Prisma.FieldRef<"Organization", 'String'>
   readonly archiveReason: Prisma.FieldRef<"Organization", 'String'>
