@@ -209,42 +209,27 @@ behaviour arrives with the bundle install, not with the merge. See
 
 ## First real execution
 
-**Retention has not yet run on a real host.** It is installed and wired, and
-every guard is covered by tests driving a modelled image store, but its first
-execution will be the first legitimate deployment after bundle 3 was installed.
+Deployment run
+[33016187386](https://github.com/adnanalmahmut/ai-agent/actions/runs/33016187386)
+on release `9a90e1f5befa3048a258858066d3c6bc5a822ad7` was the first legitimate
+post-bundle-3 deployment. Retention executed automatically and succeeded:
 
-It must not be forced. A no-op release, an empty commit, or a manual
-`reclaim` on the host would each prove something adjacent to the thing that
-matters — that retention behaves correctly on the deployment path — and a manual
-run would consume the superseded generation the automatic run needs in order to
-demonstrate anything at all.
+- 24 superseded application image references removed across the four
+  repositories (`backend`, `backend-migration`, `web`, `platform`).
+- `removed` = 24, `blocked` = 0, `failed` = 0.
+- Free space before 14257MiB, after 42362MiB, reclaimed 28105MiB.
+- Post-retention `4096MiB` disk preflight passed.
+- All protected release images verified present after the sweep.
+- No `prune`, no forced deletion. Removal was by explicit `repository@digest`,
+  one reference at a time.
+- The deployment itself remained healthy — all containers `Healthy`, health and
+  external HTTPS smoke checks passed.
 
-Acceptance splits into two gates that are not interchangeable, because a guard
-firing correctly proves the guard and not the feature.
+Functional real-host acceptance (Gate F) is satisfied by this deployment. Gate S
+(a correct fail-closed refusal) has not been observed because the first real
+execution succeeded rather than refusing; it remains informational and must
+never be manufactured.
 
-**Safety acceptance** is met by a correct fail-closed refusal with an explicit
-stated reason: nothing was removed, the reason was named, and the healthy
-deployment stayed successful. That is real evidence and worth recording.
-
-**Functional retention acceptance** is met only when a legitimate automatic
-post-bundle-3 deployment *successfully performs* retention against the real
-daemon — at least one superseded application image actually removed, where
-candidates existed. A refusal does not close it. Neither does a run reporting
-`removed 0` because there was nothing to remove, which is correct behaviour and
-not proof.
-
-If the first real run refuses: record the refusal as valid safety evidence, keep
-the deployment successful as designed, investigate the stated reason, and leave
-functional acceptance unchecked. Do not force it afterwards either — the next
-legitimate deployment is the next opportunity.
-
-The full evidence list is in the completed execution plan,
-`docs/exec-plans/completed/release-image-retention.md`, under *Operational
-acceptance still open*. In outline: the deployment stayed healthy; the host was
-on bundle 3; retention was invoked automatically from the deploy path after the
-release-state rotation; it completed and reclaimed at least one image; every
-removed reference was in one of the four application repositories; no `CURRENT`
-or `PREVIOUS` digest was removed; all protected references still resolved
-afterwards; `removed`/`blocked`/`failed` and before/after/reclaimed disk were
-reported; the post-retention 4096MiB preflight passed; and no `prune` or forced
-deletion appeared anywhere.
+The full evidence list and numbered gate criteria are in the completed execution
+plan, `docs/exec-plans/completed/release-image-retention.md`, under
+*Operational acceptance*.

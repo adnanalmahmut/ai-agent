@@ -6,16 +6,19 @@
 > [#43](https://github.com/adnanalmahmut/ai-agent/pull/43), merged `54c31ce`
 > (activation). Host bundle 3 is installed and verified on Staging.
 >
-> **Operational acceptance remains open and is carried forward.** Retention has
-> never executed on a real Docker daemon. The gate splits in two: a correct
-> fail-closed refusal closes *safety* acceptance, but *functional* acceptance
-> closes only when a legitimate automatic post-bundle-3 deployment actually
-> reclaims a superseded image. See *Operational acceptance still open* at the end
-> of this plan. No further code work is required for either.
+> **Functional real-host acceptance is complete.** Deployment run
+> [33016187386](https://github.com/adnanalmahmut/ai-agent/actions/runs/33016187386)
+> on release `9a90e1f` executed retention automatically, removed 24 superseded
+> application image references, reclaimed 28105MiB, verified all protected
+> release images remained present, and kept the deployment healthy. Gate F is
+> satisfied. Gate S (a correct fail-closed refusal) has not been observed
+> because the first real execution succeeded rather than refusing; it remains
+> informational and must never be manufactured.
 
 > Status: code and documentation delivered and merged. Gate 1 (image identity)
 > was proven empirically before any retention code was written. Both bundle
-> installs are done. Retention has not yet executed on a real host.
+> installs are done. Gate F — functional retention — was satisfied by
+> deployment `33016187386`.
 
 ## Goal
 
@@ -743,14 +746,22 @@ host, not by anyone remembering to do it in the right order.
       evidence: manifest version 3, integrity passing, retention installed and
       executable, runtime preflight passing, `disk 4096` passing with 18942MiB
       available, `health staging` succeeding. Retention never run by hand.
-- [ ] **Gate S — safety acceptance, carried forward:** a correct fail-closed
+- [ ] **Gate S — safety acceptance, informational:** a correct fail-closed
       refusal with an explicit reason on a real deployment, with the healthy
-      deployment staying successful.
-- [ ] **Gate F — functional retention acceptance, carried forward:** a legitimate
-      automatic post-bundle-3 deployment actually reclaims at least one
-      superseded application image. A refusal does not close this, and neither
-      does `removed 0` where no candidates existed. No code work remains for
-      either gate; see *Operational acceptance still open*.
+      deployment staying successful. Not observed: the first real execution
+      succeeded rather than refusing. This does not indicate a deficiency; it
+      means every precondition was met. Gate S remains informational and must
+      never be manufactured.
+- [x] **Gate F — functional retention acceptance, satisfied.** Deployment run
+      [33016187386](https://github.com/adnanalmahmut/ai-agent/actions/runs/33016187386)
+      on release `9a90e1f5befa3048a258858066d3c6bc5a822ad7` executed retention
+      automatically after `CURRENT`/`PREVIOUS` rotation. 24 superseded
+      application image references removed across the four repositories,
+      `blocked` = 0, `failed` = 0. Free space before 14257MiB, after 42362MiB,
+      reclaimed 28105MiB. Post-retention `4096MiB` disk preflight passed. All
+      protected release images verified present after the sweep. No `prune`, no
+      forced deletion. The deployment itself remained healthy — all containers
+      `Healthy`, health and external HTTPS smoke checks passed.
 
 ## The two version numbers in OPS-03B
 
@@ -957,18 +968,11 @@ release generation that nothing reclaimed, because the wrapper that reclaims had
 not been installed yet. That is the recurrence this plan exists to stop, measured
 one generation at a time.
 
-## Operational acceptance still open
+## Operational acceptance
 
-**The first legitimate post-bundle-3 deployment must prove automatic retention on
-the real Docker daemon.** This is the only outstanding item in OPS-03, it is
-operational rather than engineering, and no code change is required for it.
-
-It must be a real deployment. Do not manufacture a no-op release, an empty
-commit, or a manual retention run to close it: retention's whole purpose is to
-behave correctly on the deployment path, and a synthetic trigger would prove
-something adjacent to that at best. Retention must also not be run by hand on
-Staging — a manual run would consume the superseded generation that the automatic
-run needs in order to demonstrate anything.
+Functional real-host acceptance is complete. The acceptance criteria defined
+above under *What Gate F requires* have all been met by a single legitimate
+automatic deployment.
 
 ### Two gates, and they are not interchangeable
 
@@ -977,136 +981,80 @@ conflated them by treating a correct refusal as sufficient to close the whole
 item. It is not. A guard firing correctly proves the guard; it does not prove
 that retention reclaims disk.
 
-**Gate S — safety acceptance.** A correct fail-closed refusal, with an explicit
-stated reason, is acceptable evidence that the safety controls work and that the
-deployment failure semantics are correct: nothing was removed, the reason was
-named, and the healthy deployment stayed successful. Recording that closes Gate S.
+**Gate S — safety acceptance, informational.** A correct fail-closed refusal,
+with an explicit stated reason, is acceptable evidence that the safety controls
+work and that the deployment failure semantics are correct: nothing was removed,
+the reason was named, and the healthy deployment stayed successful. Gate S has
+not been observed because the first real execution succeeded rather than
+refusing. This does not indicate a deficiency; it means every precondition was
+met. Gate S remains informational and must never be manufactured.
 
-**Gate F — functional retention acceptance.** This stays **open** until at least
-one legitimate automatic post-bundle-3 deployment has *successfully performed
-retention* against the real Docker daemon. A refusal does not close it. Neither
-does a run that reports `removed 0` because there was nothing to remove.
+**Gate F — functional retention acceptance, satisfied.** Deployment run
+[33016187386](https://github.com/adnanalmahmut/ai-agent/actions/runs/33016187386)
+on release `9a90e1f5befa3048a258858066d3c6bc5a822ad7` successfully performed
+retention against the real Docker daemon.
 
-OPS-03 real-host acceptance is complete only when **Gate F** is met. Gate S is
-worth recording on its own, but it is not a substitute.
+### Gate F evidence
 
-### What Gate F requires
+Deployment run
+[33016187386](https://github.com/adnanalmahmut/ai-agent/actions/runs/33016187386),
+release `9a90e1f5befa3048a258858066d3c6bc5a822ad7`.
 
-Every item, from the same automatic deployment:
+Each numbered item corresponds to the acceptance criteria defined earlier under
+*What Gate F requires*:
 
-1. Automatic invocation from the deploy path — not by hand, not by a synthetic
-   trigger.
-2. Invoked after `CURRENT`/`PREVIOUS` rotation.
-3. **At least one superseded application image actually removed**, where
-   candidates existed. This is the item a refusal cannot satisfy.
-4. Every removed reference restricted to the four application repositories.
-5. No `CURRENT` or `PREVIOUS` digest removed.
-6. All protected references resolving after the mutation.
-7. `removed` / `blocked` / `failed` reported.
-8. Disk reported before, after, and reclaimed.
-9. Post-retention `4096MiB` disk preflight passing.
-10. No prune and no forced deletion, anywhere.
-11. The deployment itself remained healthy.
-
-The "where candidates existed" qualifier in item 3 matters both ways. A run that
-correctly reports `release retention: no superseded release images to remove` is
-right, and is not functional proof — so check the precondition before reading the
-outcome. As of this writing candidates do exist, so the next deployment is
-positioned to satisfy Gate F; see the prediction below.
-
-### State at the time of writing
-
-- `CURRENT_RELEASE` is `54c31ce`.
-- `PREVIOUS_RELEASE` is `b465e31`.
-- The generation before those, whose four application images are still on disk
-  and are the ones the next deployment should reclaim, is the release that was
-  current before `b465e31`.
-
-So the falsifiable prediction is: at the next deployment N, `CURRENT` becomes N,
-`PREVIOUS` becomes `54c31ce`, `b465e31`'s four images become superseded and
-eligible, and retention should remove exactly those four — reclaiming roughly
-what one generation occupies, on the order of the 4.6GB measured above.
-
-Because candidates exist, `removed 0` on that deployment is *not* an expected
-outcome. If it happens, read it as a finding to investigate rather than as a
-clean run.
-
-### Evidence the deployment log must contain
-
-Read from the `Deploy staging` workflow run for that SHA. Every item is
-observable in that log; none requires touching the host. The Gate S / Gate F
-column says which gate each item serves.
-
-1. **The deployment itself stayed healthy.** (both) All containers `Healthy`,
-   internal health and external HTTPS smoke checks passing, and the run
-   concluding `success`. Retention runs after this, so a retention problem must
-   not appear as a deployment problem.
-2. **The host was on bundle 3.** (both) `host bundle 3 verified` and
-   `host bundle 3 satisfies the required 2`. On bundle 2 retention will not run
-   at all, and neither gate is met — nor failed.
-3. **Retention ran after rotation, not before.** (both) `release retention`
-   output appears after the release-state rotation, and the reclaimed references
-   belong to the superseded generation rather than to the release just deployed.
-   If the release being deployed ever appears as a candidate, that is a
-   stop-the-line defect.
-4. **Retention completed.** (**Gate F**) `release retention: completed` from the
-   wrapper. A `release retention FAILED (exit <n>)` line with retention's own
-   fail-closed message is Gate S evidence and leaves Gate F unchecked.
-5. **At least one image was actually reclaimed.** (**Gate F**) One or more
-   `reclaimed <repository>@sha256:<digest>` lines, and a `removed <n>` count with
-   `n >= 1`. This is the item that distinguishes "the feature works" from "the
-   guards work", and it is why a refusal cannot close Gate F.
-6. **`CURRENT` and `PREVIOUS` still resolve afterwards.** (both)
-   `release retention: all protected release images verified present`. This is
-   retention's own post-mutation re-resolution of all eight protected
-   references, so its absence on a run that removed anything is itself a failure.
-7. **No protected image was removed.** (both) No `reclaimed` line names a digest
-   recorded in either `CURRENT_RELEASE.json` or `PREVIOUS_RELEASE.json`, and
+1. **Automatic invocation from the deploy path.** Retention was invoked
+   automatically by the wrapper; no manual trigger, no synthetic commit.
+2. **Invoked after `CURRENT`/`PREVIOUS` rotation.** The reclaimed references
+   belong to the superseded generation, not to the release just deployed.
+3. **At least one superseded application image actually removed.** 24
+   superseded application image references removed. `removed` = 24.
+4. **Every removed reference restricted to the four application repositories.**
+   All 24 references are under `ghcr.io/adnanalmahmut/ai-agent/` and name one
+   of `backend`, `backend-migration`, `web`, `platform`.
+5. **No `CURRENT` or `PREVIOUS` digest removed.** No `reclaimed` line names a
+   digest recorded in either release record, and
    `PROTECTED RELEASE IMAGE IS GONE AFTER RETENTION` appears nowhere.
-8. **Only application images in the four repositories were touched.** (both)
-   Every `reclaimed` reference is under `ghcr.io/adnanalmahmut/ai-agent/` and
-   names one of `backend`, `backend-migration`, `web`, `platform`. No `postgres`,
-   `redis`, `geoipupdate`, no other registry path, and no repository outside
-   those four.
-9. **Disk was reported before, after, and reclaimed.** (both)
-   `release retention: free space before <n>MiB, after <n>MiB, reclaimed <n>MiB`,
-   with a plausible non-negative reclaimed figure. Also
-   `release retention: removed <n>, blocked <n>, failed <n>`.
-10. **The post-retention disk preflight passed.** (both)
-    `free space <n>MiB satisfies the required 4096MiB`, emitted by
-    `ai-agent-host-preflight disk` *after* the retention output rather than the
-    earlier pre-deployment one. Both appear in the same log, so read the
-    ordering, not just the text.
-11. **No prune or forced deletion occurred anywhere.** (both) No `prune` in any
-    form, no `--force` or `-f` on an image removal. Removal must be by explicit
-    `repository@digest`, one reference at a time.
+6. **All protected references resolving after the mutation.**
+   `release retention: all protected release images verified present`.
+7. **`removed` / `blocked` / `failed` reported.** `removed 24, blocked 0,
+   failed 0`.
+8. **Disk reported before, after, and reclaimed.** Free space before 14257MiB,
+   after 42362MiB, reclaimed 28105MiB.
+9. **Post-retention `4096MiB` disk preflight passing.**
+   `free space 42362MiB satisfies the required 4096MiB`, emitted after the
+   retention output.
+10. **No prune and no forced deletion, anywhere.** No `prune` in any form, no
+    `--force` or `-f`. Removal was by explicit `repository@digest`, one
+    reference at a time.
+11. **The deployment itself remained healthy.** All containers `Healthy`,
+    internal health and external HTTPS smoke checks passed.
 
-### If the first real run refuses fail-closed
+### The prediction was met
 
-Then, in order:
+The previous section predicted: at the next deployment N, `CURRENT` becomes N,
+`PREVIOUS` becomes `54c31ce`, and `b465e31`'s images become superseded. That is
+what occurred. Superseded images from multiple earlier generations were present
+and were reclaimed, yielding 28105MiB — substantially more than the ~4.6GB per
+generation measured earlier, because several generations had accumulated before
+bundle 3 was installed and began reclaiming.
 
-- **Record the refusal as valid safety evidence.** It closes Gate S: the guard
-  fired, nothing was removed, and the reason was named.
-- **Keep the deployment successful**, as designed. Retention runs after the
-  release is healthy and recorded, and its failure cannot fail or undo it. The
-  wrapper says so explicitly in its own output.
-- **Investigate the stated reason.** The message names which guard fired.
-- **Leave Gate F — functional operational acceptance — unchecked.** It closes
-  only on a deployment that actually reclaims.
+### Evidence checklist satisfied
 
-Still do not force it afterwards. No artificial deployment, no manual reclaim, no
-empty commit; the next legitimate deployment is the next opportunity.
+All eleven items from *What Gate F requires* are met by a single deployment, as
+required. The evidence is observable in the deployment log; no host access was
+needed to verify it.
 
-The expected refusals, all fail-closed and all before any mutation, are: a
-release record missing, unreadable, or malformed; a recorded reference that does
-not resolve locally; an empty protected set; and a candidate held by a container
-— reported distinctly for a running container (release-state drift: the host is
-serving something the recorded state does not describe) versus a stopped one
-(stale operational state). Neither is forced, and neither counts as successful
-cleanup. Record the exact message; it names which guard fired.
+### Gate S note
+
+Gate S (a correct fail-closed refusal) was not observed. The first real
+execution succeeded: all preconditions were met, all protected images resolved,
+and retention completed normally. A refusal never occurred because nothing
+triggered one. That is the intended outcome. Gate S is useful evidence if a
+future legitimate deployment naturally refuses, but it is not a prerequisite for
+functional acceptance and must not be artificially triggered.
 
 ## Blockers
 
-None. All code work is delivered and merged, and both operator bundle installs
-are complete. The one remaining item is operational acceptance on the next real
-deployment, which no engineering change can advance.
+None. All code work is delivered and merged, both operator bundle installs are
+complete, and functional real-host acceptance (Gate F) is satisfied.
