@@ -66,6 +66,7 @@ export const ModelName = {
   RuntimeSetting: 'RuntimeSetting',
   ManagedSecret: 'ManagedSecret',
   ControlPlaneAuditEvent: 'ControlPlaneAuditEvent',
+  OrganizationAuditEvent: 'OrganizationAuditEvent',
   KnowledgeSpace: 'KnowledgeSpace',
   KnowledgeDocument: 'KnowledgeDocument',
   KnowledgeChunk: 'KnowledgeChunk'
@@ -319,6 +320,21 @@ export const ControlPlaneAuditEventScalarFieldEnum = {
 } as const
 
 export type ControlPlaneAuditEventScalarFieldEnum = (typeof ControlPlaneAuditEventScalarFieldEnum)[keyof typeof ControlPlaneAuditEventScalarFieldEnum]
+
+
+export const OrganizationAuditEventScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  occurredAt: 'occurredAt',
+  actorUserId: 'actorUserId',
+  action: 'action',
+  subjectType: 'subjectType',
+  subjectId: 'subjectId',
+  before: 'before',
+  after: 'after'
+} as const
+
+export type OrganizationAuditEventScalarFieldEnum = (typeof OrganizationAuditEventScalarFieldEnum)[keyof typeof OrganizationAuditEventScalarFieldEnum]
 
 
 export const KnowledgeSpaceScalarFieldEnum = {
