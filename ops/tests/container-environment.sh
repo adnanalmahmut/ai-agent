@@ -39,7 +39,24 @@ GEOIPUPDATE_ACCOUNT_ID=test-account
 GEOIPUPDATE_LICENSE_KEY=test-license
 ENV
 
-docker compose --env-file "$runtime" --profile staging --profile migration config --format json >"$rendered"
+# Compose gives the ambient shell environment precedence over `--env-file`, so
+# a caller that already exports any of these — CI exports several — would
+# silently render its own values instead of the fixture's and turn this suite
+# into an assertion about the runner rather than about docker-compose.yml.
+# Clearing exactly the fixture's own names makes the fixture authoritative
+# wherever this runs.
+unset_fixture=''
+while IFS='=' read -r fixture_name _; do
+  case "$fixture_name" in
+    '' | \#*) continue ;;
+  esac
+  unset_fixture="$unset_fixture -u $fixture_name"
+done <"$runtime"
+
+# Intentionally unquoted: the accumulated `-u NAME` pairs must word-split into
+# separate arguments to `env`.
+# shellcheck disable=SC2086
+env $unset_fixture docker compose --env-file "$runtime" --profile staging --profile migration config --format json >"$rendered"
 
 # `jq -e` exits non-zero on a false result but prints nothing, so a bare
 # assertion failure gives no clue which one failed or what the actual value
