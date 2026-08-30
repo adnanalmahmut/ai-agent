@@ -37,6 +37,7 @@ POSTGRES_DB
 DATABASE_URL
 REDIS_URL
 APP_ENCRYPTION_KEY
+APP_ENCRYPTION_ACTIVE_KEY_VERSION
 BETTER_AUTH_SECRET
 BETTER_AUTH_URL
 BETTER_AUTH_TRUSTED_ORIGINS
@@ -60,14 +61,88 @@ done
 # mistake: 64 hex characters are all valid base64, so a non-empty check passes
 # and the value decodes to 48 bytes. Caught here it is a preflight refusal;
 # caught at boot it is a half-applied release.
+validate_encryption_key() {
+  variable_name=$1
+  encoded_key=$2
+  [ "${#encoded_key}" -eq 44 ] ||
+    die "$variable_name must be 32 bytes encoded as canonical base64"
+  [ "${encoded_key#${encoded_key%?}}" = '=' ] ||
+    die "$variable_name must be 32 bytes encoded as canonical base64"
+  encoded_body=${encoded_key%?}
+  case "$encoded_body" in
+    '' | *[!A-Za-z0-9+/]*)
+      die "$variable_name must be 32 bytes encoded as canonical base64"
+      ;;
+  esac
+  encoded_key_bytes=$(printf '%s' "$encoded_key" | base64 -d 2>/dev/null | wc -c | tr -d '[:space:]') ||
+    die "$variable_name must be 32 bytes encoded as canonical base64"
+  [ "$encoded_key_bytes" = '32' ] ||
+    die "$variable_name must be 32 bytes encoded as canonical base64"
+  # A non-canonical base64 string (unused padding bits set, e.g. from a
+  # hand-edited value) can still decode to 32 bytes yet re-encode to a
+  # different string. The TypeScript config requires the exact canonical
+  # round trip, so preflight must too, or a value it approves can still crash
+  # the application at boot. The decoded bytes are never held in a shell
+  # variable — only piped straight back through `base64` — because raw binary
+  # can contain a NUL byte a POSIX shell string cannot hold.
+  recoded_key=$(printf '%s' "$encoded_key" | base64 -d 2>/dev/null | base64 | tr -d '\n')
+  [ "$recoded_key" = "$encoded_key" ] ||
+    die "$variable_name must be 32 bytes encoded as canonical base64"
+}
+
+valid_key_version() {
+  version=$1
+  [ -n "$version" ] && [ "${#version}" -le 64 ] || return 1
+  case "$version" in
+    *[!a-z0-9._-]* | [._-]* | *[._-]) return 1 ;;
+  esac
+}
+
 encryption_key=$(value_for APP_ENCRYPTION_KEY)
-case "$encryption_key" in
-  *[!A-Za-z0-9+/=]* | *=[!=]*) die 'APP_ENCRYPTION_KEY must be base64' ;;
-esac
-encryption_key_bytes=$(printf '%s' "$encryption_key" | base64 -d 2>/dev/null | wc -c | tr -d '[:space:]') ||
-  die 'APP_ENCRYPTION_KEY must be base64'
-[ "$encryption_key_bytes" = '32' ] ||
-  die 'APP_ENCRYPTION_KEY must decode to 32 bytes (generate with: openssl rand -base64 32)'
+validate_encryption_key APP_ENCRYPTION_KEY "$encryption_key"
+
+active_key_version=$(value_for APP_ENCRYPTION_ACTIVE_KEY_VERSION)
+valid_key_version "$active_key_version" ||
+  die 'APP_ENCRYPTION_ACTIVE_KEY_VERSION has an invalid version identifier'
+
+decrypt_keys=$(value_for APP_ENCRYPTION_DECRYPT_KEYS)
+if [ -n "$decrypt_keys" ]; then
+  case "$decrypt_keys" in
+    ,* | *, | *,,*) die 'APP_ENCRYPTION_DECRYPT_KEYS has an empty entry' ;;
+  esac
+
+  previous_ifs=$IFS
+  IFS=,
+  set -- $decrypt_keys
+  IFS=$previous_ifs
+  [ "$#" -le 16 ] || die 'APP_ENCRYPTION_DECRYPT_KEYS has too many entries'
+
+  seen_versions="|$active_key_version|"
+  seen_keys="|$encryption_key|"
+  entry_number=0
+  for entry in "$@"; do
+    entry_number=$((entry_number + 1))
+    decrypt_version=${entry%%=*}
+    decrypt_key=${entry#*=}
+    [ "$decrypt_version" != "$entry" ] ||
+      die "APP_ENCRYPTION_DECRYPT_KEYS entry $entry_number is malformed"
+    valid_key_version "$decrypt_version" ||
+      die "APP_ENCRYPTION_DECRYPT_KEYS entry $entry_number has an invalid version"
+    validate_encryption_key "APP_ENCRYPTION_DECRYPT_KEYS entry $entry_number" "$decrypt_key"
+    case "$seen_versions" in
+      *"|$decrypt_version|"*)
+        die "APP_ENCRYPTION_DECRYPT_KEYS entry $entry_number repeats a version"
+        ;;
+    esac
+    case "$seen_keys" in
+      *"|$decrypt_key|"*)
+        die "APP_ENCRYPTION_DECRYPT_KEYS entry $entry_number reuses key material"
+        ;;
+    esac
+    seen_versions="$seen_versions$decrypt_version|"
+    seen_keys="$seen_keys$decrypt_key|"
+  done
+fi
 
 # `docker-compose.yml` falls back to POSTGRES_PASSWORD=postgres when the value
 # is absent, so a runtime file that merely forgets it does not fail any

@@ -149,10 +149,9 @@ export type RuntimeSetting = Prisma.RuntimeSettingModel
  * `process.env`; it is decrypted only when an adapter is about to use it. What
  * the control plane can show is everything in this model except `ciphertext`.
  * 
- * `keyFingerprint` is a non-secret digest of the master key that encrypted the
- * row. Without it, decrypting after the master key changed produces an
- * authentication failure indistinguishable from corruption; with it the
- * application can say which of the two happened.
+ * `keyVersion` records the exact configured encryption key. It remains nullable
+ * only for rows written by the preceding image; those use `keyFingerprint` for
+ * an explicit compatibility lookup. Key material never enters this table.
  */
 export type ManagedSecret = Prisma.ManagedSecretModel
 /**

@@ -98,6 +98,8 @@ jobs:
       # plane requires a master key at boot, so the suites cannot construct the
       # application without one.
       APP_ENCRYPTION_KEY: dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
+      APP_ENCRYPTION_ACTIVE_KEY_VERSION: test-v1
+      APP_ENCRYPTION_DECRYPT_KEYS: ''
 
       # Boot-time configuration the e2e suites need in order to construct the
       # real `AppModule`. These are throwaway CI values, not secrets: the
@@ -304,6 +306,8 @@ jobs:
             echo 'DATABASE_URL=postgresql://app:test-only-container-password@postgres:5432/app'
             echo 'REDIS_URL=redis://redis:6379'
             echo 'APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU='
+            echo 'APP_ENCRYPTION_ACTIVE_KEY_VERSION=test-v1'
+            echo 'APP_ENCRYPTION_DECRYPT_KEYS='
             echo 'BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000'
             echo 'BETTER_AUTH_URL=http://localhost:3002/api/auth'
             echo 'BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000'

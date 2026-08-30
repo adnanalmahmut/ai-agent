@@ -16,6 +16,8 @@ import encryptionConfig from '../encryption.config';
 
 /** A 32-byte fill pattern, base64-encoded exactly as an operator would paste it. */
 const VALID_KEY = Buffer.alloc(32, 0x2b).toString('base64');
+const OLD_KEY = Buffer.alloc(32, 0x3c).toString('base64');
+const OLDER_KEY = Buffer.alloc(32, 0x4d).toString('base64');
 
 /**
  * A recognisable non-key. The point of using it is the last assertion in this
@@ -31,6 +33,8 @@ describe('encryptionConfig', () => {
   beforeEach(() => {
     process.env = { ...original };
     delete process.env.APP_ENCRYPTION_KEY;
+    process.env.APP_ENCRYPTION_ACTIVE_KEY_VERSION = 'v2';
+    process.env.APP_ENCRYPTION_DECRYPT_KEYS = '';
   });
 
   afterEach(() => {
@@ -40,11 +44,13 @@ describe('encryptionConfig', () => {
   it('decodes a valid base64 32-byte key into bytes', () => {
     process.env.APP_ENCRYPTION_KEY = VALID_KEY;
 
-    const { masterKey } = encryptionConfig();
+    const { masterKey, activeKeyVersion, decryptOnlyKeys } = encryptionConfig();
 
     expect(Buffer.isBuffer(masterKey)).toBe(true);
     expect(masterKey).toHaveLength(32);
     expect(masterKey.equals(Buffer.from(VALID_KEY, 'base64'))).toBe(true);
+    expect(activeKeyVersion).toBe('v2');
+    expect(decryptOnlyKeys).toEqual([]);
   });
 
   it('decodes once at boot rather than handing on the encoded string', () => {
@@ -91,6 +97,80 @@ describe('encryptionConfig', () => {
 
   it('refuses a missing variable', () => {
     expect(() => encryptionConfig()).toThrow(/APP_ENCRYPTION_KEY/);
+  });
+
+  it('parses distinct decrypt-only key versions without changing the active key', () => {
+    process.env.APP_ENCRYPTION_KEY = VALID_KEY;
+    process.env.APP_ENCRYPTION_DECRYPT_KEYS = `v1=${OLD_KEY},legacy-2025=${OLDER_KEY}`;
+
+    const config = encryptionConfig();
+
+    expect(config.activeKeyVersion).toBe('v2');
+    expect(config.masterKey.toString('base64')).toBe(VALID_KEY);
+    expect(
+      config.decryptOnlyKeys.map(({ version, key }) => ({
+        version,
+        key: key.toString('base64'),
+      })),
+    ).toEqual([
+      { version: 'v1', key: OLD_KEY },
+      { version: 'legacy-2025', key: OLDER_KEY },
+    ]);
+  });
+
+  it('refuses a missing active version', () => {
+    process.env.APP_ENCRYPTION_KEY = VALID_KEY;
+    delete process.env.APP_ENCRYPTION_ACTIVE_KEY_VERSION;
+
+    expect(() => encryptionConfig()).toThrow(
+      /APP_ENCRYPTION_ACTIVE_KEY_VERSION/,
+    );
+  });
+
+  it.each(['V2', '-v2', 'v2-', 'v 2', 'v2/active'])(
+    'refuses malformed active version %s',
+    (version) => {
+      process.env.APP_ENCRYPTION_KEY = VALID_KEY;
+      process.env.APP_ENCRYPTION_ACTIVE_KEY_VERSION = version;
+
+      expect(() => encryptionConfig()).toThrow(/encryption key version/);
+    },
+  );
+
+  it('refuses duplicate decrypt-only versions', () => {
+    process.env.APP_ENCRYPTION_KEY = VALID_KEY;
+    process.env.APP_ENCRYPTION_DECRYPT_KEYS = `v1=${OLD_KEY},v1=${OLDER_KEY}`;
+
+    expect(() => encryptionConfig()).toThrow(/duplicate version/);
+  });
+
+  it('refuses the active version in the decrypt-only list', () => {
+    process.env.APP_ENCRYPTION_KEY = VALID_KEY;
+    process.env.APP_ENCRYPTION_DECRYPT_KEYS = `v2=${OLD_KEY}`;
+
+    expect(() => encryptionConfig()).toThrow(/must not repeat/);
+  });
+
+  it('refuses key material reused under another version', () => {
+    process.env.APP_ENCRYPTION_KEY = VALID_KEY;
+    process.env.APP_ENCRYPTION_DECRYPT_KEYS = `v1=${VALID_KEY}`;
+
+    expect(() => encryptionConfig()).toThrow(/reuses key material/);
+  });
+
+  it('refuses malformed decrypt-only key material without echoing it', () => {
+    process.env.APP_ENCRYPTION_KEY = VALID_KEY;
+    process.env.APP_ENCRYPTION_DECRYPT_KEYS = `v1=${CANARY}`;
+
+    let message = '';
+    try {
+      encryptionConfig();
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+
+    expect(message).toMatch(/canonical base64-encoded 32-byte key/);
+    expect(message).not.toContain(CANARY);
   });
 
   /**

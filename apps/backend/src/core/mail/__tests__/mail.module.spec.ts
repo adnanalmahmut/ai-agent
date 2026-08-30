@@ -41,6 +41,8 @@ const LOG_ENV = {
    * value any deployment could hold.
    */
   APP_ENCRYPTION_KEY: 'dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=',
+  APP_ENCRYPTION_ACTIVE_KEY_VERSION: 'test-v1',
+  APP_ENCRYPTION_DECRYPT_KEYS: '',
 };
 
 async function bootWith(

@@ -1,8 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { ConfigType } from '@nestjs/config';
+import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
-import { encryptionConfig } from '../../config';
 import { AppException } from '../../core/errors';
 import { PrismaService } from '../../database';
 import {
@@ -14,12 +12,8 @@ import {
   type ManagedSecretKey,
   managedSecretDefinition,
 } from './managed-secret.registry';
-import {
-  SecretDecryptionError,
-  fingerprintKey,
-  openSecret,
-  sealSecret,
-} from './secret-cipher';
+import { SecretDecryptionError } from './secret-cipher';
+import { ManagedSecretKeyring } from './managed-secret-keyring';
 
 /**
  * Everything the control plane may know about a credential.
@@ -36,12 +30,12 @@ export type ManagedSecretDescription = {
   configured: boolean;
   label: string | undefined;
   algorithm: string | undefined;
+  keyVersion: string | undefined;
   lastRotatedAt: Date | undefined;
   updatedAt: Date | undefined;
   /**
-   * False when the row was encrypted with a different master key, so the
-   * Platform can tell an operator to re-enter it instead of leaving them to
-   * discover it as a provider outage.
+   * False when the row's exact version (or legacy fingerprint) cannot resolve
+   * to an available key or its algorithm/fingerprint metadata is inconsistent.
    */
   usable: boolean;
 };
@@ -71,8 +65,7 @@ export class ManagedSecretService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: ControlPlaneAuditService,
-    @Inject(encryptionConfig.KEY)
-    private readonly encryption: ConfigType<typeof encryptionConfig>,
+    private readonly keyring: ManagedSecretKeyring,
     private readonly logger: PinoLogger,
   ) {}
 
@@ -85,14 +78,13 @@ export class ManagedSecretService {
         label: true,
         algorithm: true,
         keyFingerprint: true,
+        keyVersion: true,
         lastRotatedAt: true,
         updatedAt: true,
       },
     });
 
     const stored = new Map(rows.map((row) => [row.key, row]));
-    const fingerprint = this.currentFingerprint();
-
     return MANAGED_SECRET_KEYS.map((key) => {
       const row = stored.get(key);
 
@@ -102,9 +94,10 @@ export class ManagedSecretService {
         configured: row !== undefined,
         label: row?.label ?? undefined,
         algorithm: row?.algorithm,
+        keyVersion: row?.keyVersion ?? undefined,
         lastRotatedAt: row?.lastRotatedAt,
         updatedAt: row?.updatedAt,
-        usable: row === undefined ? false : row.keyFingerprint === fingerprint,
+        usable: row === undefined ? false : this.keyring.canDecrypt(row),
       };
     });
   }
@@ -142,7 +135,7 @@ export class ManagedSecretService {
       });
     }
 
-    const sealed = sealSecret(input.value, this.encryption.masterKey);
+    const sealed = this.keyring.seal(input.key, input.value);
 
     await this.prisma.$transaction(async (tx) => {
       /**
@@ -239,6 +232,7 @@ export class ManagedSecretService {
         authTag: true,
         algorithm: true,
         keyFingerprint: true,
+        keyVersion: true,
       },
     });
 
@@ -249,7 +243,7 @@ export class ManagedSecretService {
     }
 
     try {
-      return openSecret(row, this.encryption.masterKey);
+      return this.keyring.open(key, row);
     } catch (error) {
       const reason =
         error instanceof SecretDecryptionError ? error.message : 'unknown';
@@ -284,10 +278,6 @@ export class ManagedSecretService {
     const all = await this.describeAll();
 
     return all.find((entry) => entry.key === key)!;
-  }
-
-  private currentFingerprint(): string {
-    return fingerprintKey(this.encryption.masterKey);
   }
 }
 

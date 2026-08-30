@@ -16,6 +16,8 @@ POSTGRES_DB=app
 DATABASE_URL=postgresql://app:test-only-explicit-password@postgres:5432/app
 REDIS_URL=redis://redis:6379
 APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
+APP_ENCRYPTION_ACTIVE_KEY_VERSION=v2
+APP_ENCRYPTION_DECRYPT_KEYS=v1=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=
 BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid
@@ -69,10 +71,63 @@ if ops/runtime-preflight.sh staging "$short_key" >/dev/null 2>&1; then
   exit 1
 fi
 
+# A non-canonical encoding of the exact same 32 bytes: unused bits in the last
+# base64 character are set even though they cannot affect the decoded value.
+# `base64 -d` accepts it and produces the right byte count, so only an
+# explicit canonical round trip catches it — the same check the TypeScript
+# config performs, without which preflight would approve a value the
+# application then refuses at boot.
+noncanonical_key=$tmp_dir/noncanonical-key.env
+sed 's/^APP_ENCRYPTION_KEY=.*/APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGV=/' \
+  "$valid" >"$noncanonical_key"
+if ops/runtime-preflight.sh staging "$noncanonical_key" >/dev/null 2>&1; then
+  echo 'preflight accepted a non-canonical base64 encryption key' >&2
+  exit 1
+fi
+
 missing_key=$tmp_dir/missing-key.env
 grep -v '^APP_ENCRYPTION_KEY=' "$valid" >"$missing_key"
 if ops/runtime-preflight.sh staging "$missing_key" >/dev/null 2>&1; then
   echo 'preflight accepted a runtime file with no encryption key' >&2
+  exit 1
+fi
+
+missing_key_version=$tmp_dir/missing-key-version.env
+grep -v '^APP_ENCRYPTION_ACTIVE_KEY_VERSION=' "$valid" >"$missing_key_version"
+if ops/runtime-preflight.sh staging "$missing_key_version" >/dev/null 2>&1; then
+  echo 'preflight accepted a runtime file with no active encryption key version' >&2
+  exit 1
+fi
+
+invalid_key_version=$tmp_dir/invalid-key-version.env
+sed 's/^APP_ENCRYPTION_ACTIVE_KEY_VERSION=.*/APP_ENCRYPTION_ACTIVE_KEY_VERSION=V2 active/' \
+  "$valid" >"$invalid_key_version"
+if ops/runtime-preflight.sh staging "$invalid_key_version" >/dev/null 2>&1; then
+  echo 'preflight accepted an invalid active encryption key version' >&2
+  exit 1
+fi
+
+duplicate_active_version=$tmp_dir/duplicate-active-version.env
+sed 's#^APP_ENCRYPTION_DECRYPT_KEYS=.*#APP_ENCRYPTION_DECRYPT_KEYS=v2=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=#' \
+  "$valid" >"$duplicate_active_version"
+if ops/runtime-preflight.sh staging "$duplicate_active_version" >/dev/null 2>&1; then
+  echo 'preflight accepted the active encryption version as decrypt-only' >&2
+  exit 1
+fi
+
+duplicate_key_material=$tmp_dir/duplicate-key-material.env
+sed 's#^APP_ENCRYPTION_DECRYPT_KEYS=.*#APP_ENCRYPTION_DECRYPT_KEYS=v1=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=#' \
+  "$valid" >"$duplicate_key_material"
+if ops/runtime-preflight.sh staging "$duplicate_key_material" >/dev/null 2>&1; then
+  echo 'preflight accepted active key material under a decrypt-only version' >&2
+  exit 1
+fi
+
+malformed_decrypt_key=$tmp_dir/malformed-decrypt-key.env
+sed 's#^APP_ENCRYPTION_DECRYPT_KEYS=.*#APP_ENCRYPTION_DECRYPT_KEYS=v1=not-base64#' \
+  "$valid" >"$malformed_decrypt_key"
+if ops/runtime-preflight.sh staging "$malformed_decrypt_key" >/dev/null 2>&1; then
+  echo 'preflight accepted malformed decrypt-only key material' >&2
   exit 1
 fi
 

@@ -20,10 +20,9 @@ import type * as Prisma from "../internal/prismaNamespace.js"
  * `process.env`; it is decrypted only when an adapter is about to use it. What
  * the control plane can show is everything in this model except `ciphertext`.
  * 
- * `keyFingerprint` is a non-secret digest of the master key that encrypted the
- * row. Without it, decrypting after the master key changed produces an
- * authentication failure indistinguishable from corruption; with it the
- * application can say which of the two happened.
+ * `keyVersion` records the exact configured encryption key. It remains nullable
+ * only for rows written by the preceding image; those use `keyFingerprint` for
+ * an explicit compatibility lookup. Key material never enters this table.
  */
 export type ManagedSecretModel = runtime.Types.Result.DefaultSelection<Prisma.$ManagedSecretPayload>
 
@@ -40,6 +39,7 @@ export type ManagedSecretMinAggregateOutputType = {
   authTag: runtime.Bytes | null
   algorithm: string | null
   keyFingerprint: string | null
+  keyVersion: string | null
   label: string | null
   lastRotatedAt: Date | null
   createdAt: Date | null
@@ -54,6 +54,7 @@ export type ManagedSecretMaxAggregateOutputType = {
   authTag: runtime.Bytes | null
   algorithm: string | null
   keyFingerprint: string | null
+  keyVersion: string | null
   label: string | null
   lastRotatedAt: Date | null
   createdAt: Date | null
@@ -68,6 +69,7 @@ export type ManagedSecretCountAggregateOutputType = {
   authTag: number
   algorithm: number
   keyFingerprint: number
+  keyVersion: number
   label: number
   lastRotatedAt: number
   createdAt: number
@@ -84,6 +86,7 @@ export type ManagedSecretMinAggregateInputType = {
   authTag?: true
   algorithm?: true
   keyFingerprint?: true
+  keyVersion?: true
   label?: true
   lastRotatedAt?: true
   createdAt?: true
@@ -98,6 +101,7 @@ export type ManagedSecretMaxAggregateInputType = {
   authTag?: true
   algorithm?: true
   keyFingerprint?: true
+  keyVersion?: true
   label?: true
   lastRotatedAt?: true
   createdAt?: true
@@ -112,6 +116,7 @@ export type ManagedSecretCountAggregateInputType = {
   authTag?: true
   algorithm?: true
   keyFingerprint?: true
+  keyVersion?: true
   label?: true
   lastRotatedAt?: true
   createdAt?: true
@@ -199,6 +204,7 @@ export type ManagedSecretGroupByOutputType = {
   authTag: runtime.Bytes
   algorithm: string
   keyFingerprint: string
+  keyVersion: string | null
   label: string | null
   lastRotatedAt: Date
   createdAt: Date
@@ -234,6 +240,7 @@ export type ManagedSecretWhereInput = {
   authTag?: Prisma.BytesFilter<"ManagedSecret"> | runtime.Bytes
   algorithm?: Prisma.StringFilter<"ManagedSecret"> | string
   keyFingerprint?: Prisma.StringFilter<"ManagedSecret"> | string
+  keyVersion?: Prisma.StringNullableFilter<"ManagedSecret"> | string | null
   label?: Prisma.StringNullableFilter<"ManagedSecret"> | string | null
   lastRotatedAt?: Prisma.DateTimeFilter<"ManagedSecret"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"ManagedSecret"> | Date | string
@@ -249,6 +256,7 @@ export type ManagedSecretOrderByWithRelationInput = {
   authTag?: Prisma.SortOrder
   algorithm?: Prisma.SortOrder
   keyFingerprint?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrderInput | Prisma.SortOrder
   label?: Prisma.SortOrderInput | Prisma.SortOrder
   lastRotatedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -267,6 +275,7 @@ export type ManagedSecretWhereUniqueInput = Prisma.AtLeast<{
   authTag?: Prisma.BytesFilter<"ManagedSecret"> | runtime.Bytes
   algorithm?: Prisma.StringFilter<"ManagedSecret"> | string
   keyFingerprint?: Prisma.StringFilter<"ManagedSecret"> | string
+  keyVersion?: Prisma.StringNullableFilter<"ManagedSecret"> | string | null
   label?: Prisma.StringNullableFilter<"ManagedSecret"> | string | null
   lastRotatedAt?: Prisma.DateTimeFilter<"ManagedSecret"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"ManagedSecret"> | Date | string
@@ -282,6 +291,7 @@ export type ManagedSecretOrderByWithAggregationInput = {
   authTag?: Prisma.SortOrder
   algorithm?: Prisma.SortOrder
   keyFingerprint?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrderInput | Prisma.SortOrder
   label?: Prisma.SortOrderInput | Prisma.SortOrder
   lastRotatedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -302,6 +312,7 @@ export type ManagedSecretScalarWhereWithAggregatesInput = {
   authTag?: Prisma.BytesWithAggregatesFilter<"ManagedSecret"> | runtime.Bytes
   algorithm?: Prisma.StringWithAggregatesFilter<"ManagedSecret"> | string
   keyFingerprint?: Prisma.StringWithAggregatesFilter<"ManagedSecret"> | string
+  keyVersion?: Prisma.StringNullableWithAggregatesFilter<"ManagedSecret"> | string | null
   label?: Prisma.StringNullableWithAggregatesFilter<"ManagedSecret"> | string | null
   lastRotatedAt?: Prisma.DateTimeWithAggregatesFilter<"ManagedSecret"> | Date | string
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"ManagedSecret"> | Date | string
@@ -316,6 +327,7 @@ export type ManagedSecretCreateInput = {
   authTag: runtime.Bytes
   algorithm: string
   keyFingerprint: string
+  keyVersion?: string | null
   label?: string | null
   lastRotatedAt?: Date | string
   createdAt?: Date | string
@@ -330,6 +342,7 @@ export type ManagedSecretUncheckedCreateInput = {
   authTag: runtime.Bytes
   algorithm: string
   keyFingerprint: string
+  keyVersion?: string | null
   label?: string | null
   lastRotatedAt?: Date | string
   createdAt?: Date | string
@@ -344,6 +357,7 @@ export type ManagedSecretUpdateInput = {
   authTag?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
   algorithm?: Prisma.StringFieldUpdateOperationsInput | string
   keyFingerprint?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastRotatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -358,6 +372,7 @@ export type ManagedSecretUncheckedUpdateInput = {
   authTag?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
   algorithm?: Prisma.StringFieldUpdateOperationsInput | string
   keyFingerprint?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastRotatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -372,6 +387,7 @@ export type ManagedSecretCreateManyInput = {
   authTag: runtime.Bytes
   algorithm: string
   keyFingerprint: string
+  keyVersion?: string | null
   label?: string | null
   lastRotatedAt?: Date | string
   createdAt?: Date | string
@@ -386,6 +402,7 @@ export type ManagedSecretUpdateManyMutationInput = {
   authTag?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
   algorithm?: Prisma.StringFieldUpdateOperationsInput | string
   keyFingerprint?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastRotatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -399,6 +416,7 @@ export type ManagedSecretUncheckedUpdateManyInput = {
   authTag?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
   algorithm?: Prisma.StringFieldUpdateOperationsInput | string
   keyFingerprint?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastRotatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -423,6 +441,7 @@ export type ManagedSecretCountOrderByAggregateInput = {
   authTag?: Prisma.SortOrder
   algorithm?: Prisma.SortOrder
   keyFingerprint?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   label?: Prisma.SortOrder
   lastRotatedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -437,6 +456,7 @@ export type ManagedSecretMaxOrderByAggregateInput = {
   authTag?: Prisma.SortOrder
   algorithm?: Prisma.SortOrder
   keyFingerprint?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   label?: Prisma.SortOrder
   lastRotatedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -451,6 +471,7 @@ export type ManagedSecretMinOrderByAggregateInput = {
   authTag?: Prisma.SortOrder
   algorithm?: Prisma.SortOrder
   keyFingerprint?: Prisma.SortOrder
+  keyVersion?: Prisma.SortOrder
   label?: Prisma.SortOrder
   lastRotatedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -511,6 +532,7 @@ export type ManagedSecretCreateWithoutUpdatedByUserInput = {
   authTag: runtime.Bytes
   algorithm: string
   keyFingerprint: string
+  keyVersion?: string | null
   label?: string | null
   lastRotatedAt?: Date | string
   createdAt?: Date | string
@@ -524,6 +546,7 @@ export type ManagedSecretUncheckedCreateWithoutUpdatedByUserInput = {
   authTag: runtime.Bytes
   algorithm: string
   keyFingerprint: string
+  keyVersion?: string | null
   label?: string | null
   lastRotatedAt?: Date | string
   createdAt?: Date | string
@@ -566,6 +589,7 @@ export type ManagedSecretScalarWhereInput = {
   authTag?: Prisma.BytesFilter<"ManagedSecret"> | runtime.Bytes
   algorithm?: Prisma.StringFilter<"ManagedSecret"> | string
   keyFingerprint?: Prisma.StringFilter<"ManagedSecret"> | string
+  keyVersion?: Prisma.StringNullableFilter<"ManagedSecret"> | string | null
   label?: Prisma.StringNullableFilter<"ManagedSecret"> | string | null
   lastRotatedAt?: Prisma.DateTimeFilter<"ManagedSecret"> | Date | string
   createdAt?: Prisma.DateTimeFilter<"ManagedSecret"> | Date | string
@@ -580,6 +604,7 @@ export type ManagedSecretCreateManyUpdatedByUserInput = {
   authTag: runtime.Bytes
   algorithm: string
   keyFingerprint: string
+  keyVersion?: string | null
   label?: string | null
   lastRotatedAt?: Date | string
   createdAt?: Date | string
@@ -593,6 +618,7 @@ export type ManagedSecretUpdateWithoutUpdatedByUserInput = {
   authTag?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
   algorithm?: Prisma.StringFieldUpdateOperationsInput | string
   keyFingerprint?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastRotatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -606,6 +632,7 @@ export type ManagedSecretUncheckedUpdateWithoutUpdatedByUserInput = {
   authTag?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
   algorithm?: Prisma.StringFieldUpdateOperationsInput | string
   keyFingerprint?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastRotatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -619,6 +646,7 @@ export type ManagedSecretUncheckedUpdateManyWithoutUpdatedByUserInput = {
   authTag?: Prisma.BytesFieldUpdateOperationsInput | runtime.Bytes
   algorithm?: Prisma.StringFieldUpdateOperationsInput | string
   keyFingerprint?: Prisma.StringFieldUpdateOperationsInput | string
+  keyVersion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   label?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   lastRotatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -634,6 +662,7 @@ export type ManagedSecretSelect<ExtArgs extends runtime.Types.Extensions.Interna
   authTag?: boolean
   algorithm?: boolean
   keyFingerprint?: boolean
+  keyVersion?: boolean
   label?: boolean
   lastRotatedAt?: boolean
   createdAt?: boolean
@@ -649,6 +678,7 @@ export type ManagedSecretSelectCreateManyAndReturn<ExtArgs extends runtime.Types
   authTag?: boolean
   algorithm?: boolean
   keyFingerprint?: boolean
+  keyVersion?: boolean
   label?: boolean
   lastRotatedAt?: boolean
   createdAt?: boolean
@@ -664,6 +694,7 @@ export type ManagedSecretSelectUpdateManyAndReturn<ExtArgs extends runtime.Types
   authTag?: boolean
   algorithm?: boolean
   keyFingerprint?: boolean
+  keyVersion?: boolean
   label?: boolean
   lastRotatedAt?: boolean
   createdAt?: boolean
@@ -679,6 +710,7 @@ export type ManagedSecretSelectScalar = {
   authTag?: boolean
   algorithm?: boolean
   keyFingerprint?: boolean
+  keyVersion?: boolean
   label?: boolean
   lastRotatedAt?: boolean
   createdAt?: boolean
@@ -686,7 +718,7 @@ export type ManagedSecretSelectScalar = {
   updatedByUserId?: boolean
 }
 
-export type ManagedSecretOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"key" | "ciphertext" | "iv" | "authTag" | "algorithm" | "keyFingerprint" | "label" | "lastRotatedAt" | "createdAt" | "updatedAt" | "updatedByUserId", ExtArgs["result"]["managedSecret"]>
+export type ManagedSecretOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"key" | "ciphertext" | "iv" | "authTag" | "algorithm" | "keyFingerprint" | "keyVersion" | "label" | "lastRotatedAt" | "createdAt" | "updatedAt" | "updatedByUserId", ExtArgs["result"]["managedSecret"]>
 export type ManagedSecretInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   updatedByUser?: boolean | Prisma.ManagedSecret$updatedByUserArgs<ExtArgs>
 }
@@ -717,6 +749,7 @@ export type $ManagedSecretPayload<ExtArgs extends runtime.Types.Extensions.Inter
     authTag: runtime.Bytes
     algorithm: string
     keyFingerprint: string
+    keyVersion: string | null
     /**
      * A non-secret hint — never the value, never a prefix of it — so an
      * operator can tell two credentials apart in a list.
@@ -1156,6 +1189,7 @@ export interface ManagedSecretFieldRefs {
   readonly authTag: Prisma.FieldRef<"ManagedSecret", 'Bytes'>
   readonly algorithm: Prisma.FieldRef<"ManagedSecret", 'String'>
   readonly keyFingerprint: Prisma.FieldRef<"ManagedSecret", 'String'>
+  readonly keyVersion: Prisma.FieldRef<"ManagedSecret", 'String'>
   readonly label: Prisma.FieldRef<"ManagedSecret", 'String'>
   readonly lastRotatedAt: Prisma.FieldRef<"ManagedSecret", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"ManagedSecret", 'DateTime'>

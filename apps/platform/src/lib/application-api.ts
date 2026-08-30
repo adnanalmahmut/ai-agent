@@ -284,9 +284,10 @@ export type ManagedSecretDescription = {
   configured: boolean;
   label: string | undefined;
   algorithm: string | undefined;
+  keyVersion: string | undefined;
   lastRotatedAt: string | undefined;
   updatedAt: string | undefined;
-  /** False when the row was sealed under a different master key. */
+  /** False when the recorded key version is not currently decryptable. */
   usable: boolean;
 };
 

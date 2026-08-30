@@ -93,9 +93,19 @@ export class SecretDecryptionError extends Error {
  * authentication key. This is the single most important line in the file, which
  * is why it is generated here rather than accepted as a parameter.
  */
-export function sealSecret(plaintext: string, masterKey: Buffer): SealedSecret {
+export function sealSecret(
+  plaintext: string,
+  masterKey: Buffer,
+  additionalAuthenticatedData?: string,
+): SealedSecret {
   const iv = randomBytes(IV_BYTES);
   const cipher = createCipheriv(SECRET_ALGORITHM, masterKey, iv);
+
+  if (additionalAuthenticatedData !== undefined) {
+    // Node requires AAD before the first update. It is authenticated, not
+    // encrypted, and contains only application-owned identifiers.
+    cipher.setAAD(Buffer.from(additionalAuthenticatedData, 'utf8'));
+  }
 
   const ciphertext = Buffer.concat([
     cipher.update(plaintext, 'utf8'),
@@ -126,6 +136,7 @@ export function openSecret(
     'ciphertext' | 'iv' | 'authTag' | 'algorithm' | 'keyFingerprint'
   >,
   masterKey: Buffer,
+  additionalAuthenticatedData?: string,
 ): string {
   if (sealed.algorithm !== SECRET_ALGORITHM) {
     throw new SecretDecryptionError(
@@ -170,6 +181,10 @@ export function openSecret(
       authTagLength: AUTH_TAG_BYTES,
     });
     decipher.setAuthTag(sealed.authTag);
+
+    if (additionalAuthenticatedData !== undefined) {
+      decipher.setAAD(Buffer.from(additionalAuthenticatedData, 'utf8'));
+    }
 
     return Buffer.concat([
       decipher.update(sealed.ciphertext),
