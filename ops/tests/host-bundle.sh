@@ -128,7 +128,11 @@ conditional='GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AWS_REGION SMT
 
 # Deliberately unchecked: SES resolves credentials from the instance role when
 # these are absent, so requiring them would refuse a correctly configured host.
-optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN'
+# APP_ENCRYPTION_DECRYPT_KEYS is unchecked for the opposite reason to
+# APP_ENCRYPTION_KEY just above it: empty is its normal, common state (no
+# decrypt-only keys configured), and the preflight already validates its
+# format when it is present.
+optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTION_DECRYPT_KEYS'
 
 # The list is a single-quoted shell here-string, so the quotes and the
 # assignment prefix are stripped to leave one variable name per line.
@@ -390,6 +394,8 @@ POSTGRES_DB=app
 DATABASE_URL=postgresql://app:test-only-explicit-password@postgres:5432/app?schema=public
 REDIS_URL=redis://redis:6379
 APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
+APP_ENCRYPTION_ACTIVE_KEY_VERSION=v1
+APP_ENCRYPTION_DECRYPT_KEYS=
 BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid

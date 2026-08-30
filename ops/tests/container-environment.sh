@@ -26,6 +26,8 @@ POSTGRES_DB=app
 DATABASE_URL=postgresql://app:test-only-database-password@postgres:5432/app
 REDIS_URL=redis://redis:6379
 APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
+APP_ENCRYPTION_ACTIVE_KEY_VERSION=v1
+APP_ENCRYPTION_DECRYPT_KEYS=v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=
 BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid
@@ -53,6 +55,12 @@ jq -e '.services.worker.environment.RATE_LIMIT_ENABLED == null' "$rendered" >/de
 jq -e '.services.backend.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
 jq -e '.services.worker.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
 jq -e '.services.migrate.environment.APP_ENCRYPTION_KEY == null' "$rendered" >/dev/null
+jq -e '.services.backend.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"' "$rendered" >/dev/null
+jq -e '.services.worker.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"' "$rendered" >/dev/null
+jq -e '.services.migrate.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == null' "$rendered" >/dev/null
+jq -e '.services.backend.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="' "$rendered" >/dev/null
+jq -e '.services.worker.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="' "$rendered" >/dev/null
+jq -e '.services.migrate.environment.APP_ENCRYPTION_DECRYPT_KEYS == null' "$rendered" >/dev/null
 
 jq -e '.services.migrate.environment | keys == ["DATABASE_URL"]' "$rendered" >/dev/null
 jq -e '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]' "$rendered" >/dev/null
