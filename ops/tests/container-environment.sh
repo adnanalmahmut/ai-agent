@@ -41,30 +41,46 @@ ENV
 
 docker compose --env-file "$runtime" --profile staging --profile migration config --format json >"$rendered"
 
-jq -e '.services.backend.environment.APP_PORT == "3002"' "$rendered" >/dev/null
-jq -e '.services.backend.depends_on.redis == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.BETTER_AUTH_SECRET == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.GOOGLE_CLIENT_SECRET == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.SMTP_PASSWORD == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.RATE_LIMIT_ENABLED == null' "$rendered" >/dev/null
+# `jq -e` exits non-zero on a false result but prints nothing, so a bare
+# assertion failure gives no clue which one failed or what the actual value
+# was. Every check runs through this helper instead, which is safe to dump in
+# full: everything here is a fixed, fake fixture value, never a real secret.
+assert_jq() {
+  description=$1
+  filter=$2
+  jq -e "$filter" "$rendered" >/dev/null || {
+    echo "container environment check failed: $description" >&2
+    echo "filter: $filter" >&2
+    echo 'rendered backend/worker/migrate environment:' >&2
+    jq '{backend: .services.backend.environment, worker: .services.worker.environment, migrate: .services.migrate.environment}' "$rendered" >&2
+    exit 1
+  }
+}
+
+assert_jq 'backend APP_PORT' '.services.backend.environment.APP_PORT == "3002"'
+assert_jq 'backend does not depend_on redis directly' '.services.backend.depends_on.redis == null'
+assert_jq 'worker has no BETTER_AUTH_SECRET' '.services.worker.environment.BETTER_AUTH_SECRET == null'
+assert_jq 'worker has no GOOGLE_CLIENT_SECRET' '.services.worker.environment.GOOGLE_CLIENT_SECRET == null'
+assert_jq 'worker has no SMTP_PASSWORD' '.services.worker.environment.SMTP_PASSWORD == null'
+assert_jq 'worker has no RATE_LIMIT_ENABLED' '.services.worker.environment.RATE_LIMIT_ENABLED == null'
 # The control-plane master key decrypts every stored provider credential. The
 # worker legitimately needs it — a background execution resolves the same
 # credentials the API does — but the migration process, web, and platform do
 # not, and `docs/deployment.md` states that allowlist as a security property.
 # Asserted in both directions so neither a removal nor a widening is silent.
-jq -e '.services.backend.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
-jq -e '.services.worker.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
-jq -e '.services.migrate.environment.APP_ENCRYPTION_KEY == null' "$rendered" >/dev/null
-jq -e '.services.backend.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"' "$rendered" >/dev/null
-jq -e '.services.worker.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"' "$rendered" >/dev/null
-jq -e '.services.migrate.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == null' "$rendered" >/dev/null
-jq -e '.services.backend.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="' "$rendered" >/dev/null
-jq -e '.services.worker.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="' "$rendered" >/dev/null
-jq -e '.services.migrate.environment.APP_ENCRYPTION_DECRYPT_KEYS == null' "$rendered" >/dev/null
+assert_jq 'backend gets APP_ENCRYPTION_KEY' '.services.backend.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="'
+assert_jq 'worker gets APP_ENCRYPTION_KEY' '.services.worker.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="'
+assert_jq 'migrate has no APP_ENCRYPTION_KEY' '.services.migrate.environment.APP_ENCRYPTION_KEY == null'
+assert_jq 'backend gets APP_ENCRYPTION_ACTIVE_KEY_VERSION' '.services.backend.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"'
+assert_jq 'worker gets APP_ENCRYPTION_ACTIVE_KEY_VERSION' '.services.worker.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"'
+assert_jq 'migrate has no APP_ENCRYPTION_ACTIVE_KEY_VERSION' '.services.migrate.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == null'
+assert_jq 'backend gets APP_ENCRYPTION_DECRYPT_KEYS' '.services.backend.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="'
+assert_jq 'worker gets APP_ENCRYPTION_DECRYPT_KEYS' '.services.worker.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="'
+assert_jq 'migrate has no APP_ENCRYPTION_DECRYPT_KEYS' '.services.migrate.environment.APP_ENCRYPTION_DECRYPT_KEYS == null'
 
-jq -e '.services.migrate.environment | keys == ["DATABASE_URL"]' "$rendered" >/dev/null
-jq -e '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]' "$rendered" >/dev/null
-jq -e '.services.platform.environment == null' "$rendered" >/dev/null
-jq -e '.services.geoipupdate.environment | keys | sort == ["GEOIPUPDATE_ACCOUNT_ID", "GEOIPUPDATE_EDITION_IDS", "GEOIPUPDATE_FREQUENCY", "GEOIPUPDATE_LICENSE_KEY"]' "$rendered" >/dev/null
+assert_jq 'migrate environment is DATABASE_URL only' '.services.migrate.environment | keys == ["DATABASE_URL"]'
+assert_jq 'web environment allowlist' '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]'
+assert_jq 'platform has no environment block' '.services.platform.environment == null'
+assert_jq 'geoipupdate environment allowlist' '.services.geoipupdate.environment | keys | sort == ["GEOIPUPDATE_ACCOUNT_ID", "GEOIPUPDATE_EDITION_IDS", "GEOIPUPDATE_FREQUENCY", "GEOIPUPDATE_LICENSE_KEY"]'
 
 echo 'container environment least-privilege invariants: ok'
