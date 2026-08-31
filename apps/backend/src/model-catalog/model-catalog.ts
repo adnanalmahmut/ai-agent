@@ -19,6 +19,10 @@ export const MODEL_IDS = {
 } as const;
 
 export type ModelId = (typeof MODEL_IDS)[keyof typeof MODEL_IDS];
+export const MODEL_ID_VALUES = [
+  MODEL_IDS.openAiGpt4oMini,
+  MODEL_IDS.openAiTextEmbedding3Small,
+] as const satisfies readonly ModelId[];
 export type AgentModelId = typeof MODEL_IDS.openAiGpt4oMini;
 export type EmbeddingModelId = typeof MODEL_IDS.openAiTextEmbedding3Small;
 

@@ -227,6 +227,9 @@ export const AgentRunScalarFieldEnum = {
   status: 'status',
   organizationId: 'organizationId',
   organizationAgentVersionId: 'organizationAgentVersionId',
+  modelPolicyId: 'modelPolicyId',
+  modelId: 'modelId',
+  modelPricingRevisionId: 'modelPricingRevisionId',
   createdByUserId: 'createdByUserId',
   input: 'input',
   output: 'output',
@@ -263,6 +266,8 @@ export const OrganizationAgentVersionScalarFieldEnum = {
   definitionVersion: 'definitionVersion',
   enabled: 'enabled',
   configuration: 'configuration',
+  modelPolicyId: 'modelPolicyId',
+  modelId: 'modelId',
   createdByUserId: 'createdByUserId',
   createdAt: 'createdAt'
 } as const

@@ -60,6 +60,10 @@ const definitionOf = (overrides: Record<string, unknown> = {}) =>
     runtime: 'mastra',
     instructions: 'Test instructions',
     model: MODEL_IDS.openAiGpt4oMini,
+    modelPolicy: {
+      id: 'test-agent.model-policy.1',
+      allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+    },
     input: z.unknown(),
     output: z.object({ answer: z.string() }),
     ...overrides,
@@ -74,6 +78,7 @@ describe('MastraRuntime', () => {
     await expect(
       runtime.run({
         definition,
+        model: MODEL_IDS.openAiGpt4oMini,
         configuration: {},
         input: { z: 1, nested: { z: 3, a: 2 }, a: true },
         context: [],
@@ -101,6 +106,7 @@ describe('MastraRuntime', () => {
 
     await runtime.run({
       definition: definitionOf(),
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: 'hello',
       context: [],
@@ -128,7 +134,8 @@ describe('MastraRuntime', () => {
     const runtime = new MastraRuntime(runtimeConfig());
 
     const refusal = runtime.run({
-      definition: definitionOf({ model: 'someprovider/some-model' }),
+      definition: definitionOf(),
+      model: 'someprovider/some-model' as never,
       configuration: {},
       input: 'hello',
       context: [],
@@ -147,7 +154,8 @@ describe('MastraRuntime', () => {
 
     await expect(
       runtime.run({
-        definition: definitionOf({ model: { provider: 'openai' } }),
+        definition: definitionOf(),
+        model: { provider: 'openai' } as never,
         configuration: {},
         input: 'hello',
         context: [],
@@ -166,7 +174,8 @@ describe('MastraRuntime', () => {
 
     await expect(
       runtime.run({
-        definition: definitionOf({ model: 'toString/some-model' }),
+        definition: definitionOf(),
+        model: 'toString/some-model' as never,
         configuration: {},
         input: 'hello',
         context: [],
@@ -193,6 +202,7 @@ describe('MastraRuntime', () => {
 
       const refusal = runtime.run({
         definition: definitionOf(),
+        model: MODEL_IDS.openAiGpt4oMini,
         configuration: {},
         input: 'hello',
         context: [],
@@ -227,6 +237,7 @@ describe('MastraRuntime', () => {
       await expect(
         runtime.run({
           definition: definitionOf(),
+          model: MODEL_IDS.openAiGpt4oMini,
           configuration: {},
           input: 'hello',
           context: [],
@@ -246,6 +257,7 @@ describe('MastraRuntime', () => {
 
     await runtime.run({
       definition: definitionOf(),
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: 'hello',
       context: [],
@@ -277,6 +289,7 @@ describe('MastraRuntime', () => {
 
     await runtime.run({
       definition: definitionOf(),
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: 'What is the refund window?',
       context: [
@@ -312,6 +325,7 @@ describe('MastraRuntime', () => {
 
     await runtime.run({
       definition: definitionOf(),
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: 'What is the refund window?',
       context: [
@@ -339,6 +353,7 @@ describe('MastraRuntime', () => {
 
     await runtime.run({
       definition: definitionOf(),
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: 'hello',
       context: [],

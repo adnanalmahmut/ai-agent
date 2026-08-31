@@ -17,6 +17,10 @@ const definition = {
   runtime: 'mastra',
   instructions: 'Answer test requests.',
   model: MODEL_IDS.openAiGpt4oMini,
+  modelPolicy: {
+    id: 'test-support-agent.model-policy.1',
+    allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+  },
   input: z.union([z.string(), z.object({ question: z.string() })]),
   output: z.string(),
 } as const;
@@ -33,10 +37,14 @@ const noContext = {
   assemble: jest.fn<() => Promise<never[]>>(() => Promise.resolve([])),
 };
 
-type TestRun = Omit<
-  Parameters<AgentRunner['run']>[0],
-  'organizationAgentVersionId'
-> & { organizationAgentVersionId?: string | null };
+type OptionalRunPin =
+  | 'organizationAgentVersionId'
+  | 'modelPolicyId'
+  | 'modelId'
+  | 'modelPricingRevisionId'
+  | 'createdAt';
+type TestRun = Omit<Parameters<AgentRunner['run']>[0], OptionalRunPin> &
+  Partial<Pick<Parameters<AgentRunner['run']>[0], OptionalRunPin>>;
 type TestRunner = Omit<AgentRunner, 'run'> & {
   run(run: TestRun): ReturnType<AgentRunner['run']>;
 };
@@ -62,6 +70,10 @@ const runnerFor = (
       runner.run({
         ...run,
         organizationAgentVersionId: run.organizationAgentVersionId ?? null,
+        modelPolicyId: run.modelPolicyId ?? null,
+        modelId: run.modelId ?? null,
+        modelPricingRevisionId: run.modelPricingRevisionId ?? null,
+        createdAt: run.createdAt ?? new Date('2026-08-27T00:00:00.000Z'),
       }),
   } as TestRunner;
 };
@@ -69,6 +81,10 @@ const runnerFor = (
 const definitionV2 = {
   ...definition,
   version: 2,
+  modelPolicy: {
+    id: 'test-support-agent.model-policy.2',
+    allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+  },
   instructions: 'Answer test requests differently.',
 } as const;
 
@@ -98,6 +114,7 @@ describe('AgentRunner', () => {
     expect(resolve).toHaveBeenCalledWith('mastra');
     expect(run).toHaveBeenCalledWith({
       definition,
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: { question: 'hello' },
       context: [],
@@ -147,6 +164,7 @@ describe('AgentRunner', () => {
 
     expect(run).toHaveBeenCalledWith({
       definition,
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: 'hello',
       context: [],
@@ -162,6 +180,7 @@ describe('AgentRunner', () => {
 
     expect(run).toHaveBeenLastCalledWith({
       definition: definitionV2,
+      model: MODEL_IDS.openAiGpt4oMini,
       configuration: {},
       input: 'hello',
       context: [],
@@ -186,6 +205,99 @@ describe('AgentRunner', () => {
       'Agent definition "test-support-agent@7" is not registered',
     );
     expect(resolve).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgentRunner model pinning', () => {
+  const pricingRevisionId = 'openai.gpt-4o-mini.standard.2024-10-01';
+  const pinnedRun = (
+    overrides: Partial<Parameters<AgentRunner['run']>[0]> = {},
+  ): Parameters<AgentRunner['run']>[0] => ({
+    agentId: definition.id,
+    agentVersion: definition.version,
+    runtime: definition.runtime,
+    organizationId: 'org_1',
+    organizationAgentVersionId: null,
+    modelPolicyId: definition.modelPolicy.id,
+    modelId: MODEL_IDS.openAiGpt4oMini,
+    modelPricingRevisionId: pricingRevisionId,
+    createdAt: new Date('2026-08-27T00:00:00.000Z'),
+    input: 'hello',
+    ...overrides,
+  });
+
+  const setup = () => {
+    const runtimeRun = jest
+      .fn<(request: unknown) => Promise<{ output: string }>>()
+      .mockResolvedValue({ output: 'done' });
+    const runner = runnerFor([definition], {
+      resolve: () => ({ name: 'mastra', run: runtimeRun }),
+    } as never);
+    return { runner, runtimeRun };
+  };
+
+  it('passes the accepted stable model identity to the runtime', async () => {
+    const { runner, runtimeRun } = setup();
+
+    await expect(runner.run(pinnedRun())).resolves.toEqual({ output: 'done' });
+    expect(runtimeRun).toHaveBeenCalledWith(
+      expect.objectContaining({ model: MODEL_IDS.openAiGpt4oMini }),
+    );
+  });
+
+  it('refuses a partially populated durable model pin', async () => {
+    const { runner, runtimeRun } = setup();
+
+    await expect(
+      runner.run(pinnedRun({ modelPricingRevisionId: null })),
+    ).rejects.toBeInstanceOf(AgentConfigurationError);
+    expect(runtimeRun).not.toHaveBeenCalled();
+  });
+
+  it('refuses a policy identity that differs from the pinned definition', async () => {
+    const { runner, runtimeRun } = setup();
+
+    await expect(
+      runner.run(pinnedRun({ modelPolicyId: 'tampered-policy' })),
+    ).rejects.toBeInstanceOf(AgentConfigurationError);
+    expect(runtimeRun).not.toHaveBeenCalled();
+  });
+
+  it('refuses a pricing revision that was not effective at acceptance', async () => {
+    const { runner, runtimeRun } = setup();
+
+    await expect(
+      runner.run(pinnedRun({ modelPricingRevisionId: 'tampered-pricing' })),
+    ).rejects.toBeInstanceOf(AgentConfigurationError);
+    expect(runtimeRun).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['unknown', 'unknown.model'],
+    ['capability-incompatible', MODEL_IDS.openAiTextEmbedding3Small],
+  ])(
+    'refuses a %s pinned model before the runtime call',
+    async (_case, modelId) => {
+      const { runner, runtimeRun } = setup();
+
+      await expect(
+        runner.run(pinnedRun({ modelId: modelId as never })),
+      ).rejects.toBeInstanceOf(AgentConfigurationError);
+      expect(runtimeRun).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { modelPolicyId: null },
+    { modelId: null },
+    { modelPricingRevisionId: null },
+  ])('refuses partial durable model pin %#', async (partial) => {
+    const { runner, runtimeRun } = setup();
+
+    await expect(runner.run(pinnedRun(partial))).rejects.toBeInstanceOf(
+      AgentConfigurationError,
+    );
+    expect(runtimeRun).not.toHaveBeenCalled();
   });
 });
 
@@ -226,6 +338,10 @@ describe('AgentRunner organization configuration', () => {
     runtime: 'mastra',
     organizationId: 'org_1',
     organizationAgentVersionId,
+    modelPolicyId: null,
+    modelId: null,
+    modelPricingRevisionId: null,
+    createdAt: new Date('2026-08-27T00:00:00.000Z'),
     input: 'hello',
   });
 
@@ -272,8 +388,99 @@ describe('AgentDefinitionRegistry', () => {
   it('accepts one id registered at distinct versions', () => {
     const registry = new AgentDefinitionRegistry([definition, definitionV2]);
 
-    expect(registry.resolve(definition.id, 1)).toBe(definition);
-    expect(registry.resolve(definition.id, 2)).toBe(definitionV2);
+    expect(registry.resolve(definition.id, 1)).toMatchObject(definition);
+    expect(registry.resolve(definition.id, 2)).toMatchObject(definitionV2);
+  });
+
+  it('rejects duplicate policy identities across definition revisions', () => {
+    expect(
+      () =>
+        new AgentDefinitionRegistry([
+          definition,
+          { ...definitionV2, modelPolicy: definition.modelPolicy },
+        ]),
+    ).toThrow('Duplicate agent model policy');
+  });
+
+  it('rejects a policy that excludes its default model', () => {
+    expect(
+      () =>
+        new AgentDefinitionRegistry([
+          {
+            ...definition,
+            modelPolicy: {
+              ...definition.modelPolicy,
+              allowedModelIds: [MODEL_IDS.openAiTextEmbedding3Small] as never,
+            },
+          },
+        ]),
+    ).toThrow('does not allow its default model');
+  });
+
+  it.each(['', ' whitespace '])('rejects invalid policy identity %j', (id) => {
+    expect(
+      () =>
+        new AgentDefinitionRegistry([
+          { ...definition, modelPolicy: { ...definition.modelPolicy, id } },
+        ]),
+    ).toThrow('invalid model policy identity');
+  });
+
+  it('rejects duplicate allowed model identities', () => {
+    expect(
+      () =>
+        new AgentDefinitionRegistry([
+          {
+            ...definition,
+            modelPolicy: {
+              ...definition.modelPolicy,
+              allowedModelIds: [definition.model, definition.model],
+            },
+          },
+        ]),
+    ).toThrow('contains duplicate models');
+  });
+
+  it('defensively freezes the registered policy and its allowed set', () => {
+    const sourceAllowed = [MODEL_IDS.openAiGpt4oMini];
+    const source = {
+      ...definition,
+      modelPolicy: {
+        id: 'mutable-source.model-policy.1',
+        allowedModelIds: sourceAllowed,
+      },
+    } satisfies AgentDefinition;
+    const registry = new AgentDefinitionRegistry([source]);
+
+    sourceAllowed.push(MODEL_IDS.openAiTextEmbedding3Small as never);
+    source.modelPolicy.id = 'mutated';
+
+    const stored = registry.resolve(source.id, source.version);
+    expect(stored.modelPolicy).toEqual({
+      id: 'mutable-source.model-policy.1',
+      allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+    });
+    expect(Object.isFrozen(stored)).toBe(true);
+    expect(Object.isFrozen(stored.modelPolicy)).toBe(true);
+    expect(Object.isFrozen(stored.modelPolicy.allowedModelIds)).toBe(true);
+  });
+
+  it('rejects a catalog model without agent-generation capability', () => {
+    expect(
+      () =>
+        new AgentDefinitionRegistry([
+          {
+            ...definition,
+            modelPolicy: {
+              ...definition.modelPolicy,
+              allowedModelIds: [
+                MODEL_IDS.openAiGpt4oMini,
+                MODEL_IDS.openAiTextEmbedding3Small,
+              ] as never,
+            },
+          },
+        ]),
+    ).toThrow('unavailable for agent execution');
   });
 
   it('never falls back to another version of the same id', () => {
@@ -385,6 +592,10 @@ describe('the pinned version validates the input', () => {
     ...definition,
     id: 'schema-drift-agent',
     version: 1,
+    modelPolicy: {
+      id: 'schema-drift-agent.model-policy.1',
+      allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+    },
     input: z.string(),
   } as const;
 
@@ -392,6 +603,10 @@ describe('the pinned version validates the input', () => {
     ...definition,
     id: 'schema-drift-agent',
     version: 2,
+    modelPolicy: {
+      id: 'schema-drift-agent.model-policy.2',
+      allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+    },
     input: z.object({ question: z.string() }),
   } as const;
 
