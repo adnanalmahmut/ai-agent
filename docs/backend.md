@@ -368,8 +368,15 @@ disjoint authority: rotation reads and rewrites every stored credential, while
 bootstrap can mint an administrator account. Composing them together would hand
 each one the other's reach, so the master key is loaded only where credentials
 are rewritten and the authentication stack only where an account is created.
-Only the command actually invoked is constructed, so the other's authority is
-never present in the process at all.
+Only the command actually invoked is constructed.
+
+That separation is an injection boundary rather than a process one, and the
+distinction matters when reasoning about blast radius. Both commands run inside
+the `backend` service, whose environment carries every credential that service
+is given, so narrowing the graph does not empty `process.env`. What it does mean
+is that the other command's *machinery* — the authentication stack, the mail
+transport, the HTTP server — is never constructed, so nothing in the process is
+in a position to act on what the environment happens to hold.
 
 Rotation is bounded, resumable, and idempotent: it pages on the immutable
 primary key, and commits each row through a compare-and-swap on the `updatedAt`

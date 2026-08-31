@@ -80,9 +80,9 @@ describe('dispatchCliCommand', () => {
       email: 'ops@example.com',
     });
     rotateAll.mockReset().mockResolvedValue({
-      examined: 0,
+      examined: 1,
       rotated: 0,
-      alreadyActive: 0,
+      alreadyActive: 1,
       wouldRotate: 0,
       unreadable: 0,
       concurrentlyModified: 0,

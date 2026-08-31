@@ -517,19 +517,25 @@ describe('ManagedSecretRotationService', () => {
 
   describe('the canary appears nowhere', () => {
     it.each([
-      ['a rotated row', () => servePages([oldVersionRow()])],
-      ['a legacy row', () => servePages([legacyRow()])],
+      ['a rotated row', () => servePages([oldVersionRow()]), {}],
+      ['a legacy row', () => servePages([legacyRow()]), {}],
       [
         'an unreadable row',
         () => servePages([{ ...oldVersionRow(), keyVersion: 'v9' }]),
+        {},
       ],
-      ['a dry run', () => servePages([oldVersionRow()])],
+      // The options matter here. Without them this case arranged the same rows
+      // as the first and called `rotateAll()` the same way, so it re-ran the
+      // rotated-row case under a different label and the dry-run path -- which
+      // decrypts, and so holds the plaintext, without ever writing -- was never
+      // examined at all.
+      ['a dry run', () => servePages([oldVersionRow()]), { dryRun: true }],
     ])(
       'is absent from the report and the audit payload: %s',
-      async (_label, arrange) => {
+      async (_label, arrange, options) => {
         arrange();
 
-        const report = await service.rotateAll();
+        const report = await service.rotateAll(options);
 
         const surface = JSON.stringify({
           report,

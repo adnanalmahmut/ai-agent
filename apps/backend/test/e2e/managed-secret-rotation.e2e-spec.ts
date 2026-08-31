@@ -10,6 +10,7 @@ import {
 import { Test } from '@nestjs/testing';
 
 import { RotationCliModule } from '../../src/cli/rotation-cli.module';
+import { ControlPlaneAuditService } from '../../src/control-plane/audit/control-plane-audit.service';
 import encryptionConfig from '../../src/config/encryption.config';
 import { ManagedSecretKeyring } from '../../src/control-plane/managed-secrets/managed-secret-keyring';
 import { ManagedSecretRotationService } from '../../src/control-plane/managed-secrets/managed-secret-rotation.service';
@@ -46,6 +47,7 @@ const aad = (version: string) => `managed-secret:v1:${SLOT}:${version}`;
 
 describe('Managed secret key rotation (e2e)', () => {
   let prisma: PrismaService;
+  let audit: ControlPlaneAuditService;
   let rotation: ManagedSecretRotationService;
   let keyring: ManagedSecretKeyring;
   let close: () => Promise<void>;
@@ -71,6 +73,7 @@ describe('Managed secret key rotation (e2e)', () => {
     const context = await moduleRef.init();
 
     prisma = context.get(PrismaService);
+    audit = context.get(ControlPlaneAuditService);
     rotation = context.get(ManagedSecretRotationService);
     keyring = context.get(ManagedSecretKeyring);
     close = () => context.close();
@@ -124,6 +127,52 @@ describe('Managed secret key rotation (e2e)', () => {
     // must not move either.
     expect(after.lastRotatedAt).toEqual(before.lastRotatedAt);
     expect(after.label).toBe('e2e');
+  });
+
+  /**
+   * The atomicity this suite's header claims, actually exercised.
+   *
+   * The re-encryption and the audit row that records which key sealed it share
+   * one transaction. Nothing else proved that: the unit spec's `$transaction`
+   * fake just invokes its callback, so dropping the real transaction leaves
+   * every other test in this file and that one green. What it would leave
+   * behind in production is a credential re-sealed under the new key with no
+   * audit record of the move — and that record is what the runbook's retirement
+   * gate is reconciled against before an operator deletes the old key.
+   *
+   * Forcing the audit insert to fail is the only way to observe the boundary,
+   * because it is the second statement: if the two are not joined, the first
+   * has already committed by the time the second fails.
+   */
+  it('rolls the re-encryption back when its audit row cannot be written', async () => {
+    const before = await store('e2e-v1');
+    const failure = new Error('audit insert refused');
+    // Spied on the audit service rather than on `prisma.controlPlaneAuditEvent`,
+    // because the write goes through the transaction client the service is
+    // handed, which is a different object from the root Prisma instance -- a
+    // spy on the latter never fires and the test would pass without proving
+    // anything.
+    const record = jest.spyOn(audit, 'record').mockRejectedValueOnce(failure);
+
+    await expect(rotation.rotateAll()).rejects.toThrow(failure);
+
+    record.mockRestore();
+
+    const after = await row();
+    expect(Buffer.from(after.ciphertext)).toEqual(
+      Buffer.from(before.ciphertext),
+    );
+    expect(after.keyVersion).toBe('e2e-v1');
+    expect(after.updatedAt).toEqual(before.updatedAt);
+    // Still readable under the key it was originally sealed with, which is the
+    // property that matters: a half-applied rotation would have left bytes only
+    // the new key could open, with nothing recording that.
+    expect(keyring.open(SLOT, after)).toBe(CANARY);
+    expect(
+      await prisma.controlPlaneAuditEvent.count({
+        where: { action: 'managedSecret.reencrypt' },
+      }),
+    ).toBe(0);
   });
 
   it('migrates a pre-version row onto the active version', async () => {

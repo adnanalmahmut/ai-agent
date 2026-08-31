@@ -22,6 +22,13 @@ import { DatabaseModule } from '../database';
  * answers to nobody and renders nothing. What remains is a database connection
  * and a keyring, which is the whole of what re-encrypting a column requires.
  *
+ * This is an injection boundary, not a process one. The command runs inside the
+ * `backend` service, whose `process.env` still carries every credential that
+ * service is given. Narrowing the graph does not remove them from the
+ * environment; what it buys is that no auth stack, mail transport, HTTP server,
+ * or queue producer is ever constructed, so nothing in this process is in a
+ * position to read, log, or transmit them.
+ *
  * `ControlPlaneAuditService` is provided directly rather than by importing
  * `ControlPlaneCoreModule`, which would also bring feature flags, runtime
  * settings, the resolver, and HTTP controllers — none of which an operator

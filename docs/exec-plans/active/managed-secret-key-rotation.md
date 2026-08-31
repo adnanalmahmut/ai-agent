@@ -284,6 +284,15 @@ rather than exit 1; it is absent from the development machine used here.
   host over an optional operator capability. This is the retention precedent,
   not the keyring one, where the minimum had to move because the release could
   not boot without the newer Compose mapping.
+- 2026-08-31: A sweep that examined nothing no longer exits 0. Exit 0 is the
+  runbook's retirement gate, and an empty result cannot distinguish a current
+  table from a command pointed at the wrong database — which the runbook made
+  reachable by printing a local `pnpm cli` invocation beside the procedure. The
+  invocation is now marked development-only and the exit code refuses.
+- 2026-08-31: `ops/host-bundle/CONTENTS` records a digest per bundle version.
+  Two changes in this train edited a listed bundle file without moving VERSION
+  and no test noticed, because the existing doc coupling only runs in the
+  bump-implies-docs direction. Starts at 5; earlier bundles cannot be recovered.
 - 2026-08-31: Rollout is two stages by design — the release deploys normally,
   and the operator installs bundle 5 as a separate act. Until then the verb
   exits `unsupported operation`. Rotation itself remains gated on a further
@@ -299,8 +308,9 @@ rather than exit 1; it is absent from the development machine used here.
 - [x] Host bundle 5 declared with `MIN_VERSION` held at 4, the two-stage
       operator rollout documented, and the deploy-key exclusion asserted for
       every wrapper verb rather than only the two named ones.
-- [ ] Independent correctness, test, and security reviews complete and remediated.
-- [ ] Aggregate validation green.
+- [x] Independent correctness, test, security, and operational/release reviews
+      complete and findings remediated.
+- [x] Aggregate validation green.
 - [ ] PR open against SEC-01A with final-head CI green at human handoff.
 
 ## Blockers

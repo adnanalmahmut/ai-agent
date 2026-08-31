@@ -247,6 +247,33 @@ describe('runRotateKey', () => {
   });
 
   /**
+   * The wrong-database case, which every disposition-based check reads as
+   * success.
+   *
+   * An operator who runs the command against a development database -- or
+   * against a deployment whose table is empty for any other reason -- gets
+   * every counter at zero, which is indistinguishable from "fully current"
+   * unless the sweep size itself is checked. Step D of the runbook treats exit
+   * 0 as permission to delete the old key, so this is the one place where
+   * "no errors" must not be allowed to mean "nothing depends on that key".
+   */
+  it.each([
+    ['a dry run', ['--dry-run']],
+    ['a live run', []],
+  ])(
+    'refuses to exit 0 when %s examined nothing at all',
+    async (_label, argv) => {
+      rotateAll.mockResolvedValue(report({ examined: 0 }));
+      const streams = io();
+
+      expect(await runRotateKey(argv, streams, resolve)).toBe(
+        ROTATE_EXIT.incomplete,
+      );
+      expect(streams.error.text).toContain('Examined no secrets');
+    },
+  );
+
+  /**
    * `rotated` is not outstanding, and this is the pair that pins the asymmetry:
    * on a live run the rows that moved are the success, while on a dry run the
    * rows that *would* move are the reason to stop.

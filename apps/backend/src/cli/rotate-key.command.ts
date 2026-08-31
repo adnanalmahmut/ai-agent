@@ -168,6 +168,29 @@ export async function runRotateKey(
     ? report.wouldRotate + report.unreadable + report.unknownSlot
     : report.unreadable + report.concurrentlyModified + report.unknownSlot;
 
+  /**
+   * A sweep that examined nothing cannot report that the table is current.
+   *
+   * The two states are indistinguishable from the dispositions alone: a
+   * genuinely empty table and a run pointed at the wrong database both produce
+   * every counter at zero. A human reading the report sees `examined 0` and
+   * stops; the exit code is what a script -- and the runbook's step D -- reads,
+   * and there exit 0 authorizes deleting the only key that can still decrypt
+   * the rows this run never saw. Refusing here costs an operator with a
+   * legitimately empty table one line of explanation, and costs an operator who
+   * ran against a development database nothing at all, which is the asymmetry
+   * that matters.
+   */
+  if (report.examined === 0) {
+    io.error.write(
+      'Examined no secrets. That is not the same as the table being current, ' +
+        'so this is deliberately not exit 0: confirm this ran against the ' +
+        'intended deployment before retiring any key.\n',
+    );
+
+    return ROTATE_EXIT.incomplete;
+  }
+
   return outstanding > 0 ? ROTATE_EXIT.incomplete : ROTATE_EXIT.ok;
 }
 

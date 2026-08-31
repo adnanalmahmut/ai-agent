@@ -98,7 +98,13 @@ printf '%s\n' 'status staging' | grep -Eq "$dispatch_allowlist" || {
 # the two that happened to warrant their own loop above. A third local-only verb
 # would otherwise arrive with no boundary assertion at all, and whether the
 # deploy key can reach it would depend on nobody having noticed.
-wrapper_verbs=$(sed -n 's/^  \([a-z][a-z|-]*\))$/\1/p' ops/lightsail/ai-agent-deploy |
+#
+# The pattern allows trailing content and digits/underscores on purpose. The
+# wrapper already writes its `*)` arm on one line, so a future verb written in
+# that same style -- `  dump-secrets) do_thing "$@" ;;` -- is idiomatic here,
+# and an extraction anchored to end-of-line would silently drop it. That is
+# precisely the verb this sweep exists to catch, so it would fail open.
+wrapper_verbs=$(sed -n 's/^  \([a-z0-9][a-z0-9|_-]*\)).*$/\1/p' ops/lightsail/ai-agent-deploy |
   tr '|' '\n' | sort -u)
 [ -n "$wrapper_verbs" ] ||
   { echo 'could not read the verbs the deploy wrapper implements' >&2; exit 1; }
