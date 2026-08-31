@@ -21,7 +21,7 @@ of value are involved and they are not interchangeable:
 
 | Kind | Where it lives | Changed by | Example |
 |---|---|---|---|
-| Bootstrap | `/etc/ai-agent/runtime.env` | Operator, then restart | `DATABASE_URL`, `APP_ENCRYPTION_KEY` |
+| Bootstrap | `/etc/ai-agent/runtime.env` | Operator, then restart | `DATABASE_URL`, `APP_ENCRYPTION_KEY`, `APP_ENCRYPTION_ACTIVE_KEY_VERSION` |
 | Dynamic setting | `runtime_setting` row, registered in code | `super_admin`, effective immediately | retrieval chunk limit |
 | Managed secret | `managed_secret` row, encrypted | `super_admin`, effective immediately | provider API key |
 | Versioned behavior | Code, in a versioned definition | A deployment, as a new version | an agent's prompt |
@@ -52,15 +52,28 @@ names it. Every new or replaced credential is sealed under that version and
 records it, so a read resolves the exact key that sealed the row rather than
 guessing at it. `APP_ENCRYPTION_DECRYPT_KEYS` optionally carries older versions
 as comma-separated `version=base64` pairs, decrypt-only, so rows written under a
-previous key stay readable while they are migrated. A row whose recorded version
-is not configured fails closed and reports as unusable; it is never retried with
-the active key.
+previous key stay readable while they are migrated. A row whose recorded
+version is not configured fails closed and reports as unusable; it is never
+retried with the active key.
+
+The active version is required, with no default. A deployment that omits it
+refuses at boot rather than picking a key on the operator's behalf, because a
+default here would mean ciphertext written under an identity nobody chose — and
+the whole point of recording a version is that a later key change can tell rows
+apart. Rows written before the keyring existed record no version at all; those
+resolve by fingerprint against exactly one configured key, which is a stated
+compatibility path rather than a fallback, and a row that *does* carry a version
+never reaches it.
 
 Changing the active key re-encrypts nothing by itself. Existing rows keep their
-recorded version and are still read with the older key while it remains
-configured, and `managed-secret:rotate-key` migrates them. Retiring the old key
-is a separate, later decision — see
+recorded version and are still read with the older key for as long as it remains
+in `APP_ENCRYPTION_DECRYPT_KEYS`, and `managed-secret:rotate-key` migrates them.
+Retiring the old key is a separate, later decision — see
 [the operations runbook](operations-runbook.md#managed-secret-key-rotation).
+
+The first release carrying the keyring needs the version configured on the host
+*before* it deploys, and a host bundle new enough to pass it to the containers.
+See [the first version-aware release](operations-runbook.md#first-version-aware-encryption-release).
 
 ## Validation and distribution
 

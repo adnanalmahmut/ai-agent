@@ -168,6 +168,11 @@ git diff --check
 - Exposing key version metadata could accidentally widen the secret surface.
   The value is a bounded non-secret identifier; ciphertext, fingerprints, key
   material, and plaintext remain absent by explicit selects and response types.
+- The first deployment could half-apply. `APP_ENCRYPTION_ACTIVE_KEY_VERSION` is
+  required with no default, and the Compose allowlist — not `env_file` — is what
+  hands it to a container, so a host still on bundle 3 would migrate and then
+  fail to boot. Raising the host bundle to 4 and `MIN_VERSION` with it converts
+  that into a refusal ahead of `compose run --rm migrate`.
 
 ## Decision log
 
@@ -184,6 +189,18 @@ git diff --check
   cipher/decipher update, the GCM tag is set explicitly, and authentication
   failure is raised by `final()`. Current Prisma 7 documentation confirms
   migrations and client generation are separate explicit steps.
+- 2026-08-31: The change edits two installed host bundle files
+  (`docker-compose.yml`, `ops/runtime-preflight.sh`), so `VERSION` moves 3 -> 4.
+  `MIN_VERSION` moves 2 -> 4 as well, which is the unusual case: the release
+  genuinely cannot run on bundle 3, because that bundle's Compose allowlist has
+  no mapping for the boot-required active key version and the file deliberately
+  never uses `env_file`. This is the opposite of the retention rollout, where
+  the capability was host-side and `MIN_VERSION` stayed behind `VERSION`.
+- 2026-08-31: The rollout assigns a version identity to the existing key rather
+  than replacing it. `APP_ENCRYPTION_KEY` bytes are unchanged,
+  `APP_ENCRYPTION_DECRYPT_KEYS` stays empty, and existing null-version rows keep
+  resolving by fingerprint. No bulk re-encryption is performed or scheduled;
+  SEC-01B owns rotation.
 
 ## Progress
 
@@ -196,8 +213,10 @@ git diff --check
 - [x] Focused unit/E2E and migration contract green (backend unit 1142/1142,
   backend e2e 597/597, prisma format/validate/generate/migrate deploy).
 - [ ] Independent code, test, and security reviews complete and findings remediated.
-- [x] Aggregate validation green (typecheck, lint, test 1946/1946 repo-wide,
-  build, ops/tests/documentation.sh, agents:check 113/113, git diff --check).
+- [x] Aggregate validation green (typecheck, lint, test repo-wide, build,
+  ops/tests/documentation.sh, agents:check, git diff --check).
+- [x] Host bundle 4 declared, `MIN_VERSION` raised to 4, and the operator
+  prerequisite for the first version-aware release documented in the runbook.
 - [ ] PR open with final-head CI green at human handoff.
 
 ## Blockers
