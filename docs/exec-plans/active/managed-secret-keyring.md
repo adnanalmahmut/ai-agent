@@ -168,6 +168,15 @@ git diff --check
 - Exposing key version metadata could accidentally widen the secret surface.
   The value is a bounded non-secret identifier; ciphertext, fingerprints, key
   material, and plaintext remain absent by explicit selects and response types.
+- Saving over a versioned row from the preceding image during a rollback leaves
+  a no-AAD ciphertext under a non-null recorded version. It fails closed on read
+  but reports as usable, because usability is derived from metadata. Not
+  fixable in this image — the write comes from the older one — so the runbook
+  directs remove-and-re-add rather than save-over while rolled back, and one
+  further save after rolling forward as the remedy.
+- Pre-version rows carry no slot binding, so an actor with database write access
+  could relocate one between slots. Only one slot is registered today, and each
+  row closes the gap the first time it is saved through the new image.
 - The first deployment could half-apply. `APP_ENCRYPTION_ACTIVE_KEY_VERSION` is
   required with no default, and the Compose allowlist — not `env_file` — is what
   hands it to a container, so a host still on bundle 3 would migrate and then

@@ -690,6 +690,11 @@ describe('Control plane (e2e)', () => {
         'CANARY',
       );
       expect(row.iv).toHaveLength(12);
+      // Asserted against the column, not only through `open`. A regression to
+      // unversioned writes would still open cleanly -- the legacy fingerprint
+      // path accepts a null version and the fingerprint would match -- so the
+      // round trip alone cannot tell a versioned row from an unversioned one.
+      expect(row.keyVersion).toBe(encryptionConfig().activeKeyVersion);
       const keyring = new ManagedSecretKeyring(encryptionConfig());
       expect(keyring.open(SECRET, row)).toBe(CANARY);
     });

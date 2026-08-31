@@ -30,6 +30,20 @@ require_nonempty() {
   [ -n "$value" ] || die "$key is missing or empty"
 }
 
+# For names the application defaults rather than requires. `value_for` treats a
+# missing line as an error, which is right for a required name and wrong here:
+# an absent APP_ENCRYPTION_DECRYPT_KEYS is its normal state -- no older key is
+# configured -- and refusing it would refuse a correct host with a message about
+# duplication. A line that is present more than once is still an error, because
+# the container would silently take one of them.
+optional_value_for() {
+  key=$1
+  count=$(grep -c "^${key}=" "$runtime_file" || true)
+  [ "$count" -le 1 ] || die "$key must occur at most once"
+  [ "$count" -eq 1 ] || return 0
+  value_for "$key"
+}
+
 required='NODE_ENV
 POSTGRES_USER
 POSTGRES_PASSWORD
@@ -105,16 +119,23 @@ active_key_version=$(value_for APP_ENCRYPTION_ACTIVE_KEY_VERSION)
 valid_key_version "$active_key_version" ||
   die 'APP_ENCRYPTION_ACTIVE_KEY_VERSION has an invalid version identifier'
 
-decrypt_keys=$(value_for APP_ENCRYPTION_DECRYPT_KEYS)
+decrypt_keys=$(optional_value_for APP_ENCRYPTION_DECRYPT_KEYS)
 if [ -n "$decrypt_keys" ]; then
   case "$decrypt_keys" in
     ,* | *, | *,,*) die 'APP_ENCRYPTION_DECRYPT_KEYS has an empty entry' ;;
   esac
 
+  # `set -f` because the unquoted split performs pathname expansion as well as
+  # field splitting. A valid value contains no glob character, but a malformed
+  # one can, and the refusal it earns would otherwise describe whatever files
+  # happened to match in the deploy wrapper's working directory instead of the
+  # value actually in runtime.env.
   previous_ifs=$IFS
+  set -f
   IFS=,
   set -- $decrypt_keys
   IFS=$previous_ifs
+  set +f
   [ "$#" -le 16 ] || die 'APP_ENCRYPTION_DECRYPT_KEYS has too many entries'
 
   seen_versions="|$active_key_version|"

@@ -149,9 +149,16 @@ no mapping for the new names and the compose file deliberately does not use
 `env_file`, so without this the variable cannot reach the backend however
 correctly step 1 was done.
 
-Either order works, and both are safe to do while the current release is still
-serving. Bundle 4's new mappings default to empty and the running image ignores
-them; the extra line in `runtime.env` is likewise ignored by the running image.
+Both are safe to do while the current release is still serving: bundle 4's new
+mappings default to empty and the running image ignores them, and the extra line
+in `runtime.env` is likewise ignored by the running image.
+
+Prefer step 1 first. Bundle 4's `ai-agent-runtime-preflight` adds the version to
+its required list, and that preflight runs on every `deploy` *and* every
+`rollback`. So a host that has bundle 4 installed and has not yet been given the
+line is refused both — fail-closed and recoverable in one edit, but it removes
+the incident-response escape hatch for as long as the gap lasts. If you do
+install the bundle first, add the line immediately.
 
 **Verify, without printing the key.** The preflight validates the whole file and
 prints no values:
@@ -180,6 +187,18 @@ those rows whatever key is configured. Treat the first save through the new
 image as the point the rollback window closes. Leave bundle 4 installed on a
 rollback — it is compatible with the older image, and reinstalling bundle 3
 would only have to be undone again.
+
+While rolled back, **replace a credential by removing it and adding it again,
+not by saving over it.** The older image writes the cipher columns without
+touching `keyVersion`, so saving over a row that the keyring had already
+versioned leaves a new no-binding ciphertext sitting under the old row's
+recorded version. Nothing detects that at write time, and the usability column
+in the Platform is derived from metadata alone, so the credential goes on
+reporting as usable while every provider call using it fails authentication
+after you roll forward. Removing the row deletes it outright, so re-adding it
+writes a clean unversioned row that both images can read. If a save-over already
+happened, the remedy is to enter that credential once more through the Platform
+after rolling forward.
 
 ## Host bundle updates
 

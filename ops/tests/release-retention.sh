@@ -92,15 +92,21 @@ fi
 
 bundle_version=$(sed -n '1p' ops/host-bundle/VERSION)
 bundle_minimum=$(sed -n '1p' ops/host-bundle/MIN_VERSION)
-# The wrapper now calls retention, so two listed bundle files changed and the
-# repository contract requires VERSION to move with them. MIN_VERSION declares
-# the floor at which the retention capability exists, which is 2 -- not 3: the
-# release images require nothing from retention, and a host on bundle 2 deploys
-# correctly with its own wrapper, which simply does not call it.
-[ "$bundle_version" = 3 ] || fail \
-  'host bundle VERSION must be 3: ai-agent-deploy and release-retention.sh both changed'
-[ "$bundle_minimum" = 2 ] || fail \
-  'host bundle MIN_VERSION must be 2: the retention capability first exists in bundle 2'
+# Retention was wired into the wrapper at bundle 3, which is the floor these two
+# numbers have to respect from retention's side.
+#
+# Stated as floors rather than as the literal 3 and 2 they were when retention
+# shipped. Both numbers move for reasons that have nothing to do with retention
+# -- any change to any listed bundle file moves VERSION, and a release that
+# genuinely cannot run on an older bundle moves MIN_VERSION -- and pinning them
+# here made this suite fail on the next such change while asserting nothing
+# retention actually depends on. What it does need to keep asserting is that
+# neither number is ever walked back below the point at which the capability
+# exists and is invoked.
+[ "$bundle_version" -ge 3 ] || fail \
+  'host bundle VERSION must be at least 3: ai-agent-deploy invokes retention from bundle 3 on'
+[ "$bundle_minimum" -ge 2 ] || fail \
+  'host bundle MIN_VERSION must be at least 2: the retention capability first exists in bundle 2'
 
 grep -Fq '/usr/local/sbin/ai-agent-release-retention' ops/host-bundle/files ||
   fail 'the retention script must be in the host bundle inventory'
