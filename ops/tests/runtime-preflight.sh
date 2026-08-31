@@ -99,11 +99,65 @@ if ops/runtime-preflight.sh staging "$missing_key_version" >/dev/null 2>&1; then
   exit 1
 fi
 
-invalid_key_version=$tmp_dir/invalid-key-version.env
-sed 's/^APP_ENCRYPTION_ACTIVE_KEY_VERSION=.*/APP_ENCRYPTION_ACTIVE_KEY_VERSION=V2 active/' \
-  "$valid" >"$invalid_key_version"
-if ops/runtime-preflight.sh staging "$invalid_key_version" >/dev/null 2>&1; then
-  echo 'preflight accepted an invalid active encryption key version' >&2
+# The same corpus the application's own config spec rejects, rather than one
+# value that is malformed in several ways at once. `V2 active` alone was
+# satisfied by a preflight that merely rejected spaces, which would have let the
+# shell drift into accepting versions the container then refuses at boot -- the
+# exact split this suite exists to prevent. Each case below is malformed in
+# exactly one way.
+for invalid_version in 'V2' '-v2' 'v2-' 'v2/active' 'v 2' '.v2' 'v2.' \
+  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; do
+  invalid_key_version=$tmp_dir/invalid-key-version.env
+  sed "s#^APP_ENCRYPTION_ACTIVE_KEY_VERSION=.*#APP_ENCRYPTION_ACTIVE_KEY_VERSION=$invalid_version#" \
+    "$valid" >"$invalid_key_version"
+  if ops/runtime-preflight.sh staging "$invalid_key_version" >/dev/null 2>&1; then
+    echo "preflight accepted an invalid active encryption key version: $invalid_version" >&2
+    exit 1
+  fi
+done
+
+# ...and the control: a version that is merely unusual must still be accepted,
+# or the loop above would pass against a preflight that rejects everything.
+for valid_version in 'v2' 'a' 'legacy-2025' 'v1.2_3' \
+  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'; do
+  accepted_version=$tmp_dir/accepted-key-version.env
+  sed -e "s#^APP_ENCRYPTION_ACTIVE_KEY_VERSION=.*#APP_ENCRYPTION_ACTIVE_KEY_VERSION=$valid_version#" \
+    -e 's#^APP_ENCRYPTION_DECRYPT_KEYS=.*#APP_ENCRYPTION_DECRYPT_KEYS=#' \
+    "$valid" >"$accepted_version"
+  ops/runtime-preflight.sh staging "$accepted_version" >/dev/null 2>&1 || {
+    echo "preflight refused a valid active encryption key version: $valid_version" >&2
+    exit 1
+  }
+done
+
+# The decrypt-only list is optional, and its normal state on a first rollout is
+# to be absent entirely. Refusing that would refuse a correct host -- and the
+# refusal `value_for` produces talks about the line occurring more than once,
+# which sends an operator looking for a duplicate that is not there.
+absent_decrypt_keys=$tmp_dir/absent-decrypt-keys.env
+grep -v '^APP_ENCRYPTION_DECRYPT_KEYS=' "$valid" >"$absent_decrypt_keys"
+ops/runtime-preflight.sh staging "$absent_decrypt_keys" >/dev/null 2>&1 || {
+  echo 'preflight refused a runtime file with no decrypt-only key line' >&2
+  exit 1
+}
+
+# Present but empty is equally normal.
+empty_decrypt_keys=$tmp_dir/empty-decrypt-keys.env
+sed 's#^APP_ENCRYPTION_DECRYPT_KEYS=.*#APP_ENCRYPTION_DECRYPT_KEYS=#' \
+  "$valid" >"$empty_decrypt_keys"
+ops/runtime-preflight.sh staging "$empty_decrypt_keys" >/dev/null 2>&1 || {
+  echo 'preflight refused an empty decrypt-only key list' >&2
+  exit 1
+}
+
+# Duplication remains an error: the container would silently take one of them.
+duplicate_decrypt_keys=$tmp_dir/duplicate-decrypt-keys.env
+{
+  cat "$valid"
+  printf 'APP_ENCRYPTION_DECRYPT_KEYS=\n'
+} >"$duplicate_decrypt_keys"
+if ops/runtime-preflight.sh staging "$duplicate_decrypt_keys" >/dev/null 2>&1; then
+  echo 'preflight accepted a duplicated decrypt-only key line' >&2
   exit 1
 fi
 

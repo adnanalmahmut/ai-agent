@@ -43,15 +43,31 @@ ENV
 # a caller that already exports any of these — CI exports several — would
 # silently render its own values instead of the fixture's and turn this suite
 # into an assertion about the runner rather than about docker-compose.yml.
-# Clearing exactly the fixture's own names makes the fixture authoritative
-# wherever this runs.
+#
+# Cleared by the union of the fixture's own names and every name the compose
+# file interpolates, not by the fixture's names alone. The compose file
+# interpolates several the fixture does not define — GOOGLE_CLIENT_SECRET,
+# SMTP_PASSWORD, RESEND_API_KEY, AWS_SECRET_ACCESS_KEY among them — and those
+# are exactly the ones a developer is likely to have exported for real. Left
+# ambient they would render into the environment this suite prints in full on a
+# failure, which would put a live credential into a terminal, a captured log, or
+# an agent transcript. Taking the union is also what makes the claim below —
+# that everything printed is a fake fixture value — actually true.
+unset_names=$(
+  {
+    while IFS='=' read -r fixture_name _; do
+      case "$fixture_name" in
+        '' | \#*) continue ;;
+      esac
+      printf '%s\n' "$fixture_name"
+    done <"$runtime"
+    grep -oE '\$\{[A-Z][A-Z0-9_]*' docker-compose.yml | sed 's/^\${//'
+  } | sort -u
+)
 unset_fixture=''
-while IFS='=' read -r fixture_name _; do
-  case "$fixture_name" in
-    '' | \#*) continue ;;
-  esac
-  unset_fixture="$unset_fixture -u $fixture_name"
-done <"$runtime"
+for unset_name in $unset_names; do
+  unset_fixture="$unset_fixture -u $unset_name"
+done
 
 # Intentionally unquoted: the accumulated `-u NAME` pairs must word-split into
 # separate arguments to `env`.
@@ -60,8 +76,9 @@ env $unset_fixture docker compose --env-file "$runtime" --profile staging --prof
 
 # `jq -e` exits non-zero on a false result but prints nothing, so a bare
 # assertion failure gives no clue which one failed or what the actual value
-# was. Every check runs through this helper instead, which is safe to dump in
-# full: everything here is a fixed, fake fixture value, never a real secret.
+# was. Every check runs through this helper instead. Dumping in full is safe
+# only because of the unset above: every name the compose file interpolates is
+# cleared first, so what renders can only be a fixed, fake fixture value.
 assert_jq() {
   description=$1
   filter=$2

@@ -171,9 +171,18 @@ done
 # APP_ENCRYPTION_ACTIVE_KEY_VERSION is required at boot, and a bundle-3 compose
 # file cannot deliver it no matter what runtime.env says.
 for variable in $required_block; do
-  # Either interpolated from runtime.env (`${NAME` covers both `:-` and `}`) or
-  # named directly as a service's own environment key.
-  grep -Fq "\${$variable" docker-compose.yml ||
+  # Anchored on the character that must follow the name -- `}` for a bare
+  # interpolation, `:` for a defaulted one -- so a name cannot be satisfied by
+  # being a prefix of some longer variable elsewhere in the file. Or the name
+  # appears directly as a service's own environment key.
+  #
+  # This asks only whether the compose file passes the value to *something*.
+  # Which services receive it is a separate property, asserted per service
+  # against a real render in ops/tests/container-environment.sh; the two are
+  # deliberately not merged, because that one needs `jq` and this one must keep
+  # working without it.
+  grep -Fq "\${$variable}" docker-compose.yml ||
+    grep -Fq "\${$variable:" docker-compose.yml ||
     grep -q "^      $variable:" docker-compose.yml ||
     fail "the runtime preflight requires $variable and docker-compose.yml never passes it to any service"
 done
