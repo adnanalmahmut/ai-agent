@@ -2,6 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { RuntimeConfigResolver } from '../../control-plane';
 import { AppException } from '../../core/errors';
+import {
+  APPLICATION_MODEL_CATALOG,
+  MODEL_IDS,
+} from '../../model-catalog/model-catalog';
 import { EMBEDDING_DIMENSIONS, type EmbeddingVector } from '../knowledge.types';
 import type { EmbeddingPort } from '../ports/embedding.port';
 
@@ -20,7 +24,17 @@ import type { EmbeddingPort } from '../ports/embedding.port';
  * error never carries the credential — is easier to guarantee when the error
  * is constructed by this file.
  */
-export const EMBEDDING_MODEL = 'text-embedding-3-small';
+const catalogModel = APPLICATION_MODEL_CATALOG.embeddingModel(
+  MODEL_IDS.openAiTextEmbedding3Small,
+);
+
+export const EMBEDDING_MODEL = catalogModel.providerModelId;
+
+if (catalogModel.capabilities.dimensions !== EMBEDDING_DIMENSIONS) {
+  throw new Error(
+    `Embedding model "${catalogModel.id}" does not match the deployed ${EMBEDDING_DIMENSIONS}-dimension schema`,
+  );
+}
 
 const ENDPOINT = 'https://api.openai.com/v1/embeddings';
 

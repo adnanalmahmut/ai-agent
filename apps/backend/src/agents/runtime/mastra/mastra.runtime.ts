@@ -4,6 +4,10 @@ import { noopLogger } from '@mastra/core/logger';
 
 import { RuntimeConfigResolver } from '../../../control-plane';
 import { AppException } from '../../../core/errors';
+import {
+  APPLICATION_MODEL_CATALOG,
+  type AgentModelId,
+} from '../../../model-catalog/model-catalog';
 import type { AgentRuntime } from '../../agent-runtime';
 import { AgentConfigurationError } from '../../agent-configuration.error';
 import {
@@ -15,28 +19,16 @@ import {
 /**
  * Which managed secret pays for which provider.
  *
- * Keyed on the prefix of the definition's `provider/model` string, so adding a
- * provider is a line here plus a registered secret — and a definition naming a
- * provider with no credential mapping fails as a configuration error rather
- * than by silently falling back to an environment variable.
+ * Keyed on the provider identity resolved from the application catalog. A
+ * catalog model whose provider has no credential mapping fails as a
+ * configuration error rather than silently falling back to an environment
+ * variable.
  */
 const PROVIDER_SECRETS = {
   openai: 'openai.api_key',
 } as const;
 
 type ProviderName = keyof typeof PROVIDER_SECRETS;
-
-/**
- * The providers this build holds a credential mapping for.
- *
- * Exported so composition can assert that every registered definition names
- * one. A definition naming an unmapped provider is a deterministic failure
- * that only surfaces when someone actually requests a run, which is the wrong
- * time to discover it.
- */
-export const AUTHENTICATABLE_PROVIDERS = Object.keys(
-  PROVIDER_SECRETS,
-) as readonly ProviderName[];
 
 /**
  * The bounded side of the ledger.
@@ -130,7 +122,7 @@ export class MastraRuntime implements AgentRuntime {
      * than forwarded. The handler's constant diagnostic stays the only
      * description a failed run produces.
      */
-    agent.__setLogger(containedLogger);
+    containMastraAgent(agent);
 
     /**
      * The declared schema is handed to the provider as well as enforced after.
@@ -153,19 +145,29 @@ export class MastraRuntime implements AgentRuntime {
   }
 
   /**
-   * Turns the definition's model identifier into the SDK's model config.
+   * Turns the definition's stable application identity into the SDK config.
    *
-   * `AgentDefinition.model` is typed `string` because definitions are
-   * declarative and serializable, while the SDK's own model type is wider and
-   * admits an already-constructed `LanguageModel`. A non-string arriving here
-   * is therefore impossible from a registered definition and is passed
-   * through: it is how a test supplies a stub model to exercise this adapter
-   * without a provider, a key, or a network.
+   * Runtime values are still checked even though the definition type is closed:
+   * a cast or malformed registry entry must fail here rather than becoming an
+   * SDK-specific escape hatch around catalog and credential policy.
    */
-  private async toModelConfig(model: string): Promise<unknown> {
-    if (typeof model !== 'string') return model;
+  private async toModelConfig(model: AgentModelId): Promise<unknown> {
+    if (typeof model !== 'string') {
+      throw new AgentConfigurationError(
+        'Agent model must be a stable application catalog identity',
+      );
+    }
 
-    const provider = model.split('/')[0];
+    let catalogModel;
+    try {
+      catalogModel = APPLICATION_MODEL_CATALOG.agentModel(model);
+    } catch {
+      throw new AgentConfigurationError(
+        `Agent model "${model}" is not registered for application agent execution`,
+      );
+    }
+
+    const provider = catalogModel.providerId;
 
     if (!isKnownProvider(provider)) {
       // Deterministic: the definition is code and will say the same thing on
@@ -177,7 +179,7 @@ export class MastraRuntime implements AgentRuntime {
 
     try {
       return {
-        id: asProviderModelId(model),
+        id: catalogModel.mastraModelId,
         apiKey: await this.runtimeConfig.secret(PROVIDER_SECRETS[provider]),
       };
     } catch (error) {
@@ -196,6 +198,11 @@ export class MastraRuntime implements AgentRuntime {
   }
 }
 
+/** The narrow real-SDK seam used by the containment regression suite. */
+export function containMastraAgent(agent: Agent): void {
+  agent.__setLogger(containedLogger);
+}
+
 /**
  * `Object.hasOwn`, not `in`.
  *
@@ -208,11 +215,6 @@ export class MastraRuntime implements AgentRuntime {
  */
 function isKnownProvider(value: string | undefined): value is ProviderName {
   return value !== undefined && Object.hasOwn(PROVIDER_SECRETS, value);
-}
-
-/** Narrows to the `provider/model` shape the SDK's config requires. */
-function asProviderModelId(model: string): `${string}/${string}` {
-  return model as `${string}/${string}`;
 }
 
 /**

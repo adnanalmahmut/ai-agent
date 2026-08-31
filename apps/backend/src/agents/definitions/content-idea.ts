@@ -5,6 +5,7 @@ import {
   type AgentDefinition,
   type AgentOutputContract,
 } from '../agent.types';
+import { MODEL_IDS } from '../../model-catalog/model-catalog';
 
 export const CONTENT_IDEA_AGENT_ID = 'content-idea';
 export const CONTENT_IDEA_AGENT_VERSION = 1;
@@ -177,7 +178,7 @@ export const contentIdeaAgent: AgentDefinition = {
   id: CONTENT_IDEA_AGENT_ID,
   version: CONTENT_IDEA_AGENT_VERSION,
   runtime: AGENT_RUNTIME_NAMES.mastra,
-  model: 'openai/gpt-4o-mini',
+  model: MODEL_IDS.openAiGpt4oMini,
   instructions: [
     'You propose content ideas for a marketing team.',
     '',

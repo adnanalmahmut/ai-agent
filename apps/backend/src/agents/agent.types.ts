@@ -9,6 +9,7 @@ import type { ZodType } from 'zod';
  * table with no imports of its own.
  */
 import type { KnowledgeSpaceSlug } from '../knowledge/knowledge-space.registry';
+import type { AgentModelId } from '../model-catalog/model-catalog';
 
 export const AGENT_RUN_STATUSES = [
   'QUEUED',
@@ -121,11 +122,8 @@ export type AgentDefinition = {
   version: number;
   runtime: AgentRuntimeName;
   instructions: string;
-  /**
-   * `provider/model`, which is also how the provider credential is chosen.
-   * The prefix names the provider; the managed secret is looked up from it.
-   */
-  model: string;
+  /** Stable application model identity resolved through the code-owned catalog. */
+  model: AgentModelId;
   /**
    * What this agent accepts and what it promises to return.
    *

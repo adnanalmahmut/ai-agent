@@ -72,10 +72,11 @@ container logs.
 A worker-only reconciliation sweep finalizes runs whose queue job the transport
 failed terminally without ever invoking the handler, which BullMQ does when a
 job exceeds its stalled-job allowance. Deterministic configuration failures —
-an unregistered definition pair, a runtime mismatch, a model naming a provider
-this build cannot authenticate — are recorded as final immediately instead of
-consuming the retry budget. A provider that answered in the wrong shape is not
-one of those: it may well answer correctly next time, so it keeps its retries.
+an unregistered definition pair, a runtime mismatch, or a model identity the
+application catalog cannot resolve for agent execution — are recorded as final
+immediately instead of consuming the retry budget. A provider that answered in
+the wrong shape is not one of those: it may well answer correctly next time, so
+it keeps its retries.
 
 A definition now also carries what it accepts, what it promises, and what it may
 read. Both schemas are parsed rather than asserted, and the output schema is the
@@ -161,14 +162,36 @@ no side effects. The fence is made unbreakable anyway, because an argument
 resting on there being nothing worth stealing stops holding the moment the
 agent gains a tool.
 
+The code-owned model catalog is the application's finite provider/model
+vocabulary. It currently contains only the two models real source paths use:
+`openai.gpt-4o-mini` for structured agent generation and
+`openai.text-embedding-3-small` for 1536-dimension knowledge vectors. Stable
+application identities are separate from the exact provider identifiers sent
+to adapters. Exact lookup has no alias, latest-model, or other-model fallback;
+agent selection additionally requires the current text-input, text-output,
+structured-output, and Mastra compatibility contract. Provider capabilities
+that the product does not expose, such as image input, do not become an
+application input boundary merely because the provider supports them.
+
+The same catalog carries immutable, effective-dated USD token-price revisions.
+Rates are exact integer USD micros per one million tokens and intervals are
+half-open, so resolving model X at instant T returns exactly one stable revision
+or fails. The initial entries record official OpenAI source URLs and retrieval
+dates. This is operational application policy, not a claim that provider prices
+are immutable: a changed price adds a new non-overlapping revision and leaves
+historical entries intact. MOD-01A resolves price identity only; run pinning is
+owned by MOD-01B and token quantities, aggregation, usage ledgers, and billing
+remain outside this slice.
+
 The provider credential is resolved per run from the encrypted store and passed
-to the SDK on the model config. Mastra would otherwise resolve a bare
-`provider/model` string by reading a provider environment variable, which would
-mean the platform's key living in the worker's process environment for its whole
-life and rotating only on a deployment. A definition naming a provider this
-build holds no credential mapping for fails as a configuration error rather
-than falling back to an environment variable, and composition asserts that no
-registered definition does.
+to the SDK on the model config. The Mastra adapter translates the stable catalog
+identity to the catalog's exact `provider/model` router identity; handing Mastra
+a bare router string would otherwise make it read a provider environment
+variable. That would leave the platform key in the worker environment for its
+whole life and make rotation require a deployment. A catalog provider for which
+this build holds no credential mapping fails as a configuration error rather
+than falling back to an environment variable, and composition asserts every
+registered definition resolves as an application agent model.
 
 The generation call is bounded on the side that costs money. Everything
 entering a prompt is already capped — the input schema on every field, the

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import type { PrismaService } from '../../database';
 import { Prisma } from '../../generated/prisma/client';
+import { MODEL_IDS } from '../../model-catalog/model-catalog';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import type { AgentDefinition } from '../agent.types';
 import { OrganizationAgentInstallationService } from '../organization-agent-installation.service';
@@ -12,7 +13,7 @@ const configurableV1: AgentDefinition = {
   version: 1,
   runtime: 'mastra',
   instructions: 'test',
-  model: 'test/model',
+  model: MODEL_IDS.openAiGpt4oMini,
   input: z.unknown(),
   output: z.unknown(),
   organizationConfiguration: {
