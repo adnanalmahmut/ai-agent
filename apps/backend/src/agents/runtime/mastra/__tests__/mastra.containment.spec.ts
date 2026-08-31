@@ -11,23 +11,13 @@ import { z } from 'zod';
 
 import { Agent } from '@mastra/core/agent';
 
-import { MastraRuntime } from '../mastra.runtime';
+import { containMastraAgent, MastraRuntime } from '../mastra.runtime';
 
-/**
- * A stub model object never reaches credential resolution, so nothing here
- * should call this. It throws rather than returning a value, which is what
- * keeps the claim honest: a change that started resolving a secret on this
- * path would fail loudly instead of quietly reaching the control plane.
- */
-const unreachableRuntimeConfig = {
-  secret: () => {
-    throw new Error('This test must not resolve a provider credential');
-  },
-} as never;
 import {
   AGENT_RUNTIME_NAMES,
   type AgentDefinition,
 } from '../../../agent.types';
+import { MODEL_IDS } from '../../../../model-catalog/model-catalog';
 
 /**
  * Runs against the REAL `@mastra/core`, unlike `mastra.runtime.spec.ts`, which
@@ -199,7 +189,11 @@ describe('Mastra credential containment', () => {
       version: 1,
       runtime: AGENT_RUNTIME_NAMES.mastra,
       instructions: SYSTEM_INSTRUCTIONS_CANARY,
-      model: 'openai/gpt-4o-mini',
+      model: MODEL_IDS.openAiGpt4oMini,
+      modelPolicy: {
+        id: 'credential-containment-agent.model-policy.1',
+        allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+      },
       input: z.unknown(),
       output: z.object({ answer: z.string() }),
     } satisfies AgentDefinition;
@@ -216,6 +210,7 @@ describe('Mastra credential containment', () => {
     const failure = await runtime
       .run({
         definition,
+        model: MODEL_IDS.openAiGpt4oMini,
         configuration: {},
         input: USER_PROMPT_CANARY,
         context: [],
@@ -291,40 +286,19 @@ describe('Mastra provider-material containment', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('emits nothing to any console sink when run through MastraRuntime', async () => {
+  it('emits nothing after the runtime containment seam is applied', async () => {
     const fetchSpy = forbidNetwork();
-
-    const definition = {
+    const agent = new Agent({
       id: 'containment-agent',
-      version: 1,
-      runtime: AGENT_RUNTIME_NAMES.mastra,
+      name: 'containment-agent',
       instructions: SYSTEM_INSTRUCTIONS_CANARY,
-      /**
-       * The only cast here. `AgentDefinition.model` is typed `string` as a
-       * deliberate application constraint — definitions are declarative and
-       * serializable — while Mastra itself accepts a `LanguageModelV2` object.
-       * Passing the stub is what keeps this test offline and key-free; the cast
-       * exists solely to bridge our narrower type to the SDK's wider one.
-       */
-      model: createLeakyStubModel() as unknown as string,
-      /**
-       * Never consulted: this run fails inside the SDK, and both schemas are
-       * enforced by `AgentRunner`, which is not on this path.
-       */
-      input: z.unknown(),
-      output: z.object({ answer: z.string() }),
-    } satisfies AgentDefinition;
+      model: createLeakyStubModel() as unknown as MastraAgentModel,
+    });
 
     const spies = captureConsole();
+    containMastraAgent(agent);
 
-    await expect(
-      new MastraRuntime(unreachableRuntimeConfig).run({
-        definition,
-        configuration: {},
-        input: USER_PROMPT_CANARY,
-        context: [],
-      }),
-    ).rejects.toThrow();
+    await expect(agent.generate(USER_PROMPT_CANARY)).rejects.toThrow();
 
     const serialized = serializeConsole(spies);
     const counts = consoleCallCounts(spies);

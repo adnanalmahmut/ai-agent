@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AgentConfigurationError } from './agent-configuration.error';
 import type { AgentConfiguration, AgentDefinition } from './agent.types';
+import { APPLICATION_MODEL_CATALOG } from '../model-catalog/model-catalog';
 
 export const AGENT_DEFINITIONS = Symbol('AGENT_DEFINITIONS');
 
@@ -19,6 +20,7 @@ export class AgentDefinitionRegistry {
     @Inject(AGENT_DEFINITIONS) definitions: readonly AgentDefinition[],
   ) {
     const indexed = new Map<string, AgentDefinition>();
+    const policyIds = new Set<string>();
 
     for (const definition of definitions) {
       const identity = key(definition.id, definition.version);
@@ -30,11 +32,13 @@ export class AgentDefinitionRegistry {
       if (indexed.has(identity)) {
         throw new Error(`Duplicate agent definition "${identity}"`);
       }
-      indexed.set(identity, definition);
+      validateModelPolicy(definition, policyIds);
+      const registered = immutableDefinition(definition);
+      indexed.set(identity, registered);
     }
 
     this.definitions = indexed;
-    this.registered = [...definitions];
+    this.registered = [...indexed.values()];
   }
 
   /**
@@ -92,5 +96,61 @@ export class AgentDefinitionRegistry {
     }
 
     return contract.schema.parse(value ?? contract.defaultValue);
+  }
+}
+
+function immutableDefinition(definition: AgentDefinition): AgentDefinition {
+  const allowedModelIds = Object.freeze([
+    ...definition.modelPolicy.allowedModelIds,
+  ]);
+  const modelPolicy = Object.freeze({
+    id: definition.modelPolicy.id,
+    allowedModelIds,
+  });
+  return Object.freeze({ ...definition, modelPolicy });
+}
+
+function validateModelPolicy(
+  definition: AgentDefinition,
+  policyIds: Set<string>,
+): void {
+  const { modelPolicy } = definition;
+  if (
+    !modelPolicy ||
+    typeof modelPolicy.id !== 'string' ||
+    modelPolicy.id.trim() !== modelPolicy.id ||
+    modelPolicy.id.length === 0
+  ) {
+    throw new Error(
+      `Agent definition "${definition.id}@${definition.version}" has an invalid model policy identity`,
+    );
+  }
+  if (policyIds.has(modelPolicy.id)) {
+    throw new Error(`Duplicate agent model policy "${modelPolicy.id}"`);
+  }
+  policyIds.add(modelPolicy.id);
+
+  if (modelPolicy.allowedModelIds.length === 0) {
+    throw new Error(`Agent model policy "${modelPolicy.id}" allows no models`);
+  }
+  const allowed = new Set(modelPolicy.allowedModelIds);
+  if (allowed.size !== modelPolicy.allowedModelIds.length) {
+    throw new Error(
+      `Agent model policy "${modelPolicy.id}" contains duplicate models`,
+    );
+  }
+  if (!allowed.has(definition.model)) {
+    throw new Error(
+      `Agent model policy "${modelPolicy.id}" does not allow its default model`,
+    );
+  }
+  for (const modelId of allowed) {
+    try {
+      APPLICATION_MODEL_CATALOG.agentModel(modelId);
+    } catch {
+      throw new Error(
+        `Agent model policy "${modelPolicy.id}" names a model unavailable for agent execution`,
+      );
+    }
   }
 }

@@ -3,6 +3,7 @@ import { z } from 'zod';
 
 import type { PrismaService } from '../../database';
 import { Prisma } from '../../generated/prisma/client';
+import { MODEL_IDS } from '../../model-catalog/model-catalog';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import type { AgentDefinition } from '../agent.types';
 import { OrganizationAgentInstallationService } from '../organization-agent-installation.service';
@@ -12,7 +13,11 @@ const configurableV1: AgentDefinition = {
   version: 1,
   runtime: 'mastra',
   instructions: 'test',
-  model: 'test/model',
+  model: MODEL_IDS.openAiGpt4oMini,
+  modelPolicy: {
+    id: 'configurable.model-policy.1',
+    allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+  },
   input: z.unknown(),
   output: z.unknown(),
   organizationConfiguration: {
@@ -24,6 +29,10 @@ const configurableV1: AgentDefinition = {
 const configurableV2: AgentDefinition = {
   ...configurableV1,
   version: 2,
+  modelPolicy: {
+    id: 'configurable.model-policy.2',
+    allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+  },
   organizationConfiguration: {
     schema: z
       .object({ tone: z.enum(['plain', 'warm']), count: z.number().int() })
@@ -35,6 +44,10 @@ const configurableV2: AgentDefinition = {
 const internalOnly: AgentDefinition = {
   ...configurableV1,
   id: 'internal-only',
+  modelPolicy: {
+    id: 'internal-only.model-policy.1',
+    allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+  },
   organizationConfiguration: undefined,
 };
 
@@ -48,6 +61,8 @@ const persistedVersion = (
     definitionVersion: number;
     enabled: boolean;
     configuration: Prisma.JsonValue;
+    modelPolicyId: string | null;
+    modelId: string | null;
   }> = {},
 ) => ({
   id: overrides.id ?? 'version-1',
@@ -55,6 +70,10 @@ const persistedVersion = (
   installationId: 'installation-1',
   revision: overrides.revision ?? 1,
   definitionVersion: overrides.definitionVersion ?? 1,
+  modelPolicyId:
+    overrides.modelPolicyId ??
+    `configurable.model-policy.${overrides.definitionVersion ?? 1}`,
+  modelId: overrides.modelId ?? MODEL_IDS.openAiGpt4oMini,
   enabled: overrides.enabled ?? true,
   configuration: overrides.configuration ?? { tone: 'plain' },
   createdByUserId: 'actor-1',
@@ -133,6 +152,21 @@ describe('OrganizationAgentInstallationService', () => {
     expect(() => service.catalog()).toThrow(z.ZodError);
   });
 
+  it('returns a copy of the policy maximum from each catalog read', () => {
+    const service = new OrganizationAgentInstallationService(
+      {} as PrismaService,
+      registry(),
+    );
+    const first = service.catalog()[0];
+    (first.allowedModelIds as unknown as string[]).push(
+      MODEL_IDS.openAiTextEmbedding3Small,
+    );
+
+    expect(service.catalog()[0].allowedModelIds).toEqual([
+      MODEL_IDS.openAiGpt4oMini,
+    ]);
+  });
+
   it('creates the installation, first version, and active pointer in one transaction', async () => {
     const version = persistedVersion();
     const installation = persistedInstallation(version);
@@ -177,6 +211,8 @@ describe('OrganizationAgentInstallationService', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           revision: 1,
+          modelPolicyId: configurableV1.modelPolicy.id,
+          modelId: MODEL_IDS.openAiGpt4oMini,
           configuration: { tone: 'plain' },
         }),
       }),
@@ -184,6 +220,29 @@ describe('OrganizationAgentInstallationService', () => {
     expect(tx.organizationAgentInstallation.update).toHaveBeenCalledWith({
       where: { id: installation.id },
       data: { revision: 1, activeVersionId: version.id },
+    });
+  });
+
+  it('refuses a known catalog model outside the definition policy', async () => {
+    const service = new OrganizationAgentInstallationService(
+      {} as PrismaService,
+      registry(),
+    );
+
+    await expect(
+      service.create(
+        'org-1',
+        {
+          agentId: 'configurable',
+          definitionVersion: 1,
+          enabled: true,
+          modelId: MODEL_IDS.openAiTextEmbedding3Small,
+        },
+        'actor-1',
+      ),
+    ).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+      publicDetails: { reason: 'invalid_model_selection' },
     });
   });
 
@@ -282,6 +341,8 @@ describe('OrganizationAgentInstallationService', () => {
         id: candidateId,
         installationId: 'installation-1',
         revision: 2,
+        modelPolicyId: configurableV2.modelPolicy.id,
+        modelId: MODEL_IDS.openAiGpt4oMini,
       }),
       select: { id: true },
     });

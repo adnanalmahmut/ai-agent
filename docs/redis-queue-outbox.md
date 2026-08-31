@@ -34,7 +34,8 @@ PostgreSQL transaction creates a `QUEUED` `agent_run` and an
 `agent-run.queued` outbox event whose payload is only `{ runId }` and whose
 dedupe key is that run id. Before inserting, acceptance resolves the enabled
 active organization-agent version and stores its immutable id; configuration
-never enters the outbox or queue. The existing route publishes `execute` to
+and the resolved model-policy/model/price identities stay on `agent_run` and
+never enter the outbox or queue. The existing route publishes `execute` to
 `agent-execution`. `WorkerModule` registers the handlers —
 `AgentExecutionHandler` and `KnowledgeEmbeddingHandler`; `QueueModule` contains
 publication only, so the API composition root cannot consume jobs.
@@ -79,9 +80,11 @@ must stay resolvable through a rolling deployment. Unknown pairs fail loudly
 rather than falling back to a newer revision. On every attempt it also reloads
 the exact `organizationAgentVersionId` through tenant, agent, and definition-
 revision predicates, parses that immutable configuration again, and passes the
-application-owned value to the runtime. Retries therefore cannot drift to a
-new active pointer. Automated retention of superseded versions is not
-implemented.
+application-owned value to the runtime. It also validates the run's pinned
+policy, model, and acceptance-time price revision before passing the stable
+model identity to the adapter. Retries therefore cannot drift to a new active
+pointer or a newer policy/catalog default. Automated retention of superseded
+versions is not implemented.
 
 A process can call a model and die before recording `SUCCEEDED`; the later
 attempt may call the model again. This is accepted for the current
