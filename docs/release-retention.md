@@ -185,8 +185,16 @@ partial or zero reclaim is visible rather than silent.
 
 ## Current status
 
-Active in the wrapper as of host bundle 3, with `MIN_VERSION` at 2. Bundle 3 is
-installed and verified on Staging.
+Active in the wrapper as of host bundle 3, with `MIN_VERSION` at 2 at that
+point. Bundle 3 is installed and verified on Staging.
+
+Retention itself is unchanged at host bundle 4, which the managed-secret keyring
+ships. Bundle 4 raises `MIN_VERSION` to 4 for a reason that has nothing to do
+with retention — the backend cannot boot without a compose mapping only bundle 4
+carries — so a host on bundle 3 is refused a bundle-4 release outright rather
+than deploying it without retention. The split rollout described below therefore
+does not repeat: by the time a bundle-4 release runs, its wrapper is installed.
+See [the host bundle document](host-bundle.md).
 
 The rollout was deliberately split. Bundle 2 shipped the script installed and
 uninvoked, so the removal logic could be reviewed before anything could call it,

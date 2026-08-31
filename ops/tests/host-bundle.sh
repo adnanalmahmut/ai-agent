@@ -161,6 +161,23 @@ for variable in $(grep -oE '\$\{[A-Z][A-Z0-9_]*:-\}' docker-compose.yml |
     fail "compose requires a non-empty $variable and the runtime preflight does not"
 done
 
+# The same contract in the other direction, which is the one that bites during a
+# host bundle rollout. The preflight validates `/etc/ai-agent/runtime.env`, but
+# the compose file is what actually hands a value to a container, and it uses an
+# explicit per-service `environment` allowlist rather than `env_file` — so a
+# name the preflight requires and the compose file never mentions is a value the
+# operator is told to set and the application never receives. An installed
+# bundle older than the release is exactly how the two part company:
+# APP_ENCRYPTION_ACTIVE_KEY_VERSION is required at boot, and a bundle-3 compose
+# file cannot deliver it no matter what runtime.env says.
+for variable in $required_block; do
+  # Either interpolated from runtime.env (`${NAME` covers both `:-` and `}`) or
+  # named directly as a service's own environment key.
+  grep -Fq "\${$variable" docker-compose.yml ||
+    grep -q "^      $variable:" docker-compose.yml ||
+    fail "the runtime preflight requires $variable and docker-compose.yml never passes it to any service"
+done
+
 # `CREATE EXTENSION` runs inside the migration container, which can only report
 # that the image cannot provide it. The deploy script asks the running database
 # first; this keeps the two lists from parting company.
@@ -533,7 +550,7 @@ set_recorded_version() {
 
 set_recorded_version 1
 refuses "requires host bundle $bundle_minimum and the host has 1" \
-  'a host still on bundle 1 deploying a release that declares a minimum of 2' \
+  "a host still on bundle 1 deploying a release that declares a minimum of $bundle_minimum" \
   deploy_second
 
 # Accepted at exactly the declared minimum. The wrapper installed here is the

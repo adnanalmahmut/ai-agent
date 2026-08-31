@@ -58,6 +58,29 @@ consequence is that retention starts running only after an operator reinstalls
 the bundle, not when the release merges. See
 [release image retention](release-retention.md).
 
+Bundle 4 is the opposite case, and the reason both numbers exist rather than
+one. It changes the compose file and `ai-agent-runtime-preflight` so the backend
+and worker receive `APP_ENCRYPTION_ACTIVE_KEY_VERSION` and
+`APP_ENCRYPTION_DECRYPT_KEYS`, which the versioned managed-secret keyring
+requires at boot. `MIN_VERSION` moves to 4 with it.
+
+That is not a preference. The compose file uses an explicit per-service
+`environment` allowlist and deliberately never uses `env_file`, so a variable
+absent from the installed compose cannot reach the container whatever the
+operator writes into `runtime.env`. A bundle-3 host handed a bundle-4 release
+would therefore run the migration, then start a backend that refuses its own
+configuration and never becomes healthy — the exact half-applied release the
+`b50b0f7` repair list opens with, reproduced deliberately. `MIN_VERSION=4`
+converts that into a refusal before `compose run --rm migrate`, naming the
+bundle reinstall as the remedy.
+
+Bundle 4 is also safe to install *before* the release that needs it, which is
+what makes the ordering workable: the two new mappings default to empty and the
+image currently deployed ignores them. So the operator installs bundle 4 and
+adds the version to `runtime.env` while the previous release is still running,
+and the release that requires them deploys afterwards. See
+[the first version-aware release](operations-runbook.md#first-version-aware-encryption-release).
+
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by
 `ops/backup/install-backups.sh` on their own schedule.
