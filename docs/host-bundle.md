@@ -81,6 +81,26 @@ adds the version to `runtime.env` while the previous release is still running,
 and the release that requires them deploys afterwards. See
 [the first version-aware release](operations-runbook.md#first-version-aware-encryption-release).
 
+Bundle 5 goes back to the retention pattern. It adds one verb to
+`ai-agent-deploy`, `rotate-managed-secret-keys`, which re-encrypts stored
+managed secrets under the active key version. `MIN_VERSION` is 4 at bundle 5,
+not 5.
+
+Nothing a deployment does calls it. The verb is an operator action, run by hand
+with local root, long after the release that ships it — and deliberately absent
+from `ai-agent-deploy-dispatch`'s forced-command grammar, so the CI deploy key
+cannot reach it at all. A host on bundle 4 therefore deploys a bundle-5 release
+correctly using its own wrapper, exactly as a bundle-2 host deployed a bundle-3
+release. Raising `MIN_VERSION` to 5 would claim the rotation verb is required to
+deploy, refuse a host that is currently correct, and break a healthy deployment
+over a capability nobody has asked for yet.
+
+The consequence is the same one retention had, and it is intended: the rotation
+command becomes available when the operator reinstalls the bundle, not when the
+release merges. Until then `sudo ai-agent-deploy rotate-managed-secret-keys`
+exits with `unsupported operation`. See
+[managed secret key rotation](operations-runbook.md#managed-secret-key-rotation).
+
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by
 `ops/backup/install-backups.sh` on their own schedule.

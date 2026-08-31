@@ -308,6 +308,11 @@ cat >"$tmp_dir/bin/docker" <<'SH'
 set -eu
 printf '%s\n' "$*" >>"$TEST_LOG"
 
+# The wrapper pins images by exporting BACKEND_IMAGE rather than by passing it
+# as an argument, so `$*` cannot see it and an assertion on the log alone would
+# quietly pass whatever image was pinned -- including a mutable tag.
+printf 'BACKEND_IMAGE=%s\n' "${BACKEND_IMAGE:-}" >>"$TEST_CONTROL/docker_env.log"
+
 case ${1:-} in
   info)
     cat "$TEST_CONTROL/docker_root"
@@ -563,6 +568,43 @@ deploy_second >/dev/null 2>&1 ||
 set_recorded_version "$bundle_version"
 
 # ---------------------------------------------------------------------------
+# The rotation verb arrives with the bundle, not with the release
+# ---------------------------------------------------------------------------
+#
+# Bundle 5 adds `rotate-managed-secret-keys` to the wrapper and deliberately
+# leaves MIN_VERSION at 4, so a release carrying it deploys onto a host that
+# cannot run it. That is only defensible if both halves hold: the installed
+# bundle really does have the verb, and a deployment really does not use it.
+# The bundle-4 half -- a wrapper without the verb still deploying, and refusing
+# the verb -- is probed further down, where the wrapper can be edited and
+# reinstalled.
+
+: >"$TEST_LOG"
+: >"$control/docker_env.log"
+"$deploy" rotate-managed-secret-keys staging --dry-run >"$tmp_dir/out" 2>&1 ||
+  fail "the installed bundle $bundle_version wrapper could not run the rotation verb: $(cat "$tmp_dir/out")"
+grep -Fq 'managed-secret:rotate-key' "$TEST_LOG" ||
+  fail 'the rotation verb did not reach the backend rotation command'
+# Pinned to the recorded release digest rather than a mutable tag: this reads
+# and rewrites every stored credential with the master key in its environment,
+# so an ad-hoc `:development` resolution would be an arbitrary image handed the
+# whole credential table.
+grep -Fxq "BACKEND_IMAGE=$registry/backend@sha256:$backend_digest" \
+  "$control/docker_env.log" ||
+  fail "the rotation verb did not pin the digest recorded for the current release: $(cat "$control/docker_env.log")"
+grep -Fq -- '--dry-run' "$TEST_LOG" ||
+  fail 'the rotation verb did not forward its arguments to the backend command'
+
+# Nothing a deployment does calls it. Rotation is an operator action taken after
+# a separate decision, and a deployment that rotated keys on its own would be
+# re-encrypting every credential on the platform unasked.
+: >"$TEST_LOG"
+deploy_second >/dev/null 2>&1 || fail 'a deployment failed'
+if grep -Fq 'managed-secret:rotate-key' "$TEST_LOG"; then
+  fail 'a deployment invoked managed-secret key rotation'
+fi
+
+# ---------------------------------------------------------------------------
 # Mutation probes on the wrapper itself
 # ---------------------------------------------------------------------------
 #
@@ -642,6 +684,26 @@ if "$deploy" health staging >/dev/null 2>&1; then
   fail 'health still answered with the verb scoping removed; the scoping assertion proves nothing'
 fi
 mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
+probe_wrapper_done
+
+# A host still on bundle 4, which MIN_VERSION=4 explicitly permits: its wrapper
+# has no rotation verb. It must go on deploying a bundle-5 release normally and
+# must refuse the verb, which is the entire justification for not raising the
+# minimum. Renaming the case label is how a bundle-4 wrapper differs.
+probe_wrapper '  rotate-managed-secret-keys)=>  rotate-managed-secret-keys-is-not-in-bundle-4)'
+if "$deploy" rotate-managed-secret-keys staging --dry-run >"$tmp_dir/out" 2>&1; then
+  probe_wrapper_done
+  fail 'a wrapper without the rotation verb still ran it; the bundle assertion above proves nothing'
+fi
+grep -Fq 'unsupported operation' "$tmp_dir/out" || {
+  probe_wrapper_done
+  fail 'a wrapper without the rotation verb did not refuse with a stated cause'
+}
+: >"$TEST_LOG"
+deploy_second >/dev/null 2>&1 || {
+  probe_wrapper_done
+  fail 'a bundle-4 host could not deploy a release that ships bundle 5'
+}
 probe_wrapper_done
 
 # Leave the sandbox as the happy path left it, so every case below is still

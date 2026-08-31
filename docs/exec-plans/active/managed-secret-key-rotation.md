@@ -276,14 +276,29 @@ rather than exit 1; it is absent from the development machine used here.
   command's exit code. A completed rotation reporting failure because Prisma
   could not drain would send an operator back through a rollout that had in fact
   finished, and that code is the retirement gate.
+- 2026-08-31: The rotation verb changes `ops/lightsail/ai-agent-deploy`, an
+  installed host bundle file, so `VERSION` moves 4 -> 5. `MIN_VERSION` stays at
+  4. Nothing in a deployment calls the verb and the dispatcher's forced-command
+  grammar excludes it, so a bundle-4 host deploys a bundle-5 release correctly
+  with its own wrapper. Raising the minimum would refuse a currently correct
+  host over an optional operator capability. This is the retention precedent,
+  not the keyring one, where the minimum had to move because the release could
+  not boot without the newer Compose mapping.
+- 2026-08-31: Rollout is two stages by design — the release deploys normally,
+  and the operator installs bundle 5 as a separate act. Until then the verb
+  exits `unsupported operation`. Rotation itself remains gated on a further
+  human decision after that; no deployment step invokes it.
 
 ## Progress
 
 - [x] Base, CLI/composition conventions, CAS and pagination precedents, audit
       contract, and operator documentation structure inspected.
-- [ ] Rotation service, CLI command, dispatch, and composition wiring complete.
-- [ ] Focused unit and database-backed e2e coverage green.
-- [ ] Operator documentation and configuration drift corrected.
+- [x] Rotation service, CLI command, dispatch, and composition wiring complete.
+- [x] Focused unit and database-backed e2e coverage green.
+- [x] Operator documentation and configuration drift corrected.
+- [x] Host bundle 5 declared with `MIN_VERSION` held at 4, the two-stage
+      operator rollout documented, and the deploy-key exclusion asserted for
+      every wrapper verb rather than only the two named ones.
 - [ ] Independent correctness, test, and security reviews complete and remediated.
 - [ ] Aggregate validation green.
 - [ ] PR open against SEC-01A with final-head CI green at human handoff.

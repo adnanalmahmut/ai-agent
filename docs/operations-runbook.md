@@ -193,6 +193,42 @@ sudo ai-agent-deploy rotate-managed-secret-keys <environment> --dry-run
 sudo ai-agent-deploy rotate-managed-secret-keys <environment>
 ```
 
+### Getting the command onto the host
+
+The verb arrives in two stages, and the release is only the first of them.
+
+**Stage 1 — the release deploys normally.** Merging publishes the images and
+Staging deploys automatically, as usual. This changes nothing about key
+handling: no rotation runs, no deployment step invokes it, and the deploy
+wrapper the host is running is still the one it already had. Host bundle 5 ships
+in the tree with `MIN_VERSION` left at 4 precisely so this deployment is not
+gated on a capability it does not use.
+
+**Stage 2 — the operator installs bundle 5, explicitly and separately.** Until
+this is done, `sudo ai-agent-deploy rotate-managed-secret-keys staging` exits
+with `unsupported operation`, which is the correct answer for a host whose
+wrapper does not have the verb. From a checkout of the deployed release, as root
+on the host:
+
+```sh
+sudo ops/lightsail/install-host-bundle.sh
+sudo ai-agent-host-preflight integrity
+sudo ai-agent-runtime-preflight staging /etc/ai-agent/runtime.env
+sudo ai-agent-deploy health staging
+grep -c '^version 5$' /etc/ai-agent/host-bundle.manifest
+sudo ai-agent-deploy rotate-managed-secret-keys staging --help
+```
+
+The manifest check prints `1`. The last line confirms the verb resolves; it
+prints usage and touches nothing.
+
+Rotation stays a deliberate, separately authorized act after that. Nothing above
+rotates anything, and the sequence below is not started until a human has
+decided to start it — first `--dry-run`, then the live run. Deployment never
+invokes this command, and the CI deploy key cannot: the verb is absent from
+`ai-agent-deploy-dispatch`'s forced-command grammar, so it requires local root
+on the host. `ops/tests/lightsail-boundary.sh` asserts that exclusion.
+
 From a checkout, against the local database:
 
 ```sh
