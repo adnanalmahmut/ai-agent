@@ -52,6 +52,18 @@ export class ManagedSecretKeyring {
     ]);
   }
 
+  /**
+   * The version new writes are sealed under.
+   *
+   * Exposed because rotation has to ask "is this row already current?" without
+   * decrypting it, and answering that from the row's own metadata is what the
+   * version column is for. This is a non-secret identifier; the key material it
+   * names stays private to this class.
+   */
+  get activeKeyVersion(): string {
+    return this.encryption.activeKeyVersion;
+  }
+
   seal(key: ManagedSecretKey, plaintext: string): VersionedSealedSecret {
     const keyVersion = this.encryption.activeKeyVersion;
 

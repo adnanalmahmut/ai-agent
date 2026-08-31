@@ -744,9 +744,13 @@ describe('super-admin bootstrap CLI (e2e)', () => {
     const runCommand = (argv: string[], password: string) => {
       const streams = commandIo(password);
 
-      return dispatchCliCommand(argv, streams.io, () =>
-        Promise.resolve(bootstrap),
-      ).then((code) => ({ code, ...streams }));
+      return dispatchCliCommand(argv, streams.io, {
+        bootstrap: () => Promise.resolve(bootstrap),
+        // This suite exercises the bootstrap command only. A thunk that rejects
+        // is the assertion that none of these paths reaches for rotation.
+        rotation: () =>
+          Promise.reject(new Error('rotation is not part of this suite')),
+      }).then((code) => ({ code, ...streams }));
     };
 
     it('creates an administrator end to end and reports it on stdout', async () => {

@@ -878,6 +878,7 @@
         "settingChanged": "Setting changed",
         "redacted": "Redacted",
         "configured": "Configured",
+        "configuredWithKey": "Configured ({keyVersion})",
         "notConfigured": "Not configured"
       },
       "action": {
@@ -894,7 +895,8 @@
         "managedSecret": {
           "configure": "Configured credential",
           "rotate": "Rotated credential",
-          "remove": "Removed credential"
+          "remove": "Removed credential",
+          "reencrypt": "Re-encrypted credential"
         },
         "unknown": "Other change"
       }

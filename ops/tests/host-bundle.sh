@@ -37,6 +37,52 @@ printf '%s' "$bundle_minimum" | grep -Eq '^[1-9][0-9]*$' ||
 # Both numbers are load-bearing for an operator deciding whether to reinstall, so
 # the documents that explain them must be describing the bundle that actually
 # ships. A bump with no doc revisit is the drift this catches.
+# The version number against what the bundle actually contains.
+#
+# The doc checks below run in one direction only: bump VERSION and the docs must
+# mention it. Nothing ran the other way, so changing a listed file while leaving
+# VERSION alone was invisible -- and `docs/host-bundle.md` keeps the older
+# "bundle N" strings in its history, so even the doc check stays green. Two
+# changes shipped that way before this existed.
+ledger=ops/host-bundle/CONTENTS
+recorded=$(grep -v '^[[:space:]]*#' "$ledger" | grep -v '^[[:space:]]*$' || true)
+[ -n "$recorded" ] || fail 'the host bundle contents ledger is empty'
+
+# Versions must be unique and ascending, or "the line for this version" is not
+# a well-defined thing to look up.
+printf '%s\n' "$recorded" | awk '{ print $1 }' | sort -c -n 2>/dev/null ||
+  fail 'host bundle contents ledger versions are not in ascending order'
+[ "$(printf '%s\n' "$recorded" | awk '{ print $1 }' | sort -u | wc -l)" \
+  -eq "$(printf '%s\n' "$recorded" | wc -l)" ] ||
+  fail 'host bundle contents ledger records a version more than once'
+
+ledger_line=$(printf '%s\n' "$recorded" | awk -v v="$bundle_version" '$1 == v')
+[ -n "$ledger_line" ] ||
+  fail "ops/host-bundle/CONTENTS has no entry for bundle $bundle_version; a changed bundle file needs a new VERSION and a new line"
+
+# The same construction the ledger documents: the inventory, then a digest of
+# every file it lists, hashed together.
+bundle_entries=$(grep -v '^[[:space:]]*#' "$inventory" | grep -v '^[[:space:]]*$')
+actual_digest=$(
+  {
+    printf '%s\n' "$bundle_entries"
+    printf '%s\n' "$bundle_entries" | while read -r source _ _; do
+      sha256sum "$source"
+    done
+  } | sha256sum | cut -d' ' -f1
+)
+recorded_digest=$(printf '%s\n' "$ledger_line" | awk '{ print $2 }')
+[ "$actual_digest" = "$recorded_digest" ] || fail "the installed host bundle files no longer match what ops/host-bundle/CONTENTS records for bundle $bundle_version.
+  recorded: $recorded_digest
+  actual:   $actual_digest
+  A listed file changed. Bump ops/host-bundle/VERSION and append a line for the
+  new version, rather than rewriting the entry for one already installed."
+
+# A new version has to mean a different bundle, or the number is decoration.
+[ "$(printf '%s\n' "$recorded" | awk '{ print $2 }' | sort -u | wc -l)" \
+  -eq "$(printf '%s\n' "$recorded" | wc -l)" ] ||
+  fail 'two host bundle versions record identical contents'
+
 grep -Fq "bundle $bundle_version" docs/host-bundle.md ||
   fail "docs/host-bundle.md does not describe bundle $bundle_version"
 grep -Fq "host bundle $bundle_version" docs/release-retention.md ||
@@ -317,6 +363,11 @@ cat >"$tmp_dir/bin/docker" <<'SH'
 set -eu
 printf '%s\n' "$*" >>"$TEST_LOG"
 
+# The wrapper pins images by exporting BACKEND_IMAGE rather than by passing it
+# as an argument, so `$*` cannot see it and an assertion on the log alone would
+# quietly pass whatever image was pinned -- including a mutable tag.
+printf 'BACKEND_IMAGE=%s\n' "${BACKEND_IMAGE:-}" >>"$TEST_CONTROL/docker_env.log"
+
 case ${1:-} in
   info)
     cat "$TEST_CONTROL/docker_root"
@@ -349,6 +400,16 @@ case ${1:-} in
       printf '<no value>\n'
     fi
     exit 0
+    ;;
+esac
+
+# Lets a case above ask the rotation command for a specific exit code, so the
+# wrapper's propagation of it can be asserted rather than assumed.
+case " $* " in
+  *' managed-secret:rotate-key '*)
+    if [ -f "$TEST_CONTROL/rotate_exit" ]; then
+      exit "$(cat "$TEST_CONTROL/rotate_exit")"
+    fi
     ;;
 esac
 
@@ -572,6 +633,84 @@ deploy_second >/dev/null 2>&1 ||
 set_recorded_version "$bundle_version"
 
 # ---------------------------------------------------------------------------
+# The rotation verb arrives with the bundle, not with the release
+# ---------------------------------------------------------------------------
+#
+# Bundle 5 adds `rotate-managed-secret-keys` to the wrapper and deliberately
+# leaves MIN_VERSION at 4, so a release carrying it deploys onto a host that
+# cannot run it. That is only defensible if both halves hold: the installed
+# bundle really does have the verb, and a deployment really does not use it.
+# The bundle-4 half -- a wrapper without the verb still deploying, and refusing
+# the verb -- is probed further down, where the wrapper can be edited and
+# reinstalled.
+
+# Deployed with a backend digest no other release in this sandbox uses, so the
+# assertion below can tell the CURRENT release from the PREVIOUS one. Sharing
+# one digest across every release -- which the rest of this suite does, having
+# no reason not to -- would let a wrapper that read PREVIOUS_RELEASE.json pass a
+# check whose message claims it read CURRENT.
+rotation_sha=5555555555555555555555555555555555555555
+rotation_digest=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+printf '%s\n' "$rotation_sha" >"$control/label.release-sha"
+# The compose-resolved image list is checked against the pinned digests, so it
+# has to name the same backend digest this deployment pins.
+write_compose_images() {
+  {
+    printf '%s/backend@sha256:%s\n' "$registry" "$1"
+    printf '%s/backend-migration@sha256:%s\n' "$registry" "$migration_digest"
+    printf '%s/web@sha256:%s\n' "$registry" "$web_digest"
+    printf '%s/platform@sha256:%s\n' "$registry" "$platform_digest"
+    printf 'pgvector/pgvector:pg16\n'
+    printf 'redis:7-alpine\n'
+  } >"$control/compose_images"
+}
+write_compose_images "$rotation_digest"
+"$deploy" deploy staging "$rotation_sha" "$rotation_digest" "$migration_digest" \
+  "$web_digest" "$platform_digest" >/dev/null 2>&1 ||
+  fail 'the sandbox could not deploy the release the rotation verb runs against'
+
+: >"$TEST_LOG"
+: >"$control/docker_env.log"
+"$deploy" rotate-managed-secret-keys staging --dry-run >"$tmp_dir/out" 2>&1 ||
+  fail "the installed bundle $bundle_version wrapper could not run the rotation verb: $(cat "$tmp_dir/out")"
+grep -Fq 'managed-secret:rotate-key' "$TEST_LOG" ||
+  fail 'the rotation verb did not reach the backend rotation command'
+# Pinned to the recorded release digest rather than a mutable tag: this reads
+# and rewrites every stored credential with the master key in its environment,
+# so an ad-hoc `:development` resolution would be an arbitrary image handed the
+# whole credential table.
+grep -Fxq "BACKEND_IMAGE=$registry/backend@sha256:$rotation_digest" \
+  "$control/docker_env.log" ||
+  fail "the rotation verb did not pin the digest recorded for the current release: $(cat "$control/docker_env.log")"
+grep -Fq -- '--dry-run' "$TEST_LOG" ||
+  fail 'the rotation verb did not forward its arguments to the backend command'
+
+# The backend's exit code has to survive the wrapper unchanged. The runbook's
+# retirement gate is "the dry run must exit 0", so a stray `|| true` or a
+# trailing command in this case arm would turn "rows are still on the old key"
+# into permission to delete that key.
+printf '7\n' >"$control/rotate_exit"
+rotate_status=0
+# Captured through `||` because `set -e` would otherwise abort the suite on the
+# non-zero exit this case exists to observe.
+"$deploy" rotate-managed-secret-keys staging --dry-run >/dev/null 2>&1 ||
+  rotate_status=$?
+rm -f "$control/rotate_exit"
+[ "$rotate_status" -eq 7 ] ||
+  fail "the wrapper did not propagate the rotation exit code: got $rotate_status, expected 7"
+
+# Nothing a deployment does calls it. Rotation is an operator action taken after
+# a separate decision, and a deployment that rotated keys on its own would be
+# re-encrypting every credential on the platform unasked.
+write_compose_images "$backend_digest"
+restore_first_sha
+: >"$TEST_LOG"
+deploy_second >/dev/null 2>&1 || fail 'a deployment failed'
+if grep -Fq 'managed-secret:rotate-key' "$TEST_LOG"; then
+  fail 'a deployment invoked managed-secret key rotation'
+fi
+
+# ---------------------------------------------------------------------------
 # Mutation probes on the wrapper itself
 # ---------------------------------------------------------------------------
 #
@@ -651,6 +790,34 @@ if "$deploy" health staging >/dev/null 2>&1; then
   fail 'health still answered with the verb scoping removed; the scoping assertion proves nothing'
 fi
 mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
+probe_wrapper_done
+
+# A host still on bundle 4, which MIN_VERSION=4 explicitly permits: its wrapper
+# has no rotation verb. It must go on deploying a bundle-5 release normally and
+# must refuse the verb, which is the entire justification for not raising the
+# minimum. Renaming the case label is how a bundle-4 wrapper differs.
+probe_wrapper '  rotate-managed-secret-keys)=>  rotate-managed-secret-keys-is-not-in-bundle-4)'
+# Recorded at the declared minimum too, so this is a whole bundle-4 host rather
+# than a bundle-5 host wearing an older wrapper. Both halves were previously
+# asserted separately -- the version arithmetic in one case, the verb-less
+# wrapper in another -- and never in the combination the split rollout actually
+# promises to serve.
+set_recorded_version "$bundle_minimum"
+if "$deploy" rotate-managed-secret-keys staging --dry-run >"$tmp_dir/out" 2>&1; then
+  probe_wrapper_done
+  fail 'a wrapper without the rotation verb still ran it; the bundle assertion above proves nothing'
+fi
+grep -Fq 'unsupported operation' "$tmp_dir/out" || {
+  probe_wrapper_done
+  fail 'a wrapper without the rotation verb did not refuse with a stated cause'
+}
+: >"$TEST_LOG"
+deploy_second >/dev/null 2>&1 || {
+  set_recorded_version "$bundle_version"
+  probe_wrapper_done
+  fail 'a bundle-4 host could not deploy a release that ships bundle 5'
+}
+set_recorded_version "$bundle_version"
 probe_wrapper_done
 
 # Leave the sandbox as the happy path left it, so every case below is still

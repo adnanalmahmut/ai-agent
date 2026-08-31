@@ -52,8 +52,9 @@ names it. Every new or replaced credential is sealed under that version and
 records it, so a read resolves the exact key that sealed the row rather than
 guessing at it. `APP_ENCRYPTION_DECRYPT_KEYS` optionally carries older versions
 as comma-separated `version=base64` pairs, decrypt-only, so rows written under a
-previous key stay readable. A row whose recorded version is not configured fails
-closed and reports as unusable; it is never retried with the active key.
+previous key stay readable while they are migrated. A row whose recorded
+version is not configured fails closed and reports as unusable; it is never
+retried with the active key.
 
 The active version is required, with no default. A deployment that omits it
 refuses at boot rather than picking a key on the operator's behalf, because a
@@ -66,7 +67,9 @@ never reaches it.
 
 Changing the active key re-encrypts nothing by itself. Existing rows keep their
 recorded version and are still read with the older key for as long as it remains
-in `APP_ENCRYPTION_DECRYPT_KEYS`.
+in `APP_ENCRYPTION_DECRYPT_KEYS`, and `managed-secret:rotate-key` migrates them.
+Retiring the old key is a separate, later decision — see
+[the operations runbook](operations-runbook.md#managed-secret-key-rotation).
 
 The first release carrying the keyring needs the version configured on the host
 *before* it deploys, and a host bundle new enough to pass it to the containers.

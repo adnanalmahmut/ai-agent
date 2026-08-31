@@ -49,14 +49,13 @@ vi.mock('@/lib/application-api', async () => {
     listManagedSecrets: (...args: unknown[]) => listManagedSecrets(...args),
     setManagedSecret: (...args: unknown[]) => setManagedSecret(...args),
     removeManagedSecret: (...args: unknown[]) => removeManagedSecret(...args),
-    listControlPlaneAudit: (...args: unknown[]) => listControlPlaneAudit(...args),
+    listControlPlaneAudit: (...args: unknown[]) =>
+      listControlPlaneAudit(...args),
   };
 });
 
 const { ControlPlaneBlock } = await import('./control-plane-block');
-const { ApiError, ApiUnavailableError } = await import(
-  '@/lib/application-api',
-);
+const { ApiError, ApiUnavailableError } = await import('@/lib/application-api');
 
 const flag = (overrides: Record<string, unknown> = {}) => ({
   key: 'agents.enabled',
@@ -534,7 +533,9 @@ describe('runtime settings', () => {
     renderWithProviders(<ControlPlaneBlock />);
     await openTab(/settings/i);
 
-    const input = await screen.findByLabelText(/knowledge.retrieval_max_chunks/i);
+    const input = await screen.findByLabelText(
+      /knowledge.retrieval_max_chunks/i,
+    );
     fireEvent.change(input, { target: { value: '104' } });
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
 
@@ -553,7 +554,9 @@ describe('runtime settings', () => {
     renderWithProviders(<ControlPlaneBlock />);
     await openTab(/settings/i);
 
-    const input = await screen.findByLabelText(/knowledge.retrieval_max_chunks/i);
+    const input = await screen.findByLabelText(
+      /knowledge.retrieval_max_chunks/i,
+    );
     fireEvent.change(input, { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
 
@@ -575,7 +578,9 @@ describe('runtime settings', () => {
     renderWithProviders(<ControlPlaneBlock />);
     await openTab(/settings/i);
 
-    const input = await screen.findByLabelText(/knowledge.retrieval_max_chunks/i);
+    const input = await screen.findByLabelText(
+      /knowledge.retrieval_max_chunks/i,
+    );
     fireEvent.change(input, { target: { value: '99' } });
     fireEvent.click(screen.getByRole('button', { name: /reset/i }));
 
@@ -615,7 +620,9 @@ describe('runtime settings', () => {
           defaultValue: true,
         }),
       ]);
-      setRuntimeSetting.mockRejectedValue(new ApiError(422, 'VALIDATION_ERROR'));
+      setRuntimeSetting.mockRejectedValue(
+        new ApiError(422, 'VALIDATION_ERROR'),
+      );
 
       renderWithProviders(<ControlPlaneBlock />);
       await openTab(/settings/i);
@@ -1160,5 +1167,72 @@ describe('the audit table projects the payload it is handed', () => {
 
       for (const part of parts) expect(vocabulary).toContain(part);
     }
+  });
+
+  it('renders re-encryption audit entries with explicit key versions', async () => {
+    allowGlobalPermissions('controlPlane:read');
+    listControlPlaneAudit.mockResolvedValue({
+      items: [
+        {
+          id: 'audit_reencrypt_versioned',
+          occurredAt: '2026-08-24T12:00:00.000Z',
+          actorUserId: null,
+          resource: 'managedSecret',
+          action: 'managedSecret.reencrypt',
+          resourceKey: 'openai.api_key',
+          organizationId: null,
+          before: {
+            kind: 'managedSecretSlot',
+            configured: true,
+            algorithm: 'aes-256-gcm',
+            keyVersion: 'v1',
+          },
+          after: {
+            kind: 'managedSecretSlot',
+            configured: true,
+            algorithm: 'aes-256-gcm',
+            keyVersion: 'v2',
+          },
+        },
+        {
+          id: 'audit_reencrypt_legacy',
+          occurredAt: '2026-08-24T12:05:00.000Z',
+          actorUserId: null,
+          resource: 'managedSecret',
+          action: 'managedSecret.reencrypt',
+          resourceKey: 'openai.api_key',
+          organizationId: null,
+          before: {
+            kind: 'managedSecretSlot',
+            configured: true,
+            algorithm: 'aes-256-gcm',
+            keyVersion: null,
+          },
+          after: {
+            kind: 'managedSecretSlot',
+            configured: true,
+            algorithm: 'aes-256-gcm',
+            keyVersion: 'v2',
+          },
+        },
+      ],
+      nextCursor: null,
+    });
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+
+    const reencryptActions = await screen.findAllByText(
+      'Re-encrypted credential',
+    );
+    expect(reencryptActions).toHaveLength(2);
+
+    expect(
+      screen.getByText('Configured (v1) → Configured (v2)'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Configured → Configured (v2)'),
+    ).toBeInTheDocument();
   });
 });

@@ -72,12 +72,57 @@ for rejected in 'bootstrap-super-admin staging' 'bootstrap-super-admin productio
     exit 1
   fi
 done
+
+# Key rotation reads and rewrites every stored provider credential, with the
+# master key in the container's environment. It is a local-root operation for
+# the same reason the bootstrap is: a compromised deployment secret must not
+# reach the credential table.
+grep -Fq 'rotate-managed-secret-keys)' ops/lightsail/ai-agent-deploy || {
+  echo 'the wrapper must expose the managed-secret rotation subcommand' >&2
+  exit 1
+}
+for rejected in 'rotate-managed-secret-keys staging' 'rotate-managed-secret-keys production'; do
+  if printf '%s\n' "$rejected" | grep -Eq "$dispatch_allowlist"; then
+    echo 'managed-secret rotation must not be reachable over the deploy key' >&2
+    exit 1
+  fi
+done
 # The allowlist must still admit what it is for, or the extraction silently
 # matched nothing and the loop above proves nothing.
 printf '%s\n' 'status staging' | grep -Eq "$dispatch_allowlist" || {
   echo 'extracted allowlist does not admit a known-good command' >&2
   exit 1
 }
+
+# The same question asked of every verb the wrapper implements, rather than of
+# the two that happened to warrant their own loop above. A third local-only verb
+# would otherwise arrive with no boundary assertion at all, and whether the
+# deploy key can reach it would depend on nobody having noticed.
+#
+# The pattern allows trailing content and digits/underscores on purpose. The
+# wrapper already writes its `*)` arm on one line, so a future verb written in
+# that same style -- `  dump-secrets) do_thing "$@" ;;` -- is idiomatic here,
+# and an extraction anchored to end-of-line would silently drop it. That is
+# precisely the verb this sweep exists to catch, so it would fail open.
+wrapper_verbs=$(sed -n 's/^  \([a-z0-9][a-z0-9|_-]*\)).*$/\1/p' ops/lightsail/ai-agent-deploy |
+  tr '|' '\n' | sort -u)
+[ -n "$wrapper_verbs" ] ||
+  { echo 'could not read the verbs the deploy wrapper implements' >&2; exit 1; }
+# The extraction is load-bearing, so it is checked against verbs known to exist.
+for required in deploy rollback status health bootstrap-super-admin \
+  rotate-managed-secret-keys; do
+  printf '%s\n' "$wrapper_verbs" | grep -Fxq "$required" ||
+    { echo "the wrapper verb sweep does not cover $required" >&2; exit 1; }
+done
+for verb in $wrapper_verbs; do
+  case $verb in deploy | status | health | rollback) continue ;; esac
+  for environment in staging production; do
+    if printf '%s\n' "$verb $environment" | grep -Eq "$dispatch_allowlist"; then
+      echo "the CI deploy key must not reach the $verb verb" >&2
+      exit 1
+    fi
+  done
+done
 
 # Retention runs on the deployment's own lock. `reclaim` would open the lock file
 # again, get a distinct open file description, and be refused by the deployment

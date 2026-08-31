@@ -20,6 +20,7 @@ be undone.
 | File | Meaning |
 |---|---|
 | `ops/host-bundle/VERSION` | what the bundle in this repository *is* |
+| `ops/host-bundle/CONTENTS` | a digest per version, recording what each one actually contained |
 | `ops/host-bundle/MIN_VERSION` | the oldest installed bundle a release built from this tree tolerates |
 
 They are separate on purpose. Collapsing them would make every cosmetic edit to
@@ -28,6 +29,17 @@ only the deployments that would actually fail. Bump `VERSION` whenever the
 inventory or any file in it changes; bump `MIN_VERSION` only when a release
 genuinely stops working on an older bundle. `ops/tests/host-bundle.sh` fails if
 `MIN_VERSION` ever exceeds `VERSION`.
+
+`VERSION` on its own was only a claim. Two changes shipped with a listed file
+edited and the number left alone — the keyring's compose and preflight changes,
+and this bundle's deploy wrapper — and nothing caught either, because the doc
+check runs in the bump-implies-docs direction only. `ops/host-bundle/CONTENTS`
+closes that: one `<version> <sha256>` line per bundle, over the inventory and
+every file in it, recomputed and compared by the same suite. Changing a listed
+file now fails until either a new version is appended or the entry for an
+already-installed bundle is deliberately rewritten — which is at least a visible
+act rather than an omission. The ledger begins at 5; earlier bundles predate it
+and their contents cannot be recovered from this tree.
 
 ## What is in the bundle
 
@@ -80,6 +92,37 @@ image currently deployed ignores them. So the operator installs bundle 4 and
 adds the version to `runtime.env` while the previous release is still running,
 and the release that requires them deploys afterwards. See
 [the first version-aware release](operations-runbook.md#first-version-aware-encryption-release).
+
+Bundle 5 goes back to the retention pattern. It adds one verb to
+`ai-agent-deploy`, `rotate-managed-secret-keys`, which re-encrypts stored
+managed secrets under the active key version. `MIN_VERSION` is 4 at bundle 5,
+not 5.
+
+Nothing a deployment does calls it. The verb is an operator action, run by hand
+on the host long after the release that ships it, and deliberately absent from
+`ai-agent-deploy-dispatch`'s forced-command grammar — which, together with the
+deploy key being pinned to that dispatcher with no shell, is what keeps the CI
+identity away from it. The sudoers fragment is broader than that and would
+permit the verb, so the forced command is the control actually doing the work.
+
+A host on bundle 4 therefore deploys a bundle-5 release correctly using its own
+wrapper. This is the bundle-2 case, not the bundle-3 one: a bundle-2 host ran a
+wrapper that simply did not call retention, which is exactly how a bundle-4 host
+runs a wrapper that does not have this verb. Raising `MIN_VERSION` to 5 would claim the rotation verb is required to
+deploy, refuse a host that is currently correct, and break a healthy deployment
+over a capability nobody has asked for yet.
+
+One consequence is worth stating plainly, because nothing refuses it: bundle 4
+is what introduced the `APP_ENCRYPTION_DECRYPT_KEYS` mapping, so a bundle-4 host
+can be put into a two-key configuration while lacking the only command that gets
+it back out of one. The runbook forecloses this by ordering the bundle install
+before the key rollout, but it is procedure rather than structure.
+
+The consequence is the same one retention had, and it is intended: the rotation
+command becomes available when the operator reinstalls the bundle, not when the
+release merges. Until then `sudo ai-agent-deploy rotate-managed-secret-keys`
+exits with `unsupported operation`. See
+[managed secret key rotation](operations-runbook.md#managed-secret-key-rotation).
 
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by

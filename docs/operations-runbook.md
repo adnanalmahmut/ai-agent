@@ -200,6 +200,213 @@ writes a clean unversioned row that both images can read. If a save-over already
 happened, the remedy is to enter that credential once more through the Platform
 after rolling forward.
 
+## Managed secret key rotation
+
+Managed secrets are sealed under a versioned key. Replacing the active key does
+not re-encrypt anything, so until every row is migrated the previous key must
+stay configured or those credentials become unreadable. This command performs
+that migration.
+
+```sh
+sudo ai-agent-deploy rotate-managed-secret-keys <environment> --dry-run
+sudo ai-agent-deploy rotate-managed-secret-keys <environment>
+```
+
+### Getting the command onto the host
+
+The verb arrives in two stages, and the release is only the first of them.
+
+**Stage 1 — the release deploys normally.** Merging publishes the images and
+Staging deploys automatically, as usual. This changes nothing about key
+handling: no rotation runs, no deployment step invokes it, and the deploy
+wrapper the host is running is still the one it already had. Host bundle 5 ships
+in the tree with `MIN_VERSION` left at 4 precisely so this deployment is not
+gated on a capability it does not use.
+
+**Stage 2 — the operator installs bundle 5, explicitly and separately.** Until
+this is done, `sudo ai-agent-deploy rotate-managed-secret-keys staging` exits
+with `unsupported operation`, which is the correct answer for a host whose
+wrapper does not have the verb. From a checkout of the deployed release, as root
+on the host:
+
+First confirm no deployment is in flight — `sudo ai-agent-deploy status staging`
+and the Actions tab. The installer rewrites `/usr/local/sbin/ai-agent-deploy` in
+place and takes no deployment lock, and `sh` reads a script as it runs, so
+replacing the wrapper underneath a running deploy can corrupt it. Stage 1 ends
+with an automatic deployment, so these two steps are adjacent in time.
+
+```sh
+sudo ops/lightsail/install-host-bundle.sh
+sudo ai-agent-runtime-preflight staging /etc/ai-agent/runtime.env
+sudo ai-agent-deploy health staging
+grep -c "^version $(sed -n 1p ops/host-bundle/VERSION)\$" /etc/ai-agent/host-bundle.manifest
+sudo ai-agent-deploy rotate-managed-secret-keys staging --help
+```
+
+The manifest check prints `1`; it reads the expected version out of the checkout
+rather than hard-coding one, so it stays correct at the next bundle. The
+installer already runs the integrity check and fails loudly, so a separate
+`ai-agent-host-preflight integrity` is only worth running later, on its own.
+
+The last line confirms the verb resolves. `--help` is answered by the CLI before
+it opens a database connection, so it changes nothing — but the *wrapper* around
+it still takes the deployment lock and starts a container, so do not run it
+during a deployment.
+
+**If it exits 1 rather than printing usage, Stage 1 has probably not landed.**
+The wrapper runs the backend image recorded in `CURRENT_RELEASE.json`; if that
+release predates the rotation command, the CLI does not define the verb and
+answers `Unknown command`, which surfaces as exit 1 — the same code the table
+below gives for bad arguments. Check the deployed release before hunting for a
+typo. If instead the wrapper itself refuses with exit 64 and
+`unsupported operation`, the release is fine and the bundle is not installed.
+
+Rotation stays a deliberate, separately authorized act after that. Nothing above
+rotates anything, and the sequence below is not started until a human has
+decided to start it — first `--dry-run`, then the live run. Deployment never
+invokes this command, and the CI deploy key cannot reach it: the verb is absent
+from `ai-agent-deploy-dispatch`'s forced-command grammar, and the deploy key is
+pinned to that dispatcher with no shell, so an attacker holding the deployment
+secret cannot run it. `ops/tests/lightsail-boundary.sh` asserts that exclusion
+for every verb the wrapper defines, not only this one. Note that the sudoers
+fragment itself is broader — `deploy ALL=(root) NOPASSWD:
+/usr/local/sbin/ai-agent-deploy *` — so the forced command, not sudo, is the
+boundary doing the work.
+
+**Always go through `sudo ai-agent-deploy` on a host.** There is a
+`pnpm --filter backend cli managed-secret:rotate-key` entry point, and it is for
+local development against a development database only. Do not use it as part of
+this procedure. It resolves whatever image or build tree happens to be present
+rather than the digest the deployment is running, and — the reason it matters
+here — it will happily report success against the *wrong database*. Step D
+reads the exit code as permission to delete a key; a dry run pointed at an empty
+local database used to answer that with exit 0. The command now refuses to exit
+0 when it examined nothing at all, but the habit is still the hazard.
+
+Rotation does not change any credential's value. It decrypts each row with the
+exact key version that row records and re-seals it under
+`APP_ENCRYPTION_ACTIVE_KEY_VERSION`. A row already on the active version is
+skipped, so running the command twice is the same as running it once, and an
+interrupted run is finished by running it again. A row an operator changes
+during the run is left as their newer value and rotates on the next pass.
+
+### Rolling out a new key
+
+Do these in order. Skipping D is what makes a credential unrecoverable.
+
+**A.** Deploy the version-aware image while the current key is still the active
+one. Nothing is re-encrypted; the deployment simply becomes able to record and
+resolve a key version.
+
+This step, not the rotation, is where the rollback window for the *previous*
+image closes. A version-aware image binds each credential it writes to
+authenticated data naming the slot and key version, and an image from before this
+change supplies no such binding — so any credential saved from here on is
+unreadable to it whatever key is configured. Confirm you would not roll back past
+this release before continuing.
+
+**B.** Add the new key as `APP_ENCRYPTION_KEY` with a new
+`APP_ENCRYPTION_ACTIVE_KEY_VERSION`, and copy the previous key and its version
+into `APP_ENCRYPTION_DECRYPT_KEYS`. Both must be present: new writes use the
+active key, existing rows still need the old one. Deploy.
+
+"Copy", not "cut": keep the previous key material until step F. The
+decrypt-only list is comma-separated `version=base64` pairs, using the same
+base64 form as `APP_ENCRYPTION_KEY` and the version identity the old key already
+had:
+
+```
+APP_ENCRYPTION_KEY=<new base64 key>
+APP_ENCRYPTION_ACTIVE_KEY_VERSION=v2
+APP_ENCRYPTION_DECRYPT_KEYS=v1=<previous base64 key>
+```
+
+The active version must not also appear in the decrypt-only list, and the same
+key material must not appear twice; the runtime preflight refuses both before
+the deployment reaches migrations. See
+[runtime configuration](configuration.md#the-control-plane-and-what-may-not-move-into-it).
+
+**C.** Run the rotation command.
+
+After C, every row in the table has been rewritten under the new key. Before C
+the old key mattered only to rows nobody had re-saved; after it, the new key is
+the only thing that reads any credential, and the old key's remaining purpose is
+restores (step E).
+
+**D.** Confirm with `--dry-run` that nothing remains. It must exit 0, and it
+must have examined a non-zero number of rows — a dry run that examined nothing
+now exits 2 rather than 0, because an empty result cannot distinguish a current
+table from a command pointed somewhere else. A non-zero
+dry run names every row that is not yet current and why; each has its own remedy
+below, and none of them is "continue anyway".
+
+**E.** Keep the old key in `APP_ENCRYPTION_DECRYPT_KEYS` until no database backup
+predating step C could still be restored.
+
+The rows this command rewrote do **not** need the old key — they are sealed under
+the new one, and that is the point. What still needs it is a table restored from
+before the sweep, which comes back full of rows recorded against the old version.
+Rolling the *application* back does not undo the re-encryption and does not
+recreate that need; rolling the *data* back does.
+
+**F.** Only then remove the old key. This command never removes one: rotation
+completing and a key becoming safe to delete are separate facts, and only an
+operator can decide the second.
+
+### Exit codes
+
+The command reports whether the table is current, which is not the same question
+as whether the run had errors — so a dry run and a live run reach exit 2 for
+different reasons.
+
+| Code | Meaning | Action |
+| --- | --- | --- |
+| 0 | Every secret is on the active key version | Continue the rollout |
+| 1 | Bad arguments | Re-run; see `--help` |
+| 2 | Ran correctly; the table is not fully current | Read the report — see below |
+| 3 | The run itself did not finish | Nothing can be concluded about the table; investigate and re-run |
+| 5 | The process failed outside the command | As for 3, and check the host |
+| 64 | The *wrapper* refused before reaching the command | Not from the CLI. The host bundle is older than 5, the environment argument does not match this host, another deployment holds the lock, or no release is recorded. The message names which |
+
+On a **live** run, exit 2 means rows were left behind: unreadable, changed
+mid-run, or outside this build's registry. On a **dry** run it additionally
+includes the rows that *would* rotate — a dry run reporting work still to do is
+the answer "not yet", so it must not exit 0 and must never be read as permission
+to reach step F.
+
+**On exit 2.** The report names each row and what to do:
+
+- *Unreadable* — no configured key could decrypt it, and the ciphertext was
+  verified rather than inferred from its metadata. Either the key that sealed it
+  is missing from `APP_ENCRYPTION_DECRYPT_KEYS`, or the stored bytes were
+  altered. Restore the key if you have it; otherwise re-enter that credential
+  through the Platform. This is the one disposition that can also appear for a
+  row already on the active version, and it means that row is corrupt.
+- *Changed during the run* — benign. An operator supplied a new value while the
+  sweep was in flight; their value was kept and the row rotates on a re-run.
+- *Not in this build's registry* — the row names a managed-secret slot this
+  release does not define, so nothing here can verify or re-seal it. It is left
+  untouched. Retiring the old key does not endanger it if it is already on the
+  active version, but the command cannot confirm that, so it reports rather than
+  assumes. Resolve it deliberately: deploy a release that defines the slot, or
+  remove the row through the Platform once you have established it is obsolete.
+
+Do not proceed to step F while a dry run still reports any row.
+
+### While a rotation is running
+
+The command holds the deployment lock for the whole sweep, so a Staging CD run
+that starts during it is refused with exit 64 and shows as a failed job. That is
+intended mutual exclusion rather than a fault — re-run the deployment once the
+rotation finishes — but it is worth knowing before you start a sweep during
+working hours.
+
+A rollback after bundle 5 is installed needs no bundle change: bundle 5 differs
+from bundle 4 only by this verb, `MIN_VERSION` is 4, and the older wrapper is
+not required. Leave it installed. If the release you roll back to predates the
+rotation CLI, the verb will answer exit 1 (`Unknown command`) until you roll
+forward again.
+
 ## Host bundle updates
 
 The compose file, deploy wrapper, dispatcher, and both preflights are a

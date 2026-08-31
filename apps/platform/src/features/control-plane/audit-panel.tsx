@@ -49,9 +49,19 @@ function stateSummary(state: unknown, t: ReturnType<typeof useTranslations>) {
   }
 
   if (value.kind === 'managedSecretSlot') {
-    return value.configured === true
-      ? t('audit.state.configured')
-      : t('audit.state.notConfigured');
+    if (value.configured !== true) return t('audit.state.notConfigured');
+
+    /**
+     * The key version when the entry carries one. Re-encryption is the single
+     * action whose entire content is that field changing, so without this both
+     * sides would read "Configured" and the panel would show a change with no
+     * visible difference. Narrowed to `string` rather than rendered from
+     * `unknown`, for the same reason the rest of this function does: an
+     * unexpected shape becomes the generic label instead of a DOM write.
+     */
+    return typeof value.keyVersion === 'string'
+      ? t('audit.state.configuredWithKey', { keyVersion: value.keyVersion })
+      : t('audit.state.configured');
   }
 
   return t('audit.state.changed');

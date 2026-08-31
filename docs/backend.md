@@ -396,8 +396,37 @@ rather than from a snapshot taken when it was accepted.
 
 ## Operator commands
 
-`src/cli.ts` runs one command and exits. Today that is
-`super-admin:create`, which creates the platform's first super administrator.
+`src/cli.ts` runs one command and exits. There are two: `super-admin:create`,
+which creates the platform's first super administrator, and
+`managed-secret:rotate-key`, which re-encrypts stored credentials under the
+active encryption key version.
+
+They have separate composition roots — `CliModule` and `RotationCliModule` — and
+that separation is the design rather than an accident of layering. The two need
+disjoint authority: rotation reads and rewrites every stored credential, while
+bootstrap can mint an administrator account. Composing them together would hand
+each one the other's reach, so the master key is loaded only where credentials
+are rewritten and the authentication stack only where an account is created.
+Only the command actually invoked is constructed.
+
+That separation is an injection boundary rather than a process one, and the
+distinction matters when reasoning about blast radius. Both commands run inside
+the `backend` service, whose environment carries every credential that service
+is given, so narrowing the graph does not empty `process.env`. What it does mean
+is that the other command's *machinery* — the authentication stack, the mail
+transport, the HTTP server — is never constructed, so nothing in the process is
+in a position to act on what the environment happens to hold.
+
+Rotation is bounded, resumable, and idempotent: it pages on the immutable
+primary key, and commits each row through a compare-and-swap on the `updatedAt`
+*and* the ciphertext it read, so a credential an operator changes mid-run is
+never overwritten by a re-encryption of the value it replaced — the timestamp
+alone is millisecond-granular, and the bytes being replaced are what make the
+guard exact. Every row is authenticated before anything is concluded about it,
+including the rows the sweep does not write: a row is called current only when it
+proves it can still be opened, because the report is what an operator reads
+before deleting a key and metadata cannot see an altered ciphertext. A row it
+cannot decrypt is reported and left byte for byte as it was.
 
 The platform has a genuine chicken-and-egg problem: granting the super
 administrator role is itself a super-administrator action, so nothing inside the

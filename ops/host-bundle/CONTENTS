@@ -1,0 +1,19 @@
+# What each bundle version actually contained.
+#
+# `VERSION` on its own is a claim, and the repository had no way to check it: a
+# listed file could change while the number stayed put, leaving two materially
+# different bundles both recording the same version. That happened twice in one
+# train -- the keyring changed `docker-compose.yml` and the runtime preflight,
+# and the rotation verb changed the deploy wrapper -- and no test noticed
+# either time.
+#
+# One line per version: `<version> <sha256>`, where the digest covers the
+# inventory plus the content of every file it lists. `ops/tests/host-bundle.sh`
+# recomputes the digest for the current `VERSION` and fails if it disagrees, so
+# changing a bundle file forces a decision here instead of allowing silence.
+# Appending a line is the normal outcome; editing one is rewriting the recorded
+# identity of a bundle that may already be installed on a host.
+#
+# The ledger starts at 5 because earlier bundles predate it and their contents
+# cannot be recovered from this tree.
+5 810de098c1475eea13d49e668dc734ff2692291229830527a925d579e6fb98d8
