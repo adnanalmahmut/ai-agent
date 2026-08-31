@@ -113,6 +113,93 @@ sign-in-capable platform administrator without relying on direct database
 repair; out-of-band database administration remains an exceptional recovery
 procedure, not part of normal account management.
 
+## First version-aware encryption release
+
+The managed-secret keyring adds two runtime names,
+`APP_ENCRYPTION_ACTIVE_KEY_VERSION` and `APP_ENCRYPTION_DECRYPT_KEYS`, and the
+first of them is required with no default. The release that introduces them
+therefore cannot deploy onto a host prepared for the release before it, and both
+halves of that preparation are the operator's.
+
+**This is not a key rotation.** The bytes in `APP_ENCRYPTION_KEY` do not change.
+The only thing being added is a stable name for the key already in use, so that
+every row written from now on records which key sealed it. No credential is
+re-encrypted, nothing is re-entered, and `APP_ENCRYPTION_DECRYPT_KEYS` stays
+empty — there is no older key yet for it to hold.
+
+Do both steps **before** the release merges, or the automatic Staging deployment
+will refuse. Refusing is the designed outcome, not a failure: the bundle check
+and the runtime preflight both run ahead of `compose run --rm migrate`, so a
+host that is not ready is turned away with nothing applied.
+
+**1. Name the existing key.** As root on the host, add one line to
+`/etc/ai-agent/runtime.env`, leaving `APP_ENCRYPTION_KEY` exactly as it is:
+
+```
+APP_ENCRYPTION_ACTIVE_KEY_VERSION=v1
+APP_ENCRYPTION_DECRYPT_KEYS=
+```
+
+`v1` is a label, not a claim about history. Lowercase letters, digits, `.`, `_`
+and `-`, up to 64 characters, not starting or ending with punctuation.
+
+**2. Install host bundle 4.** From a checkout of the release you are about to
+deploy: `sudo ops/lightsail/install-host-bundle.sh`. Bundle 3's compose file has
+no mapping for the new names and the compose file deliberately does not use
+`env_file`, so without this the variable cannot reach the backend however
+correctly step 1 was done.
+
+Both are safe to do while the current release is still serving: bundle 4's new
+mappings default to empty and the running image ignores them, and the extra line
+in `runtime.env` is likewise ignored by the running image.
+
+Prefer step 1 first. Bundle 4's `ai-agent-runtime-preflight` adds the version to
+its required list, and that preflight runs on every `deploy` *and* every
+`rollback`. So a host that has bundle 4 installed and has not yet been given the
+line is refused both — fail-closed and recoverable in one edit, but it removes
+the incident-response escape hatch for as long as the gap lasts. If you do
+install the bundle first, add the line immediately.
+
+**Verify, without printing the key.** The preflight validates the whole file and
+prints no values:
+
+```sh
+sudo ai-agent-host-preflight integrity
+sudo ai-agent-runtime-preflight staging /etc/ai-agent/runtime.env
+grep -c '^APP_ENCRYPTION_ACTIVE_KEY_VERSION=v1$' /etc/ai-agent/runtime.env
+grep -q '^APP_ENCRYPTION_KEY=' /etc/ai-agent/runtime.env && echo 'key line present'
+```
+
+The third command prints `1` and the fourth confirms the key line is still
+there. Neither shows key material. Do not `cat` the file.
+
+**After the deployment.** Existing credentials keep working and are readable
+unchanged: their rows carry no key version, and the keyring resolves them by
+matching their recorded fingerprint against the one configured key. Nothing is
+re-encrypted in bulk, and no background job rewrites them — a row moves to the
+versioned form only when a `super_admin` next saves that credential.
+
+**Rollback.** Rolling back to the pre-keyring image is safe for every credential
+that image itself wrote. It is *not* safe for one saved after the keyring
+deployed: the keyring binds new ciphertext to authenticated data naming the slot
+and key version, and the older image supplies no such binding, so it cannot read
+those rows whatever key is configured. Treat the first save through the new
+image as the point the rollback window closes. Leave bundle 4 installed on a
+rollback — it is compatible with the older image, and reinstalling bundle 3
+would only have to be undone again.
+
+While rolled back, **replace a credential by removing it and adding it again,
+not by saving over it.** The older image writes the cipher columns without
+touching `keyVersion`, so saving over a row that the keyring had already
+versioned leaves a new no-binding ciphertext sitting under the old row's
+recorded version. Nothing detects that at write time, and the usability column
+in the Platform is derived from metadata alone, so the credential goes on
+reporting as usable while every provider call using it fails authentication
+after you roll forward. Removing the row deletes it outright, so re-adding it
+writes a clean unversioned row that both images can read. If a save-over already
+happened, the remedy is to enter that credential once more through the Platform
+after rolling forward.
+
 ## Host bundle updates
 
 The compose file, deploy wrapper, dispatcher, and both preflights are a

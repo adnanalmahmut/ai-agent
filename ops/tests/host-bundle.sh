@@ -128,7 +128,11 @@ conditional='GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AWS_REGION SMT
 
 # Deliberately unchecked: SES resolves credentials from the instance role when
 # these are absent, so requiring them would refuse a correctly configured host.
-optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN'
+# APP_ENCRYPTION_DECRYPT_KEYS is unchecked for the opposite reason to
+# APP_ENCRYPTION_KEY just above it: empty is its normal, common state (no
+# decrypt-only keys configured), and the preflight already validates its
+# format when it is present.
+optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTION_DECRYPT_KEYS'
 
 # The list is a single-quoted shell here-string, so the quotes and the
 # assignment prefix are stripped to leave one variable name per line.
@@ -155,6 +159,32 @@ for variable in $(grep -oE '\$\{[A-Z][A-Z0-9_]*:-\}' docker-compose.yml |
 
   printf '%s\n' "$required_block" | grep -Fxq "$variable" ||
     fail "compose requires a non-empty $variable and the runtime preflight does not"
+done
+
+# The same contract in the other direction, which is the one that bites during a
+# host bundle rollout. The preflight validates `/etc/ai-agent/runtime.env`, but
+# the compose file is what actually hands a value to a container, and it uses an
+# explicit per-service `environment` allowlist rather than `env_file` — so a
+# name the preflight requires and the compose file never mentions is a value the
+# operator is told to set and the application never receives. An installed
+# bundle older than the release is exactly how the two part company:
+# APP_ENCRYPTION_ACTIVE_KEY_VERSION is required at boot, and a bundle-3 compose
+# file cannot deliver it no matter what runtime.env says.
+for variable in $required_block; do
+  # Anchored on the character that must follow the name -- `}` for a bare
+  # interpolation, `:` for a defaulted one -- so a name cannot be satisfied by
+  # being a prefix of some longer variable elsewhere in the file. Or the name
+  # appears directly as a service's own environment key.
+  #
+  # This asks only whether the compose file passes the value to *something*.
+  # Which services receive it is a separate property, asserted per service
+  # against a real render in ops/tests/container-environment.sh; the two are
+  # deliberately not merged, because that one needs `jq` and this one must keep
+  # working without it.
+  grep -Fq "\${$variable}" docker-compose.yml ||
+    grep -Fq "\${$variable:" docker-compose.yml ||
+    grep -q "^      $variable:" docker-compose.yml ||
+    fail "the runtime preflight requires $variable and docker-compose.yml never passes it to any service"
 done
 
 # `CREATE EXTENSION` runs inside the migration container, which can only report
@@ -390,6 +420,8 @@ POSTGRES_DB=app
 DATABASE_URL=postgresql://app:test-only-explicit-password@postgres:5432/app?schema=public
 REDIS_URL=redis://redis:6379
 APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
+APP_ENCRYPTION_ACTIVE_KEY_VERSION=v1
+APP_ENCRYPTION_DECRYPT_KEYS=
 BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid
@@ -527,7 +559,7 @@ set_recorded_version() {
 
 set_recorded_version 1
 refuses "requires host bundle $bundle_minimum and the host has 1" \
-  'a host still on bundle 1 deploying a release that declares a minimum of 2' \
+  "a host still on bundle 1 deploying a release that declares a minimum of $bundle_minimum" \
   deploy_second
 
 # Accepted at exactly the declared minimum. The wrapper installed here is the

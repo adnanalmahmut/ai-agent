@@ -14,13 +14,15 @@ import { AppException } from '../../../core/errors';
 import type { PrismaService } from '../../../database';
 import { Prisma } from '../../../generated/prisma/client';
 import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
+import {
+  ManagedSecretKeyring,
+  type StoredManagedSecretCipher,
+} from '../managed-secret-keyring';
 import { ManagedSecretService } from '../managed-secret.service';
 import {
   SECRET_ALGORITHM,
-  type SealedSecret,
   type StoredBytes,
   fingerprintKey,
-  openSecret,
   sealSecret,
 } from '../secret-cipher';
 
@@ -46,7 +48,10 @@ const ROTATED_AWAY_KEY = Buffer.alloc(32, 0x6b);
 
 const encryption: ConfigType<typeof encryptionConfig> = {
   masterKey: MASTER_KEY,
+  activeKeyVersion: 'v2',
+  decryptOnlyKeys: [],
 };
+const keyring = new ManagedSecretKeyring(encryption);
 
 /**
  * Valid enough for the registry to accept and unmistakable in any output. If
@@ -68,6 +73,7 @@ type MetadataRow = {
   label: string | null;
   algorithm: string;
   keyFingerprint: string;
+  keyVersion: string | null;
   lastRotatedAt: Date;
   updatedAt: Date;
 };
@@ -77,23 +83,32 @@ const metadataRow = (overrides: Partial<MetadataRow> = {}): MetadataRow => ({
   label: 'primary',
   algorithm: SECRET_ALGORITHM,
   keyFingerprint: fingerprintKey(MASTER_KEY),
+  keyVersion: 'v2',
   lastRotatedAt: ROTATED_AT,
   updatedAt: UPDATED_AT,
   ...overrides,
 });
 
-type CipherRow = Pick<
-  SealedSecret,
-  'ciphertext' | 'iv' | 'authTag' | 'algorithm' | 'keyFingerprint'
->;
+type CipherRow = StoredManagedSecretCipher;
 
 const cipherRow = (plaintext = CANARY, key: Buffer = MASTER_KEY): CipherRow => {
+  if (key.equals(MASTER_KEY)) return keyring.seal(KEY, plaintext);
+
   const { ciphertext, iv, authTag, algorithm, keyFingerprint } = sealSecret(
     plaintext,
     key,
   );
 
-  return { ciphertext, iv, authTag, algorithm, keyFingerprint };
+  return {
+    ciphertext,
+    iv,
+    authTag,
+    algorithm,
+    keyFingerprint,
+    // A pre-version row: exactly how a key rotated out of configuration
+    // entirely (not even decrypt-only) shows up once versioning exists.
+    keyVersion: null,
+  };
 };
 
 const flipByte = (bytes: StoredBytes): StoredBytes => {
@@ -189,7 +204,7 @@ describe('ManagedSecretService', () => {
     service = new ManagedSecretService(
       prisma,
       new ControlPlaneAuditService(prisma),
-      encryption,
+      keyring,
       logger,
     );
   });
@@ -213,6 +228,7 @@ describe('ManagedSecretService', () => {
         configured: false,
         label: undefined,
         algorithm: undefined,
+        keyVersion: undefined,
         lastRotatedAt: undefined,
         updatedAt: undefined,
         usable: false,
@@ -229,6 +245,7 @@ describe('ManagedSecretService', () => {
         'configured',
         'description',
         'key',
+        'keyVersion',
         'label',
         'lastRotatedAt',
         'updatedAt',
@@ -276,6 +293,7 @@ describe('ManagedSecretService', () => {
         usable: true,
         label: 'primary',
         algorithm: SECRET_ALGORITHM,
+        keyVersion: 'v2',
         lastRotatedAt: ROTATED_AT,
         updatedAt: UPDATED_AT,
       });
@@ -319,6 +337,7 @@ describe('ManagedSecretService', () => {
 
       expect(created.algorithm).toBe(SECRET_ALGORITHM);
       expect(created.keyFingerprint).toBe(fingerprintKey(MASTER_KEY));
+      expect(created.keyVersion).toBe('v2');
       expect(created.label).toBe('primary');
       expect(created.updatedByUserId).toBe('user-1');
       expect(Buffer.from(created.ciphertext).toString('latin1')).not.toContain(
@@ -326,7 +345,7 @@ describe('ManagedSecretService', () => {
       );
       expect(JSON.stringify(upsert.mock.calls)).not.toContain('CANARY');
       // The stored material is the value, recoverable only with the key.
-      expect(openSecret(created, MASTER_KEY)).toBe(CANARY);
+      expect(keyring.open(KEY, created)).toBe(CANARY);
     });
 
     it('produces different stored material each time it writes the same value', async () => {
@@ -457,15 +476,58 @@ describe('ManagedSecretService', () => {
      * credential" and "the row was altered" call for different actions, and
      * the application error carries the cipher's own message precisely so the
      * distinction is not lost at the boundary.
+     *
+     * This is the legacy (pre-version) shape: a row written before key-version
+     * metadata existed, sealed under a key that has since been rotated out of
+     * configuration entirely (not even decrypt-only). Its stored fingerprint
+     * therefore matches nothing configured.
      */
-    it('carries the changed-master-key diagnosis through as internal context', async () => {
+    it('carries the legacy-row diagnosis through as internal context when its key was rotated out of configuration', async () => {
       findUnique.mockResolvedValue(cipherRow(CANARY, ROTATED_AWAY_KEY));
 
       const error = await rejectionOf(() => service.reveal(KEY));
 
       expect((error as AppException).code).toBe('SECRET_UNREADABLE');
       expect((error as AppException).context).toMatchObject({
-        reason: expect.stringContaining('different master key'),
+        reason: expect.stringContaining(
+          'does not match exactly one configured encryption key',
+        ),
+      });
+    });
+
+    /**
+     * The realistic operational counterpart to the legacy case above: a
+     * versioned row whose recorded key version is configured, but whose
+     * fingerprint does not match that version's key material — e.g. the
+     * environment was reconfigured without bumping the version, or the row
+     * was corrupted. The keyring must refuse this exactly like any other
+     * unreadable row, never by falling back to the active key.
+     */
+    it('reports SECRET_UNREADABLE when a versioned row disagrees with its recorded key fingerprint', async () => {
+      findUnique.mockResolvedValue({
+        ...cipherRow(),
+        keyFingerprint: fingerprintKey(ROTATED_AWAY_KEY),
+      });
+
+      const error = await rejectionOf(() => service.reveal(KEY));
+
+      expect((error as AppException).code).toBe('SECRET_UNREADABLE');
+      expect((error as AppException).context).toMatchObject({
+        reason: expect.stringContaining('does not match its key fingerprint'),
+      });
+    });
+
+    it('reports SECRET_UNREADABLE when a row records a key version that is not configured', async () => {
+      findUnique.mockResolvedValue({
+        ...cipherRow(),
+        keyVersion: 'unknown-v9',
+      });
+
+      const error = await rejectionOf(() => service.reveal(KEY));
+
+      expect((error as AppException).code).toBe('SECRET_UNREADABLE');
+      expect((error as AppException).context).toMatchObject({
+        reason: expect.stringContaining('unavailable encryption key version'),
       });
     });
 
@@ -593,10 +655,28 @@ describe('ManagedSecretService', () => {
      */
     it.each([
       {
-        label: 'a different master key',
+        label: 'a legacy row whose key was rotated out of configuration',
         arrange: () =>
           findUnique.mockResolvedValue(cipherRow(CANARY, ROTATED_AWAY_KEY)),
-        expected: /different master key/,
+        expected: /does not match exactly one configured encryption key/,
+      },
+      {
+        label: 'a versioned row that disagrees with its key fingerprint',
+        arrange: () =>
+          findUnique.mockResolvedValue({
+            ...cipherRow(),
+            keyFingerprint: fingerprintKey(ROTATED_AWAY_KEY),
+          }),
+        expected: /does not match its key fingerprint/,
+      },
+      {
+        label: 'a row recording an unconfigured key version',
+        arrange: () =>
+          findUnique.mockResolvedValue({
+            ...cipherRow(),
+            keyVersion: 'unknown-v9',
+          }),
+        expected: /unavailable encryption key version/,
       },
       {
         label: 'an altered row',

@@ -89,6 +89,7 @@ const secret = (overrides: Record<string, unknown> = {}) => ({
   configured: false,
   label: undefined,
   algorithm: undefined,
+  keyVersion: undefined,
   lastRotatedAt: undefined,
   updatedAt: undefined,
   usable: false,

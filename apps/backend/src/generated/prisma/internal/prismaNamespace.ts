@@ -2273,6 +2273,7 @@ export const ManagedSecretScalarFieldEnum = {
   authTag: 'authTag',
   algorithm: 'algorithm',
   keyFingerprint: 'keyFingerprint',
+  keyVersion: 'keyVersion',
   label: 'label',
   lastRotatedAt: 'lastRotatedAt',
   createdAt: 'createdAt',

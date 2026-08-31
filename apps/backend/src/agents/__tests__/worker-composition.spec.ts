@@ -46,6 +46,8 @@ describe('WorkerModule agent composition', () => {
     // now parses the master key. Fake, and only for constructing the module.
     process.env.APP_ENCRYPTION_KEY ??=
       'dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=';
+    process.env.APP_ENCRYPTION_ACTIVE_KEY_VERSION ??= 'test-v1';
+    process.env.APP_ENCRYPTION_DECRYPT_KEYS ??= '';
 
     moduleRef = await Test.createTestingModule({
       imports: [WorkerModule],

@@ -8,9 +8,10 @@ import {
 } from '@jest/globals';
 import request from 'supertest';
 
+import encryptionConfig from '../../src/config/encryption.config';
 import { FEATURE_FLAG_KEYS } from '../../src/control-plane';
 import { ControlPlaneController } from '../../src/control-plane/control-plane.controller';
-import { openSecret } from '../../src/control-plane/managed-secrets/secret-cipher';
+import { ManagedSecretKeyring } from '../../src/control-plane/managed-secrets/managed-secret-keyring';
 import {
   as,
   createHarness,
@@ -638,6 +639,7 @@ describe('Control plane (e2e)', () => {
         usable: true,
         label: 'e2e canary',
         algorithm: 'aes-256-gcm',
+        keyVersion: expect.any(String),
         lastRotatedAt: expect.any(String),
         updatedAt: expect.any(String),
       });
@@ -688,12 +690,13 @@ describe('Control plane (e2e)', () => {
         'CANARY',
       );
       expect(row.iv).toHaveLength(12);
-      expect(
-        openSecret(
-          row,
-          Buffer.from(process.env.APP_ENCRYPTION_KEY ?? '', 'base64'),
-        ),
-      ).toBe(CANARY);
+      // Asserted against the column, not only through `open`. A regression to
+      // unversioned writes would still open cleanly -- the legacy fingerprint
+      // path accepts a null version and the fingerprint would match -- so the
+      // round trip alone cannot tell a versioned row from an unversioned one.
+      expect(row.keyVersion).toBe(encryptionConfig().activeKeyVersion);
+      const keyring = new ManagedSecretKeyring(encryptionConfig());
+      expect(keyring.open(SECRET, row)).toBe(CANARY);
     });
 
     it('rotates in place rather than accumulating rows', async () => {

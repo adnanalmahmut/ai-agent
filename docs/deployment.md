@@ -42,7 +42,9 @@ read it. It contains names for
 PostgreSQL (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL`),
 Redis (`REDIS_URL` and bounded connection settings), Better Auth
 (`BETTER_AUTH_SECRET`, URL/origins and optional rate toggle), the control-plane
-master key (`APP_ENCRYPTION_KEY`), app URLs/ports and shutdown settings,
+master key and its version identity (`APP_ENCRYPTION_KEY`,
+`APP_ENCRYPTION_ACTIVE_KEY_VERSION`, and optional decrypt-only
+`APP_ENCRYPTION_DECRYPT_KEYS`), app URLs/ports and shutdown settings,
 optional Google OAuth, selected mail provider credentials, queue/outbox
 settings, rate-limit settings, and MaxMind updater credentials.
 The authoritative names-only template is
@@ -51,9 +53,9 @@ The authoritative names-only template is
 The wrapper passes this path to Compose for interpolation, but the Compose file
 does not use `env_file`. Each service has an explicit environment allowlist:
 the API receives HTTP/auth/mail/GeoIP/rate-limit settings; the worker receives
-only app/database/Redis/queue/outbox/log settings plus `APP_ENCRYPTION_KEY`,
-which it needs because a background execution resolves the same provider
-credentials the API does; the migration process receives only `DATABASE_URL`; web, platform, and geoipupdate receive only their
+only app/database/Redis/queue/outbox/log settings plus the three
+`APP_ENCRYPTION_*` names, which it needs because a background execution resolves
+the same provider credentials the API does; the migration process receives only `DATABASE_URL`; web, platform, and geoipupdate receive only their
 own settings. Image repositories are fixed in the root wrapper and image
 references are constructed from validated digest hex values, never read from
 `runtime.env`.

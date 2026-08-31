@@ -26,6 +26,8 @@ POSTGRES_DB=app
 DATABASE_URL=postgresql://app:test-only-database-password@postgres:5432/app
 REDIS_URL=redis://redis:6379
 APP_ENCRYPTION_KEY=dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=
+APP_ENCRYPTION_ACTIVE_KEY_VERSION=v1
+APP_ENCRYPTION_DECRYPT_KEYS=v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=
 BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid
@@ -37,26 +39,82 @@ GEOIPUPDATE_ACCOUNT_ID=test-account
 GEOIPUPDATE_LICENSE_KEY=test-license
 ENV
 
-docker compose --env-file "$runtime" --profile staging --profile migration config --format json >"$rendered"
+# Compose gives the ambient shell environment precedence over `--env-file`, so
+# a caller that already exports any of these — CI exports several — would
+# silently render its own values instead of the fixture's and turn this suite
+# into an assertion about the runner rather than about docker-compose.yml.
+#
+# Cleared by the union of the fixture's own names and every name the compose
+# file interpolates, not by the fixture's names alone. The compose file
+# interpolates several the fixture does not define — GOOGLE_CLIENT_SECRET,
+# SMTP_PASSWORD, RESEND_API_KEY, AWS_SECRET_ACCESS_KEY among them — and those
+# are exactly the ones a developer is likely to have exported for real. Left
+# ambient they would render into the environment this suite prints in full on a
+# failure, which would put a live credential into a terminal, a captured log, or
+# an agent transcript. Taking the union is also what makes the claim below —
+# that everything printed is a fake fixture value — actually true.
+unset_names=$(
+  {
+    while IFS='=' read -r fixture_name _; do
+      case "$fixture_name" in
+        '' | \#*) continue ;;
+      esac
+      printf '%s\n' "$fixture_name"
+    done <"$runtime"
+    grep -oE '\$\{[A-Z][A-Z0-9_]*' docker-compose.yml | sed 's/^\${//'
+  } | sort -u
+)
+unset_fixture=''
+for unset_name in $unset_names; do
+  unset_fixture="$unset_fixture -u $unset_name"
+done
 
-jq -e '.services.backend.environment.APP_PORT == "3002"' "$rendered" >/dev/null
-jq -e '.services.backend.depends_on.redis == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.BETTER_AUTH_SECRET == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.GOOGLE_CLIENT_SECRET == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.SMTP_PASSWORD == null' "$rendered" >/dev/null
-jq -e '.services.worker.environment.RATE_LIMIT_ENABLED == null' "$rendered" >/dev/null
+# Intentionally unquoted: the accumulated `-u NAME` pairs must word-split into
+# separate arguments to `env`.
+# shellcheck disable=SC2086
+env $unset_fixture docker compose --env-file "$runtime" --profile staging --profile migration config --format json >"$rendered"
+
+# `jq -e` exits non-zero on a false result but prints nothing, so a bare
+# assertion failure gives no clue which one failed or what the actual value
+# was. Every check runs through this helper instead. Dumping in full is safe
+# only because of the unset above: every name the compose file interpolates is
+# cleared first, so what renders can only be a fixed, fake fixture value.
+assert_jq() {
+  description=$1
+  filter=$2
+  jq -e "$filter" "$rendered" >/dev/null || {
+    echo "container environment check failed: $description" >&2
+    echo "filter: $filter" >&2
+    echo 'rendered backend/worker/migrate environment:' >&2
+    jq '{backend: .services.backend.environment, worker: .services.worker.environment, migrate: .services.migrate.environment}' "$rendered" >&2
+    exit 1
+  }
+}
+
+assert_jq 'backend APP_PORT' '.services.backend.environment.APP_PORT == "3002"'
+assert_jq 'backend does not depend_on redis directly' '.services.backend.depends_on.redis == null'
+assert_jq 'worker has no BETTER_AUTH_SECRET' '.services.worker.environment.BETTER_AUTH_SECRET == null'
+assert_jq 'worker has no GOOGLE_CLIENT_SECRET' '.services.worker.environment.GOOGLE_CLIENT_SECRET == null'
+assert_jq 'worker has no SMTP_PASSWORD' '.services.worker.environment.SMTP_PASSWORD == null'
+assert_jq 'worker has no RATE_LIMIT_ENABLED' '.services.worker.environment.RATE_LIMIT_ENABLED == null'
 # The control-plane master key decrypts every stored provider credential. The
 # worker legitimately needs it — a background execution resolves the same
 # credentials the API does — but the migration process, web, and platform do
 # not, and `docs/deployment.md` states that allowlist as a security property.
 # Asserted in both directions so neither a removal nor a widening is silent.
-jq -e '.services.backend.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
-jq -e '.services.worker.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="' "$rendered" >/dev/null
-jq -e '.services.migrate.environment.APP_ENCRYPTION_KEY == null' "$rendered" >/dev/null
+assert_jq 'backend gets APP_ENCRYPTION_KEY' '.services.backend.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="'
+assert_jq 'worker gets APP_ENCRYPTION_KEY' '.services.worker.environment.APP_ENCRYPTION_KEY == "dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU="'
+assert_jq 'migrate has no APP_ENCRYPTION_KEY' '.services.migrate.environment.APP_ENCRYPTION_KEY == null'
+assert_jq 'backend gets APP_ENCRYPTION_ACTIVE_KEY_VERSION' '.services.backend.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"'
+assert_jq 'worker gets APP_ENCRYPTION_ACTIVE_KEY_VERSION' '.services.worker.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == "v1"'
+assert_jq 'migrate has no APP_ENCRYPTION_ACTIVE_KEY_VERSION' '.services.migrate.environment.APP_ENCRYPTION_ACTIVE_KEY_VERSION == null'
+assert_jq 'backend gets APP_ENCRYPTION_DECRYPT_KEYS' '.services.backend.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="'
+assert_jq 'worker gets APP_ENCRYPTION_DECRYPT_KEYS' '.services.worker.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="'
+assert_jq 'migrate has no APP_ENCRYPTION_DECRYPT_KEYS' '.services.migrate.environment.APP_ENCRYPTION_DECRYPT_KEYS == null'
 
-jq -e '.services.migrate.environment | keys == ["DATABASE_URL"]' "$rendered" >/dev/null
-jq -e '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]' "$rendered" >/dev/null
-jq -e '.services.platform.environment == null' "$rendered" >/dev/null
-jq -e '.services.geoipupdate.environment | keys | sort == ["GEOIPUPDATE_ACCOUNT_ID", "GEOIPUPDATE_EDITION_IDS", "GEOIPUPDATE_FREQUENCY", "GEOIPUPDATE_LICENSE_KEY"]' "$rendered" >/dev/null
+assert_jq 'migrate environment is DATABASE_URL only' '.services.migrate.environment | keys == ["DATABASE_URL"]'
+assert_jq 'web environment allowlist' '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]'
+assert_jq 'platform has no environment block' '.services.platform.environment == null'
+assert_jq 'geoipupdate environment allowlist' '.services.geoipupdate.environment | keys | sort == ["GEOIPUPDATE_ACCOUNT_ID", "GEOIPUPDATE_EDITION_IDS", "GEOIPUPDATE_FREQUENCY", "GEOIPUPDATE_LICENSE_KEY"]'
 
 echo 'container environment least-privilege invariants: ok'

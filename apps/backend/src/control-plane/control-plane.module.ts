@@ -4,6 +4,7 @@ import { DatabaseModule } from '../database';
 import { ControlPlaneAuditService } from './audit/control-plane-audit.service';
 import { ControlPlaneController } from './control-plane.controller';
 import { FeatureFlagService } from './feature-flags/feature-flag.service';
+import { ManagedSecretKeyring } from './managed-secrets/managed-secret-keyring';
 import { ManagedSecretService } from './managed-secrets/managed-secret.service';
 import { RuntimeConfigResolver } from './runtime-config.resolver';
 import { RuntimeSettingService } from './runtime-settings/runtime-setting.service';
@@ -31,6 +32,7 @@ import { RuntimeSettingService } from './runtime-settings/runtime-setting.servic
     ControlPlaneAuditService,
     FeatureFlagService,
     RuntimeSettingService,
+    ManagedSecretKeyring,
     ManagedSecretService,
     RuntimeConfigResolver,
   ],
