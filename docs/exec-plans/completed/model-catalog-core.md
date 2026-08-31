@@ -159,11 +159,8 @@ git diff --check
 - [x] Implementation and remediation-focused tests complete (5 suites / 50 tests green).
 - [x] Independent code and test reviews complete; all findings remediated and re-reviewed with no remaining action.
 - [x] Aggregate validation green: repository typecheck, lint, unit tests, build, agent harness, documentation checks, and diff check.
-- [ ] PR open with final-head CI green at human handoff.
+- [x] PR #51 open with final-head CI green (run 33069440746), delivered, and merged to main (merge commit 81753e5d38dd946a7c84918d6e2fab469af40166).
 
 ## Blockers
 
-None. The independent test reviewer ran the targeted model-smuggling E2E
-successfully (1 passed, 13 skipped). A later duplicate local run could not
-connect to the stopped PostgreSQL test service; final-head CI remains the
-authoritative full E2E gate.
+None. This plan is complete.
