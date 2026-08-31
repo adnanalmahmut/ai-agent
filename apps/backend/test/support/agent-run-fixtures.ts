@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
 import type { AgentDefinition } from '../../src/agents/agent.types';
 import type { PrismaService } from '../../src/database';
+import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
 
 export const TEST_AGENT_ID = 'test-only-agent';
 
@@ -11,7 +12,11 @@ const definition = (version: number): AgentDefinition => ({
   version,
   runtime: 'mastra',
   instructions: `Test-only agent revision ${version}.`,
-  model: 'test/model',
+  model: MODEL_IDS.openAiGpt4oMini,
+  modelPolicy: {
+    id: `${TEST_AGENT_ID}.model-policy.${version}`,
+    allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+  },
   input: z.unknown(),
   output: z.unknown(),
   organizationConfiguration: {
@@ -41,6 +46,8 @@ export async function installTestAgent(
         installationId: installation.id,
         revision: 1,
         definitionVersion,
+        modelPolicyId: `${TEST_AGENT_ID}.model-policy.${definitionVersion}`,
+        modelId: MODEL_IDS.openAiGpt4oMini,
         enabled: true,
         configuration: {},
       },
@@ -58,7 +65,11 @@ export async function activateTestAgentVersion(
   prisma: PrismaService,
   organizationId: string,
   definitionVersion: number,
-  options: { enabled?: boolean; configuration?: unknown } = {},
+  options: {
+    enabled?: boolean;
+    configuration?: unknown;
+    legacyModelPin?: boolean;
+  } = {},
 ) {
   return prisma.$transaction(async (tx) => {
     const installation =
@@ -78,6 +89,10 @@ export async function activateTestAgentVersion(
         installationId: installation.id,
         revision,
         definitionVersion,
+        modelPolicyId: options.legacyModelPin
+          ? null
+          : `${TEST_AGENT_ID}.model-policy.${definitionVersion}`,
+        modelId: options.legacyModelPin ? null : MODEL_IDS.openAiGpt4oMini,
         enabled: options.enabled ?? true,
         configuration: (options.configuration ?? {}) as never,
       },

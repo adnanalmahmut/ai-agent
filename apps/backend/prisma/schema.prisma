@@ -315,6 +315,14 @@ model AgentRun {
   organizationAgentVersionId String?
   organizationAgentVersion   OrganizationAgentVersion? @relation(fields: [organizationAgentVersionId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
+  /// Stable application model-policy identities resolved when the run is
+  /// accepted. All three are non-null for new application writes. They remain
+  /// nullable together for pre-MOD-01B and rolling-rollback runs, whose pinned
+  /// definition revision supplies the only model behavior that existed then.
+  modelPolicyId          String?
+  modelId                String?
+  modelPricingRevisionId String?
+
   /// Null means no authenticated application User initiated this run — for
   /// example scheduled or system-initiated work. It is not an actor
   /// abstraction and carries no other meaning.
@@ -398,6 +406,12 @@ model OrganizationAgentVersion {
   definitionVersion Int
   enabled           Boolean
   configuration     Json
+
+  /// The definition-owned policy revision and its organization-selected model.
+  /// New application versions always write both. Nullable together only for
+  /// rows created before MOD-01B or by the preceding image during rollback.
+  modelPolicyId String?
+  modelId       String?
 
   /// Attribution without a foreign key so history cannot block or lose its
   /// actor during a future user lifecycle change.

@@ -7,6 +7,7 @@ export type { AgentRuntime } from './agent-runtime';
 export type {
   AgentConfiguration,
   AgentDefinition,
+  AgentModelPolicy,
   AgentOutputContract,
   AgentOutputContractViolation,
   AgentOutputContractViolationCode,

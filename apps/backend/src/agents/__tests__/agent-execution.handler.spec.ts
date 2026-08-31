@@ -3,6 +3,7 @@ import { UnrecoverableError, type Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
+import { MODEL_IDS } from '../../model-catalog/model-catalog';
 import { AgentConfigurationError } from '../agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import {
@@ -22,6 +23,9 @@ const run: AgentRun = {
   agentId: 'test-agent',
   agentVersion: 1,
   organizationAgentVersionId: null,
+  modelPolicyId: null,
+  modelId: null,
+  modelPricingRevisionId: null,
   runtime: 'mastra',
   status: 'RUNNING',
   organizationId: 'org-1',
@@ -483,7 +487,11 @@ describe('a declared output contract violation, through the worker', () => {
     version: 1,
     runtime: 'mastra',
     instructions: 'Answer test requests.',
-    model: 'test/provider-model',
+    model: MODEL_IDS.openAiGpt4oMini,
+    modelPolicy: {
+      id: 'test-agent.model-policy.1',
+      allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
+    },
     input: z.object({ wanted: z.number() }),
     output: z.object({ items: z.array(z.string()) }).strict(),
     outputContract: ((input, output) => {

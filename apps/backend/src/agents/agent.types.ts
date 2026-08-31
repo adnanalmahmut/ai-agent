@@ -9,6 +9,7 @@ import type { ZodType } from 'zod';
  * table with no imports of its own.
  */
 import type { KnowledgeSpaceSlug } from '../knowledge/knowledge-space.registry';
+import type { AgentModelId } from '../model-catalog/model-catalog';
 
 export const AGENT_RUN_STATUSES = [
   'QUEUED',
@@ -60,6 +61,12 @@ export type AgentRun = {
    * legacy runs created before organization-agent pinning existed.
    */
   organizationAgentVersionId: string | null;
+  /** Immutable application policy selected at acceptance; null only for legacy runs. */
+  modelPolicyId: string | null;
+  /** Stable application model identity selected at acceptance; null only for legacy runs. */
+  modelId: AgentModelId | null;
+  /** Historical catalog price selected at acceptance; null only for legacy runs. */
+  modelPricingRevisionId: string | null;
   runtime: string;
   status: AgentRunStatus;
   organizationId: string;
@@ -121,11 +128,10 @@ export type AgentDefinition = {
   version: number;
   runtime: AgentRuntimeName;
   instructions: string;
-  /**
-   * `provider/model`, which is also how the provider credential is chosen.
-   * The prefix names the provider; the managed secret is looked up from it.
-   */
-  model: string;
+  /** Policy default; the accepted run still pins its selected model separately. */
+  model: AgentModelId;
+  /** The finite code-owned model set this immutable definition revision allows. */
+  modelPolicy: AgentModelPolicy;
   /**
    * What this agent accepts and what it promises to return.
    *
@@ -174,6 +180,12 @@ export type AgentDefinition = {
    * pair it was accepted against.
    */
   contextPolicy?: ContextPolicy;
+};
+
+export type AgentModelPolicy = {
+  /** Stable identity for this exact policy revision. */
+  id: string;
+  allowedModelIds: readonly AgentModelId[];
 };
 
 /**
@@ -276,6 +288,8 @@ export type AgentContextPassage = {
 
 export type AgentRuntimeRequest = {
   definition: AgentDefinition;
+  /** Stable model identity pinned on the accepted run. */
+  model: AgentModelId;
   /** Parsed application-owned configuration for the pinned organization version. */
   configuration: AgentConfiguration;
   input: AgentValue;

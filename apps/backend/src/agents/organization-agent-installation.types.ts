@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 import type { AgentConfiguration } from './agent.types';
+import {
+  MODEL_ID_VALUES,
+  type AgentModelId,
+} from '../model-catalog/model-catalog';
 
 const agentIdSchema = z.string().trim().min(1).max(120);
 const configurationSchema = z.record(z.string(), z.unknown());
@@ -10,6 +14,7 @@ export const createOrganizationAgentInstallationSchema = z
     agentId: agentIdSchema,
     definitionVersion: z.number().int().positive(),
     enabled: z.boolean(),
+    modelId: z.enum(MODEL_ID_VALUES).optional(),
     configuration: configurationSchema.optional(),
   })
   .strict();
@@ -19,6 +24,7 @@ export const replaceOrganizationAgentInstallationSchema = z
     expectedRevision: z.number().int().positive(),
     definitionVersion: z.number().int().positive(),
     enabled: z.boolean(),
+    modelId: z.enum(MODEL_ID_VALUES).optional(),
     configuration: configurationSchema,
   })
   .strict();
@@ -41,6 +47,9 @@ export type ReplaceOrganizationAgentInstallation = z.infer<
 export type OrganizationAgentCatalogEntry = {
   agentId: string;
   latestDefinitionVersion: number;
+  modelPolicyId: string;
+  defaultModelId: AgentModelId;
+  allowedModelIds: readonly AgentModelId[];
   defaultConfiguration: AgentConfiguration;
 };
 
@@ -50,6 +59,8 @@ export type OrganizationAgentVersion = {
   installationId: string;
   revision: number;
   definitionVersion: number;
+  modelPolicyId: string | null;
+  modelId: AgentModelId | null;
   enabled: boolean;
   configuration: AgentConfiguration;
   createdByUserId: string | null;

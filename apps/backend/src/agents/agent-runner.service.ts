@@ -13,6 +13,10 @@ import type {
   AgentRuntimeResult,
   AgentValue,
 } from './agent.types';
+import {
+  APPLICATION_MODEL_CATALOG,
+  type AgentModelId,
+} from '../model-catalog/model-catalog';
 
 /** Resolves application definitions before crossing a runtime boundary. */
 @Injectable()
@@ -33,6 +37,10 @@ export class AgentRunner {
       | 'input'
       | 'organizationId'
       | 'organizationAgentVersionId'
+      | 'modelPolicyId'
+      | 'modelId'
+      | 'modelPricingRevisionId'
+      | 'createdAt'
     >,
   ): Promise<AgentRuntimeResult> {
     // The persisted pair, not just the id: this run must execute the revision
@@ -46,6 +54,8 @@ export class AgentRunner {
         `AgentRun runtime "${run.runtime}" does not match definition runtime "${definition.runtime}"`,
       );
     }
+
+    const model = pinnedModel(definition, run);
 
     const { organizationAgentVersionId } = run;
     const storedConfiguration = await this.runs.configurationFor({
@@ -84,6 +94,7 @@ export class AgentRunner {
 
     const result = await this.runtimes.resolve(definition.runtime).run({
       definition,
+      model,
       configuration,
       input: parsedInput.data as AgentValue,
       context,
@@ -144,6 +155,49 @@ export class AgentRunner {
 
     return { output: parsedOutput.data as AgentValue };
   }
+}
+
+function pinnedModel(
+  definition: AgentDefinition,
+  run: Pick<
+    AgentRun,
+    'modelPolicyId' | 'modelId' | 'modelPricingRevisionId' | 'createdAt'
+  >,
+): AgentModelId {
+  const identities = [
+    run.modelPolicyId,
+    run.modelId,
+    run.modelPricingRevisionId,
+  ];
+  if (identities.every((value) => value === null)) return definition.model;
+  if (identities.some((value) => value === null)) {
+    throw new AgentConfigurationError(
+      'AgentRun model pin is only partially populated',
+    );
+  }
+  if (
+    run.modelPolicyId !== definition.modelPolicy.id ||
+    !definition.modelPolicy.allowedModelIds.includes(run.modelId!)
+  ) {
+    throw new AgentConfigurationError(
+      'AgentRun model does not satisfy its pinned definition policy',
+    );
+  }
+  try {
+    APPLICATION_MODEL_CATALOG.agentModel(run.modelId!);
+    const pricing = APPLICATION_MODEL_CATALOG.pricingRevision(
+      run.modelId!,
+      run.createdAt,
+    );
+    if (pricing.id !== run.modelPricingRevisionId) {
+      throw new Error('pricing mismatch');
+    }
+  } catch {
+    throw new AgentConfigurationError(
+      'AgentRun model or pricing revision is unavailable for execution',
+    );
+  }
+  return run.modelId!;
 }
 
 function parseConfiguration(

@@ -47,6 +47,8 @@ export type OrganizationAgentVersionMinAggregateOutputType = {
   revision: number | null
   definitionVersion: number | null
   enabled: boolean | null
+  modelPolicyId: string | null
+  modelId: string | null
   createdByUserId: string | null
   createdAt: Date | null
 }
@@ -58,6 +60,8 @@ export type OrganizationAgentVersionMaxAggregateOutputType = {
   revision: number | null
   definitionVersion: number | null
   enabled: boolean | null
+  modelPolicyId: string | null
+  modelId: string | null
   createdByUserId: string | null
   createdAt: Date | null
 }
@@ -70,6 +74,8 @@ export type OrganizationAgentVersionCountAggregateOutputType = {
   definitionVersion: number
   enabled: number
   configuration: number
+  modelPolicyId: number
+  modelId: number
   createdByUserId: number
   createdAt: number
   _all: number
@@ -93,6 +99,8 @@ export type OrganizationAgentVersionMinAggregateInputType = {
   revision?: true
   definitionVersion?: true
   enabled?: true
+  modelPolicyId?: true
+  modelId?: true
   createdByUserId?: true
   createdAt?: true
 }
@@ -104,6 +112,8 @@ export type OrganizationAgentVersionMaxAggregateInputType = {
   revision?: true
   definitionVersion?: true
   enabled?: true
+  modelPolicyId?: true
+  modelId?: true
   createdByUserId?: true
   createdAt?: true
 }
@@ -116,6 +126,8 @@ export type OrganizationAgentVersionCountAggregateInputType = {
   definitionVersion?: true
   enabled?: true
   configuration?: true
+  modelPolicyId?: true
+  modelId?: true
   createdByUserId?: true
   createdAt?: true
   _all?: true
@@ -215,6 +227,8 @@ export type OrganizationAgentVersionGroupByOutputType = {
   definitionVersion: number
   enabled: boolean
   configuration: runtime.JsonValue
+  modelPolicyId: string | null
+  modelId: string | null
   createdByUserId: string | null
   createdAt: Date
   _count: OrganizationAgentVersionCountAggregateOutputType | null
@@ -250,6 +264,8 @@ export type OrganizationAgentVersionWhereInput = {
   definitionVersion?: Prisma.IntFilter<"OrganizationAgentVersion"> | number
   enabled?: Prisma.BoolFilter<"OrganizationAgentVersion"> | boolean
   configuration?: Prisma.JsonFilter<"OrganizationAgentVersion">
+  modelPolicyId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
+  modelId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
   createdByUserId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
   createdAt?: Prisma.DateTimeFilter<"OrganizationAgentVersion"> | Date | string
   installation?: Prisma.XOR<Prisma.OrganizationAgentInstallationScalarRelationFilter, Prisma.OrganizationAgentInstallationWhereInput>
@@ -265,6 +281,8 @@ export type OrganizationAgentVersionOrderByWithRelationInput = {
   definitionVersion?: Prisma.SortOrder
   enabled?: Prisma.SortOrder
   configuration?: Prisma.SortOrder
+  modelPolicyId?: Prisma.SortOrderInput | Prisma.SortOrder
+  modelId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   installation?: Prisma.OrganizationAgentInstallationOrderByWithRelationInput
@@ -286,6 +304,8 @@ export type OrganizationAgentVersionWhereUniqueInput = Prisma.AtLeast<{
   definitionVersion?: Prisma.IntFilter<"OrganizationAgentVersion"> | number
   enabled?: Prisma.BoolFilter<"OrganizationAgentVersion"> | boolean
   configuration?: Prisma.JsonFilter<"OrganizationAgentVersion">
+  modelPolicyId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
+  modelId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
   createdByUserId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
   createdAt?: Prisma.DateTimeFilter<"OrganizationAgentVersion"> | Date | string
   installation?: Prisma.XOR<Prisma.OrganizationAgentInstallationScalarRelationFilter, Prisma.OrganizationAgentInstallationWhereInput>
@@ -301,6 +321,8 @@ export type OrganizationAgentVersionOrderByWithAggregationInput = {
   definitionVersion?: Prisma.SortOrder
   enabled?: Prisma.SortOrder
   configuration?: Prisma.SortOrder
+  modelPolicyId?: Prisma.SortOrderInput | Prisma.SortOrder
+  modelId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdByUserId?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   _count?: Prisma.OrganizationAgentVersionCountOrderByAggregateInput
@@ -321,6 +343,8 @@ export type OrganizationAgentVersionScalarWhereWithAggregatesInput = {
   definitionVersion?: Prisma.IntWithAggregatesFilter<"OrganizationAgentVersion"> | number
   enabled?: Prisma.BoolWithAggregatesFilter<"OrganizationAgentVersion"> | boolean
   configuration?: Prisma.JsonWithAggregatesFilter<"OrganizationAgentVersion">
+  modelPolicyId?: Prisma.StringNullableWithAggregatesFilter<"OrganizationAgentVersion"> | string | null
+  modelId?: Prisma.StringNullableWithAggregatesFilter<"OrganizationAgentVersion"> | string | null
   createdByUserId?: Prisma.StringNullableWithAggregatesFilter<"OrganizationAgentVersion"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"OrganizationAgentVersion"> | Date | string
 }
@@ -331,6 +355,8 @@ export type OrganizationAgentVersionCreateInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   installation: Prisma.OrganizationAgentInstallationCreateNestedOneWithoutVersionsInput
@@ -346,6 +372,8 @@ export type OrganizationAgentVersionUncheckedCreateInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutActiveVersionInput
@@ -358,6 +386,8 @@ export type OrganizationAgentVersionUpdateInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   installation?: Prisma.OrganizationAgentInstallationUpdateOneRequiredWithoutVersionsNestedInput
@@ -373,6 +403,8 @@ export type OrganizationAgentVersionUncheckedUpdateInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutActiveVersionNestedInput
@@ -387,6 +419,8 @@ export type OrganizationAgentVersionCreateManyInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
 }
@@ -397,6 +431,8 @@ export type OrganizationAgentVersionUpdateManyMutationInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -409,6 +445,8 @@ export type OrganizationAgentVersionUncheckedUpdateManyInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -451,6 +489,8 @@ export type OrganizationAgentVersionCountOrderByAggregateInput = {
   definitionVersion?: Prisma.SortOrder
   enabled?: Prisma.SortOrder
   configuration?: Prisma.SortOrder
+  modelPolicyId?: Prisma.SortOrder
+  modelId?: Prisma.SortOrder
   createdByUserId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -467,6 +507,8 @@ export type OrganizationAgentVersionMaxOrderByAggregateInput = {
   revision?: Prisma.SortOrder
   definitionVersion?: Prisma.SortOrder
   enabled?: Prisma.SortOrder
+  modelPolicyId?: Prisma.SortOrder
+  modelId?: Prisma.SortOrder
   createdByUserId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -478,6 +520,8 @@ export type OrganizationAgentVersionMinOrderByAggregateInput = {
   revision?: Prisma.SortOrder
   definitionVersion?: Prisma.SortOrder
   enabled?: Prisma.SortOrder
+  modelPolicyId?: Prisma.SortOrder
+  modelId?: Prisma.SortOrder
   createdByUserId?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
 }
@@ -567,6 +611,8 @@ export type OrganizationAgentVersionCreateWithoutRunsInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   installation: Prisma.OrganizationAgentInstallationCreateNestedOneWithoutVersionsInput
@@ -581,6 +627,8 @@ export type OrganizationAgentVersionUncheckedCreateWithoutRunsInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutActiveVersionInput
@@ -608,6 +656,8 @@ export type OrganizationAgentVersionUpdateWithoutRunsInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   installation?: Prisma.OrganizationAgentInstallationUpdateOneRequiredWithoutVersionsNestedInput
@@ -622,6 +672,8 @@ export type OrganizationAgentVersionUncheckedUpdateWithoutRunsInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutActiveVersionNestedInput
@@ -633,6 +685,8 @@ export type OrganizationAgentVersionCreateWithoutActiveForInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   installation: Prisma.OrganizationAgentInstallationCreateNestedOneWithoutVersionsInput
@@ -647,6 +701,8 @@ export type OrganizationAgentVersionUncheckedCreateWithoutActiveForInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   runs?: Prisma.AgentRunUncheckedCreateNestedManyWithoutOrganizationAgentVersionInput
@@ -663,6 +719,8 @@ export type OrganizationAgentVersionCreateWithoutInstallationInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   activeFor?: Prisma.OrganizationAgentInstallationCreateNestedManyWithoutActiveVersionInput
@@ -675,6 +733,8 @@ export type OrganizationAgentVersionUncheckedCreateWithoutInstallationInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedCreateNestedManyWithoutActiveVersionInput
@@ -708,6 +768,8 @@ export type OrganizationAgentVersionUpdateWithoutActiveForInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   installation?: Prisma.OrganizationAgentInstallationUpdateOneRequiredWithoutVersionsNestedInput
@@ -722,6 +784,8 @@ export type OrganizationAgentVersionUncheckedUpdateWithoutActiveForInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   runs?: Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionNestedInput
@@ -754,6 +818,8 @@ export type OrganizationAgentVersionScalarWhereInput = {
   definitionVersion?: Prisma.IntFilter<"OrganizationAgentVersion"> | number
   enabled?: Prisma.BoolFilter<"OrganizationAgentVersion"> | boolean
   configuration?: Prisma.JsonFilter<"OrganizationAgentVersion">
+  modelPolicyId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
+  modelId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
   createdByUserId?: Prisma.StringNullableFilter<"OrganizationAgentVersion"> | string | null
   createdAt?: Prisma.DateTimeFilter<"OrganizationAgentVersion"> | Date | string
 }
@@ -764,6 +830,8 @@ export type OrganizationAgentVersionCreateManyInstallationInput = {
   definitionVersion: number
   enabled: boolean
   configuration: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: string | null
+  modelId?: string | null
   createdByUserId?: string | null
   createdAt?: Date | string
 }
@@ -774,6 +842,8 @@ export type OrganizationAgentVersionUpdateWithoutInstallationInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUpdateManyWithoutActiveVersionNestedInput
@@ -786,6 +856,8 @@ export type OrganizationAgentVersionUncheckedUpdateWithoutInstallationInput = {
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   activeFor?: Prisma.OrganizationAgentInstallationUncheckedUpdateManyWithoutActiveVersionNestedInput
@@ -798,6 +870,8 @@ export type OrganizationAgentVersionUncheckedUpdateManyWithoutInstallationInput 
   definitionVersion?: Prisma.IntFieldUpdateOperationsInput | number
   enabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   configuration?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -850,6 +924,8 @@ export type OrganizationAgentVersionSelect<ExtArgs extends runtime.Types.Extensi
   definitionVersion?: boolean
   enabled?: boolean
   configuration?: boolean
+  modelPolicyId?: boolean
+  modelId?: boolean
   createdByUserId?: boolean
   createdAt?: boolean
   installation?: boolean | Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs>
@@ -866,6 +942,8 @@ export type OrganizationAgentVersionSelectCreateManyAndReturn<ExtArgs extends ru
   definitionVersion?: boolean
   enabled?: boolean
   configuration?: boolean
+  modelPolicyId?: boolean
+  modelId?: boolean
   createdByUserId?: boolean
   createdAt?: boolean
   installation?: boolean | Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs>
@@ -879,6 +957,8 @@ export type OrganizationAgentVersionSelectUpdateManyAndReturn<ExtArgs extends ru
   definitionVersion?: boolean
   enabled?: boolean
   configuration?: boolean
+  modelPolicyId?: boolean
+  modelId?: boolean
   createdByUserId?: boolean
   createdAt?: boolean
   installation?: boolean | Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs>
@@ -892,11 +972,13 @@ export type OrganizationAgentVersionSelectScalar = {
   definitionVersion?: boolean
   enabled?: boolean
   configuration?: boolean
+  modelPolicyId?: boolean
+  modelId?: boolean
   createdByUserId?: boolean
   createdAt?: boolean
 }
 
-export type OrganizationAgentVersionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "installationId" | "revision" | "definitionVersion" | "enabled" | "configuration" | "createdByUserId" | "createdAt", ExtArgs["result"]["organizationAgentVersion"]>
+export type OrganizationAgentVersionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "installationId" | "revision" | "definitionVersion" | "enabled" | "configuration" | "modelPolicyId" | "modelId" | "createdByUserId" | "createdAt", ExtArgs["result"]["organizationAgentVersion"]>
 export type OrganizationAgentVersionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   installation?: boolean | Prisma.OrganizationAgentInstallationDefaultArgs<ExtArgs>
   activeFor?: boolean | Prisma.OrganizationAgentVersion$activeForArgs<ExtArgs>
@@ -925,6 +1007,13 @@ export type $OrganizationAgentVersionPayload<ExtArgs extends runtime.Types.Exten
     definitionVersion: number
     enabled: boolean
     configuration: runtime.JsonValue
+    /**
+     * The definition-owned policy revision and its organization-selected model.
+     * New application versions always write both. Nullable together only for
+     * rows created before MOD-01B or by the preceding image during rollback.
+     */
+    modelPolicyId: string | null
+    modelId: string | null
     /**
      * Attribution without a foreign key so history cannot block or lose its
      * actor during a future user lifecycle change.
@@ -1364,6 +1453,8 @@ export interface OrganizationAgentVersionFieldRefs {
   readonly definitionVersion: Prisma.FieldRef<"OrganizationAgentVersion", 'Int'>
   readonly enabled: Prisma.FieldRef<"OrganizationAgentVersion", 'Boolean'>
   readonly configuration: Prisma.FieldRef<"OrganizationAgentVersion", 'Json'>
+  readonly modelPolicyId: Prisma.FieldRef<"OrganizationAgentVersion", 'String'>
+  readonly modelId: Prisma.FieldRef<"OrganizationAgentVersion", 'String'>
   readonly createdByUserId: Prisma.FieldRef<"OrganizationAgentVersion", 'String'>
   readonly createdAt: Prisma.FieldRef<"OrganizationAgentVersion", 'DateTime'>
 }

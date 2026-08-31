@@ -9,6 +9,11 @@ import { Prisma } from '../generated/prisma/client';
 import { isAgentConfigurationError } from './agent-configuration.error';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
 import type { AgentConfiguration } from './agent.types';
+import type { AgentDefinition } from './agent.types';
+import {
+  APPLICATION_MODEL_CATALOG,
+  type AgentModelId,
+} from '../model-catalog/model-catalog';
 import type {
   CreateOrganizationAgentInstallation,
   OrganizationAgentCatalogEntry,
@@ -23,6 +28,8 @@ const versionSelect = {
   installationId: true,
   revision: true,
   definitionVersion: true,
+  modelPolicyId: true,
+  modelId: true,
   enabled: true,
   configuration: true,
   createdByUserId: true,
@@ -64,6 +71,9 @@ export class OrganizationAgentInstallationService {
     return this.definitions.listInstallable().map((definition) => ({
       agentId: definition.id,
       latestDefinitionVersion: definition.version,
+      modelPolicyId: definition.modelPolicy.id,
+      defaultModelId: definition.model,
+      allowedModelIds: [...definition.modelPolicy.allowedModelIds],
       defaultConfiguration: this.definitions.parseOrganizationConfiguration(
         definition.id,
         definition.version,
@@ -92,6 +102,11 @@ export class OrganizationAgentInstallationService {
       input.definitionVersion,
       input.configuration,
     );
+    const model = this.selectModel(
+      input.agentId,
+      input.definitionVersion,
+      input.modelId,
+    );
 
     try {
       const row = await this.prisma.$transaction(async (tx) => {
@@ -106,6 +121,8 @@ export class OrganizationAgentInstallationService {
             installationId: installation.id,
             revision: 1,
             definitionVersion: input.definitionVersion,
+            modelPolicyId: model.policyId,
+            modelId: model.modelId,
             enabled: input.enabled,
             configuration: asJson(configuration),
             createdByUserId: actorUserId,
@@ -155,6 +172,11 @@ export class OrganizationAgentInstallationService {
 
         desired = {
           definitionVersion: input.definitionVersion,
+          ...this.selectModel(
+            current.agentId,
+            input.definitionVersion,
+            input.modelId,
+          ),
           enabled: input.enabled,
           configuration: this.parseConfiguration(
             current.agentId,
@@ -196,6 +218,8 @@ export class OrganizationAgentInstallationService {
             installationId,
             revision: current.revision + 1,
             definitionVersion: desired.definitionVersion,
+            modelPolicyId: desired.policyId,
+            modelId: desired.modelId,
             enabled: desired.enabled,
             configuration: asJson(desired.configuration),
             createdByUserId: actorUserId,
@@ -300,10 +324,46 @@ export class OrganizationAgentInstallationService {
       throw error;
     }
   }
+
+  private selectModel(
+    agentId: string,
+    definitionVersion: number,
+    requested: string | undefined,
+  ): { policyId: string; modelId: AgentModelId } {
+    let definition: AgentDefinition;
+    try {
+      definition = this.definitions.resolve(agentId, definitionVersion);
+    } catch (error) {
+      if (isAgentConfigurationError(error)) {
+        throw new AppException('NOT_FOUND', {
+          context: { resource: 'agentDefinition' },
+        });
+      }
+      throw error;
+    }
+
+    const selected = requested ?? definition.model;
+    if (
+      !definition.modelPolicy.allowedModelIds.includes(selected as AgentModelId)
+    ) {
+      throw invalidModelSelection();
+    }
+    try {
+      APPLICATION_MODEL_CATALOG.agentModel(selected);
+    } catch {
+      throw invalidModelSelection();
+    }
+    return {
+      policyId: definition.modelPolicy.id,
+      modelId: selected as AgentModelId,
+    };
+  }
 }
 
 type DesiredVersion = {
   definitionVersion: number;
+  policyId: string;
+  modelId: AgentModelId;
   enabled: boolean;
   configuration: AgentConfiguration;
 };
@@ -336,6 +396,7 @@ function toInstallation(
 function toVersion(version: PersistedVersion): OrganizationAgentVersion {
   return {
     ...version,
+    modelId: version.modelId as AgentModelId | null,
     configuration: version.configuration as AgentConfiguration,
   };
 }
@@ -346,9 +407,18 @@ function matches(
 ) {
   return (
     version.definitionVersion === desired.definitionVersion &&
+    version.modelPolicyId === desired.policyId &&
+    version.modelId === desired.modelId &&
     version.enabled === desired.enabled &&
     isDeepStrictEqual(version.configuration, desired.configuration)
   );
+}
+
+function invalidModelSelection(): AppException {
+  return new AppException('VALIDATION_ERROR', {
+    context: { resource: 'organizationAgentModel', reason: 'policy' },
+    publicDetails: { reason: 'invalid_model_selection' },
+  });
 }
 
 function asJson(configuration: AgentConfiguration): Prisma.InputJsonValue {
