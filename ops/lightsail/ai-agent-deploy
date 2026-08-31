@@ -356,5 +356,32 @@ case "${1:-}" in
       compose run --rm --interactive --tty --no-deps backend \
       node dist/src/cli super-admin:create "$@"
     ;;
+  rotate-managed-secret-keys)
+    # Re-encrypts stored managed secrets under the configured active key
+    # version. Needed because changing APP_ENCRYPTION_KEY re-encrypts nothing by
+    # itself: until this has run, the previous key must stay configured in
+    # APP_ENCRYPTION_DECRYPT_KEYS or those credentials cannot be read at all.
+    #
+    # Pinned to the recorded release digest for the same reason as the bootstrap
+    # above — an ad-hoc `compose run` resolves the mutable `:development` tag,
+    # which here would mean an arbitrary image reading and rewriting every
+    # stored provider credential with the master key in its environment.
+    #
+    # Also deliberately absent from ai-agent-deploy-dispatch's allowlist: this
+    # touches every credential the platform holds, so it must require local root
+    # on the host rather than possession of the CI deploy key.
+    # ops/tests/lightsail-boundary.sh asserts that exclusion.
+    #
+    # No pty, unlike the bootstrap: this command prompts for nothing and prints
+    # a report. The remaining arguments are forwarded to the backend command,
+    # which validates its own flags.
+    [ "$#" -ge 2 ] || die 'rotate-managed-secret-keys requires environment'
+    shift 2
+    lock_deployment
+    rotation_digest=$(digest_from_manifest "$current_release" backend)
+    BACKEND_IMAGE="$registry/backend@sha256:$rotation_digest" \
+      compose run --rm --no-deps backend \
+      node dist/src/cli managed-secret:rotate-key "$@"
+    ;;
   *) die 'unsupported operation' ;;
 esac

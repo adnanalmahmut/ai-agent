@@ -13,6 +13,7 @@ import {
   queueConfig,
   redisConfig,
   encryptionConfig,
+  rotationConfigurations,
   workerConfigurations,
 } from '..';
 
@@ -65,5 +66,39 @@ describe('process configuration composition', () => {
     expect(cliConfigurations).not.toEqual(
       expect.arrayContaining([encryptionConfig]),
     );
+  });
+
+  /**
+   * The two operator commands hold disjoint authority, and this is the pair of
+   * assertions that keeps it that way.
+   *
+   * Rotation rewrites every stored credential; bootstrap mints an administrator
+   * account. Composing them together would give each the other's reach, so they
+   * have separate roots: the key lives only where credentials are rewritten,
+   * and the authentication stack only where an account is created. Asserted in
+   * both directions, because either half sliding into the other's list is a
+   * silent widening rather than a visible one.
+   */
+  it('gives the rotation command the master key and nothing that can mint an account', () => {
+    expect(rotationConfigurations).toEqual(
+      expect.arrayContaining([encryptionConfig, databaseConfig]),
+    );
+
+    /**
+     * One `not.toContain` per namespace, deliberately, rather than a single
+     * `not.toEqual(expect.arrayContaining([...]))`. That matcher succeeds when
+     * *all* of its elements are present, so negating it asserts only "not all
+     * five leaked" — and `authConfig` alone sliding in, which is the whole
+     * failure this test exists to catch, would leave it green.
+     */
+    for (const excluded of [
+      authConfig,
+      mailConfig,
+      httpConfig,
+      openapiConfig,
+      geoIpConfig,
+    ]) {
+      expect(rotationConfigurations).not.toContain(excluded);
+    }
   });
 });

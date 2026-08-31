@@ -2,7 +2,12 @@ import { Readable, Writable } from 'node:stream';
 
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import { dispatchCliCommand } from '../dispatch';
+import type {
+  RotationOptions,
+  RotationReport,
+} from '../../control-plane/managed-secrets/managed-secret-rotation.service';
+import { CLI_USAGE, dispatchCliCommand } from '../dispatch';
+import { ROTATE_USAGE } from '../rotate-key.command';
 import type {
   BootstrapOutcome,
   BootstrapRequest,
@@ -63,6 +68,10 @@ describe('dispatchCliCommand', () => {
   const run =
     jest.fn<(request: BootstrapRequest) => Promise<BootstrapOutcome>>();
   const resolveBootstrap = jest.fn(() => Promise.resolve({ run }));
+  const rotateAll =
+    jest.fn<(options?: RotationOptions) => Promise<RotationReport>>();
+  const resolveRotation = jest.fn(() => Promise.resolve({ rotateAll }));
+  const deps = { bootstrap: resolveBootstrap, rotation: resolveRotation };
 
   beforeEach(() => {
     run.mockReset().mockResolvedValue({
@@ -70,7 +79,18 @@ describe('dispatchCliCommand', () => {
       userId: 'user-1',
       email: 'ops@example.com',
     });
+    rotateAll.mockReset().mockResolvedValue({
+      examined: 0,
+      rotated: 0,
+      alreadyActive: 0,
+      wouldRotate: 0,
+      unreadable: 0,
+      concurrentlyModified: 0,
+      unknownSlot: 0,
+      outcomes: [],
+    });
     resolveBootstrap.mockClear();
+    resolveRotation.mockClear();
   });
 
   /**
@@ -82,11 +102,76 @@ describe('dispatchCliCommand', () => {
     it('writes the usage text to stdout and exits 0', async () => {
       const io = pipedIo();
 
-      const code = await dispatchCliCommand([flag], io, resolveBootstrap);
+      const code = await dispatchCliCommand([flag], io, deps);
+
+      expect(code).toBe(EXIT.ok);
+      expect(io.output.text).toBe(CLI_USAGE);
+      expect(io.error.text).toBe('');
+    });
+
+    /**
+     * Asking a command for its own help must reach that command's page, not the
+     * index — and must not build anything or be mistaken for an argument error,
+     * which is the failure that would make `--help` exit non-zero.
+     */
+    it('writes the command usage when the flag follows a command', async () => {
+      const io = pipedIo();
+
+      const code = await dispatchCliCommand(
+        ['super-admin:create', flag],
+        io,
+        deps,
+      );
 
       expect(code).toBe(EXIT.ok);
       expect(io.output.text).toBe(USAGE);
-      expect(io.error.text).toBe('');
+      expect(resolveBootstrap).not.toHaveBeenCalled();
+      expect(run).not.toHaveBeenCalled();
+    });
+
+    it('writes the rotation usage when the flag follows that command', async () => {
+      const io = pipedIo();
+
+      const code = await dispatchCliCommand(
+        ['managed-secret:rotate-key', flag],
+        io,
+        deps,
+      );
+
+      expect(code).toBe(EXIT.ok);
+      expect(io.output.text).toBe(ROTATE_USAGE);
+      expect(resolveRotation).not.toHaveBeenCalled();
+      expect(rotateAll).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('given managed-secret:rotate-key', () => {
+    it('forwards the remaining arguments to the rotation command', async () => {
+      const io = pipedIo();
+
+      const code = await dispatchCliCommand(
+        ['managed-secret:rotate-key', '--dry-run', '--batch-size', '5'],
+        io,
+        deps,
+      );
+
+      expect(code).toBe(EXIT.ok);
+      expect(rotateAll).toHaveBeenCalledWith({ batchSize: 5, dryRun: true });
+    });
+
+    /** The command name must not survive into its own argument list. */
+    it('lets the rotation command refuse its own arguments', async () => {
+      const io = pipedIo();
+
+      const code = await dispatchCliCommand(
+        ['managed-secret:rotate-key', '--nope'],
+        io,
+        deps,
+      );
+
+      expect(code).toBe(EXIT.usage);
+      expect(io.error.text).toContain('Unexpected argument: --nope');
+      expect(resolveRotation).not.toHaveBeenCalled();
     });
   });
 
@@ -101,10 +186,10 @@ describe('dispatchCliCommand', () => {
   it('given no command, writes usage but exits with the usage code', async () => {
     const io = pipedIo();
 
-    const code = await dispatchCliCommand([], io, resolveBootstrap);
+    const code = await dispatchCliCommand([], io, deps);
 
     expect(code).toBe(EXIT.usage);
-    expect(io.output.text).toBe(USAGE);
+    expect(io.output.text).toBe(CLI_USAGE);
     expect(io.error.text).toBe('');
   });
 
@@ -117,15 +202,11 @@ describe('dispatchCliCommand', () => {
     it('names it on stderr and exits with the usage code', async () => {
       const io = pipedIo();
 
-      const code = await dispatchCliCommand(
-        ['super-admin:crate'],
-        io,
-        resolveBootstrap,
-      );
+      const code = await dispatchCliCommand(['super-admin:crate'], io, deps);
 
       expect(code).toBe(EXIT.usage);
       expect(io.error.text).toBe(
-        `Unknown command: super-admin:crate\n\n${USAGE}`,
+        `Unknown command: super-admin:crate\n\n${CLI_USAGE}`,
       );
       expect(io.output.text).toBe('');
     });
@@ -137,7 +218,7 @@ describe('dispatchCliCommand', () => {
       const code = await dispatchCliCommand(
         ['super-admin:create-owner'],
         io,
-        resolveBootstrap,
+        deps,
       );
 
       expect(code).toBe(EXIT.usage);
@@ -153,7 +234,7 @@ describe('dispatchCliCommand', () => {
       const code = await dispatchCliCommand(
         ['--email=ops@example.com'],
         io,
-        resolveBootstrap,
+        deps,
       );
 
       expect(code).toBe(EXIT.usage);
@@ -176,7 +257,7 @@ describe('dispatchCliCommand', () => {
       const code = await dispatchCliCommand(
         ['super-admin:create', '--email=ops@example.com', '--name=Ops Team'],
         io,
-        resolveBootstrap,
+        deps,
       );
 
       expect(code).toBe(EXIT.ok);
@@ -200,7 +281,7 @@ describe('dispatchCliCommand', () => {
           '--role=admin',
         ],
         io,
-        resolveBootstrap,
+        deps,
       );
 
       expect(code).toBe(EXIT.usage);
@@ -215,7 +296,7 @@ describe('dispatchCliCommand', () => {
       const code = await dispatchCliCommand(
         ['super-admin:create', '--email=ops@example.com', '--name=Ops'],
         io,
-        resolveBootstrap,
+        deps,
       );
 
       expect(code).toBe(EXIT.locked);
@@ -234,7 +315,7 @@ describe('dispatchCliCommand', () => {
     ['no command', [] as string[]],
     ['an unknown command', ['nonsense']],
   ])('does not resolve the bootstrap for %s', async (_label, argv) => {
-    await dispatchCliCommand(argv, pipedIo(), resolveBootstrap);
+    await dispatchCliCommand(argv, pipedIo(), deps);
 
     expect(resolveBootstrap).not.toHaveBeenCalled();
   });

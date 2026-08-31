@@ -878,6 +878,7 @@
         "settingChanged": "تغيّر الإعداد",
         "redacted": "محجوب",
         "configured": "مُعدّ",
+        "configuredWithKey": "مُعدّ ({keyVersion})",
         "notConfigured": "غير مُعدّ"
       },
       "action": {
@@ -894,7 +895,8 @@
         "managedSecret": {
           "configure": "إعداد بيانات الاعتماد",
           "rotate": "تدوير بيانات الاعتماد",
-          "remove": "إزالة بيانات الاعتماد"
+          "remove": "إزالة بيانات الاعتماد",
+          "reencrypt": "إعادة تشفير بيانات الاعتماد"
         },
         "unknown": "تغيير آخر"
       }

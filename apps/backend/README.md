@@ -35,6 +35,21 @@ is not attached to a terminal; `--password` is rejected because it would be in
 shell history before the command ever saw it. Exit codes and the operator
 procedure are in [`docs/operations-runbook.md`](../../docs/operations-runbook.md).
 
+The same entrypoint carries `managed-secret:rotate-key`, which re-encrypts
+stored credentials under the active encryption key version after
+`APP_ENCRYPTION_KEY` has been replaced:
+
+```bash
+pnpm --filter backend cli:dev managed-secret:rotate-key --dry-run
+```
+
+It changes no credential's value, skips rows that are already current, and is
+safe to re-run or to resume after an interruption. `--dry-run` reports what
+would change and writes nothing, which is also how you confirm nothing still
+depends on an old key before retiring it. Its own composition root loads the
+encryption keyring and no authentication stack, so this command cannot create or
+elevate an account. The rollout phases and exit codes are in the same runbook.
+
 The test stack runs on its own ports so a test run can never reach into
 development data:
 

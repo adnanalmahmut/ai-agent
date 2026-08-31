@@ -43,13 +43,24 @@ bounds. An unregistered key cannot be written, so the Platform cannot create a
 setting nothing reads, and a value outside its bounds is refused rather than
 stored.
 
-Managed secrets are encrypted with AES-256-GCM under `APP_ENCRYPTION_KEY`. No
+Managed secrets are encrypted with AES-256-GCM under a versioned keyring. No
 read surface returns one, not even masked, and none is ever placed into
 `process.env` — an adapter receives the plaintext directly at the point of use.
-Each row records a fingerprint of the key that sealed it, so rotating
-`APP_ENCRYPTION_KEY` makes existing credentials report as unusable and asks the
-operator to re-enter them, instead of failing later as an unexplained provider
-outage.
+
+`APP_ENCRYPTION_KEY` is the active key and `APP_ENCRYPTION_ACTIVE_KEY_VERSION`
+names it. Every new or replaced credential is sealed under that version and
+records it, so a read resolves the exact key that sealed the row rather than
+guessing at it. `APP_ENCRYPTION_DECRYPT_KEYS` optionally carries older versions
+as comma-separated `version=base64` pairs, decrypt-only, so rows written under a
+previous key stay readable while they are migrated. A row whose recorded version
+is not configured fails closed and reports as unusable; it is never retried with
+the active key.
+
+Changing the active key re-encrypts nothing by itself. Existing rows keep their
+recorded version and are still read with the older key while it remains
+configured, and `managed-secret:rotate-key` migrates them. Retiring the old key
+is a separate, later decision — see
+[the operations runbook](operations-runbook.md#managed-secret-key-rotation).
 
 ## Validation and distribution
 

@@ -313,6 +313,7 @@ export const CONTROL_PLANE_AUDIT_ACTIONS = [
   'managedSecret.configure',
   'managedSecret.rotate',
   'managedSecret.remove',
+  'managedSecret.reencrypt',
 ] as const;
 
 export type ControlPlaneAuditAction =

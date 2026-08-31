@@ -72,6 +72,21 @@ for rejected in 'bootstrap-super-admin staging' 'bootstrap-super-admin productio
     exit 1
   fi
 done
+
+# Key rotation reads and rewrites every stored provider credential, with the
+# master key in the container's environment. It is a local-root operation for
+# the same reason the bootstrap is: a compromised deployment secret must not
+# reach the credential table.
+grep -Fq 'rotate-managed-secret-keys)' ops/lightsail/ai-agent-deploy || {
+  echo 'the wrapper must expose the managed-secret rotation subcommand' >&2
+  exit 1
+}
+for rejected in 'rotate-managed-secret-keys staging' 'rotate-managed-secret-keys production'; do
+  if printf '%s\n' "$rejected" | grep -Eq "$dispatch_allowlist"; then
+    echo 'managed-secret rotation must not be reachable over the deploy key' >&2
+    exit 1
+  fi
+done
 # The allowlist must still admit what it is for, or the extraction silently
 # matched nothing and the loop above proves nothing.
 printf '%s\n' 'status staging' | grep -Eq "$dispatch_allowlist" || {

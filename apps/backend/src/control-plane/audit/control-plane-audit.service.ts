@@ -28,6 +28,15 @@ export const CONTROL_PLANE_AUDIT_ACTIONS = [
   'managedSecret.configure',
   'managedSecret.rotate',
   'managedSecret.remove',
+  /**
+   * Re-encryption of an unchanged credential under a different master key
+   * version. Separate from `managedSecret.rotate` because the two answer
+   * different questions: rotate means an operator supplied a new credential
+   * value, reencrypt means the same value is now sealed under a different key.
+   * Collapsing them would lose exactly the distinction an auditor needs while
+   * reading a key rollout.
+   */
+  'managedSecret.reencrypt',
 ] as const;
 
 export type ControlPlaneAuditAction =
@@ -48,7 +57,7 @@ export type ControlPlaneAuditResource =
  *
  * A closed union, and that is the containment mechanism rather than a rule
  * somebody has to remember. There is no member a credential could occupy: a
- * managed secret's state is two non-secret facts, and a runtime setting's
+ * managed secret's state is a few non-secret facts, and a runtime setting's
  * value is either public or replaced by `{ redacted: true }`. A future caller
  * trying to log a plaintext has nowhere to put it, and widening this type is
  * the one change that would make such a call compile.
@@ -61,6 +70,15 @@ export type ControlPlaneAuditState =
       kind: 'managedSecretSlot';
       configured: boolean;
       algorithm: string | null;
+      /**
+       * Which configured key sealed the row — a bounded, non-secret identifier,
+       * already visible on the control plane's own list surface. Optional
+       * because the callers that record configure/rotate/remove describe a
+       * slot's existence rather than its encryption, and absent is honest there;
+       * re-encryption is the one action whose whole content is this field
+       * changing. `null` is a pre-version row.
+       */
+      keyVersion?: string | null;
     };
 
 export type ControlPlaneAuditEntry = {
