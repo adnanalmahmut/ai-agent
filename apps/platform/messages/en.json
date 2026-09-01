@@ -879,6 +879,7 @@
         "redacted": "Redacted",
         "configured": "Configured",
         "configuredWithKey": "Configured ({keyVersion})",
+        "configuredKeyHidden": "Configured (key version not shown)",
         "notConfigured": "Not configured"
       },
       "action": {

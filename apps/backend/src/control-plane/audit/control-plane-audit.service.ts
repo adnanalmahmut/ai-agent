@@ -71,8 +71,13 @@ export type ControlPlaneAuditState =
       configured: boolean;
       algorithm: string | null;
       /**
-       * Which configured key sealed the row — a bounded, non-secret identifier,
-       * already visible on the control plane's own list surface. Optional
+       * Which configured key sealed the row — a bounded, non-secret identifier.
+       *
+       * The managed-secrets read model carries it too, though no listing surface
+       * renders it; the one place it reaches a screen is the audit table's change
+       * column, and it passes a display gate there rather than being printed as
+       * received. Do not read this member as licence to render the field
+       * elsewhere. Optional
        * because the callers that record configure/rotate/remove describe a
        * slot's existence rather than its encryption, and absent is honest there;
        * re-encryption is the one action whose whole content is this field
