@@ -1,10 +1,4 @@
-import {
-  afterAll,
-  beforeAll,
-  describe,
-  expect,
-  it,
-} from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { Client } from 'pg';
 
@@ -199,7 +193,7 @@ describe('content projects', () => {
   });
 
   describe('promoting an idea', () => {
-    it('stores the agent\'s idea and opens revision 1 in one write', async () => {
+    it("stores the agent's idea and opens revision 1 in one write", async () => {
       const response = await promote(owner, {
         sourceRunId: succeededRunId,
         ideaIndex: 1,
@@ -271,10 +265,10 @@ describe('content projects', () => {
     });
 
     it('requires an idempotency key', async () => {
-      const response = await as(harness, owner).post(
-        `${base()}/from-idea`,
-        { sourceRunId: succeededRunId, ideaIndex: 0 },
-      );
+      const response = await as(harness, owner).post(`${base()}/from-idea`, {
+        sourceRunId: succeededRunId,
+        ideaIndex: 0,
+      });
 
       expect(response.status).toBe(400);
       expect(errorBody(response).errorCode).toBe('VALIDATION_ERROR');
@@ -303,14 +297,22 @@ describe('content projects', () => {
     it('treats the same key with a different body as a different request', async () => {
       const key = freshKey();
 
-      const first = await promote(owner, {
-        sourceRunId: succeededRunId,
-        ideaIndex: 0,
-      }, key);
-      const second = await promote(owner, {
-        sourceRunId: succeededRunId,
-        ideaIndex: 1,
-      }, key);
+      const first = await promote(
+        owner,
+        {
+          sourceRunId: succeededRunId,
+          ideaIndex: 0,
+        },
+        key,
+      );
+      const second = await promote(
+        owner,
+        {
+          sourceRunId: succeededRunId,
+          ideaIndex: 1,
+        },
+        key,
+      );
 
       expect(first.status).toBe(201);
       expect(second.status).toBe(201);
@@ -324,7 +326,7 @@ describe('content projects', () => {
   });
 
   describe('tenant isolation', () => {
-    it('reports another organization\'s run as absent', async () => {
+    it("reports another organization's run as absent", async () => {
       const response = await promote(owner, {
         sourceRunId: otherOrganizationRunId,
         ideaIndex: 0,
@@ -344,7 +346,7 @@ describe('content projects', () => {
       expect([403, 404]).toContain(response.status);
     });
 
-    it('does not list another organization\'s projects', async () => {
+    it("does not list another organization's projects", async () => {
       const created = await promote(owner, {
         sourceRunId: succeededRunId,
         ideaIndex: 0,
@@ -361,7 +363,7 @@ describe('content projects', () => {
       expect(listed.map((item) => item.id)).not.toContain(projectId);
     });
 
-    it('reports another organization\'s project as absent on detail', async () => {
+    it("reports another organization's project as absent on detail", async () => {
       const created = await promote(owner, {
         sourceRunId: succeededRunId,
         ideaIndex: 2,

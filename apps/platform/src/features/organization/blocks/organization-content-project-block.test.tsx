@@ -142,7 +142,7 @@ describe('organization content project block', () => {
    */
   it('reports a refused project as simply absent', async () => {
     getContentProject.mockRejectedValue(
-      new ApiError(404, { code: 'NOT_FOUND', message: 'Not found' }),
+      new ApiError(404, 'NOT_FOUND'),
     );
 
     render();
