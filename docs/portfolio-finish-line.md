@@ -99,10 +99,10 @@ capabilities that are already proven.
 
 The project is **feature complete** when all of the following hold:
 
-- [ ] Governed code-owned Tool Registry
-- [ ] One real read-only tool
-- [ ] Durable `ToolExecution` in PostgreSQL
-- [ ] Tenant, grant, and schema enforcement
+- [x] Governed code-owned Tool Registry
+- [x] One real read-only tool
+- [x] Durable `ToolExecution` in PostgreSQL
+- [x] Tenant, grant, and schema enforcement
 - [ ] One safe idempotent side-effecting tool/action
 - [ ] Retry without duplicate external effect
 - [ ] One Human Approval flow
@@ -119,14 +119,18 @@ unless a new explicit human decision changes the goal.
 
 ## Bounded roadmap
 
-Five slices remain. PORT-PLAN-01 — this roadmap reset — is governance, not a
-technical capability, and is not counted among them.
+Four slices remain; TOOL-01 is delivered. PORT-PLAN-01 — the roadmap reset —
+was governance, not a technical capability, and is not counted among them.
 
-### TOOL-01 — Governed durable tool execution
+Gate P1 is **not** met: it requires TOOL-01 and ACT-01 together, and nothing
+here proves a side effect, retry without duplication, or human approval.
+
+### TOOL-01 — Governed durable tool execution — **delivered**
 
 Code-owned tool registry with identity, schema, and risk classification;
-organization grants subsetting template maxima; `knowledge.search@1` as the
-first real read-only tool; durable `ToolExecution` records in PostgreSQL.
+organization grants subsetting definition maxima; `knowledge.search@1` as the
+first real read-only tool; durable `ToolExecution` records in PostgreSQL. See
+[the backend's governed tool execution section](backend.md).
 
 ### ACT-01 — Human approval and idempotent side effect
 

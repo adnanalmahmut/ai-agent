@@ -162,6 +162,64 @@ resolved against the caller's own organization, so a definition cannot name its
 way into another tenant's material, and an agent with no policy gets nothing
 rather than everything.
 
+### Governed tool execution
+
+An agent may also *call* something, through a code-owned tool registry rather
+than an SDK's. A `ToolDefinition` is identified by an exact `(id, version)`
+pair, carries Zod schemas on both sides, and declares a `read_only` or
+`side_effect` risk. Only `read_only` is executable: `side_effect` exists in the
+vocabulary so the gateway has something to refuse, because nothing in this build
+can yet make an external effect idempotent, revalidate a precondition, or ask a
+human. Composition fails loudly on a duplicate identity, an invalid version, a
+registered tool nothing declares, a declared tool nothing registers, and a
+registered tool with no implementation.
+
+Capability narrows in two steps. `AgentDefinition.maxToolGrants` is the most an
+immutable definition revision may ever call — a maximum, like `modelPolicy`, so
+changing it means publishing a new revision. `OrganizationAgentVersion.toolGrants`
+is the tenant's selection within that maximum, validated on write and refused
+rather than trimmed when it names something outside it. An accepted run already
+pins its organization version, so that pin is the durable authority for its
+grants: a grant added or removed afterwards belongs to a different version row
+and changes nothing for a run already in flight.
+
+`ToolGateway` holds every authority check and hands the runtime nothing but
+closures already bound to the run they belong to. The interesting property is
+not that it checks the caller's identity but that the caller cannot express one:
+a tool's input schema has no field for an organization, a run, a version, or a
+scope, so the model can choose a question and nothing else. Inputs are parsed
+again even though the SDK validates them, because SDK validation sits on the far
+side of a boundary this repository does not own.
+
+`ToolExecution` records what actually ran: the organization, the run and its
+attempt, the exact tool id and version, the parsed input, the parsed result, and
+timestamps. It references its run through the composite
+`(agentRunId, organizationId)`, so PostgreSQL refuses a cross-tenant row. The
+row is written after authorization and before the implementation, so its
+existence means "this was permitted and handed over" — a refused call leaves no
+row, and is therefore never mistaken for a failed one. A failure stores a code
+from a closed union, so no provider or driver text can reach the column. There
+is deliberately no reconciler: a read-only execution left `STARTED` by a process
+death is an honest "outcome unknown" for an operation that changed nothing
+outside this system.
+
+`knowledge.search@1` is the first tool, and it is `AgentContextAssembler` again
+rather than a second retrieval path — the same tenant scoping, the same
+`ContextPolicy` as maximum visibility, the same operator-owned ceiling. The
+model supplies a bounded query; it does not supply a corpus. An agent whose
+definition permits no knowledge searches nothing.
+
+Two properties of the runtime boundary are enforced against the installed SDK
+rather than assumed. Mastra keys its tool record by the model-facing name and
+rewrites any key outside `^[a-zA-Z_][a-zA-Z0-9_-]{0,62}$`, so tools declare an
+explicit audited `runtimeName` and both the registry and the adapter refuse one
+that would be rewritten — otherwise the durable identity `knowledge.search@1`
+would reach the provider as something nobody reviewed. And the agent loop's step
+ceiling defaults to `stepCountIs(5)` as a runtime literal declared in no type
+definition, so `maxSteps` is passed explicitly on every generation rather than
+depending on a number that can change in a patch release with no type-level
+signal.
+
 Retrieved passages travel to the runtime separately from the input and are
 rendered into the *user* message, fenced and labelled as quoted material. They
 are never merged into the instructions: they are organization data that some

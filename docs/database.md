@@ -41,6 +41,20 @@ enforces the same boundary with a `BEFORE UPDATE OR DELETE` trigger that raises
 attempts using the application role fail as well. INSERT and SELECT remain
 available.
 
+`tool_execution` is the durable record of one governed tool call: the
+organization, the run and its attempt, the exact `toolId` and `toolVersion`, the
+parsed input, the parsed result, and a closed failure code. It reaches its run
+through the composite `("agentRunId", "organizationId")` against
+`agent_run("id", "organizationId")`, so an execution recorded against another
+organization's run is refused by PostgreSQL rather than by a service predicate.
+The tool identity is stored as columns rather than as a foreign key because the
+registry is code — there is no `tool_definition` table to point at, and the pair
+is exactly what a grant names. `organization_agent_version.toolGrants` holds the
+tenant's selected `id@version` list, defaulted so the column is additive: a row
+written by an image that predates it means what an empty list means. A row left
+`STARTED` is an honest unknown outcome for a read-only call, and nothing sweeps
+it terminal.
+
 Product audit history is retained indefinitely until a concrete product or
 legal retention requirement is approved. Current volume is bounded by real
 product mutations and reads are tenant-indexed and paginated; guessing a
