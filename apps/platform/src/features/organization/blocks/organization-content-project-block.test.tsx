@@ -149,10 +149,43 @@ describe('organization content project block', () => {
 
     render();
 
+    // Bound to their labels, not merely present: a topic/goal swap would pass
+    // an assertion that only looked for the two strings somewhere on the page.
+    const valueFor = (label: string) =>
+      screen.getByText(label).parentElement?.textContent ?? '';
+
+    await screen.findByText('Electric kettles');
+
+    expect(valueFor('Topic:')).toContain('Electric kettles');
+    expect(valueFor('Goal:')).toContain('Sell the autumn range');
+    expect(valueFor('Audience:')).toContain('Home cooks');
+    expect(valueFor('Guidance:')).toContain('Warm and practical.');
+  });
+
+  /**
+   * An empty string is not something the request said.
+   *
+   * `guidance` is optional with no minimum length, so a direct API caller can
+   * store `''` — and a label with nothing after it is the same misreading as
+   * an unconditional row.
+   */
+  it('omits an optional field the request left empty', async () => {
+    getContentProject.mockResolvedValue(
+      detail({
+        brief: {
+          topic: 'Electric kettles',
+          goal: 'Sell the autumn range',
+          audience: '',
+          guidance: '',
+        },
+      }),
+    );
+
+    render();
+
     expect(await screen.findByText('Electric kettles')).toBeInTheDocument();
-    expect(screen.getByText('Sell the autumn range')).toBeInTheDocument();
-    expect(screen.getByText('Home cooks')).toBeInTheDocument();
-    expect(screen.getByText('Warm and practical.')).toBeInTheDocument();
+    expect(screen.queryByText(/^audience:$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^guidance:$/i)).not.toBeInTheDocument();
   });
 
   /**

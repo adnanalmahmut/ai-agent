@@ -41,11 +41,12 @@ change state is a conflict rather than a silent overwrite.
 The organization product-audit domain (`src/organization-audit/`) records
 meaningful tenant mutations separately from application logs, agent execution,
 and the operator-only control-plane history. Its closed actions are
-`organizationBusinessProfile.replaced` and `contentProject.created`. A real profile change and its event are
-written in one Prisma transaction; no-ops and losing compare-and-swap attempts
-append nothing. The event carries the organization, authenticated actor,
-subject, time, and a closed before/after projection containing only the bounded
-business-profile fields. There is no generic metadata or request-body input.
+`organizationBusinessProfile.replaced` and `contentProject.created`. A real
+profile change and its event are written in one Prisma transaction; no-ops and
+losing compare-and-swap attempts append nothing. The event carries the
+organization, authenticated actor, subject, time, and a closed before/after
+projection containing only the bounded fields of the subject it describes.
+There is no generic metadata or request-body input.
 `GET /organizations/:organizationId/audit-events` is rooted in the path tenant,
 guarded by `organization:update`, bounded to 100 rows, and keyset-paged newest
 first on `(occurredAt, id)`. No application route or service updates or deletes

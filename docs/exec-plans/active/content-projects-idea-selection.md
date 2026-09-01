@@ -208,7 +208,7 @@ behaviour this plan previously documented as deliberate.
 - [x] Aggregate validation
 - [x] PR #57 opened, final-head CI green on `32871c3`
 - [x] Required scope corrections: brief snapshot and product audit
-- [ ] Specialist re-review and aggregate re-validation after the corrections
+- [x] Specialist re-review and aggregate re-validation after the corrections
 - [ ] Final-head CI green on the corrected head
 
 ## Blockers
@@ -254,6 +254,53 @@ invariant, cursor drain to exhaustion over a shared timestamp, newest-first
 ordering, the `ContentProjects` i18n namespace enumeration, and Arabic renders
 of both new screens.
 
+## Re-review outcomes (scope corrections)
+
+All three specialists re-ran against `c26eb2e`. Security found no new exposure
+and independently verified that the field-by-field `toView` drops the brief and
+the stored key at every call site, that the audit append cannot leave a project
+without its event or an event without its project, and — by compiling a probe —
+that the discriminated union does not relax TypeScript's excess-property check.
+
+Two reviewers independently found the same defect, and it was real:
+
+**The rollback test proved nothing about the transaction boundary.** The stub
+threw without inspecting what it was handed, so the test was satisfied by "the
+promotion failed and left no rows". Confirmed by changing the call site to pass
+`this.prisma` instead of `tx` — the exact defect the arrangement exists to
+prevent, since the event would then commit on its own connection while the
+project rolled back — and watching all 40 cases stay green. The stub now
+asserts that what it receives is not the injected client and that the project is
+already visible inside that transaction, and it fails on the injected defect.
+
+Also remediated:
+
+- The draft no longer had an independent language assertion after the reversal;
+  hard-coding it passed. Restored, and the strict-parse refusal now covers all
+  three shapes it can take rather than one.
+- Three refusals answer 409 and none discriminated its reason; each now does.
+- The list-projection closedness was asserted by two named keys; it is now the
+  whole key set, matching the detail guard.
+- Two audit tests could pass vacuously, because a failed create makes the
+  subject lookup match every event in the organization.
+- The refusal set omitted the two refusals that throw inside the transaction.
+- `draftRevision` used `?? 1`, which would have fabricated a revision for a
+  project with no draft — the fabrication `before: DbNull` exists to avoid.
+- The audit projection typed its two enums as `string` while its comment claimed
+  they could not carry an arbitrary one. They are now typed as the enums, which
+  immediately caught the call site reading them back off `String` columns.
+- **The migration's stated justification was false.** It claimed the guard
+  prevented "a migration that fails halfway with the columns already added".
+  PostgreSQL DDL is transactional, so an unguarded populated table would already
+  fail cleanly and wholly. The guard buys a legible message naming the row count
+  and the missing backfill — nothing more. Corrected in the migration and in
+  `docs/database.md`.
+- The detail view treated `''` as "the request said something", rendering a
+  label with no value. `guidance` is optional with no minimum length, so a
+  direct API caller can store one.
+- Added: a test pinning that a replay is answered before the run is consulted,
+  so a retry still returns its project after the run becomes unreadable.
+
 ## Verified evidence
 
 - All migrations apply to a fresh database from zero; `migrate diff` against the
@@ -265,8 +312,13 @@ of both new screens.
   suite: a project naming another organization's run, a draft filed under
   another organization's project, a duplicate revision within one project, and a
   replayed idempotency key. The two legitimate control inserts succeed.
-- `pnpm --filter backend test` 1294 passed; `pnpm --filter platform test` 847
-  passed; `apps/web` 26 passed; backend E2E 30 passed for this feature.
+- `pnpm --filter backend test` 1290 passed; `pnpm --filter platform test` 850
+  passed; `apps/web` 26 passed; backend E2E 46 passed for this feature.
+- The transaction boundary and the audit rollback are proven by fault injection
+  rather than by assertion alone: passing `this.prisma` instead of the
+  transaction client fails the suite.
+- The migration guard was exercised by seeding a row and observing it refuse
+  with the columns not added.
 - `pnpm agents:check`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, and
   `ops/tests/documentation.sh` all green without `--fix` in verification.
 - Full backend E2E: 627 of 631 passed. The 4 failures are in

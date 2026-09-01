@@ -169,8 +169,13 @@ export function OrganizationContentProjectBlock() {
             {/*
               Rendered only when the original request said something. An empty
               row would read as "no audience" where the truth is "not stated".
+
+              Truthiness rather than a null check: `guidance` is optional with
+              no minimum length, so a direct API caller can store `''`, and a
+              label with nothing after it is the same misreading in a different
+              disguise.
             */}
-            {project.brief.audience !== null ? (
+            {project.brief.audience ? (
               <div className="flex flex-wrap gap-1">
                 <dt className="font-medium">{t('detail.audience')}</dt>
                 <dd className="text-muted-foreground">
@@ -178,7 +183,7 @@ export function OrganizationContentProjectBlock() {
                 </dd>
               </div>
             ) : null}
-            {project.brief.guidance !== null ? (
+            {project.brief.guidance ? (
               <div className="flex flex-wrap gap-1">
                 <dt className="font-medium">{t('detail.guidance')}</dt>
                 <dd className="text-muted-foreground">

@@ -3,6 +3,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database';
 import { AppException } from '../core/errors';
 import { Prisma } from '../generated/prisma/client';
+import type {
+  ContentIdeaFormat,
+  ContentIdeaLanguage,
+} from '../agents/definitions/content-idea';
 import type { OrganizationBusinessProfile } from '../organization-settings/organization-business-profile.types';
 
 export const ORGANIZATION_AUDIT_ACTIONS = [
@@ -59,18 +63,30 @@ export type OrganizationBusinessProfileAuditState = {
  *
  * `suggestedFormat` and `language` are here because they are code-owned enums
  * with three and two members — a reader can tell what kind of work was started
- * without following anything, and neither can carry an arbitrary string.
+ * without following anything, and neither can carry an arbitrary string. They
+ * are typed as those enums rather than as `string`, so that last clause is
+ * enforced here rather than merely true upstream; the cost is a type-only
+ * import from the agent definitions, which this domain already accepts for the
+ * business profile.
  */
 export type ContentProjectAuditState = {
   kind: 'contentProject';
   projectId: string;
   sourceRunId: string;
   sourceIdeaIndex: number;
-  suggestedFormat: string;
-  language: string;
+  suggestedFormat: ContentIdeaFormat;
+  language: ContentIdeaLanguage;
   draftRevision: number;
 };
 
+/**
+ * Every member carries a distinct literal `kind`, and that is load-bearing.
+ *
+ * TypeScript narrows a union target to one member — and so rejects a field
+ * belonging to a sibling — only when a literal discriminant selects it. A
+ * future variant without one would silently relax the excess-property check
+ * that keeps each projection closed.
+ */
 export type OrganizationAuditState =
   OrganizationBusinessProfileAuditState | ContentProjectAuditState;
 
@@ -145,8 +161,8 @@ export class OrganizationAuditService {
       projectId: string;
       sourceRunId: string;
       sourceIdeaIndex: number;
-      suggestedFormat: string;
-      language: string;
+      suggestedFormat: ContentIdeaFormat;
+      language: ContentIdeaLanguage;
       draftRevision: number;
     },
   ): Promise<void> {

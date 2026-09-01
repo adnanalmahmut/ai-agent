@@ -255,11 +255,27 @@ export class ContentProjectService {
           projectId: created.id,
           sourceRunId: created.sourceRunId,
           sourceIdeaIndex: created.sourceIdeaIndex,
-          suggestedFormat: created.suggestedFormat,
-          language: created.language,
-          // Always one here; named rather than hard-coded at the call site so
-          // the event keeps meaning when revision 2 exists.
-          draftRevision: created.drafts[0]?.revision ?? 1,
+          // Taken from the parsed selection rather than read back off the
+          // row: these are `String` columns, and the audit projection types
+          // them as the code-owned enums so that its closedness is a compiler
+          // guarantee rather than a provenance argument.
+          suggestedFormat: selection.idea.suggestedFormat,
+          language: selection.language,
+          /**
+           * The revision this promotion opened.
+           *
+           * Read rather than written as `1`, but deliberately not defaulted:
+           * the nested create above produces exactly one draft, so an absent
+           * row is not a case to paper over with a plausible number. A log that
+           * invents `draftRevision: 1` for a project with no draft is the same
+           * fabrication `before: DbNull` exists to avoid.
+           *
+           * Note this is the *lowest* revision, since the projection orders
+           * them ascending. Same row here, and it stops being the same row once
+           * revision 2 exists — at which point whatever creates that revision
+           * records its own event and this call site is untouched.
+           */
+          draftRevision: created.drafts[0].revision,
         });
 
         return toDetail(created);
@@ -279,8 +295,10 @@ export class ContentProjectService {
 
       /**
        * A P2002 on this insert can only be the durable idempotency constraint —
-       * every other unique index on the two tables is either a generated id or
-       * scoped to a project that did not exist a moment ago. Still fail loudly
+       * every other unique index across the three tables this transaction now
+       * writes is either a generated id or scoped to a project that did not
+       * exist a moment ago — the audit table has no unique constraint beyond
+       * its own generated id. Still fail loudly
        * if the winning row cannot be observed, rather than reporting a success
        * with nothing durable behind it.
        */

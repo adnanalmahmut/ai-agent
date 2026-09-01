@@ -267,6 +267,9 @@ describe('content projects', () => {
 
       expect(response.status).toBe(409);
       expect(errorBody(response).errorCode).toBe('CONFLICT');
+      expect(JSON.stringify(response.body)).toContain(
+        'only be selected from a request that succeeded',
+      );
     });
 
     it('requires an idempotency key', async () => {
@@ -361,6 +364,42 @@ describe('content projects', () => {
       });
 
       expect(count).toBeLessThanOrEqual(1);
+    });
+
+    /**
+     * A replay is answered before the run is consulted, and that ordering is
+     * now load-bearing.
+     *
+     * Hoisting `resolveSelection` above the replay lookup would turn every
+     * retry against a run this version can no longer parse into a 409, leaving
+     * the client unable to re-fetch a project it already owns through the
+     * idempotent POST. The refusal added by the brief snapshot made that a
+     * much more reachable mistake than it was, so it is pinned here.
+     */
+    it('replays a project whose source run has since become unreadable', async () => {
+      const run = await seedRun({ organizationId, status: 'SUCCEEDED' });
+      const key = freshKey();
+      const body = { sourceRunId: run, ideaIndex: 0 };
+
+      const first = await promote(owner, body, key);
+      expect(first.status).toBe(201);
+
+      // The run's input stops being readable after the fact.
+      await harness.prisma.agentRun.update({
+        where: { id: run },
+        data: { input: { nothing: 'this version understands' } },
+      });
+
+      // A fresh promotion is now refused...
+      expect((await promote(owner, body, freshKey())).status).toBe(409);
+
+      // ...but the retry still finds the project it already created.
+      const replay = await promote(owner, body, key);
+
+      expect(replay.status).toBe(201);
+      expect(dataOf<Project>(replay.body).id).toBe(
+        dataOf<Project>(first.body).id,
+      );
     });
 
     /**
@@ -601,7 +640,9 @@ describe('content projects', () => {
 
       expect(response.status).toBe(409);
       expect(errorBody(response).errorCode).toBe('CONFLICT');
-      expect(JSON.stringify(response.body)).toContain('cannot read');
+      // Discriminated: three refusals now answer 409, and without this each
+      // could absorb another's regression.
+      expect(JSON.stringify(response.body)).toContain('produced ideas');
     });
 
     /**
@@ -637,6 +678,7 @@ describe('content projects', () => {
 
       expect(response.status).toBe(409);
       expect(errorBody(response).errorCode).toBe('CONFLICT');
+      expect(JSON.stringify(response.body)).toContain('was made in a form');
 
       // And nothing was written on the way to refusing.
       const orphan = await harness.prisma.contentProject.count({
@@ -647,6 +689,61 @@ describe('content projects', () => {
   });
 
   describe('the brief', () => {
+    /**
+     * Every shape the strict input parse refuses, not just a missing field.
+     *
+     * `contentIdeaInput` is `.strict()`, so an input carrying a key the current
+     * schema does not know is refused as firmly as one missing a required
+     * field. That is the shape a rolling deployment produces — a worker on the
+     * newer image writing a run an older API then reads — and it is the case
+     * most likely to appear in practice.
+     */
+    it.each([
+      ['a missing required field', { topic: 'Kettles' }],
+      [
+        'an unsupported content language',
+        {
+          topic: 'Kettles',
+          goal: 'Sell them',
+          language: 'fr',
+          numberOfIdeas: 3,
+        },
+      ],
+      [
+        'a key this version does not know',
+        {
+          topic: 'Kettles',
+          goal: 'Sell them',
+          language: 'en',
+          numberOfIdeas: 3,
+          tone: 'playful',
+        },
+      ],
+    ])('refuses a run whose input carries %s', async (_label, input) => {
+      const run = await harness.prisma.agentRun.create({
+        data: {
+          agentId: CONTENT_IDEA_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          status: 'SUCCEEDED',
+          organizationId,
+          input,
+          output: { ideas: IDEAS, sources: [] },
+          idempotencyKey: `seed-shape-${Math.random().toString(36).slice(2)}`,
+          completedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      const response = await promote(owner, {
+        sourceRunId: run.id,
+        ideaIndex: 0,
+      });
+
+      expect(response.status).toBe(409);
+      expect(JSON.stringify(response.body)).toContain('was made in a form');
+    });
+
     /**
      * Snapshotted from the run's input by the server.
      *
@@ -715,10 +812,9 @@ describe('content projects', () => {
         `${base()}/${dataOf<Project>(created.body).id}`,
       );
 
-      const project = dataOf<{
-        brief: Record<string, unknown>;
-        language: string;
-      }>(detail.body);
+      const project = dataOf<Project & { brief: Record<string, unknown> }>(
+        detail.body,
+      );
 
       expect(project.brief).toEqual({
         topic: 'Cordless kettles',
@@ -726,8 +822,11 @@ describe('content projects', () => {
         audience: null,
         guidance: null,
       });
-      // The content language comes from the same parse.
+      // The content language comes from the same parse — and the draft takes
+      // it independently, so it is asserted independently. Hard-code the
+      // draft's language and only this line fails.
       expect(project.language).toBe('ar');
+      expect(project.drafts?.[0]?.language).toBe('ar');
     });
 
     /**
@@ -758,8 +857,23 @@ describe('content projects', () => {
         listed.body,
       ).items;
 
-      expect(items[0]).not.toHaveProperty('brief');
-      expect(items[0]).not.toHaveProperty('topic');
+      // The whole key set, not two names: `goal`, `guidance` or the stored key
+      // leaking would each pass a not-toHaveProperty pair.
+      expect(Object.keys(items[0] ?? {}).sort()).toEqual([
+        'angle',
+        'createdAt',
+        'createdByUserId',
+        'hook',
+        'id',
+        'language',
+        'organizationId',
+        'sourceIdeaIndex',
+        'sourceRunId',
+        'suggestedFormat',
+        'summary',
+        'title',
+        'updatedAt',
+      ]);
     });
   });
 
@@ -883,14 +997,27 @@ describe('content projects', () => {
         key,
       );
 
+      expect(created.status).toBe(201);
+
       const events = await auditEventsFor(dataOf<Project>(created.body).id);
+
+      // Without this, a failed create makes `auditEventsFor(undefined)` match
+      // every event in the organization and the probes below pass on an
+      // unrelated row.
+      expect(events).toHaveLength(1);
+
       const serialized = JSON.stringify(events[0]);
 
       expect(serialized).not.toContain(key);
+      // Every brief field...
       expect(serialized).not.toContain(RUN_INPUT.topic);
       expect(serialized).not.toContain(RUN_INPUT.goal);
+      expect(serialized).not.toContain(RUN_INPUT.audience);
       expect(serialized).not.toContain(RUN_INPUT.guidance);
+      // ...and every prose field of the idea.
       expect(serialized).not.toContain(IDEAS[0].title);
+      expect(serialized).not.toContain(IDEAS[0].hook);
+      expect(serialized).not.toContain(IDEAS[0].angle);
       expect(serialized).not.toContain(IDEAS[0].summary);
     });
 
@@ -914,10 +1041,16 @@ describe('content projects', () => {
       const key = freshKey();
       const body = { sourceRunId: succeededRunId, ideaIndex: 0 };
 
-      const [first] = await Promise.all([
+      const [first, second] = await Promise.all([
         promote(owner, body, key),
         promote(owner, body, key),
       ]);
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(dataOf<Project>(second.body).id).toBe(
+        dataOf<Project>(first.body).id,
+      );
 
       expect(await auditEventsFor(dataOf<Project>(first.body).id)).toHaveLength(
         1,
@@ -967,6 +1100,54 @@ describe('content projects', () => {
         ).status,
       ).toBe(404);
 
+      // And the two refusals that throw *inside* the transaction, which are
+      // the ones that could plausibly leave an event behind.
+      const unreadableInput = await harness.prisma.agentRun.create({
+        data: {
+          agentId: CONTENT_IDEA_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          status: 'SUCCEEDED',
+          organizationId,
+          input: { topic: 'only' },
+          output: { ideas: IDEAS, sources: [] },
+          idempotencyKey: `seed-audit-input-${Date.now()}`,
+          completedAt: new Date(),
+        },
+        select: { id: true },
+      });
+      const unreadableOutput = await harness.prisma.agentRun.create({
+        data: {
+          agentId: CONTENT_IDEA_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          status: 'SUCCEEDED',
+          organizationId,
+          input: RUN_INPUT,
+          output: { ideas: [], sources: [] },
+          idempotencyKey: `seed-audit-output-${Date.now()}`,
+          completedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      expect(
+        (
+          await promote(owner, {
+            sourceRunId: unreadableInput.id,
+            ideaIndex: 0,
+          })
+        ).status,
+      ).toBe(409);
+      expect(
+        (
+          await promote(owner, {
+            sourceRunId: unreadableOutput.id,
+            ideaIndex: 0,
+          })
+        ).status,
+      ).toBe(409);
+
       const after = await harness.prisma.organizationAuditEvent.count({
         where: { organizationId, action: 'contentProject.created' },
       });
@@ -975,17 +1156,76 @@ describe('content projects', () => {
     });
 
     /**
+     * The event is readable through the audit endpoint, by the roles that
+     * endpoint is for.
+     *
+     * Writing a row nothing can read would satisfy every other test here and
+     * deliver nothing: `toEntry` casts the stored projection, so a subject the
+     * read path cannot represent would surface as a broken row rather than a
+     * failure.
+     */
+    it('surfaces the event on the organization audit endpoint', async () => {
+      const created = await promote(owner, {
+        sourceRunId: succeededRunId,
+        ideaIndex: 0,
+      });
+
+      expect(created.status).toBe(201);
+
+      const listed = await as(harness, owner).get(
+        `/organizations/${encodeURIComponent(organizationId)}/audit-events`,
+      );
+
+      expect(listed.status).toBe(200);
+
+      const entries = dataOf<{
+        items: { action: string; subjectId: string; subjectType: string }[];
+      }>(listed.body).items;
+
+      expect(
+        entries.some(
+          (entry) =>
+            entry.action === 'contentProject.created' &&
+            entry.subjectId === dataOf<Project>(created.body).id &&
+            entry.subjectType === 'contentProject',
+        ),
+      ).toBe(true);
+    });
+
+    /**
+     * Promotion history is not ordinary membership.
+     *
+     * The audit endpoint is gated on `organization:update`, which a plain
+     * member does not hold — so adding a subject to that log must not widen who
+     * can read it.
+     */
+    it('does not open promotion history to a plain member', async () => {
+      const response = await as(harness, member).get(
+        `/organizations/${encodeURIComponent(organizationId)}/audit-events`,
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    /**
      * The append shares the transaction, so a log that cannot be written takes
      * the decision with it.
      *
      * This is the property the whole arrangement exists for: a project whose
      * creation went unrecorded is a decision the audit trail denies, and that
-     * is worse for a reader than a creation that visibly failed. Forced here
-     * rather than waited for, because nothing else can produce it.
+     * is worse for a reader than a creation that visibly failed.
+     *
+     * The stub inspects what it is handed rather than only throwing. That
+     * distinction is the test: a version of the service that passed its own
+     * `PrismaService` instead of the transaction client would commit the event
+     * on a separate connection while the project rolled back — exactly the
+     * defect this guards — and a stub that merely threw would stay green
+     * through it. Verified by making that change and watching the suite pass.
      */
     it('rolls the project and its draft back when the audit append fails', async () => {
       const audit = harness.app.get(OrganizationAuditService);
-      const original = audit.recordContentProjectCreation.bind(audit);
+      const patched = audit as unknown as Record<string, unknown>;
+      const original = patched.recordContentProjectCreation;
 
       const before = await harness.prisma.contentProject.count({
         where: { organizationId },
@@ -993,10 +1233,30 @@ describe('content projects', () => {
       const draftsBefore = await harness.prisma.contentDraft.count({
         where: { organizationId },
       });
+      const eventsBefore = await harness.prisma.organizationAuditEvent.count({
+        where: { organizationId, action: 'contentProject.created' },
+      });
 
-      (
-        audit as unknown as { recordContentProjectCreation: unknown }
-      ).recordContentProjectCreation = () => {
+      let sawTransactionClient: boolean | null = null;
+      let sawUncommittedProject: boolean | null = null;
+
+      patched.recordContentProjectCreation = async (
+        tx: {
+          contentProject: { findUnique: (args: unknown) => Promise<unknown> };
+        },
+        input: { projectId: string },
+      ) => {
+        // Not the injected client. If it were, the event would commit on its
+        // own connection and outlive the rollback.
+        sawTransactionClient = (tx as unknown) !== harness.prisma;
+
+        // And the project is already written inside that transaction, so what
+        // follows is a rollback rather than a failure that happened first.
+        sawUncommittedProject =
+          (await tx.contentProject.findUnique({
+            where: { id: input.projectId },
+          })) !== null;
+
         throw new Error('audit unavailable');
       };
 
@@ -1008,12 +1268,13 @@ describe('content projects', () => {
 
         expect(response.status).toBeGreaterThanOrEqual(500);
       } finally {
-        (
-          audit as unknown as { recordContentProjectCreation: unknown }
-        ).recordContentProjectCreation = original;
+        patched.recordContentProjectCreation = original;
       }
 
-      // Neither row survived, and no event was left behind either.
+      expect(sawTransactionClient).toBe(true);
+      expect(sawUncommittedProject).toBe(true);
+
+      // Nothing survived: not the project, not its draft, not an event.
       expect(
         await harness.prisma.contentProject.count({
           where: { organizationId },
@@ -1022,6 +1283,11 @@ describe('content projects', () => {
       expect(
         await harness.prisma.contentDraft.count({ where: { organizationId } }),
       ).toBe(draftsBefore);
+      expect(
+        await harness.prisma.organizationAuditEvent.count({
+          where: { organizationId, action: 'contentProject.created' },
+        }),
+      ).toBe(eventsBefore);
 
       // And the endpoint still works once the log is back.
       const recovered = await promote(owner, {
