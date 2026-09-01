@@ -436,3 +436,75 @@ describe('ToolGateway invocation budget', () => {
     expect(await spend()).toBe(await spend());
   });
 });
+
+/**
+ * Parsed, not merely validated.
+ *
+ * Every schema today is a `.strict()` object of primitives, so the parsed value
+ * and the raw one are identical and nothing distinguishes them. The promises
+ * are stronger than that — `ToolExecutionService` records "as the application
+ * parsed it, never as the caller sent it", and the gateway returns nothing it
+ * did not parse — and the first schema to gain a default, a transform, or a
+ * non-strict object would break both silently. These use such a schema.
+ */
+describe('ToolGateway uses the parsed value', () => {
+  const transforming = toolDefinition({
+    input: z
+      .object({
+        query: z.string().transform((value) => value.trim().toLowerCase()),
+        depth: z.number().default(3),
+      })
+      .strict(),
+    output: z
+      .object({
+        passages: z.array(z.string()),
+        note: z.string().default('n/a'),
+      })
+      .strict(),
+  });
+
+  it('records and executes the parsed input, not the raw one', async () => {
+    const seen: unknown[] = [];
+    const durable = executions();
+    const gateway = new ToolGateway(
+      new ToolRegistry([transforming]),
+      durable as never,
+      [
+        {
+          ref: REF,
+          execute: (input) => {
+            seen.push(input);
+            return Promise.resolve({ passages: [] });
+          },
+        },
+      ],
+    );
+    const [tool] = authorizeOne(gateway);
+
+    await tool.execute({ query: '  REFUNDS  ' });
+
+    const parsed = { query: 'refunds', depth: 3 };
+    expect(seen).toEqual([parsed]);
+    expect(durable.start).toHaveBeenCalledWith(
+      expect.objectContaining({ input: parsed }),
+    );
+  });
+
+  it('returns and records the parsed output, not the raw one', async () => {
+    const durable = executions();
+    const gateway = new ToolGateway(
+      new ToolRegistry([transforming]),
+      durable as never,
+      [{ ref: REF, execute: () => Promise.resolve({ passages: ['a'] }) }],
+    );
+    const [tool] = authorizeOne(gateway);
+
+    const parsed = { passages: ['a'], note: 'n/a' };
+    await expect(tool.execute({ query: 'refunds' })).resolves.toEqual(parsed);
+    expect(durable.succeed).toHaveBeenCalledWith(
+      'execution-1',
+      'org_1',
+      parsed,
+    );
+  });
+});

@@ -368,7 +368,7 @@ function sortValue(value: AgentValue): AgentValue {
  * these closures existed, and reading it back out of the framework would make
  * the framework a participant in an authorization decision it is not part of.
  */
-function toMastraTools(
+export function toMastraTools(
   tools: readonly AgentRuntimeTool[],
 ): Record<string, ReturnType<typeof createTool>> {
   const record: Record<string, ReturnType<typeof createTool>> = {};

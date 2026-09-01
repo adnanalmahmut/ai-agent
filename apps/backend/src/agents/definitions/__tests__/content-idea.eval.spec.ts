@@ -205,8 +205,15 @@ const buildHarness = (): Harness => {
     runtimes,
     assembler,
     { pinnedVersionFor: () => Promise.resolve(null) } as never,
-    // content-idea grants no tools, and this eval exists to prove that its
-    // behavior is unchanged by their introduction.
+    /**
+     * Stubbed empty, which is what content-idea's grants actually are.
+     *
+     * This makes the eval a statement about the runner — that a tool-free run
+     * behaves exactly as it did before tools existed. It is not the proof that
+     * content-idea grants nothing; that is
+     * `agent-definition-tool-grants.spec.ts`, which asserts it of every
+     * production definition.
+     */
     { authorize: () => [] } as never,
   );
 

@@ -11,7 +11,11 @@ import { z } from 'zod';
 
 import { Agent } from '@mastra/core/agent';
 
-import { containMastraAgent, MastraRuntime } from '../mastra.runtime';
+import {
+  containMastraAgent,
+  MastraRuntime,
+  toMastraTools,
+} from '../mastra.runtime';
 
 import {
   AGENT_RUNTIME_NAMES,
@@ -321,5 +325,85 @@ describe('Mastra provider-material containment', () => {
       expect(serialized).not.toContain(canary);
     }
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The adapter's tool record, accepted by the real SDK.
+ *
+ * What this proves and what it does not, stated precisely, because the
+ * distinction is easy to overclaim. `Agent.listTools()` resolves the *assigned*
+ * tools — `this.tools` — and applies neither `convertTools`' nine-source merge
+ * nor `formatTools`' key sanitiser. Both of those run later, inside a
+ * generation, and no public surface exposes their result without a provider
+ * call. So the merged set is asserted from the constructor arguments in
+ * `mastra.runtime.spec.ts`, and cannot be asserted here.
+ *
+ * What this does prove is not available in that sibling suite, which mocks
+ * `@mastra/core/agent` wholesale: that `toMastraTools` produces a record the
+ * real `Agent` accepts, and that the real SDK reports back exactly the audited
+ * names it was given. A version bump that changed the accepted tool shape would
+ * fail here and nowhere else.
+ */
+describe('the tool record the real SDK accepts', () => {
+  const toolFor = (name: string) => ({
+    name,
+    description: 'Search knowledge.',
+    input: z.object({ query: z.string() }).strict(),
+    output: z.object({ passages: z.array(z.string()) }).strict(),
+    execute: () => Promise.resolve({ passages: [] }),
+  });
+
+  const agentWith = (tools: Record<string, unknown>) =>
+    new Agent({
+      id: 'containment-agent',
+      name: 'containment-agent',
+      instructions: 'Answer.',
+      model: { id: 'gpt-4o-mini', apiKey: 'not-a-real-key' } as never,
+      tools: tools as never,
+    });
+
+  it('assigns exactly the authorized tools, under their audited names', async () => {
+    const agent = agentWith(toMastraTools([toolFor('knowledge_search_v1')]));
+
+    await expect(
+      agent.listTools().then((listed) => Object.keys(listed).sort()),
+    ).resolves.toEqual(['knowledge_search_v1']);
+  });
+
+  it('assigns nothing at all when the run was granted nothing', async () => {
+    const agent = agentWith(toMastraTools([]));
+
+    await expect(agent.listTools().then(Object.keys)).resolves.toEqual([]);
+  });
+
+  /**
+   * The real tool wrapper invokes the application closure with the model's
+   * arguments and nothing else.
+   *
+   * `createTool` is not mocked in either suite, but only here is the resulting
+   * `Tool` reached through an `Agent` the SDK actually built.
+   */
+  it('invokes the application closure through the real tool wrapper', async () => {
+    const calls: unknown[] = [];
+    const tool = {
+      ...toolFor('knowledge_search_v1'),
+      execute: (input: unknown) => {
+        calls.push(input);
+        return Promise.resolve({ passages: [] });
+      },
+    };
+    const agent = agentWith(toMastraTools([tool]));
+    const listed = (await agent.listTools()) as unknown as Record<
+      string,
+      { execute: (input: unknown, context: unknown) => Promise<unknown> }
+    >;
+
+    await listed.knowledge_search_v1?.execute(
+      { query: 'refunds' },
+      { requestContext: { orgId: 'org_2' } },
+    );
+
+    expect(calls).toEqual([{ query: 'refunds' }]);
   });
 });

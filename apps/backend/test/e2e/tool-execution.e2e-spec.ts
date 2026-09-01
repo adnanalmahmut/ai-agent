@@ -228,7 +228,7 @@ describe('governed tool execution', () => {
       });
     });
 
-    it('refuses an unknown tool at the request boundary', async () => {
+    it('refuses an unknown tool in grant selection', async () => {
       const other = await createOrganization(owner, 'tools-unknown');
 
       await expect(
@@ -527,7 +527,13 @@ describe('governed tool execution', () => {
               run.id,
             ],
           ),
-        ).rejects.toMatchObject({ code: '23503' });
+          // The constraint, not just the SQLSTATE. A 23503 from the plain
+          // organization foreign key would satisfy `code` alone and would
+          // prove nothing about the composite this test exists for.
+        ).rejects.toMatchObject({
+          code: '23503',
+          constraint: 'tool_execution_agentRunId_organizationId_fkey',
+        });
       } finally {
         await client.end();
       }
@@ -566,6 +572,221 @@ describe('governed tool execution', () => {
       } finally {
         await client.end();
       }
+    });
+  });
+
+  describe('durable detail', () => {
+    /**
+     * A retried run performs its tools again, and two executions of one tool
+     * for one run are distinguishable only by this number.
+     */
+    it('records the run attempt it actually executed under', async () => {
+      const other = await createOrganization(owner, 'tools-attempt');
+      const installed = await install(other, owner.id, [REF]);
+      const run = await acceptedRun({
+        organizationId: other,
+        organizationAgentVersionId: installed.activeVersionId,
+      });
+
+      await runnerWith([]).run({
+        id: run.id,
+        agentId: TOOL_AGENT_ID,
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: other,
+        organizationAgentVersionId: installed.activeVersionId,
+        modelPolicyId: null,
+        modelId: null,
+        modelPricingRevisionId: null,
+        attemptCount: 3,
+        input: { question: 'tone' },
+        createdAt: new Date(),
+      });
+
+      const [execution] = await executionsFor(run.id);
+
+      expect(execution?.agentRunAttempt).toBe(3);
+    });
+
+    it('records output_rejected against the real database', async () => {
+      const other = await createOrganization(owner, 'tools-output-rejected');
+      const installed = await install(other, owner.id, [REF]);
+      const run = await acceptedRun({
+        organizationId: other,
+        organizationAgentVersionId: installed.activeVersionId,
+      });
+
+      implementation = () => Promise.resolve({ passages: 'not-an-array' });
+
+      await expect(
+        runnerWith([]).run({
+          id: run.id,
+          agentId: TOOL_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          organizationId: other,
+          organizationAgentVersionId: installed.activeVersionId,
+          modelPolicyId: null,
+          modelId: null,
+          modelPricingRevisionId: null,
+          attemptCount: 1,
+          input: { question: 'tone' },
+          createdAt: new Date(),
+        }),
+      ).rejects.toBeDefined();
+
+      const [execution] = await executionsFor(run.id);
+
+      expect(execution).toMatchObject({
+        status: 'FAILED',
+        failureCode: 'output_rejected',
+        output: null,
+      });
+    });
+
+    /** The tenant predicate on the update side, at row level. */
+    it('will not complete an execution for another organization', async () => {
+      const other = await createOrganization(owner, 'tools-update-scope');
+      const installed = await install(other, owner.id, [REF]);
+      const run = await acceptedRun({
+        organizationId: other,
+        organizationAgentVersionId: installed.activeVersionId,
+      });
+
+      const id = await durable.start({
+        organizationId: other,
+        agentRunId: run.id,
+        agentRunAttempt: 1,
+        toolId: 'knowledge.search',
+        toolVersion: 1,
+        input: { query: 'tone' },
+      });
+
+      await durable.succeed(id, otherOrganizationId, { passages: [] });
+
+      const row = await harness.prisma.toolExecution.findUniqueOrThrow({
+        where: { id },
+      });
+
+      expect(row.status).toBe('STARTED');
+      expect(row.completedAt).toBeNull();
+    });
+  });
+
+  describe('two durable facts that disagree', () => {
+    /**
+     * Only reachable by a direct write or an in-place definition edit, which is
+     * exactly why the application-level tests cannot reach it. A stored grant
+     * outside the pinned definition's maximum is refused rather than
+     * intersected away, and deterministically so.
+     */
+    it('refuses a run whose stored grant exceeds its definition maximum', async () => {
+      const other = await createOrganization(owner, 'tools-disagree');
+      // Installed against v2, which permits no tools, then granted behind the
+      // service's back.
+      const installed = await install(other, owner.id, [], 2);
+      await harness.prisma.organizationAgentVersion.update({
+        where: { id: installed.activeVersionId },
+        data: { toolGrants: [REF] },
+      });
+      const run = await acceptedRun({
+        organizationId: other,
+        organizationAgentVersionId: installed.activeVersionId,
+        agentVersion: 2,
+      });
+
+      await expect(
+        runnerWith([]).run({
+          id: run.id,
+          agentId: TOOL_AGENT_ID,
+          agentVersion: 2,
+          runtime: 'mastra',
+          organizationId: other,
+          organizationAgentVersionId: installed.activeVersionId,
+          modelPolicyId: null,
+          modelId: null,
+          modelPricingRevisionId: null,
+          attemptCount: 1,
+          input: { question: 'tone' },
+          createdAt: new Date(),
+        }),
+      ).rejects.toThrow('outside its definition maximum');
+
+      expect(await executionsFor(run.id)).toEqual([]);
+    });
+
+    it('refuses a duplicated grant at selection', async () => {
+      const other = await createOrganization(owner, 'tools-duplicate');
+
+      await expect(
+        installations.create(
+          other,
+          {
+            agentId: TOOL_AGENT_ID,
+            definitionVersion: 1,
+            enabled: true,
+            toolGrants: [REF, REF] as never,
+          },
+          owner.id,
+        ),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    });
+
+    /**
+     * The migration's rollback argument, as a test rather than as a comment:
+     * a row written by an image that does not know the column exists means
+     * what an empty grant list means.
+     */
+    it('treats a version written without the column as granting nothing', async () => {
+      const other = await createOrganization(owner, 'tools-legacy-row');
+      const installed = await install(other, owner.id, [REF]);
+
+      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      await client.connect();
+      const legacyId = `legacy-${Date.now()}`;
+
+      try {
+        await client.query(
+          `INSERT INTO "organization_agent_version"
+             ("id","organizationId","installationId","revision",
+              "definitionVersion","enabled","configuration","createdAt")
+           VALUES ($1,$2,$3,99,1,true,'{}',NOW())`,
+          [legacyId, other, installed.id],
+        );
+      } finally {
+        await client.end();
+      }
+
+      const stored =
+        await harness.prisma.organizationAgentVersion.findUniqueOrThrow({
+          where: { id: legacyId },
+          select: { toolGrants: true },
+        });
+
+      expect(stored.toolGrants).toEqual([]);
+
+      const run = await acceptedRun({
+        organizationId: other,
+        organizationAgentVersionId: legacyId,
+      });
+      const calls: AgentRuntimeTool[][] = [];
+
+      await runnerWith(calls).run({
+        id: run.id,
+        agentId: TOOL_AGENT_ID,
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: other,
+        organizationAgentVersionId: legacyId,
+        modelPolicyId: null,
+        modelId: null,
+        modelPricingRevisionId: null,
+        attemptCount: 1,
+        input: { question: 'tone' },
+        createdAt: new Date(),
+      });
+
+      expect(calls[0]).toEqual([]);
     });
   });
 });
