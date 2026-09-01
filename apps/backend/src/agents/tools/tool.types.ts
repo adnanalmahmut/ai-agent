@@ -21,7 +21,8 @@ export type ToolRef = (typeof TOOL_REFS)[number];
 
 export function isToolRef(value: unknown): value is ToolRef {
   return (
-    typeof value === 'string' && (TOOL_REFS as readonly string[]).includes(value)
+    typeof value === 'string' &&
+    (TOOL_REFS as readonly string[]).includes(value)
   );
 }
 
@@ -84,7 +85,6 @@ export type ToolDefinition = {
   output: ZodType;
   risk: ToolRisk;
 };
-
 
 /**
  * What an implementation is allowed to know about who is calling it.

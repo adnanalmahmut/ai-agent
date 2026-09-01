@@ -62,7 +62,9 @@ export class ToolGateway {
       const { ref } = implementation;
 
       if (!isToolRef(ref) || !this.registry.has(ref)) {
-        throw new Error(`Tool implementation "${String(ref)}" is not registered`);
+        throw new Error(
+          `Tool implementation "${String(ref)}" is not registered`,
+        );
       }
       if (indexed.has(ref)) {
         throw new Error(`Duplicate tool implementation "${ref}"`);
@@ -135,7 +137,10 @@ export class ToolGateway {
   }
 
   /** One authorized tool, as the smallest thing a runtime can be given. */
-  private expose(ref: ToolRef, context: ToolInvocationContext): AgentRuntimeTool {
+  private expose(
+    ref: ToolRef,
+    context: ToolInvocationContext,
+  ): AgentRuntimeTool {
     const definition = this.registry.resolve(ref);
 
     /**
@@ -160,7 +165,8 @@ export class ToolGateway {
       description: definition.description,
       input: definition.input,
       output: definition.output,
-      execute: (input: AgentValue) => this.execute(ref, definition, context, input),
+      execute: (input: AgentValue) =>
+        this.execute(ref, definition, context, input),
     };
   }
 

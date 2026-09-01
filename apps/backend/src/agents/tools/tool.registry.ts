@@ -25,7 +25,9 @@ export const TOOL_DEFINITIONS = Symbol('TOOL_DEFINITIONS');
 export class ToolRegistry {
   private readonly byRef: ReadonlyMap<ToolRef, ToolDefinition>;
 
-  constructor(@Inject(TOOL_DEFINITIONS) definitions: readonly ToolDefinition[]) {
+  constructor(
+    @Inject(TOOL_DEFINITIONS) definitions: readonly ToolDefinition[],
+  ) {
     const indexed = new Map<ToolRef, ToolDefinition>();
     const runtimeNames = new Set<string>();
 
@@ -108,7 +110,9 @@ function validate(definition: ToolDefinition): void {
     definition.description.trim().length === 0 ||
     definition.description.length > 500
   ) {
-    throw new Error(`Tool "${toolRef(id, version)}" has an invalid description`);
+    throw new Error(
+      `Tool "${toolRef(id, version)}" has an invalid description`,
+    );
   }
 
   /**

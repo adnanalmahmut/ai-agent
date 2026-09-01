@@ -36,9 +36,9 @@ import type { ToolImplementation } from './tool.types';
        * composition rather than on whichever run first calls it.
        */
       provide: TOOL_IMPLEMENTATIONS,
-      useFactory: (knowledgeSearch: KnowledgeSearchTool): ToolImplementation[] => [
-        knowledgeSearch,
-      ],
+      useFactory: (
+        knowledgeSearch: KnowledgeSearchTool,
+      ): ToolImplementation[] => [knowledgeSearch],
       inject: [KnowledgeSearchTool],
     },
     ToolGateway,

@@ -82,7 +82,7 @@ describe('MastraRuntime', () => {
         configuration: {},
         input: { z: 1, nested: { z: 3, a: 2 }, a: true },
         context: [],
-      tools: [],
+        tools: [],
       }),
     ).resolves.toEqual({ output: { answer: 'runtime output' } });
 
@@ -162,7 +162,7 @@ describe('MastraRuntime', () => {
         configuration: {},
         input: 'hello',
         context: [],
-      tools: [],
+        tools: [],
       }),
     ).rejects.toThrow('must be a stable application catalog identity');
 
@@ -183,7 +183,7 @@ describe('MastraRuntime', () => {
         configuration: {},
         input: 'hello',
         context: [],
-      tools: [],
+        tools: [],
       }),
     ).rejects.toThrow('is not registered for application agent execution');
   });
@@ -211,7 +211,7 @@ describe('MastraRuntime', () => {
         configuration: {},
         input: 'hello',
         context: [],
-      tools: [],
+        tools: [],
       });
 
       await expect(refusal).rejects.toMatchObject({
@@ -247,7 +247,7 @@ describe('MastraRuntime', () => {
           configuration: {},
           input: 'hello',
           context: [],
-      tools: [],
+          tools: [],
         }),
       ).rejects.toMatchObject({ code: 'SECRET_NOT_CONFIGURED' });
     });
@@ -386,5 +386,151 @@ describe('MastraRuntime', () => {
       }),
     ).not.toThrow();
     expect(injected.error('x', { responseBody: 'y' })).toBeUndefined();
+  });
+});
+
+/**
+ * What the adapter is allowed to hand the SDK, and what it must never invent.
+ */
+describe('MastraRuntime tool boundary', () => {
+  const toolOf = (overrides: Record<string, unknown> = {}) => ({
+    name: 'knowledge_search_v1',
+    description: 'Search knowledge.',
+    input: z.object({ query: z.string() }).strict(),
+    output: z.object({ passages: z.array(z.string()) }).strict(),
+    execute: jest.fn<(input: unknown) => Promise<unknown>>(() =>
+      Promise.resolve({ passages: [] }),
+    ),
+    ...overrides,
+  });
+
+  const runWith = async (tools: unknown[]) => {
+    generate.mockResolvedValue({ object: { answer: 'ok' } });
+    const runtime = new MastraRuntime(runtimeConfig());
+
+    await runtime.run({
+      definition: definitionOf(),
+      model: MODEL_IDS.openAiGpt4oMini,
+      configuration: {},
+      input: 'hello',
+      context: [],
+      tools: tools as never,
+    });
+
+    return Agent.mock.calls[0]?.[0] as unknown as Record<string, unknown>;
+  };
+
+  it('offers exactly the authorized tools, keyed by their audited name', async () => {
+    const config = await runWith([toolOf()]);
+    const tools = config.tools as Record<string, { id: string }>;
+
+    expect(Object.keys(tools)).toEqual(['knowledge_search_v1']);
+    expect(tools.knowledge_search_v1?.id).toBe('knowledge_search_v1');
+  });
+
+  it('offers no tools when the run was granted none', async () => {
+    const config = await runWith([]);
+
+    expect(config.tools).toEqual({});
+  });
+
+  /**
+   * `Agent.convertTools` merges nine sources and spreads assigned tools first,
+   * so any of the others can shadow one of ours. None may be configured.
+   */
+  it('configures nothing else that could contribute a tool', async () => {
+    const config = await runWith([toolOf()]);
+
+    for (const key of [
+      'agents',
+      'memory',
+      'toolsets',
+      'clientTools',
+      'workflows',
+      'workspace',
+      'skills',
+      'browser',
+      'defaultOptions',
+    ]) {
+      expect(config[key]).toBeUndefined();
+    }
+  });
+
+  /**
+   * The SDK would rewrite such a name rather than reject it, so the model
+   * would be offered something nobody reviewed.
+   */
+  it('refuses a name the runtime would rewrite', async () => {
+    generate.mockResolvedValue({ object: { answer: 'ok' } });
+    const runtime = new MastraRuntime(runtimeConfig());
+
+    await expect(
+      runtime.run({
+        definition: definitionOf(),
+        model: MODEL_IDS.openAiGpt4oMini,
+        configuration: {},
+        input: 'hello',
+        context: [],
+        tools: [toolOf({ name: 'knowledge.search@1' })] as never,
+      }),
+    ).rejects.toThrow('would be rewritten by the runtime');
+  });
+
+  it('refuses two tools offered under one name', async () => {
+    generate.mockResolvedValue({ object: { answer: 'ok' } });
+    const runtime = new MastraRuntime(runtimeConfig());
+
+    await expect(
+      runtime.run({
+        definition: definitionOf(),
+        model: MODEL_IDS.openAiGpt4oMini,
+        configuration: {},
+        input: 'hello',
+        context: [],
+        tools: [toolOf(), toolOf()] as never,
+      }),
+    ).rejects.toThrow('Duplicate tool name');
+  });
+
+  /**
+   * The SDK's own ceiling is `stepCountIs(5)`, a runtime literal declared in no
+   * type. Depending on it would mean depending on a number that can change in a
+   * patch release, and the failure mode is silent truncation of the run.
+   */
+  it('bounds the tool-call loop explicitly on every generation', async () => {
+    await runWith([toolOf()]);
+
+    const options = generate.mock.calls[0]?.[1] as { maxSteps?: number };
+
+    expect(typeof options.maxSteps).toBe('number');
+    expect(options.maxSteps).toBeGreaterThan(0);
+    expect(options.maxSteps).toBeLessThanOrEqual(8);
+  });
+
+  it('keeps the application retry budget by disabling the SDK loop', async () => {
+    await runWith([toolOf()]);
+
+    const options = generate.mock.calls[0]?.[1] as {
+      modelSettings?: { maxRetries?: number };
+    };
+
+    expect(options.modelSettings?.maxRetries).toBe(0);
+  });
+
+  it('forwards the model arguments to the application closure unchanged', async () => {
+    const tool = toolOf();
+    const config = await runWith([tool]);
+    const tools = config.tools as Record<
+      string,
+      { execute: (input: unknown, context: unknown) => Promise<unknown> }
+    >;
+
+    await tools.knowledge_search_v1?.execute(
+      { query: 'refunds' },
+      { requestContext: { organizationId: 'org_2' }, agent: { agentId: 'x' } },
+    );
+
+    // One argument only: nothing the SDK knows about identity is read back out.
+    expect(tool.execute).toHaveBeenCalledWith({ query: 'refunds' });
   });
 });
