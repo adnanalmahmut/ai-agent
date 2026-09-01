@@ -18,6 +18,20 @@ the knowledge map. Source and executable configuration override prose.
 - Agent semantics: `.agents/`; `.claude/`, `.codex/`, and `.cursor/` are adapters
 - Reusable procedures: `.agents/skills/*/SKILL.md`
 
+## Program mode
+
+- The project is in bounded portfolio-completion mode. The current program
+  policy is [the portfolio finish line](docs/portfolio-finish-line.md); the
+  decision behind it is
+  [ADR 0002](docs/decisions/0002-portfolio-finish-line.md).
+- Before starting roadmap work, apply the test: does this prove a meaningful
+  engineering capability the repository does not already demonstrate? If not,
+  do not prioritize it.
+- An entry on an older roadmap is not authorization. Roadmap completion is not
+  a goal by itself.
+- FEATURE COMPLETE means feature development stops unless a new explicit human
+  decision changes the goal. Defect repair and documentation accuracy continue.
+
 ## Current deployment state
 
 - Staging is the only provisioned/deployed environment.
