@@ -44,15 +44,6 @@ export const ORGANIZATION_ROUTES = {
 } as const;
 
 /**
- * Public, but not an authentication route.
- *
- * The backend builds the invitation link as
- * `${APP_PLATFORM_URL}/<locale>/organizations/accept-invitation?id=<invitationId>`,
- * so this path and this query parameter are a contract with
- * `apps/backend/src/core/auth/auth-mail.ts` — they cannot be renamed on one
- * side alone.
- */
-/**
  * Routes below a tab, which are therefore not tabs.
  *
  * Kept out of `ORGANIZATION_ROUTES` deliberately. That object is the tab strip,
@@ -66,6 +57,15 @@ export const ORGANIZATION_DETAIL_ROUTES = {
     `${ORGANIZATION_ROUTES.contentProjects(id)}/${encodeURIComponent(projectId)}`,
 } as const;
 
+/**
+ * Public, but not an authentication route.
+ *
+ * The backend builds the invitation link as
+ * `${APP_PLATFORM_URL}/<locale>/organizations/accept-invitation?id=<invitationId>`,
+ * so this path and this query parameter are a contract with
+ * `apps/backend/src/core/auth/auth-mail.ts` — they cannot be renamed on one
+ * side alone.
+ */
 export const INVITATION_ROUTE = '/organizations/accept-invitation';
 export const INVITATION_ID_PARAM = 'id';
 

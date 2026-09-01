@@ -34,10 +34,15 @@
 //   invitation.organizationId -> Restrict
 //   agent_run.organizationId  -> Restrict
 //   agent_run.createdByUserId -> Restrict (nullable; only when a creator exists)
+//   content_project.organizationId  -> Restrict
+//   content_project.sourceRunId     -> Restrict (the snapshot's provenance)
+//   content_project.createdByUserId -> Restrict (nullable, as above)
+//   content_draft.organizationId    -> Restrict
+//   content_draft.createdByUserId   -> Restrict (nullable, as above)
 //
-// The six Restricts are deliberate. Membership, invitation, and agent-run rows
-// carry history, and hard deletion of a user or an organization is not an
-// operation this application offers. If a physical delete is ever attempted — by hand, by
+// These Restricts are deliberate. Membership, invitation, agent-run, and
+// content-project rows carry history, and hard deletion of a user or an
+// organization is not an operation this application offers. If a physical delete is ever attempted — by hand, by
 // a future migration, or by a Better Auth route we failed to disable — it must
 // fail loudly rather than quietly shredding organizational history.
 //
@@ -1055,7 +1060,9 @@ model ContentDraft {
   updatedAt DateTime @updatedAt
 
   @@unique([projectId, revision])
-  /// Target for tenant-safe child references.
+  /// Nothing references a draft yet. This exists for the revision-2 work that
+  /// will, so that reference can be tenant-safe from its first migration
+  /// rather than requiring a unique index added to a populated table.
   @@unique([id, organizationId])
   @@index([organizationId])
   @@index([projectId])

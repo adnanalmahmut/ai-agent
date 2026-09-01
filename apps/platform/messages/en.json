@@ -1023,7 +1023,9 @@
     "promote": {
       "action": "Start a project",
       "done": "Project created — open it",
-      "failed": "That idea could not be turned into a project."
+      "failed": "That idea could not be turned into a project.",
+      "forbidden": "You do not have permission to start projects for this organization.",
+      "unavailable": "The platform API could not be reached. Try again."
     }
   },
   "ContentProjects": {
@@ -1037,7 +1039,8 @@
     },
     "error": {
       "load": "The projects could not be loaded.",
-      "retry": "Try again"
+      "retry": "Try again",
+      "more": "The next page could not be loaded."
     },
     "format": {
       "carousel": "Carousel",

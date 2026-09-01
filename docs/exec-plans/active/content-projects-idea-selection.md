@@ -130,6 +130,22 @@ run it claims to come from.
 - 2026-09-01 — One permission statement (`contentProject`), split
   `create`/`read` on the same reasoning as `contentIdea`: creation is the action
   with durable consequence, reading is ordinary membership.
+- 2026-09-01 — Promotion is deliberately **not** gated on `agents.enabled` or a
+  new `content_projects.enabled` flag, though a review proposed one. Those
+  switches stop the platform spending money on a provider. Promoting spends
+  nothing: it reads a run the organization has already paid for and records a
+  decision about it. `ContentIdeaService.operation` already settles the
+  principle for reads — "turning content ideas off stops new requests; it does
+  not retract answers an organization already has" — and freezing a team's
+  ability to act on results in hand is the same retraction by another route.
+- 2026-09-01 — The promotion idempotency key is derived from
+  `(sourceRunId, ideaIndex)` and is therefore guessable by anyone who can read
+  the run, and is not scoped to the member. A review noted an organization
+  admin could pre-create a project and take attribution for a decision. Accepted:
+  a random key would break the double-click and reload deduplication the derived
+  key exists for, the actor already holds `contentProject:create`, and the prose
+  is server-derived so nothing can be forged. Both properties are pinned by
+  tests so changing either is deliberate.
 
 ## Progress
 
@@ -140,13 +156,52 @@ run it claims to come from.
 - [x] Focused backend unit and E2E coverage — 18 E2E cases green
 - [x] Platform selection, list, detail, ar/en localization — 13 cases green
 - [x] Documentation synchronized
-- [ ] Specialist reviews and remediation
-- [ ] Aggregate validation
+- [x] Specialist reviews and remediation
+- [x] Aggregate validation
 - [ ] PR opened, final-head CI green
 
 ## Blockers
 
 None.
+
+## Review outcomes
+
+Three specialist reviews ran against `ab551bc`. Findings remediated:
+
+- The response projection returned the stored `idempotencyKey`, which embeds the
+  caller's own header. Confirmed on the wire before fixing. Both reads and the
+  create now use explicit `select`, and an e2e case pins the whole field set.
+- The Platform promote button was gated on `contentIdea:create` rather than
+  `contentProject:create`, which silently defeated the split the new statement
+  exists for. The test written to cover it passed for the wrong reason; it now
+  discriminates.
+- Promote state was not scoped to the operation, so a second generation showed
+  the previous run's project on the card at the same index and hid the new
+  run's button.
+- A failed "load more" set a terminal error, and its retry restarted from page
+  one and discarded every accumulated page.
+- The detail route's comment claimed it was keyed on organization and project;
+  it was keyed on one. Now keyed on both.
+- `INVITATION_ROUTE` lost its contract comment to an insertion; restored.
+- The language fallback said "organization-wide default" and returned a literal;
+  it now imports `DEFAULT_LOCALE` and says so.
+- The replay lookup ran after the run was resolved, so a retry of an already
+  succeeded promotion would fail once a definition revision made the run
+  unreadable. It now wins first.
+- Query validation duplicated the page ceiling, making the service's own bound
+  unreachable. The controller validates shape; the service owns the ceiling.
+- Pure helpers moved to `content-project-pagination.ts`, matching
+  `knowledge-pagination.ts`, so the cursor decoder's six refusal branches and
+  the page-size bounds are unit-tested directly.
+- Promotion failures were flattened to one sentence; a refusal and an
+  unreachable server are now distinguished.
+
+Tests added for: the wrong-agent 404, the unreadable-output 409, the language
+fallback on both rows, actor attribution, the concurrent P2002 path,
+organization-scoped and member-shared idempotency, the project-without-draft
+invariant, cursor drain to exhaustion over a shared timestamp, newest-first
+ordering, the `ContentProjects` i18n namespace enumeration, and Arabic renders
+of both new screens.
 
 ## Verified evidence
 
@@ -159,8 +214,10 @@ None.
   suite: a project naming another organization's run, a draft filed under
   another organization's project, a duplicate revision within one project, and a
   replayed idempotency key. The two legitimate control inserts succeed.
-- `pnpm --filter backend test` 1264 passed; `pnpm --filter platform test` 834
-  passed; backend E2E 18 passed for this feature.
+- `pnpm --filter backend test` 1294 passed; `pnpm --filter platform test` 847
+  passed; `apps/web` 26 passed; backend E2E 30 passed for this feature.
+- `pnpm agents:check`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, and
+  `ops/tests/documentation.sh` all green without `--fix` in verification.
 - Full backend E2E: 627 of 631 passed. The 4 failures are in
   `agent-run-reconciliation.e2e-spec.ts`, a BullMQ stalled-job timing suite, and
   reproduce identically on unmodified `main` in the same environment.

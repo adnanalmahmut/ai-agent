@@ -39,6 +39,16 @@ export function OrganizationContentProjectsBlock() {
   const [state, setState] = useState<LoadState>('loading');
   const [isAppending, setIsAppending] = useState(false);
   /**
+   * Kept apart from `state`.
+   *
+   * A page that failed to append is not a list that failed to load: the rows
+   * already on screen are still correct. Folding the two together would either
+   * replace a good list with an error card, or — worse — offer a "try again"
+   * that restarts from page one and silently drops everything already
+   * accumulated.
+   */
+  const [appendFailed, setAppendFailed] = useState(false);
+  /**
    * Bumped to ask for the first page again.
    *
    * A retry has to re-run the effect rather than call its body, because the
@@ -82,6 +92,7 @@ export function OrganizationContentProjectsBlock() {
     if (cursor === null) return;
 
     setIsAppending(true);
+    setAppendFailed(false);
 
     try {
       const page = await listContentProjects(organizationId, {
@@ -92,7 +103,7 @@ export function OrganizationContentProjectsBlock() {
       setItems((previous) => [...previous, ...page.items]);
       setCursor(page.nextCursor);
     } catch {
-      setState('error');
+      setAppendFailed(true);
     } finally {
       setIsAppending(false);
     }
@@ -176,9 +187,15 @@ export function OrganizationContentProjectsBlock() {
       ) : null}
 
       {cursor !== null && !isLoading ? (
-        <Button size="sm" variant="outline" onClick={() => void loadMore()}>
-          {t('loadMore')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => void loadMore()}>
+            {appendFailed ? t('error.retry') : t('loadMore')}
+          </Button>
+
+          {appendFailed ? (
+            <span className="text-sm text-destructive">{t('error.more')}</span>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

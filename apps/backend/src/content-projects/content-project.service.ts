@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
+import { DEFAULT_LOCALE } from '@repo/i18n-core';
+
 import {
   AgentRunService,
   CONTENT_IDEA_AGENT_ID,
@@ -12,6 +14,12 @@ import {
   type ContentIdeaLanguage,
 } from '../agents';
 import { PrismaService } from '../database';
+import {
+  beforePosition,
+  encodeCursor,
+  decodeCursor,
+  pageSize,
+} from './content-project-pagination';
 import { AppException } from '../core/errors';
 import { Prisma } from '../generated/prisma/client';
 
@@ -72,9 +80,6 @@ export type ContentProjectDetail = ContentProjectView & {
   drafts: ContentDraftView[];
 };
 
-export const CONTENT_PROJECT_PAGE_SIZE = 25;
-export const MAX_CONTENT_PROJECT_PAGE_SIZE = 100;
-
 /**
  * Content projects: the first thing this product lets an organization *decide*.
  *
@@ -84,11 +89,15 @@ export const MAX_CONTENT_PROJECT_PAGE_SIZE = 100;
  *
  * The service owns three things the database cannot: which runs are eligible to
  * select from, that the stored prose is the agent's rather than the caller's,
- * and that a retried request finds its own project. Tenant isolation is
- * deliberately *not* in that list. It is a foreign key on the pair
- * `(sourceRunId, organizationId)`, so a cross-organization selection is refused
- * by PostgreSQL whether or not the check below runs. The check exists to return
- * a clean 404 instead of a constraint violation, not to be the boundary.
+ * and that a retried request finds its own project.
+ *
+ * For *selection* specifically, tenant isolation is deliberately not among
+ * them: it is a foreign key on the pair `(sourceRunId, organizationId)`, so a
+ * cross-organization selection is refused by PostgreSQL whether or not the
+ * check below runs, and the check exists to return a clean 404 rather than a
+ * constraint violation. That is a claim about selection only. On the read
+ * paths the `organizationId` predicate is the whole boundary, with no
+ * constraint standing behind it.
  */
 @Injectable()
 export class ContentProjectService {
@@ -114,11 +123,6 @@ export class ContentProjectService {
       });
     }
 
-    const selection = await this.resolveSelection({
-      organizationId: input.organizationId,
-      request: parsed.data,
-    });
-
     const storedKey = projectKey(input.idempotencyKey, parsed.data);
 
     try {
@@ -137,10 +141,27 @@ export class ContentProjectService {
               idempotencyKey: storedKey,
             },
           },
-          include: DRAFTS_INCLUDE,
+          select: PROJECT_DETAIL_SELECT,
         });
 
         if (existing) return toDetail(existing);
+
+        /**
+         * Resolved after the replay check, not before it.
+         *
+         * A project that already exists must be returnable without consulting
+         * the run again. Resolving first would make an honest retry depend on
+         * the run still being *selectable* — and the one scenario
+         * `resolveSelection` exists to refuse, a definition revision whose
+         * output this version cannot read, would then turn every retry of an
+         * already-succeeded promotion into a conflict. The snapshot is copied
+         * precisely so the project outlives that; reading the run before
+         * checking for the project would give the copy away.
+         */
+        const selection = await this.resolveSelection({
+          organizationId: input.organizationId,
+          request: parsed.data,
+        });
 
         const created = await tx.contentProject.create({
           data: {
@@ -188,7 +209,7 @@ export class ContentProjectService {
               },
             },
           },
-          include: DRAFTS_INCLUDE,
+          select: PROJECT_DETAIL_SELECT,
         });
 
         return toDetail(created);
@@ -203,7 +224,7 @@ export class ContentProjectService {
             idempotencyKey: storedKey,
           },
         },
-        include: DRAFTS_INCLUDE,
+        select: PROJECT_DETAIL_SELECT,
       });
 
       /**
@@ -242,6 +263,7 @@ export class ContentProjectService {
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: take + 1,
+      select: PROJECT_SELECT,
     });
 
     const items = rows.slice(0, take).map(toView);
@@ -262,7 +284,7 @@ export class ContentProjectService {
   }): Promise<ContentProjectDetail> {
     const project = await this.prisma.contentProject.findFirst({
       where: { id: input.projectId, organizationId: input.organizationId },
-      include: DRAFTS_INCLUDE,
+      select: PROJECT_DETAIL_SELECT,
     });
 
     // Also the answer for a project belonging to another organization: that it
@@ -349,9 +371,49 @@ export class ContentProjectService {
   }
 }
 
-const DRAFTS_INCLUDE = {
-  drafts: { orderBy: { revision: 'asc' } },
-} satisfies Prisma.ContentProjectInclude;
+/**
+ * Enumerated rather than spread.
+ *
+ * `idempotencyKey` is a stored column and is deliberately absent: it embeds the
+ * caller's own `Idempotency-Key` header, which belongs to whoever sent it and
+ * to nobody else in the organization. A `findMany` with no projection returns
+ * every scalar, and `toView` spreads what it is handed — so with a structural
+ * parameter type the compiler cannot see the difference between the row it
+ * declares and the row it gets. Naming the columns here is what keeps the wire
+ * shape equal to `ContentProjectView` instead of merely assignable to it, and
+ * it is what the audit reader already does for the same reason.
+ */
+const PROJECT_SELECT = {
+  id: true,
+  organizationId: true,
+  sourceRunId: true,
+  sourceIdeaIndex: true,
+  title: true,
+  hook: true,
+  angle: true,
+  summary: true,
+  suggestedFormat: true,
+  language: true,
+  createdByUserId: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.ContentProjectSelect;
+
+const PROJECT_DETAIL_SELECT = {
+  ...PROJECT_SELECT,
+  drafts: {
+    orderBy: { revision: 'asc' },
+    select: {
+      id: true,
+      revision: true,
+      title: true,
+      format: true,
+      language: true,
+      body: true,
+      createdAt: true,
+    },
+  },
+} satisfies Prisma.ContentProjectSelect;
 
 /**
  * The language the content is being planned in, taken from the request that
@@ -362,16 +424,20 @@ const DRAFTS_INCLUDE = {
  * because `AgentRun.input` is a JSON column and the compiler cannot know a
  * pre-existing row still satisfies today's schema.
  *
- * A run whose input no longer parses falls back to the organization-wide
- * default rather than refusing. The language is a property of the draft target
- * and can be corrected; the idea itself is still perfectly selectable, and
- * throwing here would make a historical run permanently unusable over a field
- * that is not load-bearing.
+ * A run whose input no longer parses falls back to the product default rather
+ * than refusing — not to the organization's own locale, which is the language
+ * its members read menus in and says nothing about what they are writing. The
+ * language is a property of the draft target and can be corrected; the idea
+ * itself is still perfectly selectable, and throwing here would make a
+ * historical run permanently unusable over a field that is not load-bearing.
+ *
+ * Imported rather than written as a literal, so it cannot drift from the
+ * default the rest of the application uses.
  */
-function contentLanguage(run: AgentRun): ContentIdeaLanguage {
+export function contentLanguage(run: AgentRun): ContentIdeaLanguage {
   const input = contentIdeaInput.safeParse(run.input);
 
-  return input.success ? input.data.language : 'ar';
+  return input.success ? input.data.language : DEFAULT_LOCALE;
 }
 
 /**
@@ -383,7 +449,7 @@ function contentLanguage(run: AgentRun): ContentIdeaLanguage {
  * different keys, so reuse gets the project it asked for rather than a
  * previous answer.
  */
-function projectKey(
+export function projectKey(
   callerKey: string,
   request: ContentProjectFromIdeaInput,
 ): string {
@@ -396,7 +462,7 @@ function projectKey(
 }
 
 type ProjectRow = Prisma.ContentProjectGetPayload<{
-  include: typeof DRAFTS_INCLUDE;
+  select: typeof PROJECT_DETAIL_SELECT;
 }>;
 
 function toView(row: {
@@ -434,77 +500,6 @@ function toDetail(row: ProjectRow): ContentProjectDetail {
       createdAt: draft.createdAt,
     })),
   };
-}
-
-type ProjectCursor = { createdAt: Date; id: string };
-
-function pageSize(requested: number | undefined): number {
-  if (requested === undefined) return CONTENT_PROJECT_PAGE_SIZE;
-
-  if (
-    !Number.isInteger(requested) ||
-    requested < 1 ||
-    requested > MAX_CONTENT_PROJECT_PAGE_SIZE
-  ) {
-    throw new AppException('VALIDATION_ERROR', {
-      context: { resource: 'contentProject', reason: 'limit' },
-      publicDetails: {
-        reason: `A page holds between 1 and ${MAX_CONTENT_PROJECT_PAGE_SIZE} projects.`,
-      },
-    });
-  }
-
-  return requested;
-}
-
-function beforePosition(after: ProjectCursor) {
-  return {
-    OR: [
-      { createdAt: { lt: after.createdAt } },
-      { createdAt: after.createdAt, id: { lt: after.id } },
-    ],
-  };
-}
-
-function encodeCursor(cursor: ProjectCursor): string {
-  return Buffer.from(
-    JSON.stringify({ at: cursor.createdAt.toISOString(), id: cursor.id }),
-    'utf8',
-  ).toString('base64url');
-}
-
-function decodeCursor(value: string): ProjectCursor {
-  const invalid = () =>
-    new AppException('VALIDATION_ERROR', {
-      context: { resource: 'contentProject', reason: 'cursor' },
-      publicDetails: { reason: 'The page cursor is not readable.' },
-    });
-
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
-  } catch {
-    throw invalid();
-  }
-
-  if (typeof parsed !== 'object' || parsed === null) throw invalid();
-
-  const { at, id } = parsed as Record<string, unknown>;
-
-  if (
-    typeof at !== 'string' ||
-    typeof id !== 'string' ||
-    id.length === 0 ||
-    id.length > 120
-  ) {
-    throw invalid();
-  }
-
-  const createdAt = new Date(at);
-  if (Number.isNaN(createdAt.getTime())) throw invalid();
-
-  return { createdAt, id };
 }
 
 function isUniqueConstraintViolation(error: unknown): boolean {

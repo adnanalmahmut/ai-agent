@@ -1,4 +1,4 @@
-import { useLoaderData } from 'react-router';
+import { useLoaderData, useParams } from 'react-router';
 
 import { CreateOrganizationBlock } from '@/features/organization/blocks/create-organization-block';
 import { OrganizationInvitationsBlock } from '@/features/organization/blocks/organization-invitations-block';
@@ -104,8 +104,13 @@ export function OrganizationContentProjectsRoute() {
  */
 export function OrganizationContentProjectRoute() {
   const { organization } = useOrganizationContext();
+  const { projectId } = useParams<{ projectId: string }>();
 
-  return <OrganizationContentProjectBlock key={organization.id} />;
+  return (
+    <OrganizationContentProjectBlock
+      key={`${organization.id}:${projectId ?? ''}`}
+    />
+  );
 }
 
 export function OrganizationSettingsRoute() {

@@ -135,6 +135,19 @@ describe('organization content project block', () => {
     ).toBeInTheDocument();
   });
 
+  it('renders in Arabic without falling back to the default locale', async () => {
+    getContentProject.mockResolvedValue(detail());
+
+    renderInOrganization(
+      <OrganizationContentProjectBlock />,
+      context({ organization: organization() }),
+      { locale: 'ar' },
+    );
+
+    expect(await screen.findByText('الفكرة')).toBeInTheDocument();
+    expect(screen.getByText(/لم يُكتب شيء بعد/)).toBeInTheDocument();
+  });
+
   /**
    * A project belonging to another organization answers 404, and this screen
    * shows the same thing it shows for one that never existed. Anything else

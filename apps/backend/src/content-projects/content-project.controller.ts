@@ -8,7 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { z } from 'zod';
 
@@ -22,7 +22,6 @@ import { UserRateLimit } from '../core/rate-limit';
 import {
   contentProjectFromIdeaInput,
   ContentProjectService,
-  MAX_CONTENT_PROJECT_PAGE_SIZE,
 } from './content-project.service';
 
 /**
@@ -52,17 +51,22 @@ class CreateContentProjectFromIdeaDto extends createZodDto(
  */
 const idempotencyKeySchema = z.string().trim().min(8).max(200);
 
+/**
+ * Shape only. The ceiling belongs to the service.
+ *
+ * Bounding `limit` here as well would put the same rule in two places and make
+ * the service's own refusal unreachable over HTTP — so the branch that states
+ * the page contract would exist, be tested by nothing, and drift. The audit
+ * reader settles this the same way.
+ */
 const listQuerySchema = z
   .object({
-    cursor: z.string().trim().min(1).max(500).optional(),
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(MAX_CONTENT_PROJECT_PAGE_SIZE)
-      .optional(),
+    cursor: z.string().trim().min(1).max(512).optional(),
+    limit: z.coerce.number().int().optional(),
   })
   .strict();
+
+class ListContentProjectsDto extends createZodDto(listQuerySchema) {}
 
 @ApiTags('Content projects')
 @Controller('organizations/:organizationId/content-projects')
@@ -116,24 +120,15 @@ export class ContentProjectController {
     summary: "List this organization's content projects, newest first",
   })
   @ApiParam({ name: 'organizationId' })
-  @ApiQuery({ name: 'cursor', required: false })
-  @ApiQuery({ name: 'limit', required: false })
   list(
     @Param('organizationId') organizationId: string,
-    @Query() query: Record<string, unknown>,
+    @Query() query: ListContentProjectsDto,
   ) {
-    const parsed = listQuerySchema.safeParse(query);
-
-    if (!parsed.success) {
-      throw new AppException('VALIDATION_ERROR', {
-        context: { resource: 'contentProject', reason: 'query' },
-        publicDetails: {
-          issues: parsed.error.issues.map((issue) => issue.message),
-        },
-      });
-    }
-
-    return this.projects.list({ organizationId, ...parsed.data });
+    return this.projects.list({
+      organizationId,
+      cursor: query.cursor,
+      limit: query.limit,
+    });
   }
 
   @Get(':projectId')

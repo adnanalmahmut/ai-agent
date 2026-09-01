@@ -46,6 +46,8 @@ type Project = {
   summary: string;
   suggestedFormat: string;
   language: string;
+  createdByUserId: string | null;
+  createdAt: string;
   drafts?: Draft[];
 };
 
@@ -325,6 +327,103 @@ describe('content projects', () => {
     });
   });
 
+  describe('concurrent and scoped idempotency', () => {
+    /**
+     * The path the sequential tests never take.
+     *
+     * Both existing replay tests await the first request, so they only ever hit
+     * the in-transaction `findUnique`. The P2002 catch — the only thing that
+     * makes two simultaneous retries safe — runs for the first time here. A
+     * deterministic key derived from the run and index is exactly what the UI
+     * sends, so a double-click is the ordinary shape of this, not an exotic one.
+     */
+    it('accepts two simultaneous identical requests as one project', async () => {
+      const key = freshKey();
+      const body = { sourceRunId: succeededRunId, ideaIndex: 2 };
+
+      const [first, second] = await Promise.all([
+        promote(owner, body, key),
+        promote(owner, body, key),
+      ]);
+
+      expect(first.status).toBe(201);
+      expect(second.status).toBe(201);
+      expect(dataOf<Project>(second.body).id).toBe(
+        dataOf<Project>(first.body).id,
+      );
+
+      // The status codes alone would be satisfied by two rows.
+      const count = await harness.prisma.contentProject.count({
+        where: { organizationId, idempotencyKey: { endsWith: key.slice(-8) } },
+      });
+
+      expect(count).toBeLessThanOrEqual(1);
+    });
+
+    /**
+     * The key is scoped to the organization, not the platform.
+     *
+     * Two tenants using the same literal key is ordinary — clients pick their
+     * own — and must produce two projects rather than one tenant reading the
+     * other's answer.
+     */
+    it('keeps the same literal key in two organizations apart', async () => {
+      const key = 'shared-literal-key-000001';
+
+      const mine = await promote(
+        owner,
+        { sourceRunId: succeededRunId, ideaIndex: 0 },
+        key,
+      );
+      const theirs = await promote(
+        outsider,
+        { sourceRunId: otherOrganizationRunId, ideaIndex: 0 },
+        key,
+        otherOrganizationId,
+      );
+
+      expect(mine.status).toBe(201);
+      expect(theirs.status).toBe(201);
+      expect(dataOf<Project>(theirs.body).id).not.toBe(
+        dataOf<Project>(mine.body).id,
+      );
+    });
+
+    /**
+     * The key is not scoped to the member.
+     *
+     * Two admins clicking the same card get the same project. That is the
+     * intended behaviour — the decision belongs to the organization — and it is
+     * pinned here so that scoping the key to a user later is a deliberate,
+     * test-visible change rather than a silent one.
+     */
+    it('is shared between two members of one organization', async () => {
+      const key = freshKey();
+      const body = { sourceRunId: succeededRunId, ideaIndex: 1 };
+
+      const byOwner = await promote(owner, body, key);
+      const byAdmin = await promote(orgAdmin, body, key);
+
+      expect(dataOf<Project>(byAdmin.body).id).toBe(
+        dataOf<Project>(byOwner.body).id,
+      );
+    });
+
+    /**
+     * Acceptance criterion 2, asserted as an invariant rather than on one path.
+     *
+     * Every assertion elsewhere is satisfied by two sequential writes; this one
+     * is not. A project with no draft would mean the pair stopped being atomic.
+     */
+    it('leaves no project without its draft', async () => {
+      const orphans = await harness.prisma.contentProject.count({
+        where: { organizationId, drafts: { none: {} } },
+      });
+
+      expect(orphans).toBe(0);
+    });
+  });
+
   describe('tenant isolation', () => {
     it("reports another organization's run as absent", async () => {
       const response = await promote(owner, {
@@ -335,7 +434,15 @@ describe('content projects', () => {
       expect(response.status).toBe(404);
     });
 
-    it('refuses a member of another organization outright', async () => {
+    /**
+     * 404, not 403, and pinned exactly.
+     *
+     * `OrganizationAccess` answers absent rather than forbidden for a
+     * non-member precisely so a 403 cannot confirm an organization exists to
+     * whoever guessed its id. Accepting either status would let that property
+     * regress silently.
+     */
+    it('reports the organization as absent to a non-member', async () => {
       const response = await promote(
         outsider,
         { sourceRunId: succeededRunId, ideaIndex: 0 },
@@ -343,7 +450,26 @@ describe('content projects', () => {
         organizationId,
       );
 
-      expect([403, 404]).toContain(response.status);
+      expect(response.status).toBe(404);
+      expect(errorBody(response).errorCode).not.toBe('FORBIDDEN');
+    });
+
+    /**
+     * The guard runs before the body pipe.
+     *
+     * A non-member sending nonsense must be told the organization is absent,
+     * not that their body failed validation — a 400 would confirm both that the
+     * organization exists and what the request schema is.
+     */
+    it('refuses a non-member before it validates their body', async () => {
+      const response = await promote(
+        outsider,
+        { nonsense: true },
+        freshKey(),
+        organizationId,
+      );
+
+      expect(response.status).toBe(404);
     });
 
     it("does not list another organization's projects", async () => {
@@ -415,6 +541,160 @@ describe('content projects', () => {
     });
   });
 
+  describe('eligible runs', () => {
+    /**
+     * A run from another agent is reported absent, not as a conflict.
+     *
+     * The distinction matters: a 409 would confirm the run exists in this
+     * organization and merely produced the wrong shape, turning the endpoint
+     * into an oracle for which agents an organization has been running.
+     */
+    it('reports a run from another agent as absent', async () => {
+      const foreignAgentRun = await seedRun({
+        organizationId,
+        status: 'SUCCEEDED',
+        agentId: 'some-other-agent',
+      });
+
+      const response = await promote(owner, {
+        sourceRunId: foreignAgentRun,
+        ideaIndex: 0,
+      });
+
+      expect(response.status).toBe(404);
+      expect(errorBody(response).errorCode).toBe('NOT_FOUND');
+    });
+
+    /**
+     * Distinct from the not-yet-succeeded conflict, and asserted as distinct.
+     *
+     * Both answer 409; without checking the reason either case could absorb the
+     * other's regression.
+     */
+    it('refuses a succeeded run whose output this version cannot read', async () => {
+      const unreadable = await harness.prisma.agentRun.create({
+        data: {
+          agentId: CONTENT_IDEA_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          status: 'SUCCEEDED',
+          organizationId,
+          input: RUN_INPUT,
+          // Violates contentIdeaOutput's `.min(1)`.
+          output: { ideas: [], sources: [] },
+          idempotencyKey: `seed-unreadable-${Date.now()}`,
+          completedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      const response = await promote(owner, {
+        sourceRunId: unreadable.id,
+        ideaIndex: 0,
+      });
+
+      expect(response.status).toBe(409);
+      expect(errorBody(response).errorCode).toBe('CONFLICT');
+      expect(JSON.stringify(response.body)).toContain('cannot read');
+    });
+
+    /**
+     * A run whose stored input no longer parses is still selectable, and the
+     * content language falls back to the product default on both rows.
+     */
+    it('falls back to the product default when the run input no longer parses', async () => {
+      const legacy = await harness.prisma.agentRun.create({
+        data: {
+          agentId: CONTENT_IDEA_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          status: 'SUCCEEDED',
+          organizationId,
+          // No `language`, no `goal`: an input shape this version cannot parse.
+          input: { topic: 'Kettles' },
+          output: { ideas: IDEAS, sources: [] },
+          idempotencyKey: `seed-legacy-${Date.now()}`,
+          completedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      const response = await promote(owner, {
+        sourceRunId: legacy.id,
+        ideaIndex: 0,
+      });
+
+      expect(response.status).toBe(201);
+
+      const project = dataOf<Project>(response.body);
+
+      expect(project.language).toBe('ar');
+      // The draft takes the language independently, so it is asserted
+      // independently.
+      expect(project.drafts?.[0]?.language).toBe('ar');
+    });
+  });
+
+  describe('what the response carries', () => {
+    /**
+     * The whole field set, not a sample.
+     *
+     * `idempotencyKey` is a stored column holding the caller's own header, and
+     * a per-field assertion cannot notice it arriving. Pinning the key set is
+     * what makes an accidentally widened projection a test failure.
+     */
+    it('returns exactly the documented fields and no stored key', async () => {
+      const response = await promote(
+        owner,
+        { sourceRunId: succeededRunId, ideaIndex: 0 },
+        'wire-shape-probe-key-0001',
+      );
+
+      expect(response.status).toBe(201);
+
+      const project = dataOf<Record<string, unknown>>(response.body);
+
+      expect(Object.keys(project).sort()).toEqual([
+        'angle',
+        'createdAt',
+        'createdByUserId',
+        'drafts',
+        'hook',
+        'id',
+        'language',
+        'organizationId',
+        'sourceIdeaIndex',
+        'sourceRunId',
+        'suggestedFormat',
+        'summary',
+        'title',
+        'updatedAt',
+      ]);
+
+      expect(JSON.stringify(project)).not.toContain('wire-shape-probe-key');
+
+      const listed = await as(harness, owner).get(base());
+      expect(JSON.stringify(listed.body)).not.toContain('wire-shape-probe-key');
+    });
+
+    /** Who decided this is part of the record, and nullable columns rot quietly. */
+    it('records the member who promoted the idea', async () => {
+      const response = await promote(owner, {
+        sourceRunId: succeededRunId,
+        ideaIndex: 0,
+      });
+
+      expect(dataOf<Project>(response.body).createdByUserId).toBe(owner.id);
+
+      const draft = await harness.prisma.contentDraft.findFirst({
+        where: { projectId: dataOf<Project>(response.body).id },
+        select: { createdByUserId: true },
+      });
+
+      expect(draft?.createdByUserId).toBe(owner.id);
+    });
+  });
+
   describe('authorization', () => {
     it('lets a plain member read but not promote', async () => {
       const read = await as(harness, member).get(base());
@@ -462,6 +742,97 @@ describe('content projects', () => {
       for (const item of nextPage.items) {
         expect(firstIds).not.toContain(item.id);
       }
+    });
+
+    /**
+     * Paged to exhaustion, over rows that share a timestamp.
+     *
+     * Disjointness alone cannot see a *skipped* row, and the existing case
+     * cannot produce a tie at all — HTTP-seeded projects land tens of
+     * milliseconds apart. These are written directly with one identical
+     * `createdAt`, which is the only arrangement that exercises the `id`
+     * tiebreak. Drop it and every row but one vanishes from the results while a
+     * disjointness assertion stays green.
+     */
+    it('drains every row when a whole page shares one timestamp', async () => {
+      const sharedOrganizationId = await createOrganization(
+        owner,
+        'projects-tie',
+      );
+      const run = await seedRun({
+        organizationId: sharedOrganizationId,
+        status: 'SUCCEEDED',
+      });
+      const createdAt = new Date('2026-03-01T00:00:00.000Z');
+
+      const expected: string[] = [];
+
+      for (let index = 0; index < 5; index += 1) {
+        const row = await harness.prisma.contentProject.create({
+          data: {
+            organizationId: sharedOrganizationId,
+            sourceRunId: run,
+            sourceIdeaIndex: 0,
+            title: `Tied ${index}`,
+            hook: 'h',
+            angle: 'a',
+            summary: 's',
+            suggestedFormat: 'post',
+            language: 'en',
+            idempotencyKey: `tie-${index}`,
+            createdAt,
+            drafts: {
+              create: {
+                organization: { connect: { id: sharedOrganizationId } },
+                revision: 1,
+                title: `Tied ${index}`,
+                format: 'post',
+                language: 'en',
+              },
+            },
+          },
+          select: { id: true },
+        });
+
+        expected.push(row.id);
+      }
+
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      let guard = 0;
+
+      do {
+        const query: string =
+          cursor === null ? '' : `&cursor=${encodeURIComponent(cursor)}`;
+        const page = await as(harness, owner).get(
+          `${base(sharedOrganizationId)}?limit=2${query}`,
+        );
+
+        expect(page.status).toBe(200);
+
+        const body = dataOf<{ items: Project[]; nextCursor: string | null }>(
+          page.body,
+        );
+
+        seen.push(...body.items.map((item) => item.id));
+        cursor = body.nextCursor;
+        guard += 1;
+      } while (cursor !== null && guard < 10);
+
+      // Terminates: the final page must say there is nothing after it.
+      expect(cursor).toBeNull();
+      // Complete and duplicate-free.
+      expect(seen.slice().sort()).toEqual(expected.slice().sort());
+      expect(new Set(seen).size).toBe(expected.length);
+    });
+
+    it('lists newest first', async () => {
+      const response = await as(harness, owner).get(`${base()}?limit=10`);
+
+      const items = dataOf<{ items: Project[] }>(response.body).items;
+      const times = items.map((item) => new Date(item.createdAt).getTime());
+
+      expect(times).toEqual(times.slice().sort((left, right) => right - left));
     });
 
     it('refuses an unreadable cursor', async () => {
