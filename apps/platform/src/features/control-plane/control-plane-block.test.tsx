@@ -1002,6 +1002,43 @@ describe('the audit table projects the payload it is handed', () => {
       { kind: 'managedSecretSlot', configured: false },
       { kind: 'managedSecretSlot', configured: true, plaintext: CANARY },
     ),
+    /**
+     * The canary in `keyVersion`, which is the one field this panel renders from
+     * the payload rather than projecting. The display gate refuses it on the
+     * character class (it has uppercase letters) and on the length cap, so the
+     * cell falls back to a client-owned label and the canary never lands.
+     *
+     * Different values on the two sides, so a regression that rendered only one
+     * of them still fails.
+     */
+    event(
+      'audit_secret_key_version',
+      { kind: 'managedSecretSlot', configured: true, keyVersion: CANARY },
+      {
+        kind: 'managedSecretSlot',
+        configured: true,
+        keyVersion: `${CANARY}-next`,
+      },
+    ),
+    /**
+     * And the same canary lowercased, which passes the character class and is
+     * stopped only by the length cap. Without this the suite would prove the
+     * grammar works and say nothing about the cap — and the cap is the half that
+     * bounds how much text can reach the cell.
+     */
+    event(
+      'audit_secret_key_version_lowercase',
+      {
+        kind: 'managedSecretSlot',
+        configured: true,
+        keyVersion: CANARY.toLowerCase(),
+      },
+      {
+        kind: 'managedSecretSlot',
+        configured: true,
+        keyVersion: `${CANARY.toLowerCase()}-next`,
+      },
+    ),
     event(
       'audit_flag_note',
       { kind: 'featureFlagOverride', enabled: false, note: CANARY },
@@ -1107,6 +1144,95 @@ describe('the audit table projects the payload it is handed', () => {
     expect(
       screen.getByText('knowledge.retrieval_max_chunks'),
     ).toBeInTheDocument();
+  });
+
+  /**
+   * The deliberate exception, asserted positively.
+   *
+   * `keyVersion` is the one payload field the panel displays, so the suite has to
+   * say so out loud: a well-formed version reaches the cell, and the two sides of
+   * a re-encryption read differently. Otherwise the containment tests above would
+   * be satisfiable by a panel that had quietly stopped rendering it, and the
+   * feature would rot without failing.
+   */
+  it('renders a well-formed key version on each side of a re-encryption', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    const slot = (keyVersion: string) => ({
+      kind: 'managedSecretSlot',
+      configured: true,
+      algorithm: 'aes-256-gcm',
+      keyVersion,
+    });
+
+    listControlPlaneAudit.mockResolvedValue({
+      items: [
+        {
+          ...event(
+            'audit_reencrypt',
+            slot('keyver-alpha'),
+            slot('keyver-beta'),
+          ),
+          resource: 'managedSecret',
+          action: 'managedSecret.reencrypt',
+          resourceKey: 'openai.api_key',
+        },
+      ],
+      nextCursor: null,
+    });
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+    await screen.findAllByRole('row');
+
+    const { english } = await import('@/test/render');
+    const cells = screen.getAllByRole('row')[1].querySelectorAll('td');
+
+    // The action is named from the client's own vocabulary, not the wire string.
+    expect(cells[2]?.textContent).toBe(
+      english.ControlPlane.audit.action.managedSecret.reencrypt,
+    );
+    expect(
+      cells[cells.length - 1]?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('Configured (keyver-alpha) → Configured (keyver-beta)');
+  });
+
+  /**
+   * A recorded version the gate refuses is said out loud, not hidden behind the
+   * label an ordinary row gets. An operator auditing a rollout can then tell the
+   * two apart, and the fallback is still a term this build owns.
+   */
+  it('says a key version was withheld rather than showing the plain label', async () => {
+    allowGlobalPermissions('controlPlane:read');
+
+    listControlPlaneAudit.mockResolvedValue({
+      items: [
+        event(
+          'audit_reencrypt_hidden',
+          { kind: 'managedSecretSlot', configured: true, keyVersion: 'V2' },
+          { kind: 'managedSecretSlot', configured: true },
+        ),
+      ],
+      nextCursor: null,
+    });
+
+    renderWithProviders(<ControlPlaneBlock />);
+    await screen.findByText('agents.enabled');
+    await openTab(/audit history/i);
+    await screen.findAllByRole('row');
+
+    const { english } = await import('@/test/render');
+    const cells = screen.getAllByRole('row')[1].querySelectorAll('td');
+    const summary = cells[cells.length - 1]?.textContent ?? '';
+
+    expect(summary).toContain(
+      english.ControlPlane.audit.state.configuredKeyHidden,
+    );
+    // The refused value itself is not what got rendered.
+    expect(summary).not.toContain('V2');
+    // And the side that recorded nothing reads as the ordinary configured row.
+    expect(summary).toContain(english.ControlPlane.audit.state.configured);
   });
 
   /**

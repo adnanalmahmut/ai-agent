@@ -879,6 +879,7 @@
         "redacted": "محجوب",
         "configured": "مُعدّ",
         "configuredWithKey": "مُعدّ ({keyVersion})",
+        "configuredKeyHidden": "مُعدّ (إصدار المفتاح غير معروض)",
         "notConfigured": "غير مُعدّ"
       },
       "action": {

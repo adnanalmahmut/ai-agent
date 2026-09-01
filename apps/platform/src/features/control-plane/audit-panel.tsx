@@ -21,6 +21,8 @@ import {
   type ControlPlaneAuditEntry,
 } from '@/lib/application-api';
 
+import { displayableKeyVersion, recordsKeyVersion } from './audit-state';
+
 type LoadFailure = 'unavailable' | 'unauthenticated' | 'forbidden' | 'failed';
 
 /**
@@ -34,11 +36,15 @@ type LoadFailure = 'unavailable' | 'unauthenticated' | 'forbidden' | 'failed';
  */
 function stateSummary(state: unknown, t: ReturnType<typeof useTranslations>) {
   if (state === null) return t('audit.state.none');
-  if (typeof state !== 'object' || state === null) return t('audit.state.changed');
+  if (typeof state !== 'object' || state === null)
+    return t('audit.state.changed');
 
   const value = state as Record<string, unknown>;
 
-  if (value.kind === 'featureFlagOverride' && typeof value.enabled === 'boolean') {
+  if (
+    value.kind === 'featureFlagOverride' &&
+    typeof value.enabled === 'boolean'
+  ) {
     return value.enabled ? t('audit.state.enabled') : t('audit.state.disabled');
   }
 
@@ -52,15 +58,31 @@ function stateSummary(state: unknown, t: ReturnType<typeof useTranslations>) {
     if (value.configured !== true) return t('audit.state.notConfigured');
 
     /**
-     * The key version when the entry carries one. Re-encryption is the single
-     * action whose entire content is that field changing, so without this both
-     * sides would read "Configured" and the panel would show a change with no
-     * visible difference. Narrowed to `string` rather than rendered from
-     * `unknown`, for the same reason the rest of this function does: an
-     * unexpected shape becomes the generic label instead of a DOM write.
+     * The key version, and the one deliberate exception in this function.
+     *
+     * Re-encryption is the single action whose entire content is this field
+     * changing, so without it both sides read "Configured" and the panel shows a
+     * change with no visible difference. Everything else here is projected to a
+     * term the client chose; this renders a server-supplied string, which is a
+     * real widening of the rule and is treated as one.
+     *
+     * The boundaries are in `displayableKeyVersion`, not in a `typeof` check
+     * here, so they can be tested directly and so the reasoning has one home.
+     * Read that module before widening this: the gate bounds the value's shape,
+     * not its meaning, and what keeps a credential out of the column is upstream
+     * of the browser.
      */
-    return typeof value.keyVersion === 'string'
-      ? t('audit.state.configuredWithKey', { keyVersion: value.keyVersion })
+    const keyVersion = displayableKeyVersion(value.keyVersion);
+
+    if (keyVersion !== null) {
+      return t('audit.state.configuredWithKey', { keyVersion });
+    }
+
+    // A recorded version this build will not display is said out loud rather
+    // than hidden behind the ordinary label, so "no version recorded" and "a
+    // version that failed the gate" do not read identically to an operator.
+    return recordsKeyVersion(value.keyVersion)
+      ? t('audit.state.configuredKeyHidden')
       : t('audit.state.configured');
   }
 
@@ -109,7 +131,8 @@ function occurredAtLabel(
 
 function failureOf(error: unknown): LoadFailure {
   if (error instanceof ApiUnavailableError) return 'unavailable';
-  if (error instanceof ApiError && error.status === 401) return 'unauthenticated';
+  if (error instanceof ApiError && error.status === 401)
+    return 'unauthenticated';
   if (error instanceof ApiError && error.status === 403) return 'forbidden';
   return 'failed';
 }
@@ -202,7 +225,9 @@ export function AuditPanel() {
   }
 
   if (items.length === 0) {
-    return <p className="py-8 text-sm text-muted-foreground">{t('audit.empty')}</p>;
+    return (
+      <p className="py-8 text-sm text-muted-foreground">{t('audit.empty')}</p>
+    );
   }
 
   return (
@@ -232,7 +257,9 @@ export function AuditPanel() {
               <TableCell className="text-sm">
                 {actionLabel(event.action, t)}
               </TableCell>
-              <TableCell className="font-mono text-xs">{event.resourceKey}</TableCell>
+              <TableCell className="font-mono text-xs">
+                {event.resourceKey}
+              </TableCell>
               <TableCell className="font-mono text-xs text-muted-foreground">
                 {event.organizationId ?? t('audit.platformScope')}
               </TableCell>
@@ -251,7 +278,9 @@ export function AuditPanel() {
           disabled={loadingMore}
           onClick={() => void loadMore(nextCursor)}
         >
-          {loadingMore ? <Loader2 aria-hidden className="size-4 animate-spin" /> : null}
+          {loadingMore ? (
+            <Loader2 aria-hidden className="size-4 animate-spin" />
+          ) : null}
           {t('audit.loadMore')}
         </Button>
       ) : null}

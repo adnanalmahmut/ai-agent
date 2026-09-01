@@ -16,9 +16,12 @@ settings, and provider credentials, and exposes a separately loaded,
 cursor-paginated audit-history tab. It can write a credential and can never
 read one: no endpoint returns a stored secret and the screen shows no masked
 preview, so the only evidence a credential exists is its metadata. The audit
-tab renders only closed, safe state projections (never arbitrary audit JSON),
-so a future server regression cannot turn an operator's DOM into a credential
-exfiltration surface. Reading it requires `controlPlane:read`; writing a
+tab renders closed, safe state projections rather than arbitrary audit JSON, so
+a future server regression cannot turn an operator's DOM into a credential
+exfiltration surface. Its one displayed payload field is a managed secret's
+encryption key version, gated on the backend's own version grammar under a
+tighter length cap and replaced by a "not shown" term when it does not conform —
+see [security.md](security.md) for what that gate does and does not promise. Reading it requires `controlPlane:read`; writing a
 credential requires the separate `managedSecret:write`, which `admin` does not
 hold. A credential's optional note is stored unsealed and returned by the
 listing, so the screen refuses to send one that contains the credential being

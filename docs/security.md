@@ -38,8 +38,32 @@ Primary boundaries:
   hostile `before`/`after` payloads — unknown `kind`, widened known `kind`,
   nested objects, arrays, bare strings, and markup — must not put the canary
   into `document.body.innerHTML` or its visible text, while every row still
-  summarises the change from the client's own closed translated vocabulary. The
-  `action` column is projected the same way — `use-intl` renders a missing key as
+  summarises the change from the client's own closed translated vocabulary.
+
+  One field is a deliberate, bounded exception to that projection: a managed
+  secret's encryption `keyVersion`, which the change column displays because
+  re-encryption is the only action whose entire content is that field changing.
+  It is filtered through `displayableKeyVersion`, which admits only the shape the
+  backend's own key-version grammar admits — lowercase letters, digits, dot,
+  underscore and hyphen, not beginning or ending in punctuation — under a cap
+  tighter than that grammar's. A value outside it is replaced by a client-owned
+  "not shown" term rather than truncated, so the cell cannot carry markup,
+  quotes, whitespace, or the bidirectional-format characters that would let a
+  value reorder the row it sits in. Both halves of that gate are covered by
+  mutation-tested unit and rendering assertions, including hostile canaries that
+  fail on the character class and on the length cap respectively.
+
+  This gate bounds the value's *shape* and not its meaning, and the distinction
+  is asserted rather than assumed: a lowercase token inside the cap is displayed
+  whatever it happens to be. What keeps credential material out of that column is
+  upstream — the rotation service records a key version only after the keyring
+  successfully opened the row, and resolution requires the version to be one the
+  process was configured with. The audit payload is read without an output
+  schema, so a build, migration, restore, or direct write that put other text in
+  that field could put a bounded amount of it on an operator's screen. This is
+  the panel's one such field, and widening the set is a security change.
+
+  The `action` column is projected the same way — `use-intl` renders a missing key as
   its own key path, so an action this build has no copy for resolves to a
   fall-through term rather than printing the server's string — and an
   unparseable `occurredAt` degrades to a dash instead of throwing out of the
