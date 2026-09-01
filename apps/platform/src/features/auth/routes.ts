@@ -38,6 +38,8 @@ export const ORGANIZATION_ROUTES = {
     `/organizations/${encodeURIComponent(id)}/knowledge`,
   contentIdeas: (id: string) =>
     `/organizations/${encodeURIComponent(id)}/content-ideas`,
+  contentProjects: (id: string) =>
+    `/organizations/${encodeURIComponent(id)}/content-projects`,
   settings: (id: string) => `/organizations/${encodeURIComponent(id)}/settings`,
 } as const;
 
@@ -50,6 +52,20 @@ export const ORGANIZATION_ROUTES = {
  * `apps/backend/src/core/auth/auth-mail.ts` — they cannot be renamed on one
  * side alone.
  */
+/**
+ * Routes below a tab, which are therefore not tabs.
+ *
+ * Kept out of `ORGANIZATION_ROUTES` deliberately. That object is the tab strip,
+ * and its tests assert both directions of the relationship — every entry has a
+ * tab, and every tab is an entry. A detail route has no tab, so putting it
+ * there would mean loosening two assertions that are worth more than the
+ * convenience of one namespace.
+ */
+export const ORGANIZATION_DETAIL_ROUTES = {
+  contentProject: (id: string, projectId: string) =>
+    `${ORGANIZATION_ROUTES.contentProjects(id)}/${encodeURIComponent(projectId)}`,
+} as const;
+
 export const INVITATION_ROUTE = '/organizations/accept-invitation';
 export const INVITATION_ID_PARAM = 'id';
 

@@ -266,6 +266,22 @@ export function createRoutes(): RouteObject[] {
                                   },
                                 },
                                 {
+                                  path: 'content-projects',
+                                  lazy: {
+                                    Component: async () =>
+                                      (await organizationModule())
+                                        .OrganizationContentProjectsRoute,
+                                  },
+                                },
+                                {
+                                  path: 'content-projects/:projectId',
+                                  lazy: {
+                                    Component: async () =>
+                                      (await organizationModule())
+                                        .OrganizationContentProjectRoute,
+                                  },
+                                },
+                                {
                                   path: 'settings',
                                   loader: organizationBusinessProfileLoader,
                                   lazy: {

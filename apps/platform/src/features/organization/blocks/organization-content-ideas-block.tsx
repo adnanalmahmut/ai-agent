@@ -7,9 +7,9 @@ import {
   Label,
   Textarea,
 } from '@repo/ui';
-import { Lightbulb, Loader2, RefreshCw } from 'lucide-react';
+import { Check, Lightbulb, Loader2, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -28,8 +28,10 @@ import {
   type PendingSubmission,
 } from '../content-idea-submission';
 
+import { ORGANIZATION_DETAIL_ROUTES } from '@/features/auth/routes';
 import {
   CONTENT_IDEA_LANGUAGES,
+  createContentProjectFromIdea,
   getContentIdeaAvailability,
   getContentIdeaOperation,
   requestContentIdeas,
@@ -571,6 +573,55 @@ export function OrganizationContentIdeasBlock({
     }
   }, [organizationId, form, setOperation, putOperationInRoute]);
 
+  /**
+   * Which idea is being promoted, and which ones already were.
+   *
+   * `promoted` is keyed by index within this operation, which is exactly the
+   * scope it is true for: the same idea in a *different* run is a different
+   * selection with a different provenance, and this screen only ever shows one
+   * run at a time.
+   *
+   * It is intentionally not read back from the server. A project list filtered
+   * by source run would answer "has this been promoted" authoritatively, but at
+   * the cost of a second request on every result render to change a label —
+   * and the button is idempotent, so the worst a stale "not yet" can cause is a
+   * second click that returns the first project.
+   */
+  const [promoting, setPromoting] = useState<number | null>(null);
+  const [promoted, setPromoted] = useState<Record<number, string>>({});
+  const [promoteFailed, setPromoteFailed] = useState<number | null>(null);
+
+  /**
+   * The key is derived from the run and the index, not minted per click.
+   *
+   * That makes a double-click, a retried click after a dropped connection, and
+   * a click after a reload all the same request — so an idea cannot become two
+   * projects because somebody was impatient.
+   */
+  const promote = useCallback(
+    async (index: number) => {
+      if (operationId === null) return;
+
+      setPromoting(index);
+      setPromoteFailed(null);
+
+      try {
+        const project = await createContentProjectFromIdea(
+          organizationId,
+          { sourceRunId: operationId, ideaIndex: index },
+          `promote:${operationId}:${index}`,
+        );
+
+        setPromoted((previous) => ({ ...previous, [index]: project.id }));
+      } catch {
+        setPromoteFailed(index);
+      } finally {
+        setPromoting(null);
+      }
+    },
+    [operationId, organizationId],
+  );
+
   const ideas = operation?.output?.ideas ?? [];
   const sources = operation?.output?.sources ?? [];
   const isBusy = isSubmitting || isPending;
@@ -801,6 +852,52 @@ export function OrganizationContentIdeasBlock({
                         <bdi>{idea.summary}</bdi>
                       </p>
                     </div>
+
+                    {/*
+                      The selection action.
+
+                      Only the text the agent produced is ever sent: the request
+                      carries this operation's id and this card's index, and the
+                      server reads the idea back off the run.
+                    */}
+                    {canCreate ? (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {promoted[index] === undefined ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={promoting !== null}
+                            onClick={() => void promote(index)}
+                          >
+                            {promoting === index ? (
+                              <Loader2
+                                aria-hidden
+                                className="size-4 animate-spin"
+                              />
+                            ) : (
+                              <Check aria-hidden className="size-4" />
+                            )}
+                            {t('promote.action')}
+                          </Button>
+                        ) : (
+                          <Link
+                            className="text-sm underline-offset-4 hover:underline"
+                            to={ORGANIZATION_DETAIL_ROUTES.contentProject(
+                              organizationId,
+                              promoted[index] ?? '',
+                            )}
+                          >
+                            {t('promote.done')}
+                          </Link>
+                        )}
+
+                        {promoteFailed === index ? (
+                          <span className="text-sm text-destructive">
+                            {t('promote.failed')}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
               ))}

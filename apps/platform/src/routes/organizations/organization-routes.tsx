@@ -3,6 +3,8 @@ import { useLoaderData } from 'react-router';
 import { CreateOrganizationBlock } from '@/features/organization/blocks/create-organization-block';
 import { OrganizationInvitationsBlock } from '@/features/organization/blocks/organization-invitations-block';
 import { OrganizationContentIdeasBlock } from '@/features/organization/blocks/organization-content-ideas-block';
+import { OrganizationContentProjectBlock } from '@/features/organization/blocks/organization-content-project-block';
+import { OrganizationContentProjectsBlock } from '@/features/organization/blocks/organization-content-projects-block';
 import { OrganizationKnowledgeBlock } from '@/features/organization/blocks/organization-knowledge-block';
 import { OrganizationMembersBlock } from '@/features/organization/blocks/organization-members-block';
 import { OrganizationOverviewBlock } from '@/features/organization/blocks/organization-overview-block';
@@ -78,6 +80,32 @@ export function OrganizationContentIdeasRoute() {
   const { organization } = useOrganizationContext();
 
   return <OrganizationContentIdeasBlock key={organization.id} />;
+}
+
+/**
+ * Keyed on the organization, for the reason the two above are.
+ *
+ * The list holds pages accumulated by "load more". Without the key, switching
+ * organizations would append the new organization's first page onto the
+ * previous one's backlog.
+ */
+export function OrganizationContentProjectsRoute() {
+  const { organization } = useOrganizationContext();
+
+  return <OrganizationContentProjectsBlock key={organization.id} />;
+}
+
+/**
+ * Keyed on both, because a project id belongs to one organization.
+ *
+ * Reading it under another is a 404, and without the key the block would show
+ * the previous organization's project until the refetch resolved and turned it
+ * into an error rather than the stale render it actually is.
+ */
+export function OrganizationContentProjectRoute() {
+  const { organization } = useOrganizationContext();
+
+  return <OrganizationContentProjectBlock key={organization.id} />;
 }
 
 export function OrganizationSettingsRoute() {

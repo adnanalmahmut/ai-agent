@@ -119,6 +119,7 @@ describe('global roles', () => {
 const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
   ['knowledge', 'read'],
   ['contentIdea', 'read'],
+  ['contentProject', 'read'],
 ];
 
 describe('organization roles', () => {

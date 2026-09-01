@@ -487,7 +487,8 @@
       "invitations": "Invitations",
       "knowledge": "Knowledge",
       "contentIdeas": "Content ideas",
-      "settings": "Settings"
+      "settings": "Settings",
+      "contentProjects": "Projects"
     },
     "overview": {
       "memberCount": "Members",
@@ -1018,6 +1019,44 @@
       "busy": "Too many requests right now. Wait for the ones in flight to finish, then try again.",
       "gone": "That request could not be found. It may belong to another organization, or it may never have existed.",
       "failed": "Something went wrong. Try again."
+    },
+    "promote": {
+      "action": "Start a project",
+      "done": "Project created — open it",
+      "failed": "That idea could not be turned into a project."
+    }
+  },
+  "ContentProjects": {
+    "title": "Content projects",
+    "description": "Ideas this organization decided to act on. Each one keeps the agent's original idea and opens a first draft for a writer to fill.",
+    "loading": "Loading projects",
+    "loadMore": "Load more",
+    "empty": {
+      "title": "No projects yet",
+      "description": "Generate content ideas, then choose one to start a project from it."
+    },
+    "error": {
+      "load": "The projects could not be loaded.",
+      "retry": "Try again"
+    },
+    "format": {
+      "carousel": "Carousel",
+      "post": "Post",
+      "video": "Video"
+    },
+    "language": {
+      "ar": "Arabic",
+      "en": "English"
+    },
+    "detail": {
+      "back": "All projects",
+      "idea": "The idea",
+      "angle": "Angle:",
+      "provenance": "This text is the agent's own, stored exactly as it was produced.",
+      "drafts": "Drafts",
+      "revision": "Revision {revision}",
+      "unwritten": "Nothing has been written yet. This draft records the format, language, and working title the piece should have.",
+      "missing": "This project does not exist."
     }
   }
 }

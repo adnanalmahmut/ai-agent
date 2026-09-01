@@ -162,6 +162,11 @@ export const ORGANIZATION_PERMISSION_STATEMENTS = {
    */
   knowledge: ['read', 'write'],
   contentIdea: ['create', 'read'],
+  /**
+   * Deciding to act on an idea. Reading is ordinary membership; creating
+   * commits the organization to work the whole team will see.
+   */
+  contentProject: ['create', 'read'],
 } as const;
 
 export const organizationAccessControl = createAccessControl(
@@ -174,6 +179,7 @@ const organizationMember = organizationAccessControl.newRole({
   invitation: [],
   knowledge: ['read'],
   contentIdea: ['read'],
+  contentProject: ['read'],
 });
 
 const organizationAdmin = organizationAccessControl.newRole({
@@ -182,6 +188,7 @@ const organizationAdmin = organizationAccessControl.newRole({
   invitation: ['create', 'cancel'],
   knowledge: ['read', 'write'],
   contentIdea: ['create', 'read'],
+  contentProject: ['create', 'read'],
 });
 
 const organizationOwner = organizationAccessControl.newRole({
@@ -190,6 +197,7 @@ const organizationOwner = organizationAccessControl.newRole({
   invitation: ['create', 'cancel'],
   knowledge: ['read', 'write'],
   contentIdea: ['create', 'read'],
+  contentProject: ['create', 'read'],
 });
 
 /**
