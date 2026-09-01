@@ -773,7 +773,13 @@ model OrganizationAuditEvent {
   after  Json?
 
   @@index([organizationId, occurredAt, id])
-  @@index([organizationId, subjectType, subjectId, occurredAt])
+  /// The name is mapped explicitly because the owning migration asked for a
+  /// 76-byte identifier and PostgreSQL stores only the first 63. Prisma
+  /// truncates to 63 too, but by a different rule that keeps the `_idx`
+  /// suffix, so its generated name and the physical one disagree and
+  /// `migrate diff` reports a permanent phantom rename. Mapping the real
+  /// name is what makes the drift zero; the index itself was always correct.
+  @@index([organizationId, subjectType, subjectId, occurredAt], map: "organization_audit_event_organizationId_subjectType_subjectId_o")
   @@map("organization_audit_event")
 }
 
