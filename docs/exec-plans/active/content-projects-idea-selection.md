@@ -321,9 +321,20 @@ Also remediated:
   with the columns not added.
 - `pnpm agents:check`, `pnpm typecheck`, `pnpm lint`, `pnpm build`, and
   `ops/tests/documentation.sh` all green without `--fix` in verification.
-- Full backend E2E: 627 of 631 passed. The 4 failures are in
-  `agent-run-reconciliation.e2e-spec.ts`, a BullMQ stalled-job timing suite, and
-  reproduce identically on unmodified `main` in the same environment.
+- Full backend E2E: 659 of 659 passed across all 31 suites.
+
+  Earlier revisions of this plan recorded 4 failures in
+  `agent-run-reconciliation.e2e-spec.ts` and attributed them first to `main` and
+  then to local timing. Both attributions were wrong, and the verification that
+  produced them was flawed: the "baseline on `main`" run used the same shared
+  test database that a previous run of this suite had already polluted. The
+  actual cause was this suite seeding a `QUEUED` `AgentRun` and never removing
+  it. `AgentRunReconciler.reconcileOnce()` sweeps every non-terminal run in the
+  database rather than one organization's, so the orphan counted toward that
+  suite's `missing` tally. It surfaced in CI only once this file grew enough to
+  be scheduled ahead of the reconciliation suite. Fixed by clearing the suite's
+  own runs in `afterAll`, which is what `content-ideas.e2e-spec.ts` already did
+  and this file did not.
 
 ## History
 

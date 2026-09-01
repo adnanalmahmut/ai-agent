@@ -102,6 +102,9 @@ describe('content projects', () => {
   const base = (id = organizationId) =>
     `/organizations/${encodeURIComponent(id)}/content-projects`;
 
+  /** Every organization this suite creates, so cleanup can find them all. */
+  const ownedOrganizationIds: string[] = [];
+
   const createOrganization = async (user: TestUser, name: string) => {
     const response = await as(harness, user).post(
       '/api/auth/organization/create',
@@ -110,7 +113,10 @@ describe('content projects', () => {
 
     expect(response.status).toBe(200);
 
-    return (response.body as { id: string }).id;
+    const id = (response.body as { id: string }).id;
+    ownedOrganizationIds.push(id);
+
+    return id;
   };
 
   const addMember = async (
@@ -193,7 +199,48 @@ describe('content projects', () => {
     });
   }, 60_000);
 
+  /**
+   * Everything this suite wrote, removed.
+   *
+   * Not politeness. `AgentRunReconciler.reconcileOnce()` sweeps *every*
+   * non-terminal run in the database, not the ones belonging to some
+   * organization, so the queued run seeded here counts toward another suite's
+   * `missing` tally and fails it — which is exactly what happened in CI once
+   * this file grew enough to be scheduled before that one. Runs are shared
+   * state, and a suite that seeds a non-terminal one has to take it away
+   * again. `content-ideas.e2e-spec.ts` clears its runs for the same reason.
+   *
+   * Ordered by the foreign keys: drafts cascade from projects, and projects
+   * restrict on the runs they were promoted from, so projects go before runs.
+   */
   afterAll(async () => {
+    if (harness !== undefined && ownedOrganizationIds.length > 0) {
+      const scope = { organizationId: { in: ownedOrganizationIds } };
+
+      await harness.prisma.contentProject.deleteMany({ where: scope });
+
+      /**
+       * The audit events stay. `organization_audit_event` is append-only at the
+       * database — a DELETE raises `55000` — which is the whole point of that
+       * table, and they harm nothing: every assertion here scopes to an
+       * organization this suite created fresh, so accumulated history from a
+       * previous run cannot be counted by this one.
+       */
+
+      const runs = await harness.prisma.agentRun.findMany({
+        where: scope,
+        select: { id: true },
+      });
+
+      if (runs.length > 0) {
+        await harness.prisma.outboxEvent.deleteMany({
+          where: { dedupeKey: { in: runs.map((run) => run.id) } },
+        });
+      }
+
+      await harness.prisma.agentRun.deleteMany({ where: scope });
+    }
+
     await harness?.close();
   });
 
