@@ -215,3 +215,43 @@ export type KnowledgeDocument = Prisma.KnowledgeDocumentModel
  * for a filter this selective.
  */
 export type KnowledgeChunk = Prisma.KnowledgeChunkModel
+/**
+ * Model ContentProject
+ * One content idea an organization decided to act on.
+ * 
+ * The prose fields are a snapshot the *server* derived from
+ * `AgentRun.output` at `sourceIdeaIndex`, not text the caller submitted. A
+ * caller who could send the prose could persist words the agent never wrote
+ * while they still read as agent-authored, and nothing afterwards could tell
+ * the difference — the run reference would claim a provenance the row did not
+ * have.
+ * 
+ * The snapshot is copied rather than referenced because it must not move.
+ * `AgentRun.output` is one JSON document holding every idea from that request;
+ * reading the chosen one back through an index would make the project's
+ * identity depend on the position of an element in a blob, and would leave a
+ * project unreadable if the output shape ever changed. What was chosen is
+ * settled at selection and stays settled.
+ * 
+ * `suggestedFormat` and `language` are strings rather than database enums, for
+ * the same reason `AgentRun.runtime` is: the vocabularies are code-owned and
+ * validated there, so extending either is a code change rather than
+ * inherently a migration.
+ */
+export type ContentProject = Prisma.ContentProjectModel
+/**
+ * Model ContentDraft
+ * One revision of the thing a content project is trying to produce.
+ * 
+ * Revision 1 is created in the same transaction as its project and is a
+ * *target*, not content: it names the format, language, and working title the
+ * eventual piece should have, and its body is null because nothing has written
+ * it. Seeding the body from the idea summary would put words in the draft that
+ * no writer chose and no reviewer approved, and would make an unwritten draft
+ * indistinguishable from a written one.
+ * 
+ * The revision column exists now, at a fixed value of one, because the Writer
+ * Agent that will add revision 2 must not have to migrate a single-draft table
+ * into a versioned one while projects already exist.
+ */
+export type ContentDraft = Prisma.ContentDraftModel

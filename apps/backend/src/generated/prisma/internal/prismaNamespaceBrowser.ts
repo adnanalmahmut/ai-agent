@@ -71,7 +71,9 @@ export const ModelName = {
   OrganizationAuditEvent: 'OrganizationAuditEvent',
   KnowledgeSpace: 'KnowledgeSpace',
   KnowledgeDocument: 'KnowledgeDocument',
-  KnowledgeChunk: 'KnowledgeChunk'
+  KnowledgeChunk: 'KnowledgeChunk',
+  ContentProject: 'ContentProject',
+  ContentDraft: 'ContentDraft'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -413,6 +415,43 @@ export const KnowledgeChunkScalarFieldEnum = {
 } as const
 
 export type KnowledgeChunkScalarFieldEnum = (typeof KnowledgeChunkScalarFieldEnum)[keyof typeof KnowledgeChunkScalarFieldEnum]
+
+
+export const ContentProjectScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  sourceRunId: 'sourceRunId',
+  sourceIdeaIndex: 'sourceIdeaIndex',
+  title: 'title',
+  hook: 'hook',
+  angle: 'angle',
+  summary: 'summary',
+  suggestedFormat: 'suggestedFormat',
+  language: 'language',
+  createdByUserId: 'createdByUserId',
+  idempotencyKey: 'idempotencyKey',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContentProjectScalarFieldEnum = (typeof ContentProjectScalarFieldEnum)[keyof typeof ContentProjectScalarFieldEnum]
+
+
+export const ContentDraftScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  projectId: 'projectId',
+  revision: 'revision',
+  title: 'title',
+  format: 'format',
+  language: 'language',
+  body: 'body',
+  createdByUserId: 'createdByUserId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContentDraftScalarFieldEnum = (typeof ContentDraftScalarFieldEnum)[keyof typeof ContentDraftScalarFieldEnum]
 
 
 export const SortOrder = {
