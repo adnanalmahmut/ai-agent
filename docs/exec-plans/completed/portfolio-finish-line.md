@@ -168,7 +168,7 @@ Reviewed against the repository at `c903794`, not against memory of it.
 - [x] Local `TODO.md` reset
 - [x] Self-review against repository reality
 - [x] Validation
-- [ ] PR opened, final-head CI green
+- [x] PR opened, final-head CI green
 
 ## Blockers
 
@@ -186,3 +186,16 @@ None.
   lockfile, no Prisma schema or migration.
 - `pnpm agents:resume` parses the rewritten dashboard and reports the slot as
   the single current PR.
+
+## Outcome
+
+Delivered as PR #58 on `docs/portfolio-finish-line`, based on `main` at
+`c90379440e4cca7654d97845c6e3f255c95ce5db`, independent.
+
+The program is now bounded. ADR 0002 records the durable decision and the
+capability test, `docs/portfolio-finish-line.md` records what is already proven
+and what remains, and `AGENTS.md` binds an agent to the test before it plans.
+The old open-ended roadmap is closed rather than deferred: reopening any
+de-scoped capability requires a new explicit human decision.
+
+Gate P0 closes when this merges. TOOL-01 is next and needs its own approval.
