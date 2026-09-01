@@ -28,7 +28,13 @@ without blocking it or erasing attribution through `SET NULL`. Organization
 deletion is restricted so tenant history cannot be orphaned or silently
 removed. Reads are served by `(organizationId, occurredAt, id)` descending;
 the second index supports the history of one subject without weakening the
-tenant predicate. The application exposes create-in-transaction and bounded
+tenant predicate. That second index carries an explicit `map:` in the Prisma
+schema because its generated name exceeds PostgreSQL's 63-byte identifier
+limit. The owning migration asked for a 76-byte name and PostgreSQL kept the
+first 63; Prisma truncates to 63 as well, but by a rule that preserves the
+`_idx` suffix, so the two disagree and `migrate diff` reported a permanent
+phantom rename. The map records the name the database actually holds. It
+changes no index semantics and needs no migration. The application exposes create-in-transaction and bounded
 list operations only—no update or delete operation. PostgreSQL independently
 enforces the same boundary with a `BEFORE UPDATE OR DELETE` trigger that raises
 `organization_audit_event_append_only`, so direct Prisma and raw-SQL mutation
