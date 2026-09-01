@@ -73,18 +73,18 @@ meets the constraint before it starts planning.
 
 ## Acceptance criteria
 
-- [ ] ADR 0002 exists, follows the repository ADR convention, and records the
+- [x] ADR 0002 exists, follows the repository ADR convention, and records the
       decision test and the explicit non-goal of roadmap completion.
-- [ ] `docs/portfolio-finish-line.md` contains the four required sections:
+- [x] `docs/portfolio-finish-line.md` contains the four required sections:
       demonstrated capability, exit criteria, bounded roadmap, non-requirements.
-- [ ] `AGENTS.md` carries a program-mode rule linking the finish-line document,
+- [x] `AGENTS.md` carries a program-mode rule linking the finish-line document,
       with all prior invariants intact.
-- [ ] `docs/README.md` links both new documents.
-- [ ] No implemented capability is described falsely.
-- [ ] No de-scoped roadmap item is still represented as mandatory anywhere in
+- [x] `docs/README.md` links both new documents.
+- [x] No implemented capability is described falsely.
+- [x] No de-scoped roadmap item is still represented as mandatory anywhere in
       tracked documentation.
-- [ ] The three program gates P0/P1/P2 are recorded.
-- [ ] Zero executable or runtime change in the diff.
+- [x] The three program gates P0/P1/P2 are recorded.
+- [x] Zero executable or runtime change in the diff.
 
 ## Validation
 
@@ -118,18 +118,71 @@ meets the constraint before it starts planning.
   destroy the one document that answers "what does this system actually do
   today" without qualification.
 
+## Self-review outcomes
+
+Reviewed against the repository at `c903794`, not against memory of it.
+
+1. **Two capability claims were overstated and were corrected before commit.**
+
+   The first said durable idempotency exists "at every consumer" via a caller
+   key composed with a body digest. That conflates two different mechanisms.
+   Request idempotency at the API boundary is the caller key plus body digest;
+   consumer idempotency is a PostgreSQL unique constraint on the business row,
+   and the BullMQ dedupe key is neither — it only collapses duplicates while the
+   job is still retained in Redis, as `OutboxEvent.dedupeKey` says in the schema.
+   Rewritten to name all three layers separately.
+
+   The second said organization isolation is enforced "through composite
+   `(id, organizationId)` keys" without qualification, which reads as universal.
+   Seven models carry that constraint, and it governs the case that matters —
+   one organization-owned row referencing another — but it is not every model.
+   Rewritten to state the actual scope.
+
+2. **No de-scoped roadmap item is represented as mandatory in tracked
+   documentation.** A sweep for the de-scoped vocabulary returns only: completed
+   execution plans recording them as non-goals at the time (historical and
+   correct), `carousel` as a `suggestedFormat` enum value in `docs/backend.md`,
+   and Stripe as a dependency-injection example in an unrelated NestJS skill.
+
+3. **ADR 0002 and the finish-line document do not contradict each other.** Both
+   state five remaining slices, the same capability test, the same treatment of
+   defect repair versus manufactured hardening, and the same stop condition.
+   Fourteen exit criteria appear once, in the finish-line document; the ADR
+   points to them rather than restating them.
+
+4. **`AGENTS.md` is insertions only.** The diff adds fourteen lines and removes
+   none, so no invariant and no Git, security, or deployment policy is weakened.
+
+5. **The `organization_audit_event` index-name drift is deliberately not
+   fixed here.** It is a real finding, carried forward in the local dashboard.
+   Repairing a schema inside a governance PR would break this PR's own claim of
+   zero executable change.
+
 ## Progress
 
 - [x] Execution plan committed
-- [ ] ADR 0002
-- [ ] Finish-line document
-- [ ] `AGENTS.md` program rule
-- [ ] `docs/README.md` index
-- [ ] Local `TODO.md` reset
-- [ ] Self-review against repository reality
-- [ ] Validation
+- [x] ADR 0002
+- [x] Finish-line document
+- [x] `AGENTS.md` program rule
+- [x] `docs/README.md` index
+- [x] Local `TODO.md` reset
+- [x] Self-review against repository reality
+- [x] Validation
 - [ ] PR opened, final-head CI green
 
 ## Blockers
 
 None.
+
+## Verified evidence
+
+- `pnpm agents:check` — "Agent harness validation passed", 113 harness tests
+  pass, 0 fail.
+- `ops/tests/documentation.sh` — "documentation checks passed".
+- `git diff --check` — clean.
+- `git diff c903794 --name-only` touches only `AGENTS.md`, `docs/README.md`,
+  `docs/decisions/0002-portfolio-finish-line.md`, `docs/portfolio-finish-line.md`,
+  and this plan. Nothing under `apps/`, `packages/`, `ops/`, `.github/`, no
+  lockfile, no Prisma schema or migration.
+- `pnpm agents:resume` parses the rewritten dashboard and reports the slot as
+  the single current PR.

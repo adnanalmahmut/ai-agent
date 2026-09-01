@@ -23,9 +23,11 @@ matters for portfolio judgment.
 
 **Multi-tenancy and authorization**
 
-- Organization-scoped isolation enforced in the schema through composite
-  `(id, organizationId)` keys, so a cross-tenant reference is refused by
-  PostgreSQL rather than by a service predicate.
+- Organization-scoped isolation enforced in the schema: where one
+  organization-owned row references another, the foreign key is the composite
+  `(id, organizationId)` pair against a matching unique constraint, so a
+  cross-tenant reference is refused by PostgreSQL rather than by a service
+  predicate.
 - Two separate RBAC domains — platform (`user`, `admin`, `super_admin`) and
   organization (`member`, `admin`, `owner`) — with backend enforcement
   authoritative and client gates treated as UX only.
@@ -58,9 +60,12 @@ matters for portfolio judgment.
 - PostgreSQL is authoritative business state; Redis is disposable coordination.
 - Transactional outbox: accepted async work is committed with its event before
   any queue publish.
-- At-least-once delivery with durable idempotency at every consumer — caller key
-  composed with a body digest under a durable unique constraint, read-in-
-  transaction then insert then re-read the winner on conflict.
+- At-least-once delivery with idempotency at two distinct layers: request
+  idempotency at the API boundary, where a caller key composed with a body
+  digest is read in-transaction, inserted, and the winner re-read on conflict;
+  and consumer idempotency as a PostgreSQL unique constraint on the business
+  row, since a BullMQ dedupe key only collapses duplicates while the job is
+  still retained in Redis.
 - BullMQ coordination with deduplication, lease/retry, claim-version fencing,
   and reconciliation of terminal transport failures to a durable outcome.
 - API, worker, and migration as separate composition and execution modes.
