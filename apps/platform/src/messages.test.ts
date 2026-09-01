@@ -213,6 +213,32 @@ describe('every state the code can reach has copy', () => {
     }
   });
 
+  /**
+   * The same two vocabularies again, in the namespace the Projects screens
+   * read from.
+   *
+   * Key parity between locales cannot catch this: both dictionaries agree a
+   * forgotten format is absent, and the badge renders its own key path in
+   * both languages. Only enumerating the contract does.
+   */
+  it.each(CONTENT_IDEA_FORMATS)('ContentProjects.format.%s', (format) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `ContentProjects.format.${format}`),
+        `${locale}: ${format}`,
+      ).toBeTruthy();
+    }
+  });
+
+  it.each(CONTENT_IDEA_LANGUAGES)('ContentProjects.language.%s', (language) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `ContentProjects.language.${language}`),
+        `${locale}: ${language}`,
+      ).toBeTruthy();
+    }
+  });
+
   it.each(CONTENT_IDEA_LANGUAGES)('ContentIdeas.language.%s', (language) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       expect(

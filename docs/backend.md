@@ -40,12 +40,13 @@ change state is a conflict rather than a silent overwrite.
 
 The organization product-audit domain (`src/organization-audit/`) records
 meaningful tenant mutations separately from application logs, agent execution,
-and the operator-only control-plane history. Its initial closed action is
-`organizationBusinessProfile.replaced`. A real profile change and its event are
-written in one Prisma transaction; no-ops and losing compare-and-swap attempts
-append nothing. The event carries the organization, authenticated actor,
-subject, time, and a closed before/after projection containing only the bounded
-business-profile fields. There is no generic metadata or request-body input.
+and the operator-only control-plane history. Its closed actions are
+`organizationBusinessProfile.replaced` and `contentProject.created`. A real
+profile change and its event are written in one Prisma transaction; no-ops and
+losing compare-and-swap attempts append nothing. The event carries the
+organization, authenticated actor, subject, time, and a closed before/after
+projection containing only the bounded fields of the subject it describes.
+There is no generic metadata or request-body input.
 `GET /organizations/:organizationId/audit-events` is rooted in the path tenant,
 guarded by `organization:update`, bounded to 100 rows, and keyset-paged newest
 first on `(occurredAt, id)`. No application route or service updates or deletes
@@ -289,6 +290,56 @@ would buy the same ideas twice. The stored key mixes the caller's key with a
 digest of the parsed request, so an honest retry finds its own run while the
 same key sent with a different body is a different key rather than a way to
 receive somebody else's answer.
+
+`src/content-projects/` is what happens after the ideas come back. One route
+promotes a single idea into a `ContentProject`, and two read what has been
+promoted. Creation is synchronous — unlike generation it spends no provider call
+and writes two rows in one transaction, so there is nothing to poll.
+
+The request names a run and an index; it never carries the idea's text. A
+request shaped to accept the prose would let a member persist words the agent
+never produced while the row still pointed at a real run, and nothing
+afterwards — screen, export, or audit — could tell the difference. The server
+therefore re-reads `AgentRun.output` at the given index and copies the snapshot
+itself. Selection is refused for a run that is absent, owned by another
+organization, or produced by another agent, all reported as absent because none
+is a distinction the caller is entitled to; a run the caller *can* see but which
+has not succeeded is refused as a conflict instead, since pretending it does not
+exist would be a lie they can check.
+
+The originating brief — topic, goal, and the optional audience and guidance —
+is snapshotted onto the project from the run's input by the same parse that
+supplies the content language. It is copied for the same reason the idea is:
+the project has to be a complete statement of the work, and a writer reaching
+back into `AgentRun.input` to find out what the piece is for would depend on a
+JSON column belonging to another aggregate, pinned to a definition revision that
+may no longer be current. A run whose input this version cannot parse is
+therefore refused rather than promoted without a brief — a project that cannot
+say what it is for is not worth creating.
+
+`ContentDraft` revision 1 is created in the same statement as the project. A
+project without a draft is a state no caller should observe, so the draft is not
+a second write that could fail in between. Its body is null: no writer exists in
+this slice, and a body seeded from the idea summary would be words nobody wrote.
+
+A successful promotion appends one `contentProject.created` product-audit event
+on the same transaction client, so the decision and its record commit or fail
+together — an audit append that failed would roll the project and its draft
+back, because a decision the log denies is worse for a later reader than a
+creation that visibly failed. A replay appends nothing: it returns before
+reaching the write. The projection is closed to identifiers and the two
+code-owned enums; the caller's idempotency key, the request body, the brief, and
+the agent's prose are all deliberately absent.
+
+Tenant isolation here is a database constraint rather than a service predicate.
+`content_project` references `(sourceRunId, organizationId)` against a composite
+unique on `agent_run`, and `content_draft` references
+`(projectId, organizationId)`, so a cross-organization selection is refused by
+PostgreSQL whether or not the service check runs. The check exists to return a
+clean 404 rather than a constraint violation. An `Idempotency-Key` header is
+required and, as with generation, the stored key mixes it with a digest of the
+request, so a retry finds its own project while the same key with a different
+body is a different request.
 
 The control plane (`src/control-plane/`) holds operational state an operator can
 change without a deployment: feature flags, typed runtime settings, and

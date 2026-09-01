@@ -417,7 +417,9 @@ export const ModelName = {
   OrganizationAuditEvent: 'OrganizationAuditEvent',
   KnowledgeSpace: 'KnowledgeSpace',
   KnowledgeDocument: 'KnowledgeDocument',
-  KnowledgeChunk: 'KnowledgeChunk'
+  KnowledgeChunk: 'KnowledgeChunk',
+  ContentProject: 'ContentProject',
+  ContentDraft: 'ContentDraft'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -433,7 +435,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "organizationAgentInstallation" | "organizationAgentVersion" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "organizationAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk"
+    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "organizationAgentInstallation" | "organizationAgentVersion" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "organizationAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk" | "contentProject" | "contentDraft"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1991,6 +1993,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    ContentProject: {
+      payload: Prisma.$ContentProjectPayload<ExtArgs>
+      fields: Prisma.ContentProjectFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ContentProjectFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ContentProjectFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>
+        }
+        findFirst: {
+          args: Prisma.ContentProjectFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ContentProjectFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>
+        }
+        findMany: {
+          args: Prisma.ContentProjectFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>[]
+        }
+        create: {
+          args: Prisma.ContentProjectCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>
+        }
+        createMany: {
+          args: Prisma.ContentProjectCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ContentProjectCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>[]
+        }
+        delete: {
+          args: Prisma.ContentProjectDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>
+        }
+        update: {
+          args: Prisma.ContentProjectUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>
+        }
+        deleteMany: {
+          args: Prisma.ContentProjectDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ContentProjectUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ContentProjectUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>[]
+        }
+        upsert: {
+          args: Prisma.ContentProjectUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentProjectPayload>
+        }
+        aggregate: {
+          args: Prisma.ContentProjectAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentProject>
+        }
+        groupBy: {
+          args: Prisma.ContentProjectGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentProjectGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ContentProjectCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentProjectCountAggregateOutputType> | number
+        }
+      }
+    }
+    ContentDraft: {
+      payload: Prisma.$ContentDraftPayload<ExtArgs>
+      fields: Prisma.ContentDraftFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ContentDraftFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ContentDraftFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>
+        }
+        findFirst: {
+          args: Prisma.ContentDraftFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ContentDraftFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>
+        }
+        findMany: {
+          args: Prisma.ContentDraftFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>[]
+        }
+        create: {
+          args: Prisma.ContentDraftCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>
+        }
+        createMany: {
+          args: Prisma.ContentDraftCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ContentDraftCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>[]
+        }
+        delete: {
+          args: Prisma.ContentDraftDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>
+        }
+        update: {
+          args: Prisma.ContentDraftUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>
+        }
+        deleteMany: {
+          args: Prisma.ContentDraftDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ContentDraftUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ContentDraftUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>[]
+        }
+        upsert: {
+          args: Prisma.ContentDraftUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ContentDraftPayload>
+        }
+        aggregate: {
+          args: Prisma.ContentDraftAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateContentDraft>
+        }
+        groupBy: {
+          args: Prisma.ContentDraftGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentDraftGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ContentDraftCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ContentDraftCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2355,6 +2505,47 @@ export const KnowledgeChunkScalarFieldEnum = {
 export type KnowledgeChunkScalarFieldEnum = (typeof KnowledgeChunkScalarFieldEnum)[keyof typeof KnowledgeChunkScalarFieldEnum]
 
 
+export const ContentProjectScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  sourceRunId: 'sourceRunId',
+  sourceIdeaIndex: 'sourceIdeaIndex',
+  topic: 'topic',
+  goal: 'goal',
+  audience: 'audience',
+  guidance: 'guidance',
+  title: 'title',
+  hook: 'hook',
+  angle: 'angle',
+  summary: 'summary',
+  suggestedFormat: 'suggestedFormat',
+  language: 'language',
+  createdByUserId: 'createdByUserId',
+  idempotencyKey: 'idempotencyKey',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContentProjectScalarFieldEnum = (typeof ContentProjectScalarFieldEnum)[keyof typeof ContentProjectScalarFieldEnum]
+
+
+export const ContentDraftScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  projectId: 'projectId',
+  revision: 'revision',
+  title: 'title',
+  format: 'format',
+  language: 'language',
+  body: 'body',
+  createdByUserId: 'createdByUserId',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ContentDraftScalarFieldEnum = (typeof ContentDraftScalarFieldEnum)[keyof typeof ContentDraftScalarFieldEnum]
+
+
 export const SortOrder = {
   asc: 'asc',
   desc: 'desc'
@@ -2713,6 +2904,8 @@ export type GlobalOmitConfig = {
   knowledgeSpace?: Prisma.KnowledgeSpaceOmit
   knowledgeDocument?: Prisma.KnowledgeDocumentOmit
   knowledgeChunk?: Prisma.KnowledgeChunkOmit
+  contentProject?: Prisma.ContentProjectOmit
+  contentDraft?: Prisma.ContentDraftOmit
 }
 
 /* Types for Logging */

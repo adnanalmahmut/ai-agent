@@ -25,6 +25,7 @@ vi.mock('@/features/auth/auth-client', async () => {
 const requestContentIdeas = vi.fn();
 const getContentIdeaOperation = vi.fn();
 const getContentIdeaAvailability = vi.fn();
+const createContentProjectFromIdea = vi.fn();
 
 vi.mock('../organization-api', async () => {
   const actual = await vi.importActual<typeof import('../organization-api')>(
@@ -38,6 +39,8 @@ vi.mock('../organization-api', async () => {
       getContentIdeaOperation(...args),
     getContentIdeaAvailability: (...args: unknown[]) =>
       getContentIdeaAvailability(...args),
+    createContentProjectFromIdea: (...args: unknown[]) =>
+      createContentProjectFromIdea(...args),
   };
 });
 
@@ -1461,4 +1464,210 @@ describe('the content ideas screen', () => {
 
     expect(screen.getByText('أفكار المحتوى')).toBeVisible();
   });
+
+  /**
+   * Promoting an idea into a project.
+   *
+   * The button is the only place in the product where an idea becomes a
+   * commitment, so what it *sends* matters as much as what it shows: a run id
+   * and a position, never the idea's text.
+   */
+  describe('starting a project from an idea', () => {
+    const succeedWith = async (ideas: unknown[]) => {
+      allow(
+        'contentIdea:create',
+        'contentIdea:read',
+        'contentProject:create',
+        'contentProject:read',
+      );
+      requestContentIdeas.mockResolvedValue(operation());
+      getContentIdeaOperation.mockResolvedValue(succeeded(ideas));
+
+      render();
+      await fillForm();
+      await submit();
+
+      await screen.findByText(IDEA.title);
+    };
+
+    it('sends the run and the index, and never the idea text', async () => {
+      createContentProjectFromIdea.mockResolvedValue({ id: 'proj_1' });
+
+      await succeedWith([IDEA, { ...IDEA, title: 'Second idea' }]);
+
+      const buttons = await screen.findAllByRole('button', {
+        name: /start a project/i,
+      });
+
+      await userEvent.click(buttons[1]!);
+
+      await waitFor(() =>
+        expect(createContentProjectFromIdea).toHaveBeenCalled(),
+      );
+
+      const [organizationId, selection, key] =
+        createContentProjectFromIdea.mock.calls[0]!;
+
+      expect(organizationId).toBe('org_1');
+      expect(selection).toEqual({ sourceRunId: 'op_1', ideaIndex: 1 });
+      expect(JSON.stringify(selection)).not.toContain(IDEA.title);
+      // Derived from the pair, so a second click is the same request.
+      expect(key).toBe('promote:op_1:1');
+    });
+
+    it('offers the project once it exists', async () => {
+      createContentProjectFromIdea.mockResolvedValue({ id: 'proj_1' });
+
+      await succeedWith([IDEA]);
+
+      await userEvent.click(
+        screen.getByRole('button', { name: /start a project/i }),
+      );
+
+      const link = await screen.findByRole('link', { name: /open it/i });
+
+      expect(link).toHaveAttribute(
+        'href',
+        '/organizations/org_1/content-projects/proj_1',
+      );
+    });
+
+    /**
+     * A server that could not be reached is worth retrying.
+     */
+    it('distinguishes a transport failure from a refusal', async () => {
+      createContentProjectFromIdea.mockRejectedValue(
+        new ApiUnavailableError(),
+      );
+
+      await succeedWith([IDEA]);
+
+      await userEvent.click(
+        screen.getByRole('button', { name: /start a project/i }),
+      );
+
+      expect(
+        await screen.findByText(/could not be reached/i),
+      ).toBeInTheDocument();
+    });
+
+    /**
+     * A permission they do not hold is not, and must not be described as a
+     * network problem.
+     */
+    it('names a refusal the server decided', async () => {
+      createContentProjectFromIdea.mockRejectedValue(
+        new ApiError(403, 'FORBIDDEN'),
+      );
+
+      await succeedWith([IDEA]);
+
+      await userEvent.click(
+        screen.getByRole('button', { name: /start a project/i }),
+      );
+
+      expect(
+        await screen.findByText(/do not have permission to start projects/i),
+      ).toBeInTheDocument();
+    });
+
+    /** Anything else falls back to the neutral sentence. */
+    it('falls back for a refusal it cannot name', async () => {
+      createContentProjectFromIdea.mockRejectedValue(
+        new ApiError(409, 'CONFLICT'),
+      );
+
+      await succeedWith([IDEA]);
+
+      await userEvent.click(
+        screen.getByRole('button', { name: /start a project/i }),
+      );
+
+      expect(
+        await screen.findByText(/could not be turned into a project/i),
+      ).toBeInTheDocument();
+    });
+
+    /**
+     * A member who may read ideas but not act on them sees no button. The
+     * backend refuses them regardless; this keeps the screen from offering a
+     * control that answers 403.
+     */
+    it('hides the action from a member who holds neither permission', async () => {
+      allow('contentIdea:read');
+      requestContentIdeas.mockResolvedValue(operation());
+      getContentIdeaOperation.mockResolvedValue(succeeded([IDEA]));
+
+      render({}, { initialEntries: ['/?operation=op_1'] });
+
+      await screen.findByText(IDEA.title);
+
+      expect(
+        screen.queryByRole('button', { name: /start a project/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    /**
+     * The two permissions are genuinely separate, and this is the case that
+     * proves the gate reads the right one.
+     *
+     * Granting generation but withholding promotion is the role the backend's
+     * split exists to make possible. A gate wired to `contentIdea:create` shows
+     * an enabled button here that answers 403 on every click — and every other
+     * test in this file passes either way, because today's roles hold both or
+     * neither.
+     */
+    it('hides the action from a member who may generate but not promote', async () => {
+      allow('contentIdea:read', 'contentIdea:create');
+      requestContentIdeas.mockResolvedValue(operation());
+      getContentIdeaOperation.mockResolvedValue(succeeded([IDEA]));
+
+      render({}, { initialEntries: ['/?operation=op_1'] });
+
+      await screen.findByText(IDEA.title);
+
+      expect(
+        screen.queryByRole('button', { name: /start a project/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    /**
+     * An index only means anything relative to the run that produced it.
+     *
+     * Generating again replaces the operation in place — the block does not
+     * remount — so a promotion recorded against run A must not decorate run
+     * B's card at the same position, and must not hide run B's own button
+     * behind a link to somebody else's project.
+     */
+    it('forgets a promotion when a second generation replaces the run', async () => {
+      createContentProjectFromIdea.mockResolvedValue({ id: 'proj_1' });
+
+      await succeedWith([IDEA]);
+
+      await userEvent.click(
+        screen.getByRole('button', { name: /start a project/i }),
+      );
+
+      await screen.findByRole('link', { name: /open it/i });
+
+      // A second generation, in place.
+      getContentIdeaOperation.mockResolvedValue(
+        succeeded([{ ...IDEA, title: 'A different idea' }], [], {
+          id: 'op_2',
+        }),
+      );
+      requestContentIdeas.mockResolvedValue(operation({ id: 'op_2' }));
+
+      await submit();
+      await screen.findByText('A different idea');
+
+      expect(
+        screen.getByRole('button', { name: /start a project/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('link', { name: /open it/i }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
 });

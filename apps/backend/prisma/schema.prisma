@@ -34,10 +34,15 @@
 //   invitation.organizationId -> Restrict
 //   agent_run.organizationId  -> Restrict
 //   agent_run.createdByUserId -> Restrict (nullable; only when a creator exists)
+//   content_project.organizationId  -> Restrict
+//   content_project.sourceRunId     -> Restrict (the snapshot's provenance)
+//   content_project.createdByUserId -> Restrict (nullable, as above)
+//   content_draft.organizationId    -> Restrict
+//   content_draft.createdByUserId   -> Restrict (nullable, as above)
 //
-// The six Restricts are deliberate. Membership, invitation, and agent-run rows
-// carry history, and hard deletion of a user or an organization is not an
-// operation this application offers. If a physical delete is ever attempted — by hand, by
+// These Restricts are deliberate. Membership, invitation, agent-run, and
+// content-project rows carry history, and hard deletion of a user or an
+// organization is not an operation this application offers. If a physical delete is ever attempted — by hand, by
 // a future migration, or by a Better Auth route we failed to disable — it must
 // fail loudly rather than quietly shredding organizational history.
 //
@@ -96,6 +101,9 @@ model User {
   memberships      Member[]
   invitations      Invitation[] @relation("InvitationInviter")
   agentRunsCreated AgentRun[]
+
+  contentProjectsCreated ContentProject[] @relation("ContentProjectCreator")
+  contentDraftsCreated   ContentDraft[]   @relation("ContentDraftCreator")
 
   /// Control-plane edit attribution. `SetNull` on delete, because who changed
   /// a setting is useful history but must never block removing an account.
@@ -232,6 +240,9 @@ model Organization {
   knowledgeDocuments KnowledgeDocument[]
   knowledgeChunks    KnowledgeChunk[]
 
+  contentProjects ContentProject[]
+  contentDrafts   ContentDraft[]
+
   @@unique([slug])
   @@index([archivedAt])
   @@map("organization")
@@ -343,12 +354,17 @@ model AgentRun {
   /// BullMQ's job id is a secondary optimization and cannot replace this.
   idempotencyKey String
 
-  startedAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  startedAt       DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  contentProjects ContentProject[]
 
   @@unique([organizationId, idempotencyKey])
+  /// Target for tenant-safe child references. A child that points at a run
+  /// carries `(sourceRunId, organizationId)` as a pair, so the database — not
+  /// a service-layer predicate — refuses a selection across organizations.
+  @@unique([id, organizationId])
   @@index([createdByUserId])
   @@index([organizationAgentVersionId])
   /// Serves the reconciliation sweep, which repeatedly asks for the oldest
@@ -925,4 +941,150 @@ model KnowledgeChunk {
   @@index([organizationId, spaceId])
   @@index([documentId])
   @@map("knowledge_chunk")
+}
+
+/// One content idea an organization decided to act on.
+///
+/// The prose fields are a snapshot the *server* derived from
+/// `AgentRun.output` at `sourceIdeaIndex`, not text the caller submitted. A
+/// caller who could send the prose could persist words the agent never wrote
+/// while they still read as agent-authored, and nothing afterwards could tell
+/// the difference — the run reference would claim a provenance the row did not
+/// have.
+///
+/// The snapshot is copied rather than referenced because it must not move.
+/// `AgentRun.output` is one JSON document holding every idea from that request;
+/// reading the chosen one back through an index would make the project's
+/// identity depend on the position of an element in a blob, and would leave a
+/// project unreadable if the output shape ever changed. What was chosen is
+/// settled at selection and stays settled.
+///
+/// `suggestedFormat` and `language` are strings rather than database enums, for
+/// the same reason `AgentRun.runtime` is: the vocabularies are code-owned and
+/// validated there, so extending either is a code change rather than
+/// inherently a migration.
+model ContentProject {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  /// The run this idea came from, referenced as a pair with `organizationId`
+  /// so a project cannot be built from another organization's run. `Restrict`
+  /// because the run is the project's provenance: deleting it would leave a
+  /// snapshot claiming to have come from somewhere that no longer exists.
+  sourceRunId String
+  sourceRun   AgentRun @relation(fields: [sourceRunId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  /// Which idea in that run's output was selected. Kept for provenance — so a
+  /// reader can find the original alongside its siblings — and never read to
+  /// reconstruct the snapshot.
+  sourceIdeaIndex Int
+
+  /// The brief the ideas were generated from, snapshotted with the idea.
+  ///
+  /// Copied from `AgentRun.input` by the server for the same reason the idea is
+  /// copied from `AgentRun.output`: the project has to be a complete statement
+  /// of the work on its own. A writer — the agent that will eventually fill
+  /// revision 1, or a person — needs to know what the piece is *for*, and
+  /// reaching back into the run's input to find out would make every future
+  /// consumer depend on a JSON column belonging to another aggregate, one whose
+  /// shape is pinned to a definition revision that may no longer be current.
+  ///
+  /// `topic` and `goal` are required here because they are required of the
+  /// request that produced the ideas. `audience` and `guidance` are optional
+  /// there and nullable here; null means the request did not say, which is
+  /// different from an empty string and is worth being able to tell apart.
+  topic    String
+  goal     String
+  audience String?
+  guidance String?
+
+  /// The selected idea, exactly as the agent produced it.
+  title           String
+  hook            String
+  angle           String
+  summary         String
+  suggestedFormat String
+
+  /// The content language, taken from the run's input rather than the
+  /// selecting member's UI locale. An Arabic-speaking marketer planning English
+  /// copy is the ordinary case.
+  language String
+
+  /// Null means no authenticated application User selected this idea. It is not
+  /// an actor abstraction and carries no other meaning.
+  createdByUserId String?
+  createdByUser   User?   @relation("ContentProjectCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  /// Caller-supplied durable request identity, scoped to the organization.
+  /// Selecting the same idea twice from a retried request must not produce two
+  /// projects.
+  idempotencyKey String
+
+  drafts ContentDraft[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, idempotencyKey])
+  /// Target for tenant-safe child references.
+  @@unique([id, organizationId])
+  /// Serves the organization-scoped list, which is ordered newest first and
+  /// paginated by a stable `(createdAt, id)` cursor.
+  @@index([organizationId, createdAt, id])
+  @@index([sourceRunId])
+  @@index([createdByUserId])
+  @@map("content_project")
+}
+
+/// One revision of the thing a content project is trying to produce.
+///
+/// Revision 1 is created in the same transaction as its project and is a
+/// *target*, not content: it names the format, language, and working title the
+/// eventual piece should have, and its body is null because nothing has written
+/// it. Seeding the body from the idea summary would put words in the draft that
+/// no writer chose and no reviewer approved, and would make an unwritten draft
+/// indistinguishable from a written one.
+///
+/// The revision column exists now, at a fixed value of one, because the Writer
+/// Agent that will add revision 2 must not have to migrate a single-draft table
+/// into a versioned one while projects already exist.
+model ContentDraft {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  projectId String
+  /// Referenced as a pair with `organizationId`, so a draft cannot be filed
+  /// under a project belonging to a different organization. `Cascade` because
+  /// a draft has no meaning apart from its project.
+  project   ContentProject @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
+
+  /// Starts at one and is unique within the project.
+  revision Int
+
+  title    String
+  format   String
+  language String
+
+  /// Null until something writes it. No Writer Agent exists in this slice.
+  body String?
+
+  createdByUserId String?
+  createdByUser   User?   @relation("ContentDraftCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, revision])
+  /// Nothing references a draft yet. This exists for the revision-2 work that
+  /// will, so that reference can be tenant-safe from its first migration
+  /// rather than requiring a unique index added to a populated table.
+  @@unique([id, organizationId])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([createdByUserId])
+  @@map("content_draft")
 }

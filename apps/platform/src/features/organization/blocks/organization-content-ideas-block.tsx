@@ -7,9 +7,9 @@ import {
   Label,
   Textarea,
 } from '@repo/ui';
-import { Lightbulb, Loader2, RefreshCw } from 'lucide-react';
+import { Check, Lightbulb, Loader2, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -28,8 +28,10 @@ import {
   type PendingSubmission,
 } from '../content-idea-submission';
 
+import { ORGANIZATION_DETAIL_ROUTES } from '@/features/auth/routes';
 import {
   CONTENT_IDEA_LANGUAGES,
+  createContentProjectFromIdea,
   getContentIdeaAvailability,
   getContentIdeaOperation,
   requestContentIdeas,
@@ -138,6 +140,25 @@ const EMPTY_FORM: FormState = {
  * not have to retype it, while a one-character answer is a slip rather than an
  * answer.
  */
+/**
+ * Which of the three promotion messages to show.
+ *
+ * The generic `error.*` strings belong to generation — `error.forbidden` says
+ * "request content ideas" — so reusing them here would tell somebody the wrong
+ * thing about the wrong action. Only the two distinctions worth making are
+ * made: a permission they do not hold, which retrying cannot fix, and a server
+ * they could not reach, which retrying might.
+ */
+const promoteMessage = (
+  failure: ContentIdeaFailure | null,
+): 'forbidden' | 'unavailable' | 'failed' => {
+  if (failure === null) return 'failed';
+  if (failure.kind === 'forbidden') return 'forbidden';
+  if (failure.kind === 'unavailable') return 'unavailable';
+
+  return 'failed';
+};
+
 const isSubmittable = (form: FormState) =>
   within(form.topic, 3, LIMITS.topic) &&
   within(form.goal, 3, LIMITS.goal) &&
@@ -229,6 +250,20 @@ export function OrganizationContentIdeasBlock({
 
   const canCreate = useOrganizationRolePermission(viewer.member?.role, {
     contentIdea: ['create'],
+  });
+
+  /**
+   * A separate gate, because it is a separate authority.
+   *
+   * Generating spends the platform's provider credential; promoting commits the
+   * organization to a piece of work everybody will see. The two happen to be
+   * held by the same roles today, so reusing `canCreate` would look right and
+   * would quietly put an enabled button in front of the first role that holds
+   * one without the other — which is precisely the role the split exists to
+   * make possible.
+   */
+  const canPromote = useOrganizationRolePermission(viewer.member?.role, {
+    contentProject: ['create'],
   });
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -571,6 +606,88 @@ export function OrganizationContentIdeasBlock({
     }
   }, [organizationId, form, setOperation, putOperationInRoute]);
 
+  /**
+   * Which idea is being promoted, and which ones already were.
+   *
+   * Keyed by index *and* discarded whenever the operation changes. An index
+   * only means anything relative to the run that produced it, and this block
+   * does not remount between generations — `setOperation` replaces the
+   * operation in place — so state left behind would attach run A's project to
+   * whatever idea happens to sit at the same position in run B, and hide run
+   * B's own promote button behind a link to somebody else's project.
+   *
+   * It is intentionally not read back from the server. A project list filtered
+   * by source run would answer "has this been promoted" authoritatively, but at
+   * the cost of a second request on every result render to change a label —
+   * and the button is idempotent, so the worst a stale "not yet" can cause is a
+   * second click that returns the first project.
+   */
+  const [promoting, setPromoting] = useState<number | null>(null);
+  const [promoted, setPromoted] = useState<Record<number, string>>({});
+  const [promoteFailed, setPromoteFailed] = useState<number | null>(null);
+  /** The operation `promoted` and `promoteFailed` were recorded against. */
+  const [promotedFor, setPromotedFor] = useState<string | null>(null);
+  const [promoteFailure, setPromoteFailure] = useState<ContentIdeaFailure | null>(
+    null,
+  );
+
+  /**
+   * The key is derived from the run and the index, not minted per click.
+   *
+   * That makes a double-click, a retried click after a dropped connection, and
+   * a click after a reload all the same request — so an idea cannot become two
+   * projects because somebody was impatient.
+   */
+  const promote = useCallback(
+    async (index: number) => {
+      if (operationId === null) return;
+
+      setPromoting(index);
+      setPromoteFailed(null);
+      setPromoteFailure(null);
+      // Recorded up front, so a *failure* is attributed to this run too. Set
+      // only on success, the outcome would be discarded by the scope check
+      // below and nothing would render.
+      setPromotedFor(operationId);
+
+      try {
+        const project = await createContentProjectFromIdea(
+          organizationId,
+          { sourceRunId: operationId, ideaIndex: index },
+          `promote:${operationId}:${index}`,
+        );
+
+        setPromoted((previous) => ({ ...previous, [index]: project.id }));
+      } catch (thrown) {
+        /**
+         * Classified like every other failure in this block rather than
+         * flattened to one sentence. A refusal the server decided — no
+         * permission, a run that is not finished — is a different thing to tell
+         * somebody than a browser that could not reach the API, and the second
+         * is worth retrying while the first is not.
+         */
+        setPromoteFailed(index);
+        setPromoteFailure(classify(thrown));
+      } finally {
+        setPromoting(null);
+      }
+    },
+    [operationId, organizationId],
+  );
+
+  /**
+   * Derived, not reset in an effect.
+   *
+   * `setState` from an effect body is refused by lint here, and a derived value
+   * cannot be left behind by a dependency somebody forgot — the moment
+   * `operationId` differs from the operation these were recorded against, they
+   * are simply not this run's.
+   */
+  const promotedNow =
+    promotedFor !== null && promotedFor === operationId ? promoted : {};
+  const promoteFailedNow = promotedFor === operationId ? promoteFailed : null;
+  const promoteFailureNow = promotedFor === operationId ? promoteFailure : null;
+
   const ideas = operation?.output?.ideas ?? [];
   const sources = operation?.output?.sources ?? [];
   const isBusy = isSubmitting || isPending;
@@ -801,6 +918,52 @@ export function OrganizationContentIdeasBlock({
                         <bdi>{idea.summary}</bdi>
                       </p>
                     </div>
+
+                    {/*
+                      The selection action.
+
+                      Only the text the agent produced is ever sent: the request
+                      carries this operation's id and this card's index, and the
+                      server reads the idea back off the run.
+                    */}
+                    {canPromote ? (
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        {promotedNow[index] === undefined ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={promoting !== null}
+                            onClick={() => void promote(index)}
+                          >
+                            {promoting === index ? (
+                              <Loader2
+                                aria-hidden
+                                className="size-4 animate-spin"
+                              />
+                            ) : (
+                              <Check aria-hidden className="size-4" />
+                            )}
+                            {t('promote.action')}
+                          </Button>
+                        ) : (
+                          <Link
+                            className="text-sm underline-offset-4 hover:underline"
+                            to={ORGANIZATION_DETAIL_ROUTES.contentProject(
+                              organizationId,
+                              promotedNow[index] ?? '',
+                            )}
+                          >
+                            {t('promote.done')}
+                          </Link>
+                        )}
+
+                        {promoteFailedNow === index ? (
+                          <span className="text-sm text-destructive">
+                            {t(`promote.${promoteMessage(promoteFailureNow)}`)}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
               ))}

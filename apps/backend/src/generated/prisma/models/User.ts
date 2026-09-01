@@ -267,6 +267,8 @@ export type UserWhereInput = {
   memberships?: Prisma.MemberListRelationFilter
   invitations?: Prisma.InvitationListRelationFilter
   agentRunsCreated?: Prisma.AgentRunListRelationFilter
+  contentProjectsCreated?: Prisma.ContentProjectListRelationFilter
+  contentDraftsCreated?: Prisma.ContentDraftListRelationFilter
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideListRelationFilter
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
   runtimeSettingsEdited?: Prisma.RuntimeSettingListRelationFilter
@@ -294,6 +296,8 @@ export type UserOrderByWithRelationInput = {
   memberships?: Prisma.MemberOrderByRelationAggregateInput
   invitations?: Prisma.InvitationOrderByRelationAggregateInput
   agentRunsCreated?: Prisma.AgentRunOrderByRelationAggregateInput
+  contentProjectsCreated?: Prisma.ContentProjectOrderByRelationAggregateInput
+  contentDraftsCreated?: Prisma.ContentDraftOrderByRelationAggregateInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideOrderByRelationAggregateInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideOrderByRelationAggregateInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingOrderByRelationAggregateInput
@@ -324,6 +328,8 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   memberships?: Prisma.MemberListRelationFilter
   invitations?: Prisma.InvitationListRelationFilter
   agentRunsCreated?: Prisma.AgentRunListRelationFilter
+  contentProjectsCreated?: Prisma.ContentProjectListRelationFilter
+  contentDraftsCreated?: Prisma.ContentDraftListRelationFilter
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideListRelationFilter
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideListRelationFilter
   runtimeSettingsEdited?: Prisma.RuntimeSettingListRelationFilter
@@ -393,6 +399,8 @@ export type UserCreateInput = {
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
@@ -420,6 +428,8 @@ export type UserUncheckedCreateInput = {
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -447,6 +457,8 @@ export type UserUpdateInput = {
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
@@ -474,6 +486,8 @@ export type UserUncheckedUpdateInput = {
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -758,6 +772,38 @@ export type UserUpdateOneWithoutManagedSecretsEditedNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutManagedSecretsEditedInput, Prisma.UserUpdateWithoutManagedSecretsEditedInput>, Prisma.UserUncheckedUpdateWithoutManagedSecretsEditedInput>
 }
 
+export type UserCreateNestedOneWithoutContentProjectsCreatedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutContentProjectsCreatedInput, Prisma.UserUncheckedCreateWithoutContentProjectsCreatedInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutContentProjectsCreatedInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneWithoutContentProjectsCreatedNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutContentProjectsCreatedInput, Prisma.UserUncheckedCreateWithoutContentProjectsCreatedInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutContentProjectsCreatedInput
+  upsert?: Prisma.UserUpsertWithoutContentProjectsCreatedInput
+  disconnect?: Prisma.UserWhereInput | boolean
+  delete?: Prisma.UserWhereInput | boolean
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutContentProjectsCreatedInput, Prisma.UserUpdateWithoutContentProjectsCreatedInput>, Prisma.UserUncheckedUpdateWithoutContentProjectsCreatedInput>
+}
+
+export type UserCreateNestedOneWithoutContentDraftsCreatedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutContentDraftsCreatedInput, Prisma.UserUncheckedCreateWithoutContentDraftsCreatedInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutContentDraftsCreatedInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneWithoutContentDraftsCreatedNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutContentDraftsCreatedInput, Prisma.UserUncheckedCreateWithoutContentDraftsCreatedInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutContentDraftsCreatedInput
+  upsert?: Prisma.UserUpsertWithoutContentDraftsCreatedInput
+  disconnect?: Prisma.UserWhereInput | boolean
+  delete?: Prisma.UserWhereInput | boolean
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutContentDraftsCreatedInput, Prisma.UserUpdateWithoutContentDraftsCreatedInput>, Prisma.UserUncheckedUpdateWithoutContentDraftsCreatedInput>
+}
+
 export type UserCreateWithoutSessionsInput = {
   id?: string
   name: string
@@ -778,6 +824,8 @@ export type UserCreateWithoutSessionsInput = {
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
@@ -804,6 +852,8 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -846,6 +896,8 @@ export type UserUpdateWithoutSessionsInput = {
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
@@ -872,6 +924,8 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -898,6 +952,8 @@ export type UserCreateWithoutAccountsInput = {
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
@@ -924,6 +980,8 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -966,6 +1024,8 @@ export type UserUpdateWithoutAccountsInput = {
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
@@ -992,6 +1052,8 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -1018,6 +1080,8 @@ export type UserCreateWithoutMembershipsInput = {
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
@@ -1044,6 +1108,8 @@ export type UserUncheckedCreateWithoutMembershipsInput = {
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -1086,6 +1152,8 @@ export type UserUpdateWithoutMembershipsInput = {
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
@@ -1112,6 +1180,8 @@ export type UserUncheckedUpdateWithoutMembershipsInput = {
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -1138,6 +1208,8 @@ export type UserCreateWithoutInvitationsInput = {
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
@@ -1164,6 +1236,8 @@ export type UserUncheckedCreateWithoutInvitationsInput = {
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -1206,6 +1280,8 @@ export type UserUpdateWithoutInvitationsInput = {
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
@@ -1232,6 +1308,8 @@ export type UserUncheckedUpdateWithoutInvitationsInput = {
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -1258,6 +1336,8 @@ export type UserCreateWithoutAgentRunsCreatedInput = {
   accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
@@ -1284,6 +1364,8 @@ export type UserUncheckedCreateWithoutAgentRunsCreatedInput = {
   accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -1326,6 +1408,8 @@ export type UserUpdateWithoutAgentRunsCreatedInput = {
   accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
@@ -1352,6 +1436,8 @@ export type UserUncheckedUpdateWithoutAgentRunsCreatedInput = {
   accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -1379,6 +1465,8 @@ export type UserCreateWithoutFeatureFlagPlatformOverridesEditedInput = {
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
   managedSecretsEdited?: Prisma.ManagedSecretCreateNestedManyWithoutUpdatedByUserInput
@@ -1405,6 +1493,8 @@ export type UserUncheckedCreateWithoutFeatureFlagPlatformOverridesEditedInput = 
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
   managedSecretsEdited?: Prisma.ManagedSecretUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -1447,6 +1537,8 @@ export type UserUpdateWithoutFeatureFlagPlatformOverridesEditedInput = {
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
   managedSecretsEdited?: Prisma.ManagedSecretUpdateManyWithoutUpdatedByUserNestedInput
@@ -1473,6 +1565,8 @@ export type UserUncheckedUpdateWithoutFeatureFlagPlatformOverridesEditedInput = 
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   managedSecretsEdited?: Prisma.ManagedSecretUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -1499,6 +1593,8 @@ export type UserCreateWithoutFeatureFlagOrganizationOverridesEditedInput = {
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
   managedSecretsEdited?: Prisma.ManagedSecretCreateNestedManyWithoutUpdatedByUserInput
@@ -1525,6 +1621,8 @@ export type UserUncheckedCreateWithoutFeatureFlagOrganizationOverridesEditedInpu
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
   managedSecretsEdited?: Prisma.ManagedSecretUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -1567,6 +1665,8 @@ export type UserUpdateWithoutFeatureFlagOrganizationOverridesEditedInput = {
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
   managedSecretsEdited?: Prisma.ManagedSecretUpdateManyWithoutUpdatedByUserNestedInput
@@ -1593,6 +1693,8 @@ export type UserUncheckedUpdateWithoutFeatureFlagOrganizationOverridesEditedInpu
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   managedSecretsEdited?: Prisma.ManagedSecretUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -1619,6 +1721,8 @@ export type UserCreateWithoutRuntimeSettingsEditedInput = {
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   managedSecretsEdited?: Prisma.ManagedSecretCreateNestedManyWithoutUpdatedByUserInput
@@ -1645,6 +1749,8 @@ export type UserUncheckedCreateWithoutRuntimeSettingsEditedInput = {
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   managedSecretsEdited?: Prisma.ManagedSecretUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -1687,6 +1793,8 @@ export type UserUpdateWithoutRuntimeSettingsEditedInput = {
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   managedSecretsEdited?: Prisma.ManagedSecretUpdateManyWithoutUpdatedByUserNestedInput
@@ -1713,6 +1821,8 @@ export type UserUncheckedUpdateWithoutRuntimeSettingsEditedInput = {
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   managedSecretsEdited?: Prisma.ManagedSecretUncheckedUpdateManyWithoutUpdatedByUserNestedInput
@@ -1739,6 +1849,8 @@ export type UserCreateWithoutManagedSecretsEditedInput = {
   memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
@@ -1765,6 +1877,8 @@ export type UserUncheckedCreateWithoutManagedSecretsEditedInput = {
   memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
   invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
   agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
@@ -1807,6 +1921,8 @@ export type UserUpdateWithoutManagedSecretsEditedInput = {
   memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
@@ -1833,9 +1949,267 @@ export type UserUncheckedUpdateWithoutManagedSecretsEditedInput = {
   memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
   invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
   agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
   featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
   runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+}
+
+export type UserCreateWithoutContentProjectsCreatedInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  preferredLanguage?: string | null
+  role?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  deletedAt?: Date | string | null
+  deletedByUserId?: string | null
+  deletionReason?: string | null
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
+  invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
+  agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftCreateNestedManyWithoutCreatedByUserInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
+  managedSecretsEdited?: Prisma.ManagedSecretCreateNestedManyWithoutUpdatedByUserInput
+}
+
+export type UserUncheckedCreateWithoutContentProjectsCreatedInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  preferredLanguage?: string | null
+  role?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  deletedAt?: Date | string | null
+  deletedByUserId?: string | null
+  deletionReason?: string | null
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
+  invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
+  agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedCreateNestedManyWithoutCreatedByUserInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
+  managedSecretsEdited?: Prisma.ManagedSecretUncheckedCreateNestedManyWithoutUpdatedByUserInput
+}
+
+export type UserCreateOrConnectWithoutContentProjectsCreatedInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutContentProjectsCreatedInput, Prisma.UserUncheckedCreateWithoutContentProjectsCreatedInput>
+}
+
+export type UserUpsertWithoutContentProjectsCreatedInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutContentProjectsCreatedInput, Prisma.UserUncheckedUpdateWithoutContentProjectsCreatedInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutContentProjectsCreatedInput, Prisma.UserUncheckedCreateWithoutContentProjectsCreatedInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutContentProjectsCreatedInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutContentProjectsCreatedInput, Prisma.UserUncheckedUpdateWithoutContentProjectsCreatedInput>
+}
+
+export type UserUpdateWithoutContentProjectsCreatedInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  preferredLanguage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
+  invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
+  agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUpdateManyWithoutCreatedByUserNestedInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
+  managedSecretsEdited?: Prisma.ManagedSecretUpdateManyWithoutUpdatedByUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutContentProjectsCreatedInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  preferredLanguage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
+  invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
+  agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentDraftsCreated?: Prisma.ContentDraftUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+  managedSecretsEdited?: Prisma.ManagedSecretUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+}
+
+export type UserCreateWithoutContentDraftsCreatedInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  preferredLanguage?: string | null
+  role?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  deletedAt?: Date | string | null
+  deletedByUserId?: string | null
+  deletionReason?: string | null
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  memberships?: Prisma.MemberCreateNestedManyWithoutUserInput
+  invitations?: Prisma.InvitationCreateNestedManyWithoutInviterInput
+  agentRunsCreated?: Prisma.AgentRunCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectCreateNestedManyWithoutCreatedByUserInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideCreateNestedManyWithoutUpdatedByUserInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideCreateNestedManyWithoutUpdatedByUserInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingCreateNestedManyWithoutUpdatedByUserInput
+  managedSecretsEdited?: Prisma.ManagedSecretCreateNestedManyWithoutUpdatedByUserInput
+}
+
+export type UserUncheckedCreateWithoutContentDraftsCreatedInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  preferredLanguage?: string | null
+  role?: string | null
+  banned?: boolean | null
+  banReason?: string | null
+  banExpires?: Date | string | null
+  deletedAt?: Date | string | null
+  deletedByUserId?: string | null
+  deletionReason?: string | null
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  memberships?: Prisma.MemberUncheckedCreateNestedManyWithoutUserInput
+  invitations?: Prisma.InvitationUncheckedCreateNestedManyWithoutInviterInput
+  agentRunsCreated?: Prisma.AgentRunUncheckedCreateNestedManyWithoutCreatedByUserInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutCreatedByUserInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedCreateNestedManyWithoutUpdatedByUserInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedCreateNestedManyWithoutUpdatedByUserInput
+  managedSecretsEdited?: Prisma.ManagedSecretUncheckedCreateNestedManyWithoutUpdatedByUserInput
+}
+
+export type UserCreateOrConnectWithoutContentDraftsCreatedInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutContentDraftsCreatedInput, Prisma.UserUncheckedCreateWithoutContentDraftsCreatedInput>
+}
+
+export type UserUpsertWithoutContentDraftsCreatedInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutContentDraftsCreatedInput, Prisma.UserUncheckedUpdateWithoutContentDraftsCreatedInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutContentDraftsCreatedInput, Prisma.UserUncheckedCreateWithoutContentDraftsCreatedInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutContentDraftsCreatedInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutContentDraftsCreatedInput, Prisma.UserUncheckedUpdateWithoutContentDraftsCreatedInput>
+}
+
+export type UserUpdateWithoutContentDraftsCreatedInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  preferredLanguage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  memberships?: Prisma.MemberUpdateManyWithoutUserNestedInput
+  invitations?: Prisma.InvitationUpdateManyWithoutInviterNestedInput
+  agentRunsCreated?: Prisma.AgentRunUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUpdateManyWithoutCreatedByUserNestedInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUpdateManyWithoutUpdatedByUserNestedInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUpdateManyWithoutUpdatedByUserNestedInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingUpdateManyWithoutUpdatedByUserNestedInput
+  managedSecretsEdited?: Prisma.ManagedSecretUpdateManyWithoutUpdatedByUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutContentDraftsCreatedInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  preferredLanguage?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  role?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banned?: Prisma.NullableBoolFieldUpdateOperationsInput | boolean | null
+  banReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  banExpires?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  deletedByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  deletionReason?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  memberships?: Prisma.MemberUncheckedUpdateManyWithoutUserNestedInput
+  invitations?: Prisma.InvitationUncheckedUpdateManyWithoutInviterNestedInput
+  agentRunsCreated?: Prisma.AgentRunUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  contentProjectsCreated?: Prisma.ContentProjectUncheckedUpdateManyWithoutCreatedByUserNestedInput
+  featureFlagPlatformOverridesEdited?: Prisma.FeatureFlagPlatformOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+  featureFlagOrganizationOverridesEdited?: Prisma.FeatureFlagOrganizationOverrideUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+  runtimeSettingsEdited?: Prisma.RuntimeSettingUncheckedUpdateManyWithoutUpdatedByUserNestedInput
+  managedSecretsEdited?: Prisma.ManagedSecretUncheckedUpdateManyWithoutUpdatedByUserNestedInput
 }
 
 
@@ -1849,6 +2223,8 @@ export type UserCountOutputType = {
   memberships: number
   invitations: number
   agentRunsCreated: number
+  contentProjectsCreated: number
+  contentDraftsCreated: number
   featureFlagPlatformOverridesEdited: number
   featureFlagOrganizationOverridesEdited: number
   runtimeSettingsEdited: number
@@ -1861,6 +2237,8 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   memberships?: boolean | UserCountOutputTypeCountMembershipsArgs
   invitations?: boolean | UserCountOutputTypeCountInvitationsArgs
   agentRunsCreated?: boolean | UserCountOutputTypeCountAgentRunsCreatedArgs
+  contentProjectsCreated?: boolean | UserCountOutputTypeCountContentProjectsCreatedArgs
+  contentDraftsCreated?: boolean | UserCountOutputTypeCountContentDraftsCreatedArgs
   featureFlagPlatformOverridesEdited?: boolean | UserCountOutputTypeCountFeatureFlagPlatformOverridesEditedArgs
   featureFlagOrganizationOverridesEdited?: boolean | UserCountOutputTypeCountFeatureFlagOrganizationOverridesEditedArgs
   runtimeSettingsEdited?: boolean | UserCountOutputTypeCountRuntimeSettingsEditedArgs
@@ -1915,6 +2293,20 @@ export type UserCountOutputTypeCountAgentRunsCreatedArgs<ExtArgs extends runtime
 /**
  * UserCountOutputType without action
  */
+export type UserCountOutputTypeCountContentProjectsCreatedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ContentProjectWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountContentDraftsCreatedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ContentDraftWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
 export type UserCountOutputTypeCountFeatureFlagPlatformOverridesEditedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.FeatureFlagPlatformOverrideWhereInput
 }
@@ -1962,6 +2354,8 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   memberships?: boolean | Prisma.User$membershipsArgs<ExtArgs>
   invitations?: boolean | Prisma.User$invitationsArgs<ExtArgs>
   agentRunsCreated?: boolean | Prisma.User$agentRunsCreatedArgs<ExtArgs>
+  contentProjectsCreated?: boolean | Prisma.User$contentProjectsCreatedArgs<ExtArgs>
+  contentDraftsCreated?: boolean | Prisma.User$contentDraftsCreatedArgs<ExtArgs>
   featureFlagPlatformOverridesEdited?: boolean | Prisma.User$featureFlagPlatformOverridesEditedArgs<ExtArgs>
   featureFlagOrganizationOverridesEdited?: boolean | Prisma.User$featureFlagOrganizationOverridesEditedArgs<ExtArgs>
   runtimeSettingsEdited?: boolean | Prisma.User$runtimeSettingsEditedArgs<ExtArgs>
@@ -2030,6 +2424,8 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   memberships?: boolean | Prisma.User$membershipsArgs<ExtArgs>
   invitations?: boolean | Prisma.User$invitationsArgs<ExtArgs>
   agentRunsCreated?: boolean | Prisma.User$agentRunsCreatedArgs<ExtArgs>
+  contentProjectsCreated?: boolean | Prisma.User$contentProjectsCreatedArgs<ExtArgs>
+  contentDraftsCreated?: boolean | Prisma.User$contentDraftsCreatedArgs<ExtArgs>
   featureFlagPlatformOverridesEdited?: boolean | Prisma.User$featureFlagPlatformOverridesEditedArgs<ExtArgs>
   featureFlagOrganizationOverridesEdited?: boolean | Prisma.User$featureFlagOrganizationOverridesEditedArgs<ExtArgs>
   runtimeSettingsEdited?: boolean | Prisma.User$runtimeSettingsEditedArgs<ExtArgs>
@@ -2047,6 +2443,8 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     memberships: Prisma.$MemberPayload<ExtArgs>[]
     invitations: Prisma.$InvitationPayload<ExtArgs>[]
     agentRunsCreated: Prisma.$AgentRunPayload<ExtArgs>[]
+    contentProjectsCreated: Prisma.$ContentProjectPayload<ExtArgs>[]
+    contentDraftsCreated: Prisma.$ContentDraftPayload<ExtArgs>[]
     /**
      * Control-plane edit attribution. `SetNull` on delete, because who changed
      * a setting is useful history but must never block removing an account.
@@ -2493,6 +2891,8 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   memberships<T extends Prisma.User$membershipsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$membershipsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MemberPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   invitations<T extends Prisma.User$invitationsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$invitationsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$InvitationPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   agentRunsCreated<T extends Prisma.User$agentRunsCreatedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$agentRunsCreatedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AgentRunPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  contentProjectsCreated<T extends Prisma.User$contentProjectsCreatedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$contentProjectsCreatedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentProjectPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  contentDraftsCreated<T extends Prisma.User$contentDraftsCreatedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$contentDraftsCreatedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentDraftPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   featureFlagPlatformOverridesEdited<T extends Prisma.User$featureFlagPlatformOverridesEditedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$featureFlagPlatformOverridesEditedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FeatureFlagPlatformOverridePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   featureFlagOrganizationOverridesEdited<T extends Prisma.User$featureFlagOrganizationOverridesEditedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$featureFlagOrganizationOverridesEditedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   runtimeSettingsEdited<T extends Prisma.User$runtimeSettingsEditedArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$runtimeSettingsEditedArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$RuntimeSettingPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
@@ -3051,6 +3451,54 @@ export type User$agentRunsCreatedArgs<ExtArgs extends runtime.Types.Extensions.I
   take?: number
   skip?: number
   distinct?: Prisma.AgentRunScalarFieldEnum | Prisma.AgentRunScalarFieldEnum[]
+}
+
+/**
+ * User.contentProjectsCreated
+ */
+export type User$contentProjectsCreatedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ContentProject
+   */
+  select?: Prisma.ContentProjectSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ContentProject
+   */
+  omit?: Prisma.ContentProjectOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContentProjectInclude<ExtArgs> | null
+  where?: Prisma.ContentProjectWhereInput
+  orderBy?: Prisma.ContentProjectOrderByWithRelationInput | Prisma.ContentProjectOrderByWithRelationInput[]
+  cursor?: Prisma.ContentProjectWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ContentProjectScalarFieldEnum | Prisma.ContentProjectScalarFieldEnum[]
+}
+
+/**
+ * User.contentDraftsCreated
+ */
+export type User$contentDraftsCreatedArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ContentDraft
+   */
+  select?: Prisma.ContentDraftSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ContentDraft
+   */
+  omit?: Prisma.ContentDraftOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ContentDraftInclude<ExtArgs> | null
+  where?: Prisma.ContentDraftWhereInput
+  orderBy?: Prisma.ContentDraftOrderByWithRelationInput | Prisma.ContentDraftOrderByWithRelationInput[]
+  cursor?: Prisma.ContentDraftWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ContentDraftScalarFieldEnum | Prisma.ContentDraftScalarFieldEnum[]
 }
 
 /**

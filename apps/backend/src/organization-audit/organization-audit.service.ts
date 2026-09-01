@@ -3,10 +3,15 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database';
 import { AppException } from '../core/errors';
 import { Prisma } from '../generated/prisma/client';
+import type {
+  ContentIdeaFormat,
+  ContentIdeaLanguage,
+} from '../agents/definitions/content-idea';
 import type { OrganizationBusinessProfile } from '../organization-settings/organization-business-profile.types';
 
 export const ORGANIZATION_AUDIT_ACTIONS = [
   'organizationBusinessProfile.replaced',
+  'contentProject.created',
 ] as const;
 
 export type OrganizationAuditAction =
@@ -14,6 +19,7 @@ export type OrganizationAuditAction =
 
 export const ORGANIZATION_AUDIT_SUBJECTS = [
   'organizationBusinessProfile',
+  'contentProject',
 ] as const;
 
 export type OrganizationAuditSubject =
@@ -27,7 +33,7 @@ export type OrganizationAuditSubject =
  * there is nowhere for headers, credentials, cookies, or arbitrary caller data
  * to enter the row.
  */
-export type OrganizationAuditState = {
+export type OrganizationBusinessProfileAuditState = {
   kind: 'organizationBusinessProfile';
   version: number;
   locale: string;
@@ -38,6 +44,51 @@ export type OrganizationAuditState = {
   websiteUrl: string | null;
   businessDescription: string | null;
 };
+
+/**
+ * What promoting an idea records, and deliberately nothing more.
+ *
+ * Identifiers and closed vocabularies only. The temptation is to copy the
+ * idea's title so the log reads nicely, and it is refused: the title, hook,
+ * angle and summary are free-form text a language model produced, and the
+ * audit table is neither the place to keep a second copy of them nor a surface
+ * that should grow prose whose length nothing here bounds. Anyone entitled to
+ * read the log can follow `projectId` to the project itself.
+ *
+ * Absent for the same reason, and worth naming because they were available at
+ * the call site: the caller's `Idempotency-Key`, the request body, and the
+ * brief. The first is the caller's own header, the second is exactly the
+ * "generic metadata" this domain promises never to accept, and the third is
+ * operator-authored prose that adds nothing an identifier does not.
+ *
+ * `suggestedFormat` and `language` are here because they are code-owned enums
+ * with three and two members — a reader can tell what kind of work was started
+ * without following anything, and neither can carry an arbitrary string. They
+ * are typed as those enums rather than as `string`, so that last clause is
+ * enforced here rather than merely true upstream; the cost is a type-only
+ * import from the agent definitions, which this domain already accepts for the
+ * business profile.
+ */
+export type ContentProjectAuditState = {
+  kind: 'contentProject';
+  projectId: string;
+  sourceRunId: string;
+  sourceIdeaIndex: number;
+  suggestedFormat: ContentIdeaFormat;
+  language: ContentIdeaLanguage;
+  draftRevision: number;
+};
+
+/**
+ * Every member carries a distinct literal `kind`, and that is load-bearing.
+ *
+ * TypeScript narrows a union target to one member — and so rejects a field
+ * belonging to a sibling — only when a literal discriminant selects it. A
+ * future variant without one would silently relax the excess-property check
+ * that keeps each projection closed.
+ */
+export type OrganizationAuditState =
+  OrganizationBusinessProfileAuditState | ContentProjectAuditState;
 
 export type OrganizationAuditEntry = {
   id: string;
@@ -90,6 +141,52 @@ export class OrganizationAuditService {
     });
   }
 
+  /**
+   * One promoted idea, appended inside the transaction that created it.
+   *
+   * `before` is null because nothing preceded the project — this is a creation,
+   * not a replacement, and a fabricated empty "before" would suggest a prior
+   * state that never existed.
+   *
+   * Takes the transaction client rather than the injected one, so an append
+   * that fails takes the project and its draft with it. A record of a decision
+   * that did not happen is worse than no record: the log is the thing later
+   * readers are meant to trust.
+   */
+  async recordContentProjectCreation(
+    tx: OrganizationAuditWriter,
+    input: {
+      organizationId: string;
+      actorUserId: string;
+      projectId: string;
+      sourceRunId: string;
+      sourceIdeaIndex: number;
+      suggestedFormat: ContentIdeaFormat;
+      language: ContentIdeaLanguage;
+      draftRevision: number;
+    },
+  ): Promise<void> {
+    await tx.organizationAuditEvent.create({
+      data: {
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        action: 'contentProject.created',
+        subjectType: 'contentProject',
+        subjectId: input.projectId,
+        before: Prisma.DbNull,
+        after: asJson({
+          kind: 'contentProject',
+          projectId: input.projectId,
+          sourceRunId: input.sourceRunId,
+          sourceIdeaIndex: input.sourceIdeaIndex,
+          suggestedFormat: input.suggestedFormat,
+          language: input.language,
+          draftRevision: input.draftRevision,
+        }),
+      },
+    });
+  }
+
   /** One tenant-rooted, bounded, newest-first page of immutable history. */
   async list(input: {
     organizationId: string;
@@ -135,7 +232,7 @@ export class OrganizationAuditService {
 
 function toBusinessProfileState(
   profile: OrganizationBusinessProfile,
-): OrganizationAuditState {
+): OrganizationBusinessProfileAuditState {
   return {
     kind: 'organizationBusinessProfile',
     version: profile.version,

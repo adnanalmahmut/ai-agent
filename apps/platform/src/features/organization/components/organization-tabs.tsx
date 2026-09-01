@@ -1,6 +1,7 @@
 import { cn } from '@repo/ui';
 import {
   BookText,
+  FolderKanban,
   LayoutDashboard,
   Lightbulb,
   Mail,
@@ -60,6 +61,12 @@ export function OrganizationTabs({
       href: ORGANIZATION_ROUTES.contentIdeas(organizationId),
       label: t('tabs.contentIdeas'),
       Icon: Lightbulb,
+      exact: false,
+    },
+    {
+      href: ORGANIZATION_ROUTES.contentProjects(organizationId),
+      label: t('tabs.contentProjects'),
+      Icon: FolderKanban,
       exact: false,
     },
     {

@@ -235,6 +235,21 @@ export const ORGANIZATION_PERMISSION_STATEMENTS = {
    * `create` is the action with a bill attached.
    */
   contentIdea: ['create', 'read'],
+  /**
+   * Deciding to act on an idea, and reading what has been decided.
+   *
+   * Separate from `contentIdea` rather than folded into it, because the two
+   * grant different things. `contentIdea:create` spends the platform's provider
+   * credential and produces nothing durable beyond a run; `contentProject:create`
+   * spends nothing and commits the organization to a piece of work that
+   * everyone else will see in the list. A member trusted to brainstorm is not
+   * automatically the person who decides what the team is doing.
+   *
+   * Split `create`/`read` on the same reasoning as the two above: reading is
+   * ordinary membership, since the whole point is that the team can see what
+   * was chosen.
+   */
+  contentProject: ['create', 'read'],
 } as const;
 
 const organizationAc = createAccessControl(ORGANIZATION_PERMISSION_STATEMENTS);
@@ -248,6 +263,7 @@ const organizationMember = organizationAc.newRole({
   // cannot tell why an agent answered as it did.
   knowledge: ['read'],
   contentIdea: ['read'],
+  contentProject: ['read'],
 });
 
 /** Runs the organization day to day, but cannot end its life. */
@@ -257,6 +273,7 @@ const organizationAdmin = organizationAc.newRole({
   invitation: ['create', 'cancel'],
   knowledge: ['read', 'write'],
   contentIdea: ['create', 'read'],
+  contentProject: ['create', 'read'],
 });
 
 /**
@@ -272,6 +289,7 @@ const organizationOwner = organizationAc.newRole({
   invitation: ['create', 'cancel'],
   knowledge: ['read', 'write'],
   contentIdea: ['create', 'read'],
+  contentProject: ['create', 'read'],
 });
 
 export const organizationAccessControl = organizationAc;

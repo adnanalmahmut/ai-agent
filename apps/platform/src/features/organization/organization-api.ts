@@ -407,3 +407,111 @@ export function getContentIdeaOperation(
     { signal },
   );
 }
+
+/* ---------------------------------------------------------------------------
+ * Content projects
+ *
+ * One selected idea, promoted into work the organization has committed to.
+ * ------------------------------------------------------------------------- */
+
+export type ContentDraft = {
+  id: string;
+  revision: number;
+  title: string;
+  format: ContentIdeaFormat;
+  language: ContentIdeaLanguage;
+  /** Null until something writes it. No writer exists yet. */
+  body: string | null;
+  createdAt: string;
+};
+
+export type ContentProject = {
+  id: string;
+  organizationId: string;
+  sourceRunId: string;
+  sourceIdeaIndex: number;
+  title: string;
+  hook: string;
+  angle: string;
+  summary: string;
+  suggestedFormat: ContentIdeaFormat;
+  language: ContentIdeaLanguage;
+  createdByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * The brief the ideas were generated from, snapshotted onto the project.
+ *
+ * Detail only — the list does not carry it, because a backlog screen shows what
+ * was decided rather than the paragraph behind each decision.
+ */
+export type ContentProjectBrief = {
+  topic: string;
+  goal: string;
+  audience: string | null;
+  guidance: string | null;
+};
+
+export type ContentProjectDetail = ContentProject & {
+  brief: ContentProjectBrief;
+  drafts: ContentDraft[];
+};
+
+export type ContentProjectPage = {
+  items: ContentProject[];
+  nextCursor: string | null;
+};
+
+const contentProjectsBase = (organizationId: string) =>
+  `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/content-projects`;
+
+/**
+ * The request names a run and a position, never the idea's text.
+ *
+ * The server reads the prose off the run it was pointed at, so a screen cannot
+ * — even by accident — persist something the agent did not say.
+ *
+ * The key is a parameter for the same reason it is on `requestContentIdeas`:
+ * only the caller holding the button knows whether a second click is a retry of
+ * the first or a fresh decision.
+ */
+export function createContentProjectFromIdea(
+  organizationId: string,
+  selection: { sourceRunId: string; ideaIndex: number },
+  idempotencyKey: string,
+): Promise<ContentProjectDetail> {
+  return apiRequest(`${contentProjectsBase(organizationId)}/from-idea`, {
+    method: 'POST',
+    body: selection,
+    headers: { 'idempotency-key': idempotencyKey },
+  });
+}
+
+export function listContentProjects(
+  organizationId: string,
+  options: { cursor?: string; limit?: number } = {},
+  signal?: AbortSignal,
+): Promise<ContentProjectPage> {
+  const query = new URLSearchParams();
+  if (options.cursor !== undefined) query.set('cursor', options.cursor);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+
+  return apiRequest(`${contentProjectsBase(organizationId)}${suffix}`, {
+    signal,
+  });
+}
+
+export function getContentProject(
+  organizationId: string,
+  projectId: string,
+  signal?: AbortSignal,
+): Promise<ContentProjectDetail> {
+  return apiRequest(
+    `${contentProjectsBase(organizationId)}/${encodeURIComponent(projectId)}`,
+    { signal },
+  );
+}
