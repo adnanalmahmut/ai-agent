@@ -205,12 +205,14 @@ describe('global access control', () => {
 const OWN_ORGANIZATION_RESOURCES: readonly string[] = [
   'knowledge',
   'contentIdea',
+  'contentProject',
 ];
 
 /** What an ordinary member may do. Everything else must be refused. */
 const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
   ['knowledge', 'read'],
   ['contentIdea', 'read'],
+  ['contentProject', 'read'],
 ];
 
 describe('organization access control', () => {

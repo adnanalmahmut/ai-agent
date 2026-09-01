@@ -14,6 +14,7 @@ import { createLoggerOptions } from './core/providers/logger.options';
 import { RateLimitModule } from './core/rate-limit';
 import { ControlPlaneModule } from './control-plane';
 import { ContentIdeaModule } from './content-ideas';
+import { ContentProjectModule } from './content-projects';
 import { KnowledgeModule } from './knowledge';
 import { OrganizationBusinessProfileModule } from './organization-settings';
 import { OrganizationAuditModule } from './organization-audit';
@@ -36,6 +37,7 @@ import { DatabaseModule } from './database';
     ControlPlaneModule,
     KnowledgeModule,
     ContentIdeaModule,
+    ContentProjectModule,
     OrganizationAuditModule,
     OrganizationBusinessProfileModule,
     AppI18nModule,
