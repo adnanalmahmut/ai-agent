@@ -35,6 +35,12 @@ run it claims to come from.
 - Persist a server-derived snapshot of one selected `content-idea@1` idea:
   title, hook, angle, summary, and suggested format, with the content language
   taken from the run input.
+- Persist the originating brief — topic, goal, and the optional audience and
+  guidance — snapshotted from `AgentRun.input` by the same parse, and expose it
+  on project detail. **Required scope correction, 2026-09-01.**
+- Append one closed `contentProject.created` organization product-audit event in
+  the same transaction as the project and its draft. **Required scope
+  correction, 2026-09-01.**
 - Create `ContentDraft` revision 1 atomically with the project as the initial
   draft target. It carries the target format, language, and title; its body is
   null because no writer exists yet.
@@ -96,7 +102,12 @@ run it claims to come from.
 7. Platform provides idea-card selection, Projects list, Project detail, and
    full `ar`/`en` localization with no untranslated string.
 8. No Writer Agent, no create-direct flow, no generic infrastructure.
-9. The full per-PR completion contract in `TODO.md` is satisfied.
+9. The brief is snapshotted server-side from the authoritative run input, never
+   accepted from the browser, and surfaced on project detail.
+10. A successful promotion appends exactly one audit event; a replay appends
+    none; a refused creation appends none; and an audit append that fails rolls
+    the project and its draft back.
+11. The full per-PR completion contract in `TODO.md` is satisfied.
 
 ## Validation
 
@@ -116,6 +127,23 @@ run it claims to come from.
 - test-engineer, security-reviewer, and code-reviewer completed, with
   legitimate findings remediated and focused verification rerun.
 - Final-head CI green on the opened PR.
+
+## Required scope corrections
+
+Both were identified in human review of PR #57 on 2026-09-01, after the original
+scope had been delivered and reviewed. They are recorded here as corrections
+rather than folded silently into the scope above, because the first changes a
+behaviour this plan previously documented as deliberate.
+
+1. **The originating brief must live on the project.** The Writer Agent that
+   will fill revision 1 is specified to consume `ContentProject` + the selected
+   idea + Knowledge, and must not depend on `AgentRun.input` for its brief. The
+   original slice left topic and goal reachable only through the run.
+
+2. **A successful promotion must appear in the organization product audit.**
+   Promoting is a durable tenant decision, and the audit domain existed already;
+   omitting it left the one action that commits an organization to work absent
+   from the history other mutations are recorded in.
 
 ## Decision log
 
@@ -138,6 +166,26 @@ run it claims to come from.
   principle for reads — "turning content ideas off stops new requests; it does
   not retract answers an organization already has" — and freezing a team's
   ability to act on results in hand is the same retraction by another route.
+- 2026-09-01 — **Reversed:** a run whose `AgentRun.input` cannot be parsed is
+  now refused with `CONFLICT source_run_input` rather than promoted with the
+  content language defaulted. The earlier reasoning — that the language was not
+  load-bearing, so a historical run should stay selectable — no longer holds now
+  that the brief comes from the same parse. A project carrying no topic and no
+  goal would push the `AgentRun.input` dependency straight back onto the Writer
+  Agent, which is the dependency the brief snapshot exists to remove. The
+  `contentLanguage` fallback is gone with it; both halves come from one parse.
+- 2026-09-01 — The audit projection carries identifiers and the two code-owned
+  enums only: project id, source run id, selected idea index, suggested format,
+  content language, and draft revision. It deliberately excludes the caller's
+  `Idempotency-Key`, the request body, the brief, and the agent's generated
+  prose. The brief is operator-authored free text and the idea prose is
+  model-generated; neither adds anything an identifier does not, and the audit
+  contract promises no generic metadata. `before` is null because a creation has
+  no prior state.
+- 2026-09-01 — The brief is exposed on project *detail* only, not on the list.
+  A backlog screen shows what was decided, not the paragraph behind each
+  decision, and four more text columns on every row of every page would make
+  the list heavier for something nothing on it renders.
 - 2026-09-01 — The promotion idempotency key is derived from
   `(sourceRunId, ideaIndex)` and is therefore guessable by anyone who can read
   the run, and is not scoped to the member. A review noted an organization
@@ -158,7 +206,10 @@ run it claims to come from.
 - [x] Documentation synchronized
 - [x] Specialist reviews and remediation
 - [x] Aggregate validation
-- [ ] PR opened, final-head CI green
+- [x] PR #57 opened, final-head CI green on `32871c3`
+- [x] Required scope corrections: brief snapshot and product audit
+- [ ] Specialist re-review and aggregate re-validation after the corrections
+- [ ] Final-head CI green on the corrected head
 
 ## Blockers
 

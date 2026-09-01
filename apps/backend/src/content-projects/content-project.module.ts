@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { AgentsModule } from '../agents';
 import { OrganizationAccessModule } from '../core/auth';
 import { DatabaseModule } from '../database';
+import { OrganizationAuditModule } from '../organization-audit';
 import { ContentProjectController } from './content-project.controller';
 import { ContentProjectService } from './content-project.service';
 
@@ -13,7 +14,12 @@ import { ContentProjectService } from './content-project.service';
  * one write it performs happens inside the request that asked for it.
  */
 @Module({
-  imports: [AgentsModule, DatabaseModule, OrganizationAccessModule],
+  imports: [
+    AgentsModule,
+    DatabaseModule,
+    OrganizationAccessModule,
+    OrganizationAuditModule,
+  ],
   controllers: [ContentProjectController],
   providers: [ContentProjectService],
   exports: [ContentProjectService],

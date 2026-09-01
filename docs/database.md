@@ -211,6 +211,13 @@ on one row would agree only as far as whatever wrote it was correct — and
 `organizationId` is the entire scoping predicate. As pairs, a chunk claiming one
 organization while sitting in another's space is a constraint violation.
 
+`ContentProject` also carries the brief its ideas were generated from — topic
+and goal required, audience and guidance nullable, mirroring which of them the
+request schema requires. They are copied rather than resolved through the run
+for the same reason the idea snapshot is, and their migration guards itself: it
+adds two `NOT NULL` columns and refuses with an explicit error if the table
+holds any row, rather than failing halfway with the columns already added.
+
 `ContentProject` and `ContentDraft` follow the same rule, and extend it to a
 table that did not previously need it. `AgentRun` gained
 `@@unique([id, organizationId])` so a project can reference

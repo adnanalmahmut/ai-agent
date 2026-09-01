@@ -61,7 +61,10 @@ dropped connection, and a click after a reload all the same request.
 
 The Projects tab lists what the organization has committed to, newest first, and
 grows by appending the next cursor page rather than replacing the list. A
-project's detail view shows the stored idea beside its first draft; an unwritten
+project's detail view leads with the brief the ideas were generated from — topic
+and goal always, audience and guidance only when the original request named
+them, because an empty row would read as "none" where the truth is "not stated"
+— then shows the stored idea beside its first draft; an unwritten
 draft says so rather than rendering blank, because a draft with no body is the
 normal state in this release and an empty card would read as a rendering
 failure. A project that is absent and one belonging to another organization are

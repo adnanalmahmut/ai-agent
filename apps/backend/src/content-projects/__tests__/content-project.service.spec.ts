@@ -1,63 +1,15 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { DEFAULT_LOCALE } from '@repo/i18n-core';
-
-import type { AgentRun } from '../../agents';
-import { contentLanguage, projectKey } from '../content-project.service';
+import { projectKey } from '../content-project.service';
 
 /**
- * The branches an end-to-end test reaches only by accident.
+ * The key composition, which the durable constraint depends on.
  *
- * Both of these read a JSON column whose contents the compiler cannot vouch
- * for, so their fallbacks are the parts most likely to be quietly changed and
- * least likely to be noticed.
+ * The language fallback that used to be tested here is gone: the brief and the
+ * content language now come from one parse of the run's input, and a run whose
+ * input cannot be read is refused rather than defaulted. That refusal is a
+ * database-coupled path and is covered end to end.
  */
-
-const run = (input: unknown): AgentRun =>
-  ({
-    id: 'run_1',
-    agentId: 'content-idea',
-    agentVersion: 1,
-    status: 'SUCCEEDED',
-    organizationId: 'org_1',
-    input,
-    output: null,
-  }) as unknown as AgentRun;
-
-const VALID_INPUT = {
-  topic: 'Electric kettles',
-  goal: 'Sell the autumn range',
-  language: 'en',
-  numberOfIdeas: 3,
-};
-
-describe('contentLanguage', () => {
-  it('takes the language the request named', () => {
-    expect(contentLanguage(run(VALID_INPUT))).toBe('en');
-    expect(contentLanguage(run({ ...VALID_INPUT, language: 'ar' }))).toBe('ar');
-  });
-
-  /**
-   * A run whose stored input no longer parses is still selectable.
-   *
-   * Throwing here would make a historical run permanently unusable over a field
-   * that is not load-bearing — the idea itself is unaffected, and the draft's
-   * language can be corrected.
-   */
-  it.each([
-    ['an input that lost a required field', { topic: 'Kettles' }],
-    ['an unknown language', { ...VALID_INPUT, language: 'fr' }],
-    ['a non-object input', 'nonsense'],
-    ['null', null],
-  ])('falls back to the product default for %s', (_label, input) => {
-    expect(contentLanguage(run(input))).toBe(DEFAULT_LOCALE);
-  });
-
-  it('uses the product default rather than a hard-coded literal', () => {
-    // If DEFAULT_LOCALE moves, this fallback moves with it.
-    expect(contentLanguage(run(null))).toBe(DEFAULT_LOCALE);
-  });
-});
 
 describe('projectKey', () => {
   it('is stable for the same caller key and selection', () => {

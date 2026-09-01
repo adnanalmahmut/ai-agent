@@ -144,6 +144,52 @@ export function OrganizationContentProjectBlock() {
         <Badge variant="secondary">{t(`language.${project.language}`)}</Badge>
       </div>
 
+      {/*
+        The brief first, then the idea.
+        A reader deciding whether this is the right project needs what it is
+        for before what it says.
+      */}
+      <Card>
+        <CardContent className="space-y-3 py-4">
+          <h2 className="text-sm font-semibold">{t('detail.brief')}</h2>
+
+          <dl className="space-y-1 text-sm">
+            <div className="flex flex-wrap gap-1">
+              <dt className="font-medium">{t('detail.topic')}</dt>
+              <dd className="text-muted-foreground">
+                <bdi>{project.brief.topic}</bdi>
+              </dd>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              <dt className="font-medium">{t('detail.goal')}</dt>
+              <dd className="text-muted-foreground">
+                <bdi>{project.brief.goal}</bdi>
+              </dd>
+            </div>
+            {/*
+              Rendered only when the original request said something. An empty
+              row would read as "no audience" where the truth is "not stated".
+            */}
+            {project.brief.audience !== null ? (
+              <div className="flex flex-wrap gap-1">
+                <dt className="font-medium">{t('detail.audience')}</dt>
+                <dd className="text-muted-foreground">
+                  <bdi>{project.brief.audience}</bdi>
+                </dd>
+              </div>
+            ) : null}
+            {project.brief.guidance !== null ? (
+              <div className="flex flex-wrap gap-1">
+                <dt className="font-medium">{t('detail.guidance')}</dt>
+                <dd className="text-muted-foreground">
+                  <bdi>{project.brief.guidance}</bdi>
+                </dd>
+              </div>
+            ) : null}
+          </dl>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardContent className="space-y-3 py-4">
           <h2 className="text-sm font-semibold">{t('detail.idea')}</h2>

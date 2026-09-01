@@ -51,6 +51,12 @@ const detail = (overrides: Record<string, unknown> = {}) => ({
   summary: 'Open one up on camera and cost each part.',
   suggestedFormat: 'video',
   language: 'en',
+  brief: {
+    topic: 'Electric kettles',
+    goal: 'Sell the autumn range',
+    audience: 'Home cooks',
+    guidance: 'Warm and practical.',
+  },
   createdByUserId: 'user_1',
   createdAt: '2026-02-01T00:00:00.000Z',
   updatedAt: '2026-02-01T00:00:00.000Z',
@@ -133,6 +139,43 @@ describe('organization content project block', () => {
     expect(
       await screen.findByText('The element is the whole story.'),
     ).toBeInTheDocument();
+  });
+
+  /**
+   * The brief is what a writer works to, so it leads the page.
+   */
+  it('shows the brief the ideas were generated from', async () => {
+    getContentProject.mockResolvedValue(detail());
+
+    render();
+
+    expect(await screen.findByText('Electric kettles')).toBeInTheDocument();
+    expect(screen.getByText('Sell the autumn range')).toBeInTheDocument();
+    expect(screen.getByText('Home cooks')).toBeInTheDocument();
+    expect(screen.getByText('Warm and practical.')).toBeInTheDocument();
+  });
+
+  /**
+   * A request that named no audience shows no audience row. An empty row would
+   * read as "no audience" where the truth is "the request did not say".
+   */
+  it('omits the optional rows the original request left out', async () => {
+    getContentProject.mockResolvedValue(
+      detail({
+        brief: {
+          topic: 'Electric kettles',
+          goal: 'Sell the autumn range',
+          audience: null,
+          guidance: null,
+        },
+      }),
+    );
+
+    render();
+
+    expect(await screen.findByText('Electric kettles')).toBeInTheDocument();
+    expect(screen.queryByText(/^audience:$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^guidance:$/i)).not.toBeInTheDocument();
   });
 
   it('renders in Arabic without falling back to the default locale', async () => {

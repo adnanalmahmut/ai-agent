@@ -40,8 +40,8 @@ change state is a conflict rather than a silent overwrite.
 
 The organization product-audit domain (`src/organization-audit/`) records
 meaningful tenant mutations separately from application logs, agent execution,
-and the operator-only control-plane history. Its initial closed action is
-`organizationBusinessProfile.replaced`. A real profile change and its event are
+and the operator-only control-plane history. Its closed actions are
+`organizationBusinessProfile.replaced` and `contentProject.created`. A real profile change and its event are
 written in one Prisma transaction; no-ops and losing compare-and-swap attempts
 append nothing. The event carries the organization, authenticated actor,
 subject, time, and a closed before/after projection containing only the bounded
@@ -306,10 +306,29 @@ is a distinction the caller is entitled to; a run the caller *can* see but which
 has not succeeded is refused as a conflict instead, since pretending it does not
 exist would be a lie they can check.
 
+The originating brief — topic, goal, and the optional audience and guidance —
+is snapshotted onto the project from the run's input by the same parse that
+supplies the content language. It is copied for the same reason the idea is:
+the project has to be a complete statement of the work, and a writer reaching
+back into `AgentRun.input` to find out what the piece is for would depend on a
+JSON column belonging to another aggregate, pinned to a definition revision that
+may no longer be current. A run whose input this version cannot parse is
+therefore refused rather than promoted without a brief — a project that cannot
+say what it is for is not worth creating.
+
 `ContentDraft` revision 1 is created in the same statement as the project. A
 project without a draft is a state no caller should observe, so the draft is not
 a second write that could fail in between. Its body is null: no writer exists in
 this slice, and a body seeded from the idea summary would be words nobody wrote.
+
+A successful promotion appends one `contentProject.created` product-audit event
+on the same transaction client, so the decision and its record commit or fail
+together — an audit append that failed would roll the project and its draft
+back, because a decision the log denies is worse for a later reader than a
+creation that visibly failed. A replay appends nothing: it returns before
+reaching the write. The projection is closed to identifiers and the two
+code-owned enums; the caller's idempotency key, the request body, the brief, and
+the agent's prose are all deliberately absent.
 
 Tenant isolation here is a database constraint rather than a service predicate.
 `content_project` references `(sourceRunId, organizationId)` against a composite

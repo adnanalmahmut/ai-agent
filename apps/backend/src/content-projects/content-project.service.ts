@@ -2,18 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
-import { DEFAULT_LOCALE } from '@repo/i18n-core';
-
 import {
   AgentRunService,
   CONTENT_IDEA_AGENT_ID,
   contentIdeaInput,
   contentIdeaOutput,
-  type AgentRun,
   type ContentIdeaFormat,
   type ContentIdeaLanguage,
 } from '../agents';
 import { PrismaService } from '../database';
+import { OrganizationAuditService } from '../organization-audit';
 import {
   beforePosition,
   encodeCursor,
@@ -60,6 +58,21 @@ export type ContentDraftView = {
   createdAt: Date;
 };
 
+/**
+ * The brief the ideas were generated from.
+ *
+ * Read off the run by the server, never sent by the caller — the same rule the
+ * idea snapshot follows, and for a stronger reason: this is the part a writer
+ * works to, so text a member could substitute here would redirect the work
+ * while still looking agent-derived.
+ */
+export type ContentProjectBrief = {
+  topic: string;
+  goal: string;
+  audience: string | null;
+  guidance: string | null;
+};
+
 export type ContentProjectView = {
   id: string;
   organizationId: string;
@@ -76,7 +89,15 @@ export type ContentProjectView = {
   updatedAt: Date;
 };
 
+/**
+ * Detail carries the brief; the list does not.
+ *
+ * A backlog screen shows what was decided, not the paragraph behind each
+ * decision, and putting four more text columns on every row of every page
+ * would make the list heavier for something nothing on it renders.
+ */
 export type ContentProjectDetail = ContentProjectView & {
+  brief: ContentProjectBrief;
   drafts: ContentDraftView[];
 };
 
@@ -104,6 +125,7 @@ export class ContentProjectService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly runs: AgentRunService,
+    private readonly audit: OrganizationAuditService,
   ) {}
 
   async createFromIdea(input: {
@@ -168,6 +190,10 @@ export class ContentProjectService {
             organizationId: input.organizationId,
             sourceRunId: selection.runId,
             sourceIdeaIndex: selection.index,
+            topic: selection.brief.topic,
+            goal: selection.brief.goal,
+            audience: selection.brief.audience ?? null,
+            guidance: selection.brief.guidance ?? null,
             title: selection.idea.title,
             hook: selection.idea.hook,
             angle: selection.idea.angle,
@@ -210,6 +236,30 @@ export class ContentProjectService {
             },
           },
           select: PROJECT_DETAIL_SELECT,
+        });
+
+        /**
+         * Appended on the transaction client, so it is one write with the
+         * project and its draft.
+         *
+         * A replay never reaches here — it returned above — which is what keeps
+         * one decision to one event no matter how many times a client retries.
+         * And because the append shares the transaction, an audit failure rolls
+         * the project back rather than leaving a decision nothing recorded:
+         * for a log later readers are meant to trust, a silent gap is worse
+         * than a refusal the caller can see.
+         */
+        await this.audit.recordContentProjectCreation(tx, {
+          organizationId: input.organizationId,
+          actorUserId: input.actorUserId,
+          projectId: created.id,
+          sourceRunId: created.sourceRunId,
+          sourceIdeaIndex: created.sourceIdeaIndex,
+          suggestedFormat: created.suggestedFormat,
+          language: created.language,
+          // Always one here; named rather than hard-coded at the call site so
+          // the event keeps meaning when revision 2 exists.
+          draftRevision: created.drafts[0]?.revision ?? 1,
         });
 
         return toDetail(created);
@@ -362,11 +412,40 @@ export class ContentProjectService {
       });
     }
 
+    /**
+     * The brief, from the run's own input.
+     *
+     * Refusing when it does not parse is a deliberate change of mind. This used
+     * to read only the content language out of the input and fall back to the
+     * product default when the input was unreadable, on the grounds that the
+     * language was not load-bearing and a historical run should stay
+     * selectable. The brief *is* load-bearing: a project exists so that a
+     * writer can work from it without reaching back into the run, and one
+     * carrying no topic and no goal would push exactly that dependency back
+     * onto every future consumer. A project that cannot state what it is for
+     * is not worth creating, so this refuses instead of creating a hollow one.
+     *
+     * Both halves now come from one parse, which is also why the language no
+     * longer has a fallback of its own: a run whose input this version cannot
+     * read is refused before the question arises.
+     */
+    const brief = contentIdeaInput.safeParse(run.input);
+
+    if (!brief.success) {
+      throw new AppException('CONFLICT', {
+        context: { resource: 'contentProject', reason: 'source_run_input' },
+        publicDetails: {
+          reason: 'That request was made in a form this version cannot read.',
+        },
+      });
+    }
+
     return {
       runId: run.id,
       index: input.request.ideaIndex,
       idea,
-      language: contentLanguage(run),
+      brief: brief.data,
+      language: brief.data.language,
     };
   }
 }
@@ -401,6 +480,10 @@ const PROJECT_SELECT = {
 
 const PROJECT_DETAIL_SELECT = {
   ...PROJECT_SELECT,
+  topic: true,
+  goal: true,
+  audience: true,
+  guidance: true,
   drafts: {
     orderBy: { revision: 'asc' },
     select: {
@@ -414,31 +497,6 @@ const PROJECT_DETAIL_SELECT = {
     },
   },
 } satisfies Prisma.ContentProjectSelect;
-
-/**
- * The language the content is being planned in, taken from the request that
- * produced the idea.
- *
- * Not the selecting member's UI locale, which is the language they read menus
- * in and says nothing about what they are writing. Re-parsed rather than cast,
- * because `AgentRun.input` is a JSON column and the compiler cannot know a
- * pre-existing row still satisfies today's schema.
- *
- * A run whose input no longer parses falls back to the product default rather
- * than refusing — not to the organization's own locale, which is the language
- * its members read menus in and says nothing about what they are writing. The
- * language is a property of the draft target and can be corrected; the idea
- * itself is still perfectly selectable, and throwing here would make a
- * historical run permanently unusable over a field that is not load-bearing.
- *
- * Imported rather than written as a literal, so it cannot drift from the
- * default the rest of the application uses.
- */
-export function contentLanguage(run: AgentRun): ContentIdeaLanguage {
-  const input = contentIdeaInput.safeParse(run.input);
-
-  return input.success ? input.data.language : DEFAULT_LOCALE;
-}
 
 /**
  * The caller's key plus a digest of what they asked for.
@@ -465,6 +523,16 @@ type ProjectRow = Prisma.ContentProjectGetPayload<{
   select: typeof PROJECT_DETAIL_SELECT;
 }>;
 
+/**
+ * Built field by field, not spread.
+ *
+ * A spread copies whatever the query returned, and its parameter type cannot
+ * stop it — the compiler only sees the keys the signature declares, so a column
+ * added to the projection travels to the wire silently. That is exactly how the
+ * stored idempotency key escaped once, and how the brief's four columns escaped
+ * again the moment the detail projection grew them. Naming the fields makes the
+ * response shape a decision rather than a consequence.
+ */
 function toView(row: {
   id: string;
   organizationId: string;
@@ -481,15 +549,31 @@ function toView(row: {
   updatedAt: Date;
 }): ContentProjectView {
   return {
-    ...row,
+    id: row.id,
+    organizationId: row.organizationId,
+    sourceRunId: row.sourceRunId,
+    sourceIdeaIndex: row.sourceIdeaIndex,
+    title: row.title,
+    hook: row.hook,
+    angle: row.angle,
+    summary: row.summary,
     suggestedFormat: row.suggestedFormat as ContentIdeaFormat,
     language: row.language as ContentIdeaLanguage,
+    createdByUserId: row.createdByUserId,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
   };
 }
 
 function toDetail(row: ProjectRow): ContentProjectDetail {
   return {
     ...toView(row),
+    brief: {
+      topic: row.topic,
+      goal: row.goal,
+      audience: row.audience,
+      guidance: row.guidance,
+    },
     drafts: row.drafts.map((draft) => ({
       id: draft.id,
       revision: draft.revision,

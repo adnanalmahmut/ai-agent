@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { Client } from 'pg';
 
 import { CONTENT_IDEA_AGENT_ID } from '../../src/agents';
+import { OrganizationAuditService } from '../../src/organization-audit';
 import {
   as,
   createHarness,
@@ -81,6 +82,8 @@ const RUN_INPUT = {
   topic: 'Electric kettles',
   goal: 'Sell the autumn range before December',
   language: 'en',
+  audience: 'Home cooks',
+  guidance: 'Keep it warm and practical, never technical.',
   numberOfIdeas: 3,
 };
 
@@ -521,11 +524,14 @@ describe('content projects', () => {
       try {
         await expect(
           client.query(
+            // The brief columns are supplied so this reaches the foreign key
+            // rather than tripping a NOT NULL check on the way to it.
             `INSERT INTO "content_project"
                ("id","organizationId","sourceRunId","sourceIdeaIndex",
+                "topic","goal",
                 "title","hook","angle","summary","suggestedFormat","language",
                 "idempotencyKey","createdAt","updatedAt")
-             VALUES ($1,$2,$3,0,'t','h','a','s','post','en',$4,NOW(),NOW())`,
+             VALUES ($1,$2,$3,0,'topic','goal','t','h','a','s','post','en',$4,NOW(),NOW())`,
             [
               `cross-tenant-${Date.now()}`,
               // The other organization, pointing at this one's run.
@@ -599,10 +605,15 @@ describe('content projects', () => {
     });
 
     /**
-     * A run whose stored input no longer parses is still selectable, and the
-     * content language falls back to the product default on both rows.
+     * A run whose input cannot be read is refused rather than promoted without
+     * a brief.
+     *
+     * The project exists so a writer can work from it without reaching back
+     * into the run; one with no topic and no goal would push that dependency
+     * straight back. Refusing is visible and recoverable — creating a hollow
+     * project is neither.
      */
-    it('falls back to the product default when the run input no longer parses', async () => {
+    it('refuses a run whose brief this version cannot read', async () => {
       const legacy = await harness.prisma.agentRun.create({
         data: {
           agentId: CONTENT_IDEA_AGENT_ID,
@@ -624,14 +635,131 @@ describe('content projects', () => {
         ideaIndex: 0,
       });
 
-      expect(response.status).toBe(201);
+      expect(response.status).toBe(409);
+      expect(errorBody(response).errorCode).toBe('CONFLICT');
 
-      const project = dataOf<Project>(response.body);
+      // And nothing was written on the way to refusing.
+      const orphan = await harness.prisma.contentProject.count({
+        where: { sourceRunId: legacy.id },
+      });
+      expect(orphan).toBe(0);
+    });
+  });
 
+  describe('the brief', () => {
+    /**
+     * Snapshotted from the run's input by the server.
+     *
+     * The Writer Agent that will fill revision 1 consumes the project, the
+     * selected idea, and the organization's knowledge — and must not have to
+     * reach into `AgentRun.input` to find out what the piece is for. That is
+     * why these live on the project rather than being resolved through the run
+     * on every read.
+     */
+    it('carries the originating brief on the project detail', async () => {
+      const created = await promote(owner, {
+        sourceRunId: succeededRunId,
+        ideaIndex: 0,
+      });
+
+      expect(created.status).toBe(201);
+
+      const detail = await as(harness, owner).get(
+        `${base()}/${dataOf<Project>(created.body).id}`,
+      );
+
+      const brief = dataOf<{ brief: Record<string, unknown> }>(
+        detail.body,
+      ).brief;
+
+      expect(brief).toEqual({
+        topic: RUN_INPUT.topic,
+        goal: RUN_INPUT.goal,
+        audience: RUN_INPUT.audience,
+        guidance: RUN_INPUT.guidance,
+      });
+    });
+
+    /**
+     * Optional in the request means null on the project, not an empty string.
+     * "The request did not say" and "the request said nothing" are different
+     * facts and a writer should be able to tell them apart.
+     */
+    it('records an omitted audience and guidance as absent', async () => {
+      const spare = await harness.prisma.agentRun.create({
+        data: {
+          agentId: CONTENT_IDEA_AGENT_ID,
+          agentVersion: 1,
+          runtime: 'mastra',
+          status: 'SUCCEEDED',
+          organizationId,
+          input: {
+            topic: 'Cordless kettles',
+            goal: 'Explain the range',
+            language: 'ar',
+            numberOfIdeas: 3,
+          },
+          output: { ideas: IDEAS, sources: [] },
+          idempotencyKey: `seed-spare-${Date.now()}`,
+          completedAt: new Date(),
+        },
+        select: { id: true },
+      });
+
+      const created = await promote(owner, {
+        sourceRunId: spare.id,
+        ideaIndex: 0,
+      });
+
+      const detail = await as(harness, owner).get(
+        `${base()}/${dataOf<Project>(created.body).id}`,
+      );
+
+      const project = dataOf<{
+        brief: Record<string, unknown>;
+        language: string;
+      }>(detail.body);
+
+      expect(project.brief).toEqual({
+        topic: 'Cordless kettles',
+        goal: 'Explain the range',
+        audience: null,
+        guidance: null,
+      });
+      // The content language comes from the same parse.
       expect(project.language).toBe('ar');
-      // The draft takes the language independently, so it is asserted
-      // independently.
-      expect(project.drafts?.[0]?.language).toBe('ar');
+    });
+
+    /**
+     * The brief cannot be supplied by the caller, in any shape.
+     *
+     * The request schema is strict, so an attempt to redirect the work by
+     * sending a topic of one's own is refused outright rather than partially
+     * honoured.
+     */
+    it('refuses a request that tries to supply its own brief', async () => {
+      const response = await promote(owner, {
+        sourceRunId: succeededRunId,
+        ideaIndex: 0,
+        topic: 'Something else entirely',
+        goal: 'A different goal',
+      });
+
+      expect(response.status).toBe(400);
+      expect(errorBody(response).errorCode).toBe('VALIDATION_ERROR');
+    });
+
+    /** The list stays lean; only the detail carries the brief. */
+    it('keeps the brief off the list projection', async () => {
+      await promote(owner, { sourceRunId: succeededRunId, ideaIndex: 0 });
+
+      const listed = await as(harness, owner).get(base());
+      const items = dataOf<{ items: Record<string, unknown>[] }>(
+        listed.body,
+      ).items;
+
+      expect(items[0]).not.toHaveProperty('brief');
+      expect(items[0]).not.toHaveProperty('topic');
     });
   });
 
@@ -656,6 +784,7 @@ describe('content projects', () => {
 
       expect(Object.keys(project).sort()).toEqual([
         'angle',
+        'brief',
         'createdAt',
         'createdByUserId',
         'drafts',
@@ -692,6 +821,215 @@ describe('content projects', () => {
       });
 
       expect(draft?.createdByUserId).toBe(owner.id);
+    });
+  });
+
+  describe('product audit', () => {
+    const auditEventsFor = (projectId: string) =>
+      harness.prisma.organizationAuditEvent.findMany({
+        where: {
+          organizationId,
+          action: 'contentProject.created',
+          subjectId: projectId,
+        },
+      });
+
+    it('records exactly one event for a successful promotion', async () => {
+      const created = await promote(owner, {
+        sourceRunId: succeededRunId,
+        ideaIndex: 1,
+      });
+
+      expect(created.status).toBe(201);
+
+      const project = dataOf<Project>(created.body);
+      const events = await auditEventsFor(project.id);
+
+      expect(events).toHaveLength(1);
+
+      const event = events[0];
+
+      expect(event.actorUserId).toBe(owner.id);
+      expect(event.subjectType).toBe('contentProject');
+      expect(event.before).toBeNull();
+
+      /**
+       * The projection is closed, and asserted as a whole rather than field by
+       * field — a sampled assertion cannot notice a field arriving.
+       */
+      expect(event.after).toEqual({
+        kind: 'contentProject',
+        projectId: project.id,
+        sourceRunId: succeededRunId,
+        sourceIdeaIndex: 1,
+        suggestedFormat: IDEAS[1].suggestedFormat,
+        language: 'en',
+        draftRevision: 1,
+      });
+    });
+
+    /**
+     * What the projection must never carry.
+     *
+     * Asserted against the serialized row rather than by naming absent keys, so
+     * a value that reaches the log by some other route is still caught.
+     */
+    it('records no key, no brief, and no generated prose', async () => {
+      const key = 'audit-leak-probe-key-0001';
+
+      const created = await promote(
+        owner,
+        { sourceRunId: succeededRunId, ideaIndex: 0 },
+        key,
+      );
+
+      const events = await auditEventsFor(dataOf<Project>(created.body).id);
+      const serialized = JSON.stringify(events[0]);
+
+      expect(serialized).not.toContain(key);
+      expect(serialized).not.toContain(RUN_INPUT.topic);
+      expect(serialized).not.toContain(RUN_INPUT.goal);
+      expect(serialized).not.toContain(RUN_INPUT.guidance);
+      expect(serialized).not.toContain(IDEAS[0].title);
+      expect(serialized).not.toContain(IDEAS[0].summary);
+    });
+
+    /** One decision, one event, however many times the client retries. */
+    it('appends nothing on an idempotent replay', async () => {
+      const key = freshKey();
+      const body = { sourceRunId: succeededRunId, ideaIndex: 2 };
+
+      const first = await promote(owner, body, key);
+      const projectId = dataOf<Project>(first.body).id;
+
+      expect(await auditEventsFor(projectId)).toHaveLength(1);
+
+      const second = await promote(owner, body, key);
+
+      expect(dataOf<Project>(second.body).id).toBe(projectId);
+      expect(await auditEventsFor(projectId)).toHaveLength(1);
+    });
+
+    it('appends nothing when two simultaneous retries race', async () => {
+      const key = freshKey();
+      const body = { sourceRunId: succeededRunId, ideaIndex: 0 };
+
+      const [first] = await Promise.all([
+        promote(owner, body, key),
+        promote(owner, body, key),
+      ]);
+
+      expect(await auditEventsFor(dataOf<Project>(first.body).id)).toHaveLength(
+        1,
+      );
+    });
+
+    /**
+     * A refusal is not a decision, so it leaves no trace.
+     *
+     * Counted across the whole organization rather than by subject, because a
+     * refused creation has no project id to look one up by — the point is that
+     * the total did not move.
+     */
+    it('appends nothing for a refused creation', async () => {
+      const before = await harness.prisma.organizationAuditEvent.count({
+        where: { organizationId, action: 'contentProject.created' },
+      });
+
+      // Not finished.
+      expect(
+        (await promote(owner, { sourceRunId: queuedRunId, ideaIndex: 0 }))
+          .status,
+      ).toBe(409);
+      // No such idea.
+      expect(
+        (await promote(owner, { sourceRunId: succeededRunId, ideaIndex: 8 }))
+          .status,
+      ).toBe(400);
+      // Another organization's run.
+      expect(
+        (
+          await promote(owner, {
+            sourceRunId: otherOrganizationRunId,
+            ideaIndex: 0,
+          })
+        ).status,
+      ).toBe(404);
+      // A non-member of this organization.
+      expect(
+        (
+          await promote(
+            outsider,
+            { sourceRunId: succeededRunId, ideaIndex: 0 },
+            freshKey(),
+            organizationId,
+          )
+        ).status,
+      ).toBe(404);
+
+      const after = await harness.prisma.organizationAuditEvent.count({
+        where: { organizationId, action: 'contentProject.created' },
+      });
+
+      expect(after).toBe(before);
+    });
+
+    /**
+     * The append shares the transaction, so a log that cannot be written takes
+     * the decision with it.
+     *
+     * This is the property the whole arrangement exists for: a project whose
+     * creation went unrecorded is a decision the audit trail denies, and that
+     * is worse for a reader than a creation that visibly failed. Forced here
+     * rather than waited for, because nothing else can produce it.
+     */
+    it('rolls the project and its draft back when the audit append fails', async () => {
+      const audit = harness.app.get(OrganizationAuditService);
+      const original = audit.recordContentProjectCreation.bind(audit);
+
+      const before = await harness.prisma.contentProject.count({
+        where: { organizationId },
+      });
+      const draftsBefore = await harness.prisma.contentDraft.count({
+        where: { organizationId },
+      });
+
+      (
+        audit as unknown as { recordContentProjectCreation: unknown }
+      ).recordContentProjectCreation = () => {
+        throw new Error('audit unavailable');
+      };
+
+      try {
+        const response = await promote(owner, {
+          sourceRunId: succeededRunId,
+          ideaIndex: 1,
+        });
+
+        expect(response.status).toBeGreaterThanOrEqual(500);
+      } finally {
+        (
+          audit as unknown as { recordContentProjectCreation: unknown }
+        ).recordContentProjectCreation = original;
+      }
+
+      // Neither row survived, and no event was left behind either.
+      expect(
+        await harness.prisma.contentProject.count({
+          where: { organizationId },
+        }),
+      ).toBe(before);
+      expect(
+        await harness.prisma.contentDraft.count({ where: { organizationId } }),
+      ).toBe(draftsBefore);
+
+      // And the endpoint still works once the log is back.
+      const recovered = await promote(owner, {
+        sourceRunId: succeededRunId,
+        ideaIndex: 1,
+      });
+
+      expect(recovered.status).toBe(201);
     });
   });
 
@@ -773,6 +1111,8 @@ describe('content projects', () => {
             organizationId: sharedOrganizationId,
             sourceRunId: run,
             sourceIdeaIndex: 0,
+            topic: 'Electric kettles',
+            goal: 'Sell the autumn range',
             title: `Tied ${index}`,
             hook: 'h',
             angle: 'a',

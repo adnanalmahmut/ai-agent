@@ -981,6 +981,25 @@ model ContentProject {
   /// reconstruct the snapshot.
   sourceIdeaIndex Int
 
+  /// The brief the ideas were generated from, snapshotted with the idea.
+  ///
+  /// Copied from `AgentRun.input` by the server for the same reason the idea is
+  /// copied from `AgentRun.output`: the project has to be a complete statement
+  /// of the work on its own. A writer — the agent that will eventually fill
+  /// revision 1, or a person — needs to know what the piece is *for*, and
+  /// reaching back into the run's input to find out would make every future
+  /// consumer depend on a JSON column belonging to another aggregate, one whose
+  /// shape is pinned to a definition revision that may no longer be current.
+  ///
+  /// `topic` and `goal` are required here because they are required of the
+  /// request that produced the ideas. `audience` and `guidance` are optional
+  /// there and nullable here; null means the request did not say, which is
+  /// different from an empty string and is worth being able to tell apart.
+  topic    String
+  goal     String
+  audience String?
+  guidance String?
+
   /// The selected idea, exactly as the agent produced it.
   title           String
   hook            String

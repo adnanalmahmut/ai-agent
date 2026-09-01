@@ -58,6 +58,10 @@ export type ContentProjectMinAggregateOutputType = {
   organizationId: string | null
   sourceRunId: string | null
   sourceIdeaIndex: number | null
+  topic: string | null
+  goal: string | null
+  audience: string | null
+  guidance: string | null
   title: string | null
   hook: string | null
   angle: string | null
@@ -75,6 +79,10 @@ export type ContentProjectMaxAggregateOutputType = {
   organizationId: string | null
   sourceRunId: string | null
   sourceIdeaIndex: number | null
+  topic: string | null
+  goal: string | null
+  audience: string | null
+  guidance: string | null
   title: string | null
   hook: string | null
   angle: string | null
@@ -92,6 +100,10 @@ export type ContentProjectCountAggregateOutputType = {
   organizationId: number
   sourceRunId: number
   sourceIdeaIndex: number
+  topic: number
+  goal: number
+  audience: number
+  guidance: number
   title: number
   hook: number
   angle: number
@@ -119,6 +131,10 @@ export type ContentProjectMinAggregateInputType = {
   organizationId?: true
   sourceRunId?: true
   sourceIdeaIndex?: true
+  topic?: true
+  goal?: true
+  audience?: true
+  guidance?: true
   title?: true
   hook?: true
   angle?: true
@@ -136,6 +152,10 @@ export type ContentProjectMaxAggregateInputType = {
   organizationId?: true
   sourceRunId?: true
   sourceIdeaIndex?: true
+  topic?: true
+  goal?: true
+  audience?: true
+  guidance?: true
   title?: true
   hook?: true
   angle?: true
@@ -153,6 +173,10 @@ export type ContentProjectCountAggregateInputType = {
   organizationId?: true
   sourceRunId?: true
   sourceIdeaIndex?: true
+  topic?: true
+  goal?: true
+  audience?: true
+  guidance?: true
   title?: true
   hook?: true
   angle?: true
@@ -257,6 +281,10 @@ export type ContentProjectGroupByOutputType = {
   organizationId: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience: string | null
+  guidance: string | null
   title: string
   hook: string
   angle: string
@@ -297,6 +325,10 @@ export type ContentProjectWhereInput = {
   organizationId?: Prisma.StringFilter<"ContentProject"> | string
   sourceRunId?: Prisma.StringFilter<"ContentProject"> | string
   sourceIdeaIndex?: Prisma.IntFilter<"ContentProject"> | number
+  topic?: Prisma.StringFilter<"ContentProject"> | string
+  goal?: Prisma.StringFilter<"ContentProject"> | string
+  audience?: Prisma.StringNullableFilter<"ContentProject"> | string | null
+  guidance?: Prisma.StringNullableFilter<"ContentProject"> | string | null
   title?: Prisma.StringFilter<"ContentProject"> | string
   hook?: Prisma.StringFilter<"ContentProject"> | string
   angle?: Prisma.StringFilter<"ContentProject"> | string
@@ -318,6 +350,10 @@ export type ContentProjectOrderByWithRelationInput = {
   organizationId?: Prisma.SortOrder
   sourceRunId?: Prisma.SortOrder
   sourceIdeaIndex?: Prisma.SortOrder
+  topic?: Prisma.SortOrder
+  goal?: Prisma.SortOrder
+  audience?: Prisma.SortOrderInput | Prisma.SortOrder
+  guidance?: Prisma.SortOrderInput | Prisma.SortOrder
   title?: Prisma.SortOrder
   hook?: Prisma.SortOrder
   angle?: Prisma.SortOrder
@@ -344,6 +380,10 @@ export type ContentProjectWhereUniqueInput = Prisma.AtLeast<{
   organizationId?: Prisma.StringFilter<"ContentProject"> | string
   sourceRunId?: Prisma.StringFilter<"ContentProject"> | string
   sourceIdeaIndex?: Prisma.IntFilter<"ContentProject"> | number
+  topic?: Prisma.StringFilter<"ContentProject"> | string
+  goal?: Prisma.StringFilter<"ContentProject"> | string
+  audience?: Prisma.StringNullableFilter<"ContentProject"> | string | null
+  guidance?: Prisma.StringNullableFilter<"ContentProject"> | string | null
   title?: Prisma.StringFilter<"ContentProject"> | string
   hook?: Prisma.StringFilter<"ContentProject"> | string
   angle?: Prisma.StringFilter<"ContentProject"> | string
@@ -365,6 +405,10 @@ export type ContentProjectOrderByWithAggregationInput = {
   organizationId?: Prisma.SortOrder
   sourceRunId?: Prisma.SortOrder
   sourceIdeaIndex?: Prisma.SortOrder
+  topic?: Prisma.SortOrder
+  goal?: Prisma.SortOrder
+  audience?: Prisma.SortOrderInput | Prisma.SortOrder
+  guidance?: Prisma.SortOrderInput | Prisma.SortOrder
   title?: Prisma.SortOrder
   hook?: Prisma.SortOrder
   angle?: Prisma.SortOrder
@@ -390,6 +434,10 @@ export type ContentProjectScalarWhereWithAggregatesInput = {
   organizationId?: Prisma.StringWithAggregatesFilter<"ContentProject"> | string
   sourceRunId?: Prisma.StringWithAggregatesFilter<"ContentProject"> | string
   sourceIdeaIndex?: Prisma.IntWithAggregatesFilter<"ContentProject"> | number
+  topic?: Prisma.StringWithAggregatesFilter<"ContentProject"> | string
+  goal?: Prisma.StringWithAggregatesFilter<"ContentProject"> | string
+  audience?: Prisma.StringNullableWithAggregatesFilter<"ContentProject"> | string | null
+  guidance?: Prisma.StringNullableWithAggregatesFilter<"ContentProject"> | string | null
   title?: Prisma.StringWithAggregatesFilter<"ContentProject"> | string
   hook?: Prisma.StringWithAggregatesFilter<"ContentProject"> | string
   angle?: Prisma.StringWithAggregatesFilter<"ContentProject"> | string
@@ -405,6 +453,10 @@ export type ContentProjectScalarWhereWithAggregatesInput = {
 export type ContentProjectCreateInput = {
   id?: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -425,6 +477,10 @@ export type ContentProjectUncheckedCreateInput = {
   organizationId: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -441,6 +497,10 @@ export type ContentProjectUncheckedCreateInput = {
 export type ContentProjectUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -461,6 +521,10 @@ export type ContentProjectUncheckedUpdateInput = {
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceRunId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -479,6 +543,10 @@ export type ContentProjectCreateManyInput = {
   organizationId: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -494,6 +562,10 @@ export type ContentProjectCreateManyInput = {
 export type ContentProjectUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -510,6 +582,10 @@ export type ContentProjectUncheckedUpdateManyInput = {
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceRunId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -547,6 +623,10 @@ export type ContentProjectCountOrderByAggregateInput = {
   organizationId?: Prisma.SortOrder
   sourceRunId?: Prisma.SortOrder
   sourceIdeaIndex?: Prisma.SortOrder
+  topic?: Prisma.SortOrder
+  goal?: Prisma.SortOrder
+  audience?: Prisma.SortOrder
+  guidance?: Prisma.SortOrder
   title?: Prisma.SortOrder
   hook?: Prisma.SortOrder
   angle?: Prisma.SortOrder
@@ -568,6 +648,10 @@ export type ContentProjectMaxOrderByAggregateInput = {
   organizationId?: Prisma.SortOrder
   sourceRunId?: Prisma.SortOrder
   sourceIdeaIndex?: Prisma.SortOrder
+  topic?: Prisma.SortOrder
+  goal?: Prisma.SortOrder
+  audience?: Prisma.SortOrder
+  guidance?: Prisma.SortOrder
   title?: Prisma.SortOrder
   hook?: Prisma.SortOrder
   angle?: Prisma.SortOrder
@@ -585,6 +669,10 @@ export type ContentProjectMinOrderByAggregateInput = {
   organizationId?: Prisma.SortOrder
   sourceRunId?: Prisma.SortOrder
   sourceIdeaIndex?: Prisma.SortOrder
+  topic?: Prisma.SortOrder
+  goal?: Prisma.SortOrder
+  audience?: Prisma.SortOrder
+  guidance?: Prisma.SortOrder
   title?: Prisma.SortOrder
   hook?: Prisma.SortOrder
   angle?: Prisma.SortOrder
@@ -749,6 +837,10 @@ export type ContentProjectUpdateOneRequiredWithoutDraftsNestedInput = {
 export type ContentProjectCreateWithoutCreatedByUserInput = {
   id?: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -768,6 +860,10 @@ export type ContentProjectUncheckedCreateWithoutCreatedByUserInput = {
   organizationId: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -814,6 +910,10 @@ export type ContentProjectScalarWhereInput = {
   organizationId?: Prisma.StringFilter<"ContentProject"> | string
   sourceRunId?: Prisma.StringFilter<"ContentProject"> | string
   sourceIdeaIndex?: Prisma.IntFilter<"ContentProject"> | number
+  topic?: Prisma.StringFilter<"ContentProject"> | string
+  goal?: Prisma.StringFilter<"ContentProject"> | string
+  audience?: Prisma.StringNullableFilter<"ContentProject"> | string | null
+  guidance?: Prisma.StringNullableFilter<"ContentProject"> | string | null
   title?: Prisma.StringFilter<"ContentProject"> | string
   hook?: Prisma.StringFilter<"ContentProject"> | string
   angle?: Prisma.StringFilter<"ContentProject"> | string
@@ -829,6 +929,10 @@ export type ContentProjectScalarWhereInput = {
 export type ContentProjectCreateWithoutOrganizationInput = {
   id?: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -847,6 +951,10 @@ export type ContentProjectUncheckedCreateWithoutOrganizationInput = {
   id?: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -889,6 +997,10 @@ export type ContentProjectUpdateManyWithWhereWithoutOrganizationInput = {
 export type ContentProjectCreateWithoutSourceRunInput = {
   id?: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -906,6 +1018,10 @@ export type ContentProjectCreateWithoutSourceRunInput = {
 export type ContentProjectUncheckedCreateWithoutSourceRunInput = {
   id?: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -948,6 +1064,10 @@ export type ContentProjectUpdateManyWithWhereWithoutSourceRunInput = {
 export type ContentProjectCreateWithoutDraftsInput = {
   id?: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -967,6 +1087,10 @@ export type ContentProjectUncheckedCreateWithoutDraftsInput = {
   organizationId: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -998,6 +1122,10 @@ export type ContentProjectUpdateToOneWithWhereWithoutDraftsInput = {
 export type ContentProjectUpdateWithoutDraftsInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1017,6 +1145,10 @@ export type ContentProjectUncheckedUpdateWithoutDraftsInput = {
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceRunId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1034,6 +1166,10 @@ export type ContentProjectCreateManyCreatedByUserInput = {
   organizationId: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -1048,6 +1184,10 @@ export type ContentProjectCreateManyCreatedByUserInput = {
 export type ContentProjectUpdateWithoutCreatedByUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1067,6 +1207,10 @@ export type ContentProjectUncheckedUpdateWithoutCreatedByUserInput = {
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceRunId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1084,6 +1228,10 @@ export type ContentProjectUncheckedUpdateManyWithoutCreatedByUserInput = {
   organizationId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceRunId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1099,6 +1247,10 @@ export type ContentProjectCreateManyOrganizationInput = {
   id?: string
   sourceRunId: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -1114,6 +1266,10 @@ export type ContentProjectCreateManyOrganizationInput = {
 export type ContentProjectUpdateWithoutOrganizationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1132,6 +1288,10 @@ export type ContentProjectUncheckedUpdateWithoutOrganizationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceRunId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1149,6 +1309,10 @@ export type ContentProjectUncheckedUpdateManyWithoutOrganizationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceRunId?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1164,6 +1328,10 @@ export type ContentProjectUncheckedUpdateManyWithoutOrganizationInput = {
 export type ContentProjectCreateManySourceRunInput = {
   id?: string
   sourceIdeaIndex: number
+  topic: string
+  goal: string
+  audience?: string | null
+  guidance?: string | null
   title: string
   hook: string
   angle: string
@@ -1179,6 +1347,10 @@ export type ContentProjectCreateManySourceRunInput = {
 export type ContentProjectUpdateWithoutSourceRunInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1196,6 +1368,10 @@ export type ContentProjectUpdateWithoutSourceRunInput = {
 export type ContentProjectUncheckedUpdateWithoutSourceRunInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1212,6 +1388,10 @@ export type ContentProjectUncheckedUpdateWithoutSourceRunInput = {
 export type ContentProjectUncheckedUpdateManyWithoutSourceRunInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   sourceIdeaIndex?: Prisma.IntFieldUpdateOperationsInput | number
+  topic?: Prisma.StringFieldUpdateOperationsInput | string
+  goal?: Prisma.StringFieldUpdateOperationsInput | string
+  audience?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  guidance?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   title?: Prisma.StringFieldUpdateOperationsInput | string
   hook?: Prisma.StringFieldUpdateOperationsInput | string
   angle?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1260,6 +1440,10 @@ export type ContentProjectSelect<ExtArgs extends runtime.Types.Extensions.Intern
   organizationId?: boolean
   sourceRunId?: boolean
   sourceIdeaIndex?: boolean
+  topic?: boolean
+  goal?: boolean
+  audience?: boolean
+  guidance?: boolean
   title?: boolean
   hook?: boolean
   angle?: boolean
@@ -1282,6 +1466,10 @@ export type ContentProjectSelectCreateManyAndReturn<ExtArgs extends runtime.Type
   organizationId?: boolean
   sourceRunId?: boolean
   sourceIdeaIndex?: boolean
+  topic?: boolean
+  goal?: boolean
+  audience?: boolean
+  guidance?: boolean
   title?: boolean
   hook?: boolean
   angle?: boolean
@@ -1302,6 +1490,10 @@ export type ContentProjectSelectUpdateManyAndReturn<ExtArgs extends runtime.Type
   organizationId?: boolean
   sourceRunId?: boolean
   sourceIdeaIndex?: boolean
+  topic?: boolean
+  goal?: boolean
+  audience?: boolean
+  guidance?: boolean
   title?: boolean
   hook?: boolean
   angle?: boolean
@@ -1322,6 +1514,10 @@ export type ContentProjectSelectScalar = {
   organizationId?: boolean
   sourceRunId?: boolean
   sourceIdeaIndex?: boolean
+  topic?: boolean
+  goal?: boolean
+  audience?: boolean
+  guidance?: boolean
   title?: boolean
   hook?: boolean
   angle?: boolean
@@ -1334,7 +1530,7 @@ export type ContentProjectSelectScalar = {
   updatedAt?: boolean
 }
 
-export type ContentProjectOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "sourceRunId" | "sourceIdeaIndex" | "title" | "hook" | "angle" | "summary" | "suggestedFormat" | "language" | "createdByUserId" | "idempotencyKey" | "createdAt" | "updatedAt", ExtArgs["result"]["contentProject"]>
+export type ContentProjectOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "sourceRunId" | "sourceIdeaIndex" | "topic" | "goal" | "audience" | "guidance" | "title" | "hook" | "angle" | "summary" | "suggestedFormat" | "language" | "createdByUserId" | "idempotencyKey" | "createdAt" | "updatedAt", ExtArgs["result"]["contentProject"]>
 export type ContentProjectInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   sourceRun?: boolean | Prisma.AgentRunDefaultArgs<ExtArgs>
@@ -1377,6 +1573,26 @@ export type $ContentProjectPayload<ExtArgs extends runtime.Types.Extensions.Inte
      * reconstruct the snapshot.
      */
     sourceIdeaIndex: number
+    /**
+     * The brief the ideas were generated from, snapshotted with the idea.
+     * 
+     * Copied from `AgentRun.input` by the server for the same reason the idea is
+     * copied from `AgentRun.output`: the project has to be a complete statement
+     * of the work on its own. A writer — the agent that will eventually fill
+     * revision 1, or a person — needs to know what the piece is *for*, and
+     * reaching back into the run's input to find out would make every future
+     * consumer depend on a JSON column belonging to another aggregate, one whose
+     * shape is pinned to a definition revision that may no longer be current.
+     * 
+     * `topic` and `goal` are required here because they are required of the
+     * request that produced the ideas. `audience` and `guidance` are optional
+     * there and nullable here; null means the request did not say, which is
+     * different from an empty string and is worth being able to tell apart.
+     */
+    topic: string
+    goal: string
+    audience: string | null
+    guidance: string | null
     /**
      * The selected idea, exactly as the agent produced it.
      */
@@ -1835,6 +2051,10 @@ export interface ContentProjectFieldRefs {
   readonly organizationId: Prisma.FieldRef<"ContentProject", 'String'>
   readonly sourceRunId: Prisma.FieldRef<"ContentProject", 'String'>
   readonly sourceIdeaIndex: Prisma.FieldRef<"ContentProject", 'Int'>
+  readonly topic: Prisma.FieldRef<"ContentProject", 'String'>
+  readonly goal: Prisma.FieldRef<"ContentProject", 'String'>
+  readonly audience: Prisma.FieldRef<"ContentProject", 'String'>
+  readonly guidance: Prisma.FieldRef<"ContentProject", 'String'>
   readonly title: Prisma.FieldRef<"ContentProject", 'String'>
   readonly hook: Prisma.FieldRef<"ContentProject", 'String'>
   readonly angle: Prisma.FieldRef<"ContentProject", 'String'>

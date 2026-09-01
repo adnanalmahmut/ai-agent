@@ -9,6 +9,7 @@ export {
 } from './content-project-pagination';
 export type {
   ContentDraftView,
+  ContentProjectBrief,
   ContentProjectDetail,
   ContentProjectFromIdeaInput,
   ContentProjectView,

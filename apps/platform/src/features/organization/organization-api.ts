@@ -441,7 +441,21 @@ export type ContentProject = {
   updatedAt: string;
 };
 
+/**
+ * The brief the ideas were generated from, snapshotted onto the project.
+ *
+ * Detail only — the list does not carry it, because a backlog screen shows what
+ * was decided rather than the paragraph behind each decision.
+ */
+export type ContentProjectBrief = {
+  topic: string;
+  goal: string;
+  audience: string | null;
+  guidance: string | null;
+};
+
 export type ContentProjectDetail = ContentProject & {
+  brief: ContentProjectBrief;
   drafts: ContentDraft[];
 };
 

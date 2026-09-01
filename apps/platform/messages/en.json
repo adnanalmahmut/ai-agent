@@ -1059,7 +1059,12 @@
       "drafts": "Drafts",
       "revision": "Revision {revision}",
       "unwritten": "Nothing has been written yet. This draft records the format, language, and working title the piece should have.",
-      "missing": "This project does not exist."
+      "missing": "This project does not exist.",
+      "brief": "The brief",
+      "topic": "Topic:",
+      "goal": "Goal:",
+      "audience": "Audience:",
+      "guidance": "Guidance:"
     }
   }
 }
