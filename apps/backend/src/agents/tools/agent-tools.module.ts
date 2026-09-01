@@ -43,6 +43,6 @@ import type { ToolImplementation } from './tool.types';
     },
     ToolGateway,
   ],
-  exports: [ToolGateway, ToolRegistry, AgentContextAssembler],
+  exports: [ToolGateway, AgentContextAssembler],
 })
 export class AgentToolsModule {}

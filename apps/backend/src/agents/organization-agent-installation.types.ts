@@ -18,9 +18,12 @@ const configurationSchema = z.record(z.string(), z.unknown());
  * length bound is the registry's own size: a request naming more entries than
  * exist can only be duplicates or noise.
  *
- * Absent means unchanged intent expressed as "none" — the schema defaults it
- * so that an existing client, which does not know this field exists, keeps
- * producing versions with no tools rather than failing.
+ * Omitting the field means no tools, and on a replacement that means the new
+ * version revokes whatever the previous one held. That is ordinary PUT
+ * semantics — every other field on this body is a full statement of intent —
+ * and it fails safe, since the only direction it can move is narrower. It is
+ * stated plainly because "optional" reads as "leaves it alone", and here it
+ * does not.
  */
 const toolGrantsSchema = z.array(z.enum(TOOL_REFS)).max(TOOL_REFS.length);
 

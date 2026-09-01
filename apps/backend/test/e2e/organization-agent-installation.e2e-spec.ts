@@ -182,6 +182,9 @@ describe('Organization agent installations (e2e)', () => {
         defaultModelId: MODEL_IDS.openAiGpt4oMini,
         allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
         defaultConfiguration: {},
+        // The published catalog states the definition's maximum so a client
+        // can only ever narrow it. content-idea grants nothing.
+        maxToolGrants: [],
       },
     ]);
   });

@@ -10,7 +10,6 @@ import { ToolExecutionService } from './tool-execution.service';
 import { ToolRegistry } from './tool.registry';
 import {
   isToolRef,
-  toolRef,
   type ToolDefinition,
   type ToolImplementation,
   type ToolInvocationContext,
@@ -18,17 +17,49 @@ import {
 } from './tool.types';
 
 /**
- * Thrown when a tool implementation fails. Carries no cause.
+ * The only thing allowed to leave a tool call. Carries no cause.
  *
- * The gateway catches the implementation's error and rethrows this instead, so
- * whatever the implementation threw — a provider body, a driver error, a stack
- * — dies at the boundary rather than travelling up into the run's failure path
- * or a log line. The run still fails; it just fails with the application's own
- * sentence.
+ * This is a containment type, not a control-flow one, because a thrown tool
+ * error does not end the run. Mastra catches everything a tool throws except
+ * its own `FGADeniedError` and turns it into a tool *result*: it serializes the
+ * error's name, message, stack and own enumerable properties into the
+ * transcript and hands that back to the model, which then keeps going. So an
+ * error raised in here is not a failure signal travelling up to
+ * `AgentExecutionHandler` — it is a string this application is about to send to
+ * a provider.
+ *
+ * That is why the message is a constant naming only the tool. Anything a driver
+ * or an implementation threw — a query, a payload, a connection string, a stack
+ * — would otherwise be transmitted, and Pino's redaction is nowhere near this
+ * path.
+ *
+ * The durable `ToolExecution` row is therefore the authority on what happened,
+ * not the run's outcome. A run whose tool failed can still succeed, and its
+ * history will say a tool call failed inside it.
  */
 export class ToolExecutionFailure extends Error {}
 
 export const TOOL_IMPLEMENTATIONS = Symbol('TOOL_IMPLEMENTATIONS');
+
+/**
+ * How many tool calls one run attempt may make in total.
+ *
+ * Separate from the runtime's step ceiling, and not implied by it: a step
+ * bounds model round-trips, but one assistant step may emit many tool calls and
+ * the SDK executes them all, bounding only their concurrency. So `maxSteps: 4`
+ * permits four *rounds* of unbounded fan-out, and each `knowledge.search@1`
+ * call costs an embedding this platform pays for, a vector search, and two
+ * writes.
+ *
+ * The input schema stops the model choosing how much one call retrieves. This
+ * stops it choosing how many calls there are — the same decision, reached by
+ * repetition instead of by a parameter.
+ *
+ * Twelve: generous for an agent that searches, reads, refines and answers,
+ * while bounding the worst case to something an operator would not notice on a
+ * bill. Code-owned for this first real use case.
+ */
+const MAX_TOOL_INVOCATIONS_PER_ATTEMPT = 12;
 
 /**
  * The application's authority over everything an agent may do.
@@ -79,6 +110,25 @@ export class ToolGateway {
     for (const ref of this.registry.refs()) {
       if (!indexed.has(ref)) {
         throw new Error(`Tool "${ref}" has no registered implementation`);
+      }
+
+      /**
+       * Refused at composition, not merely when a run tries to use it.
+       *
+       * The check also exists in `expose`, but that one fires per run: a
+       * definition that named a `side_effect` tool and an organization that
+       * selected it would both be accepted, and then *every* run of that agent
+       * would fail at authorize time — including runs where the model would
+       * never have called it. Failing the build instead makes it one loud
+       * error at the moment the tool is added.
+       *
+       * The change that adds idempotency, precondition revalidation and human
+       * approval is the change that relaxes this line.
+       */
+      if (this.registry.resolve(ref).risk !== 'read_only') {
+        throw new Error(
+          `Tool "${ref}" is not read-only and this build cannot execute one`,
+        );
       }
     }
 
@@ -133,13 +183,25 @@ export class ToolGateway {
       selected.add(grant);
     }
 
-    return [...selected].map((ref) => this.expose(ref, context));
+    /**
+     * One budget for the whole attempt, shared by every tool it exposes.
+     *
+     * Captured here rather than per tool, because the cost being bounded is
+     * the run's, not any one tool's.
+     */
+    const budget = { remaining: MAX_TOOL_INVOCATIONS_PER_ATTEMPT };
+
+    return [...selected].map((ref) =>
+      this.expose(ref, context, selected, budget),
+    );
   }
 
   /** One authorized tool, as the smallest thing a runtime can be given. */
   private expose(
     ref: ToolRef,
     context: ToolInvocationContext,
+    authorized: ReadonlySet<ToolRef>,
+    budget: { remaining: number },
   ): AgentRuntimeTool {
     const definition = this.registry.resolve(ref);
 
@@ -166,7 +228,7 @@ export class ToolGateway {
       input: definition.input,
       output: definition.output,
       execute: (input: AgentValue) =>
-        this.execute(ref, definition, context, input),
+        this.execute(ref, definition, context, authorized, budget, input),
     };
   }
 
@@ -181,8 +243,62 @@ export class ToolGateway {
     ref: ToolRef,
     definition: ToolDefinition,
     context: ToolInvocationContext,
+    authorized: ReadonlySet<ToolRef>,
+    budget: { remaining: number },
     rawInput: AgentValue,
   ): Promise<AgentValue> {
+    try {
+      return await this.attempt(
+        ref,
+        definition,
+        context,
+        authorized,
+        budget,
+        rawInput,
+      );
+    } catch (error) {
+      // Already contained, and already says only what it should.
+      if (error instanceof ToolExecutionFailure) throw error;
+
+      /**
+       * Everything else: a durable write that rejected, or a defect in here.
+       *
+       * A Prisma rejection is the motivating case. Its message names the
+       * connection target and, for an argument fault, renders the invocation
+       * arguments — which at this point are the tool's input or output. Left
+       * uncontained it would be serialized into the transcript and sent to the
+       * provider on the next step, so nothing may pass but this sentence.
+       */
+      throw new ToolExecutionFailure(`Tool "${ref}" could not be completed`);
+    }
+  }
+
+  private async attempt(
+    ref: ToolRef,
+    definition: ToolDefinition,
+    context: ToolInvocationContext,
+    authorized: ReadonlySet<ToolRef>,
+    budget: { remaining: number },
+    rawInput: AgentValue,
+  ): Promise<AgentValue> {
+    /**
+     * Re-checked here, not only where the closure was handed out.
+     *
+     * Nothing today can call a closure it was not given, so this cannot fire —
+     * which is exactly why it is cheap and why it belongs here. A future
+     * adapter that cached an `AgentRuntimeTool` across runs, or a change that
+     * revoked a grant mid-attempt, would otherwise find no second gate.
+     */
+    if (!authorized.has(ref)) {
+      throw new ToolExecutionFailure(`Tool "${ref}" is not authorized`);
+    }
+
+    if (budget.remaining <= 0) {
+      throw new ToolExecutionFailure(
+        `Tool "${ref}" exceeded this attempt's tool-call budget`,
+      );
+    }
+    budget.remaining -= 1;
     /**
      * Parsed again, even though Mastra validates tool arguments itself.
      *
@@ -229,7 +345,11 @@ export class ToolGateway {
        * and either can throw something carrying a query, a payload, or a
        * credential-bearing URL.
        */
-      await this.executions.fail(executionId, 'implementation_error');
+      await this.executions.fail(
+        executionId,
+        context.organizationId,
+        'implementation_error',
+      );
 
       throw new ToolExecutionFailure(`Tool "${ref}" failed`);
     }
@@ -248,7 +368,11 @@ export class ToolGateway {
     const parsedOutput = definition.output.safeParse(raw);
 
     if (!parsedOutput.success) {
-      await this.executions.fail(executionId, 'output_rejected');
+      await this.executions.fail(
+        executionId,
+        context.organizationId,
+        'output_rejected',
+      );
 
       throw new ToolExecutionFailure(
         `Tool "${ref}" returned a result its schema refuses`,
@@ -256,10 +380,8 @@ export class ToolGateway {
     }
 
     const output = parsedOutput.data as AgentValue;
-    await this.executions.succeed(executionId, output);
+    await this.executions.succeed(executionId, context.organizationId, output);
 
     return output;
   }
 }
-
-export { toolRef };

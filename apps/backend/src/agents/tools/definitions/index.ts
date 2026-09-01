@@ -11,15 +11,3 @@ import { knowledgeSearchTool } from './knowledge-search';
 export const APPLICATION_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   knowledgeSearchTool,
 ];
-
-export {
-  knowledgeSearchTool,
-  knowledgeSearchInput,
-  knowledgeSearchOutput,
-  KNOWLEDGE_SEARCH_TOOL_ID,
-  KNOWLEDGE_SEARCH_TOOL_VERSION,
-} from './knowledge-search';
-export type {
-  KnowledgeSearchInput,
-  KnowledgeSearchOutput,
-} from './knowledge-search';

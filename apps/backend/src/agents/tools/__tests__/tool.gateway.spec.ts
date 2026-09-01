@@ -190,13 +190,20 @@ describe('ToolGateway authorization', () => {
     );
   });
 
-  it('refuses to expose a tool that is not read-only', () => {
-    const { gateway } = gatewayWith(
-      () => Promise.resolve({ passages: [] }),
-      toolDefinition({ risk: 'side_effect' }),
-    );
-
-    expect(() => authorizeOne(gateway)).toThrow('is not read-only');
+  /**
+   * Refused when the build is composed, not when a run first reaches it.
+   *
+   * Deferring it to authorize time would accept the definition and the
+   * organization's selection, then fail every run of that agent — including
+   * runs where the model would never have called the tool.
+   */
+  it('refuses to compose a build containing a tool it cannot execute', () => {
+    expect(() =>
+      gatewayWith(
+        () => Promise.resolve({ passages: [] }),
+        toolDefinition({ risk: 'side_effect' }),
+      ),
+    ).toThrow('is not read-only and this build cannot execute one');
   });
 });
 
@@ -232,7 +239,7 @@ describe('ToolGateway execution', () => {
       toolVersion: 1,
       input: { query: 'refunds' },
     });
-    expect(durable.succeed).toHaveBeenCalledWith('execution-1', {
+    expect(durable.succeed).toHaveBeenCalledWith('execution-1', 'org_1', {
       passages: ['a'],
     });
     expect(durable.fail).not.toHaveBeenCalled();
@@ -271,6 +278,7 @@ describe('ToolGateway execution', () => {
 
     expect(durable.fail).toHaveBeenCalledWith(
       'execution-1',
+      'org_1',
       'implementation_error',
     );
     expect(JSON.stringify(durable.fail.mock.calls)).not.toContain('hunter2');
@@ -282,7 +290,11 @@ describe('ToolGateway execution', () => {
       run(() => Promise.resolve({ passages: 'not-an-array' })),
     ).rejects.toThrow('returned a result its schema refuses');
 
-    expect(durable.fail).toHaveBeenCalledWith('execution-1', 'output_rejected');
+    expect(durable.fail).toHaveBeenCalledWith(
+      'execution-1',
+      'org_1',
+      'output_rejected',
+    );
     expect(durable.succeed).not.toHaveBeenCalled();
   });
 
@@ -300,5 +312,127 @@ describe('ToolGateway execution', () => {
         agentRunAttempt: 2,
       }),
     );
+  });
+});
+
+/**
+ * Nothing but the application's own sentence may leave a tool call.
+ *
+ * Mastra does not let a tool error end the run: it serializes the error's
+ * name, message, stack and own properties into the transcript and sends that
+ * to the provider on the next step. Everything raised in here is therefore
+ * outbound text, not a failure signal.
+ */
+describe('ToolGateway containment', () => {
+  const runWithDurable = async (
+    durable: Record<string, unknown>,
+    execute: ToolImplementation['execute'] = () =>
+      Promise.resolve({ passages: [] }),
+  ) => {
+    const gateway = new ToolGateway(
+      new ToolRegistry([toolDefinition()]),
+      durable as never,
+      [{ ref: REF, execute }],
+    );
+    const [tool] = authorizeOne(gateway);
+
+    return tool.execute({ query: 'refunds' });
+  };
+
+  const leak =
+    'Invalid `prisma.toolExecution.create()` invocation: connect ECONNREFUSED 10.0.0.5:5432';
+
+  it('contains a failure to record the start', async () => {
+    await expect(
+      runWithDurable({
+        start: () => Promise.reject(new Error(leak)),
+        succeed: () => Promise.resolve(),
+        fail: () => Promise.resolve(),
+      }),
+    ).rejects.toThrow('could not be completed');
+  });
+
+  it('contains a failure to record the success', async () => {
+    let thrown: unknown;
+    try {
+      await runWithDurable({
+        start: () => Promise.resolve('execution-1'),
+        succeed: () => Promise.reject(new Error(leak)),
+        fail: () => Promise.resolve(),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(ToolExecutionFailure);
+    expect((thrown as Error).message).not.toContain('ECONNREFUSED');
+    expect((thrown as Error).message).not.toContain('10.0.0.5');
+  });
+
+  /** A failed durable write must not replace the contained failure either. */
+  it('contains a failure to record the failure', async () => {
+    const thrown = await runWithDurable(
+      {
+        start: () => Promise.resolve('execution-1'),
+        succeed: () => Promise.resolve(),
+        fail: () => Promise.reject(new Error(leak)),
+      },
+      // The implementation must fail for `fail` to be reached at all.
+      () => Promise.reject(new Error('implementation exploded')),
+    ).catch((error: unknown) => error);
+
+    expect((thrown as Error).message).not.toContain('ECONNREFUSED');
+    expect((thrown as Error).message).not.toContain('exploded');
+  });
+});
+
+describe('ToolGateway invocation budget', () => {
+  /**
+   * The step ceiling bounds model round-trips, not tool calls: one assistant
+   * step may emit many, and the SDK runs them all. Without this, the model
+   * chooses how much the platform pays by repetition rather than by a
+   * parameter the schema already refuses.
+   */
+  it('stops a run attempt calling without limit', async () => {
+    const execute = jest.fn<ToolImplementation['execute']>(() =>
+      Promise.resolve({ passages: [] }),
+    );
+    const { gateway } = gatewayWith(execute);
+    const [tool] = authorizeOne(gateway);
+
+    let calls = 0;
+    for (;;) {
+      try {
+        await tool.execute({ query: 'refunds' });
+        calls += 1;
+        if (calls > 100) throw new Error('budget never exhausted');
+      } catch (error) {
+        expect((error as Error).message).toContain('tool-call budget');
+        break;
+      }
+    }
+
+    expect(calls).toBeGreaterThan(0);
+    expect(calls).toBeLessThanOrEqual(20);
+    expect(execute).toHaveBeenCalledTimes(calls);
+  });
+
+  it('gives each authorization its own budget', async () => {
+    const { gateway } = gatewayWith(() => Promise.resolve({ passages: [] }));
+
+    const spend = async () => {
+      const [tool] = authorizeOne(gateway);
+      let calls = 0;
+      for (;;) {
+        try {
+          await tool.execute({ query: 'refunds' });
+          calls += 1;
+        } catch {
+          return calls;
+        }
+      }
+    };
+
+    expect(await spend()).toBe(await spend());
   });
 });

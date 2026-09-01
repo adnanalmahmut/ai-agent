@@ -306,6 +306,17 @@ export type AgentContextPassage = {
 };
 
 /**
+ * The names a runtime adapter will pass through unaltered.
+ *
+ * Part of the runtime contract rather than of any one SDK, because it is the
+ * application's requirement: the name a model is offered must be the name this
+ * repository wrote. Mastra happens to enforce the same shape by rewriting
+ * anything else, which is exactly the silent correction this constant exists to
+ * turn into a loud one.
+ */
+export const RUNTIME_TOOL_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_-]{0,62}$/;
+
+/**
  * One tool as a runtime adapter sees it.
  *
  * Deliberately generic and deliberately small: a name, what it is for, the two
@@ -317,19 +328,14 @@ export type AgentContextPassage = {
  * choose who it is calling for, because that was decided before this object
  * existed — all the runtime can do is call it with an input.
  */
-/**
- * The names a runtime adapter will pass through unaltered.
- *
- * Part of the runtime contract rather than of any one SDK, because it is the
- * application's requirement: the name a model is offered must be the name this
- * repository wrote. Mastra happens to enforce the same shape by rewriting
- * anything else, which is exactly the silent correction this constant exists to
- * turn into a loud one.
- */
-export const RUNTIME_TOOL_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_-]{0,62}$/;
-
 export type AgentRuntimeTool = {
-  /** The stable `id@version` identity, which is also what the model sees. */
+  /**
+   * The tool's audited `runtimeName`, and what the model sees.
+   *
+   * Deliberately *not* the durable `id@version` identity, which contains
+   * characters an SDK rewrites. See `ToolDefinition.runtimeName`; history
+   * records the identity, this records the label.
+   */
   name: string;
   description: string;
   input: ZodType;

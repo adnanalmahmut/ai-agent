@@ -55,10 +55,22 @@ export class ToolExecutionService {
     return row.id;
   }
 
-  /** The result, already parsed by the tool's own output schema. */
-  async succeed(id: string, output: AgentValue): Promise<void> {
-    await this.prisma.toolExecution.update({
-      where: { id },
+  /**
+   * The result, already parsed by the tool's own output schema.
+   *
+   * Scoped by `(id, organizationId)` rather than by id alone. The id is a uuid
+   * this service just minted and never hands out, so the predicate cannot
+   * matter today — but the schema's whole argument for the composite foreign
+   * key is that a service predicate is one forgotten `where` clause away from
+   * absent, and an update carrying no tenant is that clause missing.
+   */
+  async succeed(
+    id: string,
+    organizationId: string,
+    output: AgentValue,
+  ): Promise<void> {
+    await this.prisma.toolExecution.updateMany({
+      where: { id, organizationId },
       data: {
         status: 'SUCCEEDED',
         output: asJson(output),
@@ -74,9 +86,13 @@ export class ToolExecutionService {
    * reach for `error.message` here without first widening a type that exists
    * to be hard to widen.
    */
-  async fail(id: string, failureCode: ToolFailureCode): Promise<void> {
-    await this.prisma.toolExecution.update({
-      where: { id },
+  async fail(
+    id: string,
+    organizationId: string,
+    failureCode: ToolFailureCode,
+  ): Promise<void> {
+    await this.prisma.toolExecution.updateMany({
+      where: { id, organizationId },
       data: { status: 'FAILED', failureCode, completedAt: new Date() },
     });
   }

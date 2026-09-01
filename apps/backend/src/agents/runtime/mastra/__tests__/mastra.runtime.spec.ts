@@ -450,6 +450,7 @@ describe('MastraRuntime tool boundary', () => {
       'workspace',
       'skills',
       'browser',
+      'inputProcessors',
       'defaultOptions',
     ]) {
       expect(config[key]).toBeUndefined();
