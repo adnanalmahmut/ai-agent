@@ -11,8 +11,18 @@ by one test:
 > **Does this work prove a meaningful engineering capability that this
 > repository does not already demonstrate?**
 
-Roadmap completion is not a goal. Appearing on an older roadmap is not
-authorization.
+Roadmap completion is not a goal. An older roadmap entry is not authorization
+to propose work, and it does not become one by age.
+
+This policy and the harness govern different things, and both apply:
+
+- **The harness controls whether work may start.** The PR-train approval
+  boundary in [the PR train workflow](../.agents/workflows/pr-train.md) requires
+  `## [APPROVED] <task id>` with `Approved to start: [x]`; an unchecked box, a
+  bare roadmap entry, or a task absent from the window is not approval, and a
+  missing window fails closed.
+- **This document controls what work should be proposed and prioritized.** That
+  is judgment about the project's purpose, which no checkbox expresses.
 
 ## Already sufficiently demonstrated
 

@@ -24,11 +24,29 @@ that already demonstrates transactional outbox delivery proves nothing new about
 the engineering; it adds surface area, maintenance cost, and review burden to a
 project whose purpose is to be read.
 
-The roadmap is also a live hazard. A written, unchecked roadmap entry functions
-as authorization: a session resuming work reads it as outstanding obligation and
-implements it. Left in place, the old roadmap would keep directing effort at
-breadth indefinitely, and "finished" would never arrive because nothing defined
-what finished meant.
+The roadmap is also a standing cost. It did not bypass any execution gate: the
+PR-train approval boundary in
+[the PR train workflow](../../.agents/workflows/pr-train.md) requires a task to
+appear as `## [APPROVED] <task id>` with `Approved to start: [x]`, and states
+that an unchecked box, a bare roadmap entry, or a task absent from the window is
+not approval. A missing or unreadable window blocks every planned slot rather
+than permitting anything. HARNESS-01 owns that boundary and keeps owning it.
+
+What the old roadmap did instead was persist as a stale planning signal. Every
+session that resumed work read it, re-encountered a hundred entries of
+horizontal product scope, and had to re-derive that none of them were still
+required by the project's purpose. That is resumption burden paid repeatedly,
+and it biases what gets proposed: a planner reading a long backlog proposes from
+it. Nothing in the harness prevents that, because the harness gates whether work
+may start, not whether it was worth proposing. And "finished" would never
+arrive, because nothing defined what finished meant.
+
+The two layers are distinct and both are needed:
+
+- **The harness controls whether work may start.** Approval is a boundary read
+  from the window's shape, and it fails closed.
+- **This policy controls what work should be proposed and prioritized.** It is
+  judgment about purpose, which no checkbox expresses.
 
 ## Decision
 
@@ -49,8 +67,10 @@ Every proposed engineering item must pass one test:
 > repository does not already demonstrate?**
 
 If the answer is no, the work is not prioritized — and specifically, it is not
-prioritized merely because it appeared on an older roadmap. Appearing on a
-previous roadmap is not authorization and never becomes authorization by age.
+prioritized merely because it appeared on an older roadmap. An older roadmap
+entry is not authorization, and it does not become one by age. This governs
+proposal and prioritization; it does not replace or relax the harness approval
+boundary, which independently governs whether any approved work may start.
 
 **Roadmap completion is not a goal in itself.** The program does not finish by
 emptying a backlog; it finishes by satisfying the bounded exit criteria in
@@ -78,6 +98,9 @@ does not pass it.
   continue.
 - Reopening any de-scoped capability requires a new human decision. Superseding
   this ADR is the mechanism if the project's purpose itself changes.
+- Removing stale entries from the planning surface changes what is proposed, not
+  what is permitted. Execution authorization remains entirely with the
+  HARNESS-01 approval window.
 - This decision constrains prioritization only. It does not relax any
   engineering, security, delivery, or deployment boundary recorded in
   `AGENTS.md`, [`.agents/policies/`](../../.agents/policies/), or

@@ -23,11 +23,18 @@ long — it is actively misleading, because it presents horizontal product
 breadth as outstanding obligation. An agent resuming work from it would keep
 building features that prove nothing the repository does not already prove.
 
-A written roadmap is authorization in practice: the next session reads it and
-treats an unchecked box as work owed. So the reset has to be recorded where the
-authority actually lives — an ADR for the durable decision, a current-state
-document for what remains, and a short rule in `AGENTS.md` so a future agent
-meets the constraint before it starts planning.
+The old roadmap did not bypass any execution gate. The PR-train approval
+boundary requires `## [APPROVED] <task id>` with `Approved to start: [x]`, treats
+an unchecked box or a bare roadmap entry as not approval, and fails closed when
+the window is missing or unreadable. HARNESS-01 owns that and continues to.
+
+The problem was narrower and real: the roadmap persisted as a stale planning
+signal that every resuming session had to read and re-dismiss, and a planner
+reading a long backlog proposes from it. So the reset belongs on the planning
+surface — an ADR for the durable decision, a current-state document for what
+remains, and a short rule in `AGENTS.md` so a future agent meets the constraint
+before it starts planning. The harness controls whether work may start; this
+policy controls what work should be proposed.
 
 ## Scope
 
@@ -186,6 +193,26 @@ None.
   lockfile, no Prisma schema or migration.
 - `pnpm agents:resume` parses the rewritten dashboard and reports the slot as
   the single current PR.
+
+## Required corrections
+
+1. **The authorization claim was false and was corrected after review
+   (2026-09-01).** The ADR, this plan, and the PR description all asserted that
+   a written, unchecked roadmap entry "functions as authorization." It does not.
+   `.agents/workflows/pr-train.md` states the approval boundary explicitly: a
+   task is approved only as `## [APPROVED] <task id>` with
+   `Approved to start: [x]`, and an unchecked box, a bare roadmap entry, or a
+   task absent from the window is not approval, with a missing or unreadable
+   window blocking every planned slot. I asserted a harness weakness that the
+   harness does not have, which overstated the danger and implicitly
+   misdescribed HARNESS-01.
+
+   The accurate rationale is that the old roadmap was a stale backlog imposing
+   cognitive and resumption burden, causing sessions to repeatedly encounter and
+   propose horizontal product work no longer required by the project's purpose.
+   The corrected documents state the two layers separately: the harness controls
+   whether work may start; the finish-line policy controls what work should be
+   proposed and prioritized. The strategic decision is unchanged.
 
 ## Outcome
 
