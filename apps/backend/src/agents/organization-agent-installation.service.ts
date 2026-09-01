@@ -10,6 +10,7 @@ import { isAgentConfigurationError } from './agent-configuration.error';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
 import type { AgentConfiguration } from './agent.types';
 import type { AgentDefinition } from './agent.types';
+import type { ToolRef } from './tools/tool.types';
 import {
   APPLICATION_MODEL_CATALOG,
   type AgentModelId,
@@ -32,6 +33,7 @@ const versionSelect = {
   modelId: true,
   enabled: true,
   configuration: true,
+  toolGrants: true,
   createdByUserId: true,
   createdAt: true,
 } as const;
@@ -79,6 +81,7 @@ export class OrganizationAgentInstallationService {
         definition.version,
         undefined,
       ),
+      maxToolGrants: [...(definition.maxToolGrants ?? [])],
     }));
   }
 
@@ -107,6 +110,11 @@ export class OrganizationAgentInstallationService {
       input.definitionVersion,
       input.modelId,
     );
+    const toolGrants = this.selectToolGrants(
+      input.agentId,
+      input.definitionVersion,
+      input.toolGrants,
+    );
 
     try {
       const row = await this.prisma.$transaction(async (tx) => {
@@ -125,6 +133,7 @@ export class OrganizationAgentInstallationService {
             modelId: model.modelId,
             enabled: input.enabled,
             configuration: asJson(configuration),
+            toolGrants,
             createdByUserId: actorUserId,
           },
           select: { id: true },
@@ -183,6 +192,11 @@ export class OrganizationAgentInstallationService {
             input.definitionVersion,
             input.configuration,
           ),
+          toolGrants: this.selectToolGrants(
+            current.agentId,
+            input.definitionVersion,
+            input.toolGrants,
+          ),
         };
 
         if (matches(currentVersion, desired)) return current;
@@ -222,6 +236,7 @@ export class OrganizationAgentInstallationService {
             modelId: desired.modelId,
             enabled: desired.enabled,
             configuration: asJson(desired.configuration),
+            toolGrants: desired.toolGrants,
             createdByUserId: actorUserId,
           },
           select: { id: true },
@@ -358,6 +373,69 @@ export class OrganizationAgentInstallationService {
       modelId: selected as AgentModelId,
     };
   }
+
+  /**
+   * The organization's selection, narrowed to what the definition permits.
+   *
+   * Narrowed, never widened: the maximum belongs to the code-owned revision,
+   * and a tenant that could add to it would be granting itself capability. A
+   * request naming a tool outside the maximum is refused rather than trimmed,
+   * because silently dropping it would report success for a selection that was
+   * not honoured.
+   *
+   * Omitted means none. That is what makes the whole feature additive: an
+   * existing client that has never heard of tools keeps creating versions with
+   * no grants, which is exactly what every version created before this existed
+   * already means.
+   */
+  private selectToolGrants(
+    agentId: string,
+    definitionVersion: number,
+    requested: readonly ToolRef[] | undefined,
+  ): ToolRef[] {
+    if (requested === undefined || requested.length === 0) return [];
+
+    let definition: AgentDefinition;
+    try {
+      definition = this.definitions.resolve(agentId, definitionVersion);
+    } catch (error) {
+      if (isAgentConfigurationError(error)) {
+        throw new AppException('NOT_FOUND', {
+          context: { resource: 'agentDefinition' },
+        });
+      }
+      throw error;
+    }
+
+    const maximum = new Set(definition.maxToolGrants ?? []);
+    const selected = new Set<ToolRef>();
+
+    for (const ref of requested) {
+      // A duplicate is refused rather than collapsed. The request says
+      // something the caller did not mean, and answering a different question
+      // than the one asked is how a client stays wrong for a long time.
+      if (selected.has(ref)) throw invalidToolSelection('duplicate_tool');
+      if (!maximum.has(ref)) throw invalidToolSelection('tool_not_permitted');
+      selected.add(ref);
+    }
+
+    /**
+     * Sorted, so the stored value is canonical.
+     *
+     * Grant identity is a set, but the column is an array. Without a canonical
+     * order, the same selection sent in a different order would compare
+     * unequal to the active version and publish a new immutable revision that
+     * differs from its predecessor in nothing but ordering.
+     */
+    return [...selected].sort();
+  }
+}
+
+function invalidToolSelection(reason: string): AppException {
+  return new AppException('VALIDATION_ERROR', {
+    context: { resource: 'organizationAgentToolGrants', reason },
+    publicDetails: { reason },
+  });
 }
 
 type DesiredVersion = {
@@ -366,6 +444,7 @@ type DesiredVersion = {
   modelId: AgentModelId;
   enabled: boolean;
   configuration: AgentConfiguration;
+  toolGrants: ToolRef[];
 };
 
 function requireActiveVersion(
@@ -397,6 +476,7 @@ function toVersion(version: PersistedVersion): OrganizationAgentVersion {
   return {
     ...version,
     modelId: version.modelId as AgentModelId | null,
+    toolGrants: version.toolGrants as ToolRef[],
     configuration: version.configuration as AgentConfiguration,
   };
 }
@@ -410,6 +490,9 @@ function matches(
     version.modelPolicyId === desired.policyId &&
     version.modelId === desired.modelId &&
     version.enabled === desired.enabled &&
+    // Grants are part of what a version *is*. Omitting them here would make a
+    // grant-only change a silent no-op that reported success.
+    isDeepStrictEqual([...version.toolGrants], desired.toolGrants) &&
     isDeepStrictEqual(version.configuration, desired.configuration)
   );
 }

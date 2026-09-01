@@ -63,6 +63,7 @@ const persistedVersion = (
     configuration: Prisma.JsonValue;
     modelPolicyId: string | null;
     modelId: string | null;
+    toolGrants: string[];
   }> = {},
 ) => ({
   id: overrides.id ?? 'version-1',
@@ -76,6 +77,8 @@ const persistedVersion = (
   modelId: overrides.modelId ?? MODEL_IDS.openAiGpt4oMini,
   enabled: overrides.enabled ?? true,
   configuration: overrides.configuration ?? { tone: 'plain' },
+  // The column is defaulted, so a persisted row always carries an array.
+  toolGrants: overrides.toolGrants ?? [],
   createdByUserId: 'actor-1',
   createdAt: new Date('2026-08-27T00:00:00.000Z'),
 });
