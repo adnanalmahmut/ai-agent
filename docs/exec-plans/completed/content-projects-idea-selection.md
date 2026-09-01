@@ -209,11 +209,11 @@ behaviour this plan previously documented as deliberate.
 - [x] PR #57 opened, final-head CI green on `32871c3`
 - [x] Required scope corrections: brief snapshot and product audit
 - [x] Specialist re-review and aggregate re-validation after the corrections
-- [ ] Final-head CI green on the corrected head
+- [x] Final-head CI green on the corrected head
 
 ## Blockers
 
-None.
+None. This plan is complete.
 
 ## Review outcomes
 
