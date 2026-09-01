@@ -6,6 +6,8 @@ configuration win when a document disagrees with implementation.
 
 ## Start here
 
+- [Portfolio finish line](portfolio-finish-line.md) is the current program
+  policy: what is already proven, what remains, and where the project stops.
 - [Deployment state](deployment-state.md) distinguishes what is live today
   from target Production capability.
 - [Architecture](architecture.md) maps trust and runtime boundaries.
@@ -48,7 +50,11 @@ configuration win when a document disagrees with implementation.
 ## Change records
 
 - [Project history](project-history.md) summarizes durable milestones.
-- [`decisions/`](decisions/README.md) records architectural decisions.
+- [`decisions/`](decisions/README.md) records architectural decisions,
+  including [ADR 0001](decisions/0001-environment-state-model.md) on the
+  environment state model and
+  [ADR 0002](decisions/0002-portfolio-finish-line.md) on the bounded
+  portfolio program.
 - [`exec-plans/`](exec-plans/README.md) defines substantial-change plans and
   their lifecycle.
 
