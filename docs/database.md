@@ -211,6 +211,18 @@ on one row would agree only as far as whatever wrote it was correct — and
 `organizationId` is the entire scoping predicate. As pairs, a chunk claiming one
 organization while sitting in another's space is a constraint violation.
 
+`ContentProject` and `ContentDraft` follow the same rule, and extend it to a
+table that did not previously need it. `AgentRun` gained
+`@@unique([id, organizationId])` so a project can reference
+`(sourceRunId, organizationId)` as a pair; a draft references
+`(projectId, organizationId)`. The project's snapshot columns are a copy of one
+idea rather than a pointer into `AgentRun.output`, because a project whose
+identity depended on the position of an element inside a JSON blob would become
+unreadable the day that shape changed. Drafts cascade from their project and the
+project restricts on its source run: the run is the snapshot's provenance, and
+deleting it would leave the row claiming to have come from somewhere that no
+longer exists.
+
 `knowledge_chunk.embedding` is `vector(1536)`, provided by the `vector`
 extension that the migration creates. 1536 is `text-embedding-3-small` native
 and reachable by `text-embedding-3-large` through its `dimensions` parameter,

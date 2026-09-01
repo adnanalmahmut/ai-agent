@@ -52,6 +52,21 @@ a reload or navigation reconstructs the same authorized operation. A stale,
 unreadable, or wrong-organization operation id fails closed and is never shown
 under another organization.
 
+Each returned idea carries an action that starts a project from it, shown only
+to a member who may create one. What it sends is the operation's id and the
+card's index — never the idea's text — so the screen cannot persist something
+the agent did not say even by accident. Its idempotency key is derived from that
+pair rather than minted per click, which makes a double-click, a retry after a
+dropped connection, and a click after a reload all the same request.
+
+The Projects tab lists what the organization has committed to, newest first, and
+grows by appending the next cursor page rather than replacing the list. A
+project's detail view shows the stored idea beside its first draft; an unwritten
+draft says so rather than rendering blank, because a draft with no body is the
+normal state in this release and an empty card would read as a rendering
+failure. A project that is absent and one belonging to another organization are
+the same answer, so the page cannot be used to probe for ids.
+
 The idempotency key the endpoint requires is minted per material request and,
 scoped by organization, survives an ambiguous transport failure in session
 storage. A reload/retry therefore reuses the uncertain key instead of buying a

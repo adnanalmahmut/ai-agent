@@ -135,11 +135,11 @@ run it claims to come from.
 
 - [x] Discovery complete; approved scope re-derived from repository evidence
 - [x] Execution plan committed before implementation
-- [ ] Schema, migration, generated client
-- [ ] Backend domain, service, controller, permissions
-- [ ] Focused backend unit and E2E coverage
-- [ ] Platform selection, list, detail, ar/en localization
-- [ ] Documentation synchronized
+- [x] Schema, migration, generated client — applies from zero, zero drift
+- [x] Backend domain, service, controller, permissions
+- [x] Focused backend unit and E2E coverage — 18 E2E cases green
+- [x] Platform selection, list, detail, ar/en localization — 13 cases green
+- [x] Documentation synchronized
 - [ ] Specialist reviews and remediation
 - [ ] Aggregate validation
 - [ ] PR opened, final-head CI green
@@ -147,6 +147,23 @@ run it claims to come from.
 ## Blockers
 
 None.
+
+## Verified evidence
+
+- All migrations apply to a fresh database from zero; `migrate diff` against the
+  applied database reports no change attributable to this work. The one
+  difference it does report — a truncated index name on
+  `organization_audit_event` — reproduces identically on unmodified `main` and
+  predates this change.
+- PostgreSQL refuses, against a scratch database and again through the E2E
+  suite: a project naming another organization's run, a draft filed under
+  another organization's project, a duplicate revision within one project, and a
+  replayed idempotency key. The two legitimate control inserts succeed.
+- `pnpm --filter backend test` 1264 passed; `pnpm --filter platform test` 834
+  passed; backend E2E 18 passed for this feature.
+- Full backend E2E: 627 of 631 passed. The 4 failures are in
+  `agent-run-reconciliation.e2e-spec.ts`, a BullMQ stalled-job timing suite, and
+  reproduce identically on unmodified `main` in the same environment.
 
 ## History
 

@@ -290,6 +290,37 @@ digest of the parsed request, so an honest retry finds its own run while the
 same key sent with a different body is a different key rather than a way to
 receive somebody else's answer.
 
+`src/content-projects/` is what happens after the ideas come back. One route
+promotes a single idea into a `ContentProject`, and two read what has been
+promoted. Creation is synchronous — unlike generation it spends no provider call
+and writes two rows in one transaction, so there is nothing to poll.
+
+The request names a run and an index; it never carries the idea's text. A
+request shaped to accept the prose would let a member persist words the agent
+never produced while the row still pointed at a real run, and nothing
+afterwards — screen, export, or audit — could tell the difference. The server
+therefore re-reads `AgentRun.output` at the given index and copies the snapshot
+itself. Selection is refused for a run that is absent, owned by another
+organization, or produced by another agent, all reported as absent because none
+is a distinction the caller is entitled to; a run the caller *can* see but which
+has not succeeded is refused as a conflict instead, since pretending it does not
+exist would be a lie they can check.
+
+`ContentDraft` revision 1 is created in the same statement as the project. A
+project without a draft is a state no caller should observe, so the draft is not
+a second write that could fail in between. Its body is null: no writer exists in
+this slice, and a body seeded from the idea summary would be words nobody wrote.
+
+Tenant isolation here is a database constraint rather than a service predicate.
+`content_project` references `(sourceRunId, organizationId)` against a composite
+unique on `agent_run`, and `content_draft` references
+`(projectId, organizationId)`, so a cross-organization selection is refused by
+PostgreSQL whether or not the service check runs. The check exists to return a
+clean 404 rather than a constraint violation. An `Idempotency-Key` header is
+required and, as with generation, the stored key mixes it with a digest of the
+request, so a retry finds its own project while the same key with a different
+body is a different request.
+
 The control plane (`src/control-plane/`) holds operational state an operator can
 change without a deployment: feature flags, typed runtime settings, and
 encrypted provider credentials. Every key is registered in code with its schema,
