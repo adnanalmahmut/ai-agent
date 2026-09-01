@@ -515,7 +515,8 @@ describe('a declared output contract violation, through the worker', () => {
         })),
       } as never,
       { assemble: () => Promise.resolve([]) } as never,
-      { configurationFor: () => Promise.resolve(null) } as never,
+      { pinnedVersionFor: () => Promise.resolve(null) } as never,
+      { authorize: () => [] } as never,
     );
 
   const contractedRun: AgentRun = { ...run, input: { wanted: 3 } };

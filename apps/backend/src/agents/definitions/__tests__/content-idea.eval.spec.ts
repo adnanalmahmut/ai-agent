@@ -200,13 +200,21 @@ const buildHarness = (): Harness => {
   const runtimes = new AgentRuntimeRegistry(
     new MastraRuntime(runtimeConfig as never),
   );
-  const runner = new AgentRunner(definitions, runtimes, assembler, {
-    configurationFor: () => Promise.resolve(null),
-  } as never);
+  const runner = new AgentRunner(
+    definitions,
+    runtimes,
+    assembler,
+    { pinnedVersionFor: () => Promise.resolve(null) } as never,
+    // content-idea grants no tools, and this eval exists to prove that its
+    // behavior is unchanged by their introduction.
+    { authorize: () => [] } as never,
+  );
 
   return {
     run: (organizationId, input) =>
       runner.run({
+        id: 'run_1',
+        attemptCount: 1,
         agentId: CONTENT_IDEA_AGENT_ID,
         agentVersion: CONTENT_IDEA_AGENT_VERSION,
         organizationAgentVersionId: null,

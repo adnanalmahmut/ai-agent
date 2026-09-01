@@ -10,6 +10,7 @@ import type { ZodType } from 'zod';
  */
 import type { KnowledgeSpaceSlug } from '../knowledge/knowledge-space.registry';
 import type { AgentModelId } from '../model-catalog/model-catalog';
+import type { ToolRef } from './tools/tool.types';
 
 export const AGENT_RUN_STATUSES = [
   'QUEUED',
@@ -180,6 +181,24 @@ export type AgentDefinition = {
    * pair it was accepted against.
    */
   contextPolicy?: ContextPolicy;
+  /**
+   * The most this agent may ever call, by exact tool version. Absent is none.
+   *
+   * A maximum, not a grant. An organization narrows it when it installs the
+   * agent and can never widen it, which is the same shape `modelPolicy`
+   * already has and for the same reason: what an agent is capable of is a
+   * property of the code-owned revision, not of a tenant's configuration.
+   *
+   * Declared here rather than resolved per run because it is part of what a
+   * version pins. Changing an agent's maximum capability means registering a
+   * new definition revision, exactly like changing its instructions — a run
+   * already accepted against the old pair must keep the behavior it was
+   * accepted with.
+   *
+   * The element type is the registry's own union, so a typo is a compile
+   * error rather than a grant that silently resolves to nothing.
+   */
+  maxToolGrants?: readonly ToolRef[];
 };
 
 export type AgentModelPolicy = {
@@ -286,6 +305,38 @@ export type AgentContextPassage = {
   content: string;
 };
 
+/**
+ * One tool as a runtime adapter sees it.
+ *
+ * Deliberately generic and deliberately small: a name, what it is for, the two
+ * schemas, and a callback. No gateway, no Prisma, no grant state, no
+ * organization id. An adapter that received any of those could make an
+ * authority decision, and authority is not the adapter's to hold.
+ *
+ * `execute` is already bound to the run it belongs to. The runtime cannot
+ * choose who it is calling for, because that was decided before this object
+ * existed — all the runtime can do is call it with an input.
+ */
+/**
+ * The names a runtime adapter will pass through unaltered.
+ *
+ * Part of the runtime contract rather than of any one SDK, because it is the
+ * application's requirement: the name a model is offered must be the name this
+ * repository wrote. Mastra happens to enforce the same shape by rewriting
+ * anything else, which is exactly the silent correction this constant exists to
+ * turn into a loud one.
+ */
+export const RUNTIME_TOOL_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_-]{0,62}$/;
+
+export type AgentRuntimeTool = {
+  /** The stable `id@version` identity, which is also what the model sees. */
+  name: string;
+  description: string;
+  input: ZodType;
+  output: ZodType;
+  execute: (input: AgentValue) => Promise<AgentValue>;
+};
+
 export type AgentRuntimeRequest = {
   definition: AgentDefinition;
   /** Stable model identity pinned on the accepted run. */
@@ -301,6 +352,14 @@ export type AgentRuntimeRequest = {
    * system message would be letting a document tell the agent what to do.
    */
   context: readonly AgentContextPassage[];
+  /**
+   * Exactly the tools this run may call, already authorized and already bound.
+   *
+   * Assembled by the application from the run's pinned definition and pinned
+   * organization version. An empty array is the normal case and means the
+   * agent calls nothing.
+   */
+  tools: readonly AgentRuntimeTool[];
 };
 
 export type AgentRuntimeResult = {

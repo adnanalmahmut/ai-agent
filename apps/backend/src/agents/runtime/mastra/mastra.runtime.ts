@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
 import { noopLogger } from '@mastra/core/logger';
+import { createTool } from '@mastra/core/tools';
 
 import { RuntimeConfigResolver } from '../../../control-plane';
 import { AppException } from '../../../core/errors';
@@ -12,7 +13,9 @@ import type { AgentRuntime } from '../../agent-runtime';
 import { AgentConfigurationError } from '../../agent-configuration.error';
 import {
   AGENT_RUNTIME_NAMES,
+  RUNTIME_TOOL_NAME_PATTERN,
   type AgentContextPassage,
+  type AgentRuntimeTool,
   type AgentValue,
 } from '../../agent.types';
 
@@ -63,6 +66,33 @@ const GENERATION_BUDGET = {
   timeout: { totalMs: 60_000, stepMs: 45_000 },
 } as const;
 
+/**
+ * How many model round-trips one generation may take.
+ *
+ * Passed explicitly, always, because the SDK's own default is not part of its
+ * public contract. `maxSteps` and `stopWhen` are both declared in
+ * `AgentExecutionOptionsBase`, but the fallback when neither is given —
+ * `stepCountIs(5)` — exists only as a runtime literal inside the bundle and is
+ * declared in no `.d.ts`. Depending on it would mean depending on a number that
+ * can change in a patch release with no type-level signal, and the failure
+ * would be silent: a run that needs one more step stops mid-task and returns a
+ * finish reason rather than an error.
+ *
+ * `maxSteps` rather than `stopWhen` deliberately. When `maxSteps` is given the
+ * SDK composes `[stepCountIs(maxSteps), ...stopWhen]`, so it is a hard ceiling
+ * whatever else is set — whereas passing only `stopWhen` *replaces* the default
+ * and removes the step ceiling entirely unless one of the conditions happens to
+ * count steps.
+ *
+ * Four: enough for a tool-using agent to search, read, optionally search again,
+ * and answer. Tool calls and the final structured answer share this budget, so
+ * an agent that spends every step searching produces no object and fails the
+ * output parse — noisy, and the right failure for a number that has become too
+ * small. Code-owned for this first real use case; a control-plane setting would
+ * be inventing an operator decision nobody has asked to make.
+ */
+const MAX_GENERATION_STEPS = 4;
+
 @Injectable()
 export class MastraRuntime implements AgentRuntime {
   readonly name = AGENT_RUNTIME_NAMES.mastra;
@@ -83,6 +113,25 @@ export class MastraRuntime implements AgentRuntime {
      * on the model config keeps it a value resolved per run from the encrypted
      * store, which is what makes rotation take effect on the next request.
      */
+    /**
+     * Only `tools`. Nothing else that could add one.
+     *
+     * `Agent.convertTools` merges nine sources before the model is offered
+     * anything: assigned tools, memory tools, toolsets, client-side tools,
+     * sub-agent tools, workflow tools, workspace tools, skill tools and
+     * browser tools. Assigned tools are spread *first*, so any other category
+     * can shadow one of ours on a name collision, silently.
+     *
+     * The sub-agent category is the one that matters most here. Mastra
+     * synthesises a delegation tool per configured sub-agent whose
+     * model-facing input schema includes `threadId`, `resourceId` and
+     * `instructions` — letting the model choose memory tenancy and rewrite the
+     * delegate's instructions. None of that is configured, and none of it may
+     * be: this adapter passes no `agents`, no `memory`, no `toolsets`, no
+     * `clientTools`, no `workflows` and no `workspace`, so the merge has
+     * nothing to merge and the offered set is exactly what the gateway
+     * authorized. A composition test asserts the same thing.
+     */
     const agent = new Agent({
       id: definition.id,
       name: definition.id,
@@ -90,6 +139,7 @@ export class MastraRuntime implements AgentRuntime {
       model: (await this.toModelConfig(request.model)) as ConstructorParameters<
         typeof Agent
       >[0]['model'],
+      tools: toMastraTools(request.tools),
     });
 
     /**
@@ -138,6 +188,7 @@ export class MastraRuntime implements AgentRuntime {
       {
         structuredOutput: { schema: definition.output as never },
         modelSettings: GENERATION_BUDGET,
+        maxSteps: MAX_GENERATION_STEPS,
       },
     );
 
@@ -300,4 +351,47 @@ function sortValue(value: AgentValue): AgentValue {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, nested]) => [key, sortValue(nested)]),
   );
+}
+
+/**
+ * Application tools as the installed SDK's tool record.
+ *
+ * Keyed by name because that is what Mastra offers the model — `tool.id` is
+ * used only for the SDK's own tracing. The key is asserted against the
+ * pass-through pattern here as well as in the registry: this is the last line
+ * before the value enters the framework, and a rewritten key would change what
+ * the model was offered without changing anything this repository can see.
+ *
+ * `execute` receives the model's arguments as its first parameter and forwards
+ * them unchanged. Nothing from the SDK's second parameter is read — not the
+ * request context, not `agentId`, not `toolCallId`. Identity was decided before
+ * these closures existed, and reading it back out of the framework would make
+ * the framework a participant in an authorization decision it is not part of.
+ */
+function toMastraTools(
+  tools: readonly AgentRuntimeTool[],
+): Record<string, ReturnType<typeof createTool>> {
+  const record: Record<string, ReturnType<typeof createTool>> = {};
+
+  for (const tool of tools) {
+    if (!RUNTIME_TOOL_NAME_PATTERN.test(tool.name)) {
+      throw new AgentConfigurationError(
+        `Tool name "${tool.name}" would be rewritten by the runtime`,
+      );
+    }
+    if (record[tool.name]) {
+      throw new AgentConfigurationError(`Duplicate tool name "${tool.name}"`);
+    }
+
+    record[tool.name] = createTool({
+      id: tool.name,
+      description: tool.description,
+      inputSchema: tool.input as never,
+      outputSchema: tool.output as never,
+      execute: async (input: unknown) =>
+        (await tool.execute(input as AgentValue)) as never,
+    });
+  }
+
+  return record;
 }

@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AgentConfigurationError } from './agent-configuration.error';
 import type { AgentConfiguration, AgentDefinition } from './agent.types';
+import { isToolRef } from './tools/tool.types';
 import { APPLICATION_MODEL_CATALOG } from '../model-catalog/model-catalog';
 
 export const AGENT_DEFINITIONS = Symbol('AGENT_DEFINITIONS');
@@ -33,6 +34,7 @@ export class AgentDefinitionRegistry {
         throw new Error(`Duplicate agent definition "${identity}"`);
       }
       validateModelPolicy(definition, policyIds);
+      validateMaxToolGrants(definition);
       const registered = immutableDefinition(definition);
       indexed.set(identity, registered);
     }
@@ -107,7 +109,51 @@ function immutableDefinition(definition: AgentDefinition): AgentDefinition {
     id: definition.modelPolicy.id,
     allowedModelIds,
   });
-  return Object.freeze({ ...definition, modelPolicy });
+  // Spread conditionally rather than assigning `undefined`. A definition that
+  // declares no grants should stay a definition with no such key: adding one
+  // whose value is `undefined` changes the shape of every existing definition
+  // to record the absence of a thing.
+  return Object.freeze({
+    ...definition,
+    modelPolicy,
+    ...(definition.maxToolGrants
+      ? { maxToolGrants: Object.freeze([...definition.maxToolGrants]) }
+      : {}),
+  });
+}
+
+/**
+ * A definition's maximum grants, checked at composition rather than at run time.
+ *
+ * The compiler already refuses an unknown reference, so this catches the cases
+ * it cannot see: a value that reached the shape through a cast or a fixture,
+ * and a duplicate — which type-checks perfectly and would make the "maximum"
+ * a multiset whose size no longer means what a subset check assumes.
+ *
+ * Deliberately not a check that the `ToolRegistry` holds each one. This module
+ * is constructed from a plain array with no injected registry, and the registry
+ * already asserts in both directions that its definitions and `TOOL_REFS` name
+ * the same set — so a reference accepted here is one the registry has.
+ */
+function validateMaxToolGrants(definition: AgentDefinition): void {
+  const grants = definition.maxToolGrants;
+  if (grants === undefined) return;
+
+  const seen = new Set<string>();
+
+  for (const ref of grants) {
+    if (!isToolRef(ref)) {
+      throw new Error(
+        `Agent definition "${definition.id}@${definition.version}" grants unknown tool "${String(ref)}"`,
+      );
+    }
+    if (seen.has(ref)) {
+      throw new Error(
+        `Agent definition "${definition.id}@${definition.version}" grants duplicate tool "${ref}"`,
+      );
+    }
+    seen.add(ref);
+  }
 }
 
 function validateModelPolicy(

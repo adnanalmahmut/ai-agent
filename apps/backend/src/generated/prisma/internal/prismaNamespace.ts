@@ -408,6 +408,7 @@ export const ModelName = {
   AgentRun: 'AgentRun',
   OrganizationAgentInstallation: 'OrganizationAgentInstallation',
   OrganizationAgentVersion: 'OrganizationAgentVersion',
+  ToolExecution: 'ToolExecution',
   OutboxEvent: 'OutboxEvent',
   FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
   FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
@@ -435,7 +436,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "organizationAgentInstallation" | "organizationAgentVersion" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "organizationAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk" | "contentProject" | "contentDraft"
+    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "organizationAgentInstallation" | "organizationAgentVersion" | "toolExecution" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "organizationAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk" | "contentProject" | "contentDraft"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1250,6 +1251,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.OrganizationAgentVersionCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.OrganizationAgentVersionCountAggregateOutputType> | number
+        }
+      }
+    }
+    ToolExecution: {
+      payload: Prisma.$ToolExecutionPayload<ExtArgs>
+      fields: Prisma.ToolExecutionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ToolExecutionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ToolExecutionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>
+        }
+        findFirst: {
+          args: Prisma.ToolExecutionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ToolExecutionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>
+        }
+        findMany: {
+          args: Prisma.ToolExecutionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>[]
+        }
+        create: {
+          args: Prisma.ToolExecutionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>
+        }
+        createMany: {
+          args: Prisma.ToolExecutionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ToolExecutionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>[]
+        }
+        delete: {
+          args: Prisma.ToolExecutionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>
+        }
+        update: {
+          args: Prisma.ToolExecutionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>
+        }
+        deleteMany: {
+          args: Prisma.ToolExecutionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ToolExecutionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ToolExecutionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>[]
+        }
+        upsert: {
+          args: Prisma.ToolExecutionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionPayload>
+        }
+        aggregate: {
+          args: Prisma.ToolExecutionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateToolExecution>
+        }
+        groupBy: {
+          args: Prisma.ToolExecutionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ToolExecutionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ToolExecutionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ToolExecutionCountAggregateOutputType> | number
         }
       }
     }
@@ -2356,6 +2431,7 @@ export const OrganizationAgentVersionScalarFieldEnum = {
   definitionVersion: 'definitionVersion',
   enabled: 'enabled',
   configuration: 'configuration',
+  toolGrants: 'toolGrants',
   modelPolicyId: 'modelPolicyId',
   modelId: 'modelId',
   createdByUserId: 'createdByUserId',
@@ -2363,6 +2439,26 @@ export const OrganizationAgentVersionScalarFieldEnum = {
 } as const
 
 export type OrganizationAgentVersionScalarFieldEnum = (typeof OrganizationAgentVersionScalarFieldEnum)[keyof typeof OrganizationAgentVersionScalarFieldEnum]
+
+
+export const ToolExecutionScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  agentRunId: 'agentRunId',
+  agentRunAttempt: 'agentRunAttempt',
+  toolId: 'toolId',
+  toolVersion: 'toolVersion',
+  status: 'status',
+  input: 'input',
+  output: 'output',
+  failureCode: 'failureCode',
+  startedAt: 'startedAt',
+  completedAt: 'completedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ToolExecutionScalarFieldEnum = (typeof ToolExecutionScalarFieldEnum)[keyof typeof ToolExecutionScalarFieldEnum]
 
 
 export const OutboxEventScalarFieldEnum = {
@@ -2692,6 +2788,20 @@ export type EnumQueryModeFieldRefInput<$PrismaModel> = FieldRefInputType<$Prisma
 
 
 /**
+ * Reference to a field of type 'ToolExecutionStatus'
+ */
+export type EnumToolExecutionStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ToolExecutionStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'ToolExecutionStatus[]'
+ */
+export type ListEnumToolExecutionStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ToolExecutionStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'OutboxEventStatus'
  */
 export type EnumOutboxEventStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OutboxEventStatus'>
@@ -2894,6 +3004,7 @@ export type GlobalOmitConfig = {
   agentRun?: Prisma.AgentRunOmit
   organizationAgentInstallation?: Prisma.OrganizationAgentInstallationOmit
   organizationAgentVersion?: Prisma.OrganizationAgentVersionOmit
+  toolExecution?: Prisma.ToolExecutionOmit
   outboxEvent?: Prisma.OutboxEventOmit
   featureFlagPlatformOverride?: Prisma.FeatureFlagPlatformOverrideOmit
   featureFlagOrganizationOverride?: Prisma.FeatureFlagOrganizationOverrideOmit

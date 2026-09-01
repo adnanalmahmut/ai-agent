@@ -62,6 +62,7 @@ export const ModelName = {
   AgentRun: 'AgentRun',
   OrganizationAgentInstallation: 'OrganizationAgentInstallation',
   OrganizationAgentVersion: 'OrganizationAgentVersion',
+  ToolExecution: 'ToolExecution',
   OutboxEvent: 'OutboxEvent',
   FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
   FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
@@ -268,6 +269,7 @@ export const OrganizationAgentVersionScalarFieldEnum = {
   definitionVersion: 'definitionVersion',
   enabled: 'enabled',
   configuration: 'configuration',
+  toolGrants: 'toolGrants',
   modelPolicyId: 'modelPolicyId',
   modelId: 'modelId',
   createdByUserId: 'createdByUserId',
@@ -275,6 +277,26 @@ export const OrganizationAgentVersionScalarFieldEnum = {
 } as const
 
 export type OrganizationAgentVersionScalarFieldEnum = (typeof OrganizationAgentVersionScalarFieldEnum)[keyof typeof OrganizationAgentVersionScalarFieldEnum]
+
+
+export const ToolExecutionScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  agentRunId: 'agentRunId',
+  agentRunAttempt: 'agentRunAttempt',
+  toolId: 'toolId',
+  toolVersion: 'toolVersion',
+  status: 'status',
+  input: 'input',
+  output: 'output',
+  failureCode: 'failureCode',
+  startedAt: 'startedAt',
+  completedAt: 'completedAt',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ToolExecutionScalarFieldEnum = (typeof ToolExecutionScalarFieldEnum)[keyof typeof ToolExecutionScalarFieldEnum]
 
 
 export const OutboxEventScalarFieldEnum = {

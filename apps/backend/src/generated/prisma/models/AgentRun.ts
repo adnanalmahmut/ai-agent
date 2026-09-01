@@ -340,6 +340,7 @@ export type AgentRunWhereInput = {
   organizationAgentVersion?: Prisma.XOR<Prisma.OrganizationAgentVersionNullableScalarRelationFilter, Prisma.OrganizationAgentVersionWhereInput> | null
   createdByUser?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   contentProjects?: Prisma.ContentProjectListRelationFilter
+  toolExecutions?: Prisma.ToolExecutionListRelationFilter
 }
 
 export type AgentRunOrderByWithRelationInput = {
@@ -367,6 +368,7 @@ export type AgentRunOrderByWithRelationInput = {
   organizationAgentVersion?: Prisma.OrganizationAgentVersionOrderByWithRelationInput
   createdByUser?: Prisma.UserOrderByWithRelationInput
   contentProjects?: Prisma.ContentProjectOrderByRelationAggregateInput
+  toolExecutions?: Prisma.ToolExecutionOrderByRelationAggregateInput
 }
 
 export type AgentRunWhereUniqueInput = Prisma.AtLeast<{
@@ -399,6 +401,7 @@ export type AgentRunWhereUniqueInput = Prisma.AtLeast<{
   organizationAgentVersion?: Prisma.XOR<Prisma.OrganizationAgentVersionNullableScalarRelationFilter, Prisma.OrganizationAgentVersionWhereInput> | null
   createdByUser?: Prisma.XOR<Prisma.UserNullableScalarRelationFilter, Prisma.UserWhereInput> | null
   contentProjects?: Prisma.ContentProjectListRelationFilter
+  toolExecutions?: Prisma.ToolExecutionListRelationFilter
 }, "id" | "organizationId_idempotencyKey" | "id_organizationId">
 
 export type AgentRunOrderByWithAggregationInput = {
@@ -477,6 +480,7 @@ export type AgentRunCreateInput = {
   organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
   createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
   contentProjects?: Prisma.ContentProjectCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunUncheckedCreateInput = {
@@ -501,6 +505,7 @@ export type AgentRunUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   contentProjects?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunUpdateInput = {
@@ -525,6 +530,7 @@ export type AgentRunUpdateInput = {
   organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
   createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
   contentProjects?: Prisma.ContentProjectUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateInput = {
@@ -549,6 +555,7 @@ export type AgentRunUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contentProjects?: Prisma.ContentProjectUncheckedUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunCreateManyInput = {
@@ -847,6 +854,20 @@ export type AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionNestedInpu
   deleteMany?: Prisma.AgentRunScalarWhereInput | Prisma.AgentRunScalarWhereInput[]
 }
 
+export type AgentRunCreateNestedOneWithoutToolExecutionsInput = {
+  create?: Prisma.XOR<Prisma.AgentRunCreateWithoutToolExecutionsInput, Prisma.AgentRunUncheckedCreateWithoutToolExecutionsInput>
+  connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutToolExecutionsInput
+  connect?: Prisma.AgentRunWhereUniqueInput
+}
+
+export type AgentRunUpdateOneRequiredWithoutToolExecutionsNestedInput = {
+  create?: Prisma.XOR<Prisma.AgentRunCreateWithoutToolExecutionsInput, Prisma.AgentRunUncheckedCreateWithoutToolExecutionsInput>
+  connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutToolExecutionsInput
+  upsert?: Prisma.AgentRunUpsertWithoutToolExecutionsInput
+  connect?: Prisma.AgentRunWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.AgentRunUpdateToOneWithWhereWithoutToolExecutionsInput, Prisma.AgentRunUpdateWithoutToolExecutionsInput>, Prisma.AgentRunUncheckedUpdateWithoutToolExecutionsInput>
+}
+
 export type AgentRunCreateNestedOneWithoutContentProjectsInput = {
   create?: Prisma.XOR<Prisma.AgentRunCreateWithoutContentProjectsInput, Prisma.AgentRunUncheckedCreateWithoutContentProjectsInput>
   connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutContentProjectsInput
@@ -882,6 +903,7 @@ export type AgentRunCreateWithoutCreatedByUserInput = {
   organization: Prisma.OrganizationCreateNestedOneWithoutAgentRunsInput
   organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
   contentProjects?: Prisma.ContentProjectCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunUncheckedCreateWithoutCreatedByUserInput = {
@@ -905,6 +927,7 @@ export type AgentRunUncheckedCreateWithoutCreatedByUserInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   contentProjects?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunCreateOrConnectWithoutCreatedByUserInput = {
@@ -980,6 +1003,7 @@ export type AgentRunCreateWithoutOrganizationInput = {
   organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
   createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
   contentProjects?: Prisma.ContentProjectCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunUncheckedCreateWithoutOrganizationInput = {
@@ -1003,6 +1027,7 @@ export type AgentRunUncheckedCreateWithoutOrganizationInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   contentProjects?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunCreateOrConnectWithoutOrganizationInput = {
@@ -1052,6 +1077,7 @@ export type AgentRunCreateWithoutOrganizationAgentVersionInput = {
   organization: Prisma.OrganizationCreateNestedOneWithoutAgentRunsInput
   createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
   contentProjects?: Prisma.ContentProjectCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput = {
@@ -1074,6 +1100,7 @@ export type AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   contentProjects?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutSourceRunInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput = {
@@ -1102,6 +1129,118 @@ export type AgentRunUpdateManyWithWhereWithoutOrganizationAgentVersionInput = {
   data: Prisma.XOR<Prisma.AgentRunUpdateManyMutationInput, Prisma.AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionInput>
 }
 
+export type AgentRunCreateWithoutToolExecutionsInput = {
+  id?: string
+  agentId: string
+  agentVersion: number
+  runtime: string
+  status?: $Enums.AgentRunStatus
+  modelPolicyId?: string | null
+  modelId?: string | null
+  modelPricingRevisionId?: string | null
+  input: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: string | null
+  attemptCount?: number
+  idempotencyKey: string
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  organization: Prisma.OrganizationCreateNestedOneWithoutAgentRunsInput
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
+  createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
+  contentProjects?: Prisma.ContentProjectCreateNestedManyWithoutSourceRunInput
+}
+
+export type AgentRunUncheckedCreateWithoutToolExecutionsInput = {
+  id?: string
+  agentId: string
+  agentVersion: number
+  runtime: string
+  status?: $Enums.AgentRunStatus
+  organizationId: string
+  organizationAgentVersionId?: string | null
+  modelPolicyId?: string | null
+  modelId?: string | null
+  modelPricingRevisionId?: string | null
+  createdByUserId?: string | null
+  input: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: string | null
+  attemptCount?: number
+  idempotencyKey: string
+  startedAt?: Date | string | null
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  contentProjects?: Prisma.ContentProjectUncheckedCreateNestedManyWithoutSourceRunInput
+}
+
+export type AgentRunCreateOrConnectWithoutToolExecutionsInput = {
+  where: Prisma.AgentRunWhereUniqueInput
+  create: Prisma.XOR<Prisma.AgentRunCreateWithoutToolExecutionsInput, Prisma.AgentRunUncheckedCreateWithoutToolExecutionsInput>
+}
+
+export type AgentRunUpsertWithoutToolExecutionsInput = {
+  update: Prisma.XOR<Prisma.AgentRunUpdateWithoutToolExecutionsInput, Prisma.AgentRunUncheckedUpdateWithoutToolExecutionsInput>
+  create: Prisma.XOR<Prisma.AgentRunCreateWithoutToolExecutionsInput, Prisma.AgentRunUncheckedCreateWithoutToolExecutionsInput>
+  where?: Prisma.AgentRunWhereInput
+}
+
+export type AgentRunUpdateToOneWithWhereWithoutToolExecutionsInput = {
+  where?: Prisma.AgentRunWhereInput
+  data: Prisma.XOR<Prisma.AgentRunUpdateWithoutToolExecutionsInput, Prisma.AgentRunUncheckedUpdateWithoutToolExecutionsInput>
+}
+
+export type AgentRunUpdateWithoutToolExecutionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  runtime?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelPricingRevisionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  organization?: Prisma.OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput
+  organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
+  createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
+  contentProjects?: Prisma.ContentProjectUpdateManyWithoutSourceRunNestedInput
+}
+
+export type AgentRunUncheckedUpdateWithoutToolExecutionsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  agentId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  runtime?: Prisma.StringFieldUpdateOperationsInput | string
+  status?: Prisma.EnumAgentRunStatusFieldUpdateOperationsInput | $Enums.AgentRunStatus
+  organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationAgentVersionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelPolicyId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  modelPricingRevisionId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdByUserId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  contentProjects?: Prisma.ContentProjectUncheckedUpdateManyWithoutSourceRunNestedInput
+}
+
 export type AgentRunCreateWithoutContentProjectsInput = {
   id?: string
   agentId: string
@@ -1123,6 +1262,7 @@ export type AgentRunCreateWithoutContentProjectsInput = {
   organization: Prisma.OrganizationCreateNestedOneWithoutAgentRunsInput
   organizationAgentVersion?: Prisma.OrganizationAgentVersionCreateNestedOneWithoutRunsInput
   createdByUser?: Prisma.UserCreateNestedOneWithoutAgentRunsCreatedInput
+  toolExecutions?: Prisma.ToolExecutionCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunUncheckedCreateWithoutContentProjectsInput = {
@@ -1146,6 +1286,7 @@ export type AgentRunUncheckedCreateWithoutContentProjectsInput = {
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  toolExecutions?: Prisma.ToolExecutionUncheckedCreateNestedManyWithoutAgentRunInput
 }
 
 export type AgentRunCreateOrConnectWithoutContentProjectsInput = {
@@ -1185,6 +1326,7 @@ export type AgentRunUpdateWithoutContentProjectsInput = {
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput
   organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
   createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
+  toolExecutions?: Prisma.ToolExecutionUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateWithoutContentProjectsInput = {
@@ -1208,6 +1350,7 @@ export type AgentRunUncheckedUpdateWithoutContentProjectsInput = {
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  toolExecutions?: Prisma.ToolExecutionUncheckedUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunCreateManyCreatedByUserInput = {
@@ -1253,6 +1396,7 @@ export type AgentRunUpdateWithoutCreatedByUserInput = {
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput
   organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
   contentProjects?: Prisma.ContentProjectUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateWithoutCreatedByUserInput = {
@@ -1276,6 +1420,7 @@ export type AgentRunUncheckedUpdateWithoutCreatedByUserInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contentProjects?: Prisma.ContentProjectUncheckedUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateManyWithoutCreatedByUserInput = {
@@ -1343,6 +1488,7 @@ export type AgentRunUpdateWithoutOrganizationInput = {
   organizationAgentVersion?: Prisma.OrganizationAgentVersionUpdateOneWithoutRunsNestedInput
   createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
   contentProjects?: Prisma.ContentProjectUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateWithoutOrganizationInput = {
@@ -1366,6 +1512,7 @@ export type AgentRunUncheckedUpdateWithoutOrganizationInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contentProjects?: Prisma.ContentProjectUncheckedUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateManyWithoutOrganizationInput = {
@@ -1432,6 +1579,7 @@ export type AgentRunUpdateWithoutOrganizationAgentVersionInput = {
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutAgentRunsNestedInput
   createdByUser?: Prisma.UserUpdateOneWithoutAgentRunsCreatedNestedInput
   contentProjects?: Prisma.ContentProjectUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateWithoutOrganizationAgentVersionInput = {
@@ -1454,6 +1602,7 @@ export type AgentRunUncheckedUpdateWithoutOrganizationAgentVersionInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   contentProjects?: Prisma.ContentProjectUncheckedUpdateManyWithoutSourceRunNestedInput
+  toolExecutions?: Prisma.ToolExecutionUncheckedUpdateManyWithoutAgentRunNestedInput
 }
 
 export type AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionInput = {
@@ -1484,10 +1633,12 @@ export type AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionInput = {
 
 export type AgentRunCountOutputType = {
   contentProjects: number
+  toolExecutions: number
 }
 
 export type AgentRunCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   contentProjects?: boolean | AgentRunCountOutputTypeCountContentProjectsArgs
+  toolExecutions?: boolean | AgentRunCountOutputTypeCountToolExecutionsArgs
 }
 
 /**
@@ -1505,6 +1656,13 @@ export type AgentRunCountOutputTypeDefaultArgs<ExtArgs extends runtime.Types.Ext
  */
 export type AgentRunCountOutputTypeCountContentProjectsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   where?: Prisma.ContentProjectWhereInput
+}
+
+/**
+ * AgentRunCountOutputType without action
+ */
+export type AgentRunCountOutputTypeCountToolExecutionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ToolExecutionWhereInput
 }
 
 
@@ -1533,6 +1691,7 @@ export type AgentRunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
   contentProjects?: boolean | Prisma.AgentRun$contentProjectsArgs<ExtArgs>
+  toolExecutions?: boolean | Prisma.AgentRun$toolExecutionsArgs<ExtArgs>
   _count?: boolean | Prisma.AgentRunCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["agentRun"]>
 
@@ -1617,6 +1776,7 @@ export type AgentRunInclude<ExtArgs extends runtime.Types.Extensions.InternalArg
   organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
   createdByUser?: boolean | Prisma.AgentRun$createdByUserArgs<ExtArgs>
   contentProjects?: boolean | Prisma.AgentRun$contentProjectsArgs<ExtArgs>
+  toolExecutions?: boolean | Prisma.AgentRun$toolExecutionsArgs<ExtArgs>
   _count?: boolean | Prisma.AgentRunCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type AgentRunIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1637,6 +1797,7 @@ export type $AgentRunPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     organizationAgentVersion: Prisma.$OrganizationAgentVersionPayload<ExtArgs> | null
     createdByUser: Prisma.$UserPayload<ExtArgs> | null
     contentProjects: Prisma.$ContentProjectPayload<ExtArgs>[]
+    toolExecutions: Prisma.$ToolExecutionPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -2091,6 +2252,7 @@ export interface Prisma__AgentRunClient<T, Null = never, ExtArgs extends runtime
   organizationAgentVersion<T extends Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>>): Prisma.Prisma__OrganizationAgentVersionClient<runtime.Types.Result.GetResult<Prisma.$OrganizationAgentVersionPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   createdByUser<T extends Prisma.AgentRun$createdByUserArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AgentRun$createdByUserArgs<ExtArgs>>): Prisma.Prisma__UserClient<runtime.Types.Result.GetResult<Prisma.$UserPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   contentProjects<T extends Prisma.AgentRun$contentProjectsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AgentRun$contentProjectsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ContentProjectPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  toolExecutions<T extends Prisma.AgentRun$toolExecutionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AgentRun$toolExecutionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ToolExecutionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2600,6 +2762,30 @@ export type AgentRun$contentProjectsArgs<ExtArgs extends runtime.Types.Extension
   take?: number
   skip?: number
   distinct?: Prisma.ContentProjectScalarFieldEnum | Prisma.ContentProjectScalarFieldEnum[]
+}
+
+/**
+ * AgentRun.toolExecutions
+ */
+export type AgentRun$toolExecutionsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ToolExecution
+   */
+  select?: Prisma.ToolExecutionSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ToolExecution
+   */
+  omit?: Prisma.ToolExecutionOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ToolExecutionInclude<ExtArgs> | null
+  where?: Prisma.ToolExecutionWhereInput
+  orderBy?: Prisma.ToolExecutionOrderByWithRelationInput | Prisma.ToolExecutionOrderByWithRelationInput[]
+  cursor?: Prisma.ToolExecutionWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ToolExecutionScalarFieldEnum | Prisma.ToolExecutionScalarFieldEnum[]
 }
 
 /**

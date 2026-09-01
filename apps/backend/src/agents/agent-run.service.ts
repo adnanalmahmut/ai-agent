@@ -432,7 +432,19 @@ export class AgentRunService {
    * result is the explicit legacy case and tells the runner to use the pinned
    * code definition's owned default, never today's installation pointer.
    */
-  async configurationFor(
+  /**
+   * The immutable organization version this run was accepted against.
+   *
+   * One verified read answering both questions a run needs of its pin: the
+   * configuration it must execute with, and the tools it may call. They are
+   * facts of the same row and the same tenant check, so reading them
+   * separately would mean two places that could disagree about which version
+   * is authoritative.
+   *
+   * Null for a legacy run created before organization-agent pinning existed.
+   * Those have no configuration and, necessarily, no tools.
+   */
+  async pinnedVersionFor(
     run: Pick<
       AgentRun,
       | 'organizationAgentVersionId'
@@ -440,7 +452,10 @@ export class AgentRunService {
       | 'agentId'
       | 'agentVersion'
     >,
-  ): Promise<AgentConfiguration | null> {
+  ): Promise<{
+    configuration: AgentConfiguration;
+    toolGrants: readonly string[];
+  } | null> {
     if (run.organizationAgentVersionId === null) return null;
 
     const version = await this.prisma.organizationAgentVersion.findFirst({
@@ -453,7 +468,7 @@ export class AgentRunService {
           agentId: run.agentId,
         },
       },
-      select: { configuration: true },
+      select: { configuration: true, toolGrants: true },
     });
 
     if (!version) {
@@ -462,7 +477,10 @@ export class AgentRunService {
       );
     }
 
-    return version.configuration as AgentConfiguration;
+    return {
+      configuration: version.configuration as AgentConfiguration,
+      toolGrants: version.toolGrants,
+    };
   }
 
   /** The effective installation snapshot selected inside run acceptance. */

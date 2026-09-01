@@ -4,7 +4,6 @@ import { QueueModule } from '../core/queue';
 import { ControlPlaneCoreModule } from '../control-plane';
 import { DatabaseModule } from '../database';
 import { KnowledgeCoreModule } from '../knowledge';
-import { AgentContextAssembler } from './agent-context.assembler';
 import { AgentDefinitionsModule } from './agent-definitions.module';
 import { AgentExecutionHandler } from './agent-execution.handler';
 import { AgentRunReconciler } from './agent-run-reconciler.service';
@@ -12,6 +11,7 @@ import { AgentRunner } from './agent-runner.service';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import { AgentsModule } from './agents.module';
 import { MastraRuntime } from './runtime/mastra/mastra.runtime';
+import { AgentToolsModule } from './tools/agent-tools.module';
 
 /**
  * Worker-only composition for durable background agent execution.
@@ -42,11 +42,11 @@ import { MastraRuntime } from './runtime/mastra/mastra.runtime';
     KnowledgeCoreModule,
     ControlPlaneCoreModule,
     AgentDefinitionsModule,
+    AgentToolsModule,
   ],
   providers: [
     MastraRuntime,
     AgentRuntimeRegistry,
-    AgentContextAssembler,
     AgentRunner,
     AgentExecutionHandler,
     AgentRunReconciler,

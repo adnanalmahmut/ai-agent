@@ -102,6 +102,7 @@ describe('AgentRun foundation (e2e)', () => {
       { resolve: () => runtime } as never,
       { assemble: () => Promise.resolve([]) } as never,
       service,
+      { authorize: () => [] } as never,
     );
 
     return { runner, runtimeRun };
@@ -603,10 +604,10 @@ describe('AgentRun foundation (e2e)', () => {
     const accepted = await service.create(request('worker-tampering'));
 
     await expect(
-      service.configurationFor({ ...accepted, agentId: 'another-agent' }),
+      service.pinnedVersionFor({ ...accepted, agentId: 'another-agent' }),
     ).rejects.toBeInstanceOf(AgentConfigurationError);
     await expect(
-      service.configurationFor({ ...accepted, agentVersion: 2 }),
+      service.pinnedVersionFor({ ...accepted, agentVersion: 2 }),
     ).rejects.toBeInstanceOf(AgentConfigurationError);
 
     await prisma.organizationAgentVersion.update({
@@ -641,6 +642,8 @@ describe('AgentRun foundation (e2e)', () => {
 
     await expect(
       runner.run({
+        id: legacy.id,
+        attemptCount: 1,
         agentId: legacy.agentId,
         agentVersion: legacy.agentVersion,
         runtime: legacy.runtime,

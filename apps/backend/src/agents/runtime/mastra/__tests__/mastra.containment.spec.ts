@@ -214,6 +214,7 @@ describe('Mastra credential containment', () => {
         configuration: {},
         input: USER_PROMPT_CANARY,
         context: [],
+      tools: [],
       })
       .then(
         () => null,
