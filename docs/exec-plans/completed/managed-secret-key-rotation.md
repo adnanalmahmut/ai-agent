@@ -17,11 +17,11 @@ new active key accumulates rows that still depend on an older key. Nothing can
 retire that old key until those rows are migrated. SEC-01B is that migration.
 
 The repository already has a third composition root for exactly this kind of
-work: `apps/backend/src/cli.ts` + `src/cli/` (`CliModule`, `dispatch.ts`,
+work: `apps/backend/src/cli/main.ts` + `src/cli/` (`CliModule`, `dispatch.ts`,
 `super-admin:create`), invoked on a host through
-`ops/lightsail/ai-agent-deploy` as `compose run --rm backend node dist/src/cli`.
-This work follows that pattern rather than introducing a queue, a worker, or an
-HTTP endpoint.
+`ops/lightsail/ai-agent-deploy` as
+`compose run --rm backend node dist/src/cli/main`. This work follows that
+pattern rather than introducing a queue, a worker, or an HTTP endpoint.
 
 ## Scope
 

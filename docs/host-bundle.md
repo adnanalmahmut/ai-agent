@@ -142,6 +142,16 @@ until the operator sets it, and the image currently deployed ignores them.
 Nothing else in the bundle changes; retention and the rotation verb are as they
 were at bundle 5.
 
+Bundle 7 moves the three backend process entrypoints into explicit composition
+roots: `src/api/main`, `src/workers/main`, and `src/cli/main`. The installed
+Compose file and deploy wrapper must select those new compiled paths. A
+bundle-6 host would try to start files that no longer exist in a bundle-7
+release, so `MIN_VERSION` moves to 7 with the bundle. Unlike an additive
+environment mapping, these command changes are paired with the restructured
+backend image; install bundle 7 as part of deploying the release that carries
+the new entrypoints, not as an isolated update followed by a redeploy of an
+older image.
+
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by
 `ops/backup/install-backups.sh` on their own schedule.

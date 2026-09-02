@@ -32,8 +32,9 @@ grep -Eq '^    internal: true$' docker-compose.yml
 grep -Eq '^  postgres_data:$' docker-compose.yml
 grep -Eq '^  redis_data:$' docker-compose.yml
 grep -Eq '^  geoip_data:$' docker-compose.yml
-grep -Eq 'command: \[node, dist/src/main\]' docker-compose.yml
-grep -Eq 'command: \[node, dist/src/worker\]' docker-compose.yml
+grep -Eq 'command: \[node, dist/src/api/main\]' docker-compose.yml
+grep -Eq 'command: \[node, dist/src/workers/main\]' docker-compose.yml
+grep -Fq 'CMD ["node", "dist/src/api/main"]' apps/backend/Dockerfile
 grep -Eq 'command: \[node, node_modules/prisma/build/index.js, migrate, deploy\]' docker-compose.yml
 grep -Eq '^[[:space:]]+APP_PORT: 3002$' docker-compose.yml
 if grep -Eq '^[[:space:]]+PORT: 3002$' docker-compose.yml; then
