@@ -10,6 +10,7 @@ import { inspect } from 'node:util';
 import { z } from 'zod';
 
 import { Agent } from '@mastra/core/agent';
+import { createTool } from '@mastra/core/tools';
 
 import {
   containMastraAgent,
@@ -436,6 +437,17 @@ describe('the tool record the real SDK accepts', () => {
  * ceiling — is asserted in `mastra.runtime.spec.ts`.
  */
 describe('provider-facing tool-error serialization', () => {
+  /**
+   * The same guard the suite above uses. Every claim in this block is about
+   * what `@mastra/core` does with a thrown error, so a module mock reaching
+   * this file would make all of it vacuous while leaving it green.
+   */
+  beforeAll(() => {
+    expect(typeof Agent).toBe('function');
+    expect(jest.isMockFunction(Agent)).toBe(false);
+    expect(jest.isMockFunction(createTool)).toBe(false);
+  });
+
   /**
    * The classes of material an implementation failure can carry, each a
    * distinct marker so a leak names its own source.
