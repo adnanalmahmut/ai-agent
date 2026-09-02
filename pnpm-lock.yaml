@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@mastra/core@1.61.0':
+    hash: 55df18c992151faa33ce699fb98eb2415465bdbca1e296dec3523d22a604685d
+    path: patches/@mastra__core@1.61.0.patch
+
 importers:
 
   .: {}
@@ -18,7 +23,7 @@ importers:
         version: 1.6.27(@better-auth/core@1.6.27(@better-auth/utils@0.5.0)(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@4.4.3))(jose@6.2.8)(kysely@0.29.5)(nanostores@1.4.2))(@better-auth/utils@0.5.0)(@prisma/client@7.9.1(prisma@7.9.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3))(typescript@5.9.3))(prisma@7.9.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3))
       '@mastra/core':
         specifier: ^1.61.0
-        version: 1.61.0(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)
+        version: 1.61.0(patch_hash=55df18c992151faa33ce699fb98eb2415465bdbca1e296dec3523d22a604685d)(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)
       '@maxmind/geoip2-node':
         specifier: 7.1.0
         version: 7.1.0
@@ -8990,7 +8995,7 @@ snapshots:
     dependencies:
       '@lukeed/csprng': 1.1.0
 
-  '@mastra/core@1.61.0(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)':
+  '@mastra/core@1.61.0(patch_hash=55df18c992151faa33ce699fb98eb2415465bdbca1e296dec3523d22a604685d)(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)':
     dependencies:
       '@a2a-js/sdk-v0_3': '@a2a-js/sdk@0.3.14(express@5.2.1)'
       '@a2a-js/sdk-v1': '@a2a-js/sdk@1.0.1(express@5.2.1)'
