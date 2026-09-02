@@ -14,6 +14,11 @@ RUN corepack enable
 WORKDIR /workspace
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# `pnpm-workspace.yaml` pins `patchedDependencies`, and pnpm reads every
+# patch while resolving config — before it applies `--filter`. So this is
+# required by every image, including ones that do not depend on the patched
+# package, or `pnpm install` fails with ENOENT. See `patches/README.md`.
+COPY patches patches
 COPY apps/backend/package.json apps/backend/package.json
 # The root prepare lifecycle builds workspace packages during install, so their
 # build inputs must already exist in the dependency layer.

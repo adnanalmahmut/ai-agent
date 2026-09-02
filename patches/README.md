@@ -43,11 +43,32 @@ the language model to sanitise arguments upstream would mean this application
 constructing provider models itself and giving up Mastra's model resolution,
 which is a far larger change than deleting one argument list.
 
-**If it stops applying.** `pnpm` fails the install rather than continuing:
-`ERR_PNPM_UNUSED_PATCH` on a normal install, `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`
-on CI's frozen one. On a version bump, re-check whether upstream has fixed the
-emission; if it has, delete the patch and its pin in `pnpm-workspace.yaml`. If
-it has not, re-cut the patch with `pnpm patch @mastra/core@<version>`.
+**If it stops applying.** `pnpm` fails the install rather than continuing, in
+every drift mode. Measured on pnpm 10.29.3:
+
+| what changed                                  | how it fails                        |
+| --------------------------------------------- | ----------------------------------- |
+| version bumped, normal install                | `ERR_PNPM_UNUSED_PATCH`             |
+| version bumped, `--frozen-lockfile`           | `ERR_PNPM_OUTDATED_LOCKFILE`        |
+| pin removed or patch content changed          | `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH` |
+| patch file missing, pin intact                | `ENOENT`, exit 254                  |
+| pin retargeted to a differently-built version | `ERR_PNPM_PATCH_FAILED`             |
+
+The last row is worth knowing: `1.63.2` ships the same code under different
+bundle filenames, so retargeting the pin without re-cutting the patch fails
+loudly rather than silently applying nothing.
+
+On a version bump, re-check whether upstream has fixed the emission; if it has,
+delete the patch and its pin in `pnpm-workspace.yaml`. If it has not, re-cut
+with `pnpm patch @mastra/core@<version>`.
+
+**Every image needs this directory.** `pnpm` reads each patch while resolving
+`patchedDependencies` from `pnpm-workspace.yaml`, and it does that _before_
+applying `--filter`. So `pnpm install --frozen-lockfile` fails with `ENOENT` in
+any image that copies the root manifests without `patches/` — including images
+whose app does not depend on `@mastra/core` at all. All three Dockerfiles
+therefore `COPY patches patches`, and `.dockerignore` must keep the directory in
+the build context.
 
 **What proves it.** `malformed tool-call arguments in application logs` in
 `apps/backend/src/agents/runtime/mastra/__tests__/mastra.containment.spec.ts`
