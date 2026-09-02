@@ -490,7 +490,7 @@ describe('MCP as an adapter over the governed tool gateway', () => {
 
     await seedKnowledge(organizationId, 'Our brand voice is plain.', 1);
     await seedKnowledge(otherOrganizationId, 'A different tenant’s secret.', 1);
-  });
+  }, 30_000);
 
   afterEach(async () => {
     if (openRunIds.length === 0) return;
@@ -1254,13 +1254,53 @@ describe('MCP as an adapter over the governed tool gateway', () => {
 
   describe('transport and operator boundaries', () => {
     /**
-     * The specification requires a streamable-HTTP server to validate
-     * `Origin`, and the SDK deliberately leaves it to its host. It matters
-     * here rather than being ceremonial: this endpoint is authenticated by a
-     * cookie, so a page the organization does not own must not be able to
-     * drive it.
+     * Exact origin validation.
+     *
+     * The specification requires a streamable-HTTP server to validate Origin.
+     * Reusing the deployment's trusted origins (scheme + hostname + effective port)
+     * prevents DNS rebinding and cross-origin request forgery across different schemes
+     * or ports on the same host, while allowing non-browser clients that send no Origin.
      */
-    it('refuses a request carrying an untrusted origin', async () => {
+    it('allows a request carrying an exact trusted origin', async () => {
+      const { user, runId } = await openSession();
+      const { client, close } = await clientFor(user, runId, organizationId, {
+        origin: 'http://localhost:3000',
+      });
+
+      await expect(client.listTools()).resolves.toBeDefined();
+
+      await close();
+    });
+
+    it('refuses same hostname with wrong scheme', async () => {
+      const { user, runId } = await openSession();
+
+      const response = await as(harness, user)
+        .post(`${base()}/${runId}/mcp`)
+        .set('origin', 'https://localhost:3000')
+        .send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+      expect(response.status).toBe(403);
+      expect(errorBody(response).error?.details).toMatchObject({
+        reason: 'origin_not_allowed',
+      });
+    });
+
+    it('refuses same hostname with wrong port', async () => {
+      const { user, runId } = await openSession();
+
+      const response = await as(harness, user)
+        .post(`${base()}/${runId}/mcp`)
+        .set('origin', 'http://localhost:3999')
+        .send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+      expect(response.status).toBe(403);
+      expect(errorBody(response).error?.details).toMatchObject({
+        reason: 'origin_not_allowed',
+      });
+    });
+
+    it('refuses a request carrying an untrusted foreign origin', async () => {
       const { user, runId } = await openSession();
 
       const response = await as(harness, user)

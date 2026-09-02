@@ -99,15 +99,15 @@ capabilities that are already proven.
 
 The project is **feature complete** when all of the following hold:
 
-- [x] Governed code-owned Tool Registry
-- [x] One real read-only tool
-- [x] Durable `ToolExecution` in PostgreSQL
-- [x] Tenant, grant, and schema enforcement
-- [x] One safe idempotent side-effecting tool/action
-- [x] Retry without duplicate external effect
-- [x] One Human Approval flow
-- [x] Preconditions revalidated before execution
-- [x] MCP adapter through the same application Tool Gateway
+- [x] Governed code-owned Tool Registry (delivered)
+- [x] One real read-only tool (delivered)
+- [x] Durable `ToolExecution` in PostgreSQL (delivered)
+- [x] Tenant, grant, and schema enforcement (delivered)
+- [ ] One safe idempotent side-effecting tool/action (implemented on open PR #61; pending merge and Staging delivery)
+- [ ] Retry without duplicate external effect (implemented on open PR #61; pending merge and Staging delivery)
+- [ ] One Human Approval flow (implemented on open PR #61; pending merge and Staging delivery)
+- [ ] Preconditions revalidated before execution (implemented on open PR #61; pending merge and Staging delivery)
+- [ ] MCP adapter through the same application Tool Gateway (implemented on open PR #62; pending parent delivery, merge, and Staging delivery)
 - [ ] Lightweight execution visibility
 - [ ] One realistic integrated vertical slice
 - [ ] Current architecture, docs, and demo
@@ -119,13 +119,15 @@ unless a new explicit human decision changes the goal.
 
 ## Bounded roadmap
 
-Three slices remain; TOOL-01 and ACT-01 are delivered. PORT-PLAN-01 — the
-roadmap reset — was governance, not a technical capability, and is not counted
-among them.
+TOOL-01 is delivered. ACT-01 is implemented in open PR #61 (pending human merge
+and post-merge delivery), and MCP-01 is implemented in open stacked PR #62
+(pending parent delivery, human merge, and post-merge delivery). Two slices
+remain to be built: DEMO-01 and PORT-01. PORT-PLAN-01 — the roadmap reset — was
+governance, not a technical capability, and is not counted among them.
 
-Gate P1 closes when ACT-01's merge has deployed to Staging through the
-automatic delivery chain; until that chain is green the four criteria above
-describe `main`, not a running environment.
+Gate P1 closes only after ACT-01 reaches Staging through the normal automatic
+delivery chain; until that chain is green the criteria above describe open
+branches, not a running environment.
 
 ### TOOL-01 — Governed durable tool execution — **delivered**
 
@@ -134,8 +136,9 @@ organization grants subsetting definition maxima; `knowledge.search@1` as the
 first real read-only tool; durable `ToolExecution` records in PostgreSQL. See
 [the backend's governed tool execution section](backend.md).
 
-### ACT-01 — Human approval and idempotent side effect — **delivered**
+### ACT-01 — Human approval and idempotent side effect — implemented in open PR #61
 
+Implemented in open PR #61, pending human merge and post-merge delivery.
 One side-effecting action, and only one: `notification.send@1`, proposal-only.
 A separate tenant-safe approval row, compare-and-set decisions committed with
 their audit and outbox rows, every mutable precondition re-read in the worker
@@ -143,13 +146,15 @@ immediately before the provider call, a stable provider idempotency key derived
 from the execution, and an honest `OUTCOME_UNKNOWN` for a lost response. See
 [the backend's human-approval section](backend.md#human-approval-and-the-idempotent-side-effect).
 
-### MCP-01 — MCP adapter over the Tool Gateway — implemented
+### MCP-01 — MCP adapter over the Tool Gateway — implemented in open stacked PR #62
 
+Implemented in open stacked PR #62, pending parent delivery, human merge, and
+post-merge delivery.
 Model Context Protocol as an adapter behind the existing application Tool
 Gateway, subject to the same governance, grants, and approval controls. MCP is
 an adapter, not a second backend.
 
-Delivered as an adapter over `ToolGateway` with no second registry, grant model,
+Implemented as an adapter over `ToolGateway` with no second registry, grant model,
 `ToolExecution` writer, or approval path, and no new credential system: the
 endpoint uses the application's existing authenticated session, which the
 current specification permits because authorization is `OPTIONAL`. A session is
@@ -176,9 +181,11 @@ limitations, screenshots where useful, and a stable release tag.
 **Gate P0 — Roadmap reset.** After PORT-PLAN-01: all authoritative documentation
 agrees that the project is in bounded portfolio-completion mode.
 
-**Gate P1 — Tool/action core.** After TOOL-01 and ACT-01: durable tools, side
-effects, retry idempotency, and human-in-the-loop are genuinely proven. Do not
-add further infrastructure unless MCP-01 or DEMO-01 actually requires it.
+**Gate P1 — Tool/action core.** Closes only after ACT-01 reaches Staging through
+the normal automatic delivery chain: durable tools, side effects, retry
+idempotency, and human-in-the-loop are genuinely proven in the deployed
+environment. Do not add further infrastructure unless MCP-01 or DEMO-01
+actually requires it.
 
 **Gate P2 — Portfolio exit.** After DEMO-01: if the integrated slice is
 demonstrable and the invariants are inspectable, only PORT-01 remains. Do not

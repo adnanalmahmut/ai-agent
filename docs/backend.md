@@ -436,47 +436,50 @@ per-request tool set is the supported shape rather than a workaround — and
 *immutable* pinned version rather than the installation's current one, a grant
 changed while a session is open does not alter that session.
 
-`mcpSession:create` is `admin` and `owner`, and every session route additionally
-requires the caller to be the member who opened it: a permission answers "may
-this person open sessions here", not "is this person's session", so an id is not
-a capability and a reconnecting client manufactures no authority. A session that
-does not exist, belongs to another organization, belongs to another member, or
-is a worker run rather than a session all answer `404` — a refusal must not
-confirm what exists elsewhere.
+`mcpSession:create` is `admin` and `owner`. Routes that drive the session
+additionally require the caller to be the member who opened it: a permission
+answers "may this person open sessions here", not "is this person's session",
+so an id is not a capability and a reconnecting client manufactures no
+authority. Closing is the one operation an organization admin or owner may
+perform on another member's session, to recover in-flight run capacity if an
+opener disconnects; ordinary members cannot close it. A session that does not
+exist, belongs to another organization, belongs to another member (for
+exchange), or is a worker run rather than a session all answer `404` — a refusal
+must not confirm what exists elsewhere.
 
 Two bounds exist because the adapter introduces a request boundary the rest of
 the design does not have. The gateway's `MAX_TOOL_INVOCATIONS_PER_ATTEMPT` is
 captured inside one `authorize()` call, so a session authorizing once per
 request would receive a fresh budget every request and could make an unbounded
-number of paid embedding calls; the ceiling is therefore counted durably from
-the session's own `ToolExecution` rows. It is a cost ceiling rather than a
-fence, and the difference is stated rather than blurred: counting and calling
-are not one atomic step, so concurrent calls can each read the same count and
-overshoot by the number in flight together. What keeps that number small is that
-a modern exchange carries exactly one tool call, leaving the per-user rate limit
-as the real ceiling on concurrency. Making it exact would mean fencing it in the
-transaction that writes the row, or in Redis; that is a deliberate non-goal,
-because the purpose is to stop a session quietly spending all month, not to
-meter it to the call. And `mcp.enabled` — default off, like every other
-acceptance boundary that spends money — is checked on *every* exchange rather
-than only at acceptance, because a session outlives the request that opened it
-and a gate on acceptance alone would leave open sessions spending after an
-operator had stopped the feature.
+number of paid embedding calls; the adapter therefore enforces a durable
+per-session cost budget / bounded ceiling with concurrent overshoot by
+counting the session's own `ToolExecution` rows before each call. It is a cost
+ceiling rather than a fence, and the difference is stated rather than blurred:
+counting and calling are not one atomic step, so concurrent calls can each read
+the same count and overshoot by the number in flight together. What keeps that
+number small is that a modern exchange carries exactly one tool call, leaving
+the per-user rate limit as the real ceiling on concurrency. Making it exact
+would mean fencing it in the transaction that writes the row, or in Redis; that
+is a deliberate non-goal, because the purpose is to stop a session quietly
+spending all month, not to meter it to the call. And `mcp.enabled` — default
+off, like every other acceptance boundary that spends money — is checked on
+*every* exchange rather than only at acceptance, because a session outlives the
+request that opened it and a gate on acceptance alone would leave open sessions
+spending after an operator had stopped the feature.
 
 Transport boundaries are the adapter's own responsibility because the SDK
 declines them. `Origin` is validated against `BETTER_AUTH_TRUSTED_ORIGINS`: the
-specification requires a streamable-HTTP server to validate it and
-`createMcpHandler` performs no header validation, and it earns its place here
-because this endpoint is authenticated by a session cookie. Absence passes, since
-a non-browser MCP client sends none. The comparison is the SDK's own convention —
-hostname only — which discards scheme and port, so a trusted `https://` entry
-also admits any port on that hostname; that is inside the trust boundary the
-list already draws, and is recorded rather than smoothed over. For the same
-reason only content negotiation and `mcp-`-prefixed protocol headers are
-forwarded to the SDK — passing headers wholesale would hand a credential to a
-third-party library with no use for one. A tool failure crosses as the gateway's
-constant sentence and nothing else; an unknown tool name fails closed as a
-protocol error.
+specification requires a streamable-HTTP server to validate it, and it earns its
+place here because this endpoint is authenticated by a session cookie. Absence
+passes, since a non-browser MCP client sends none. The validation uses exact
+origin semantics: scheme + hostname + effective port. An incoming Origin must
+match one of the deployment's configured trusted origins exactly, preventing
+DNS rebinding and cross-scheme or cross-port attacks across different ports on
+the same host. For the same reason only content negotiation and
+`mcp-`-prefixed protocol headers are forwarded to the SDK — passing headers
+wholesale would hand a credential to a third-party library with no use for one.
+A tool failure crosses as the gateway's constant sentence and nothing else; an
+unknown tool name fails closed as a protocol error.
 
 The endpoint serves one protocol revision, and that is a security decision as
 much as a compatibility one. `legacy: 'reject'` turns off the SDK's older leg,
@@ -508,7 +511,11 @@ An operator's switches reach an open session. `mcp.enabled` is re-checked on
 every exchange, and so is the installation's own `enabled` flag: a session lives
 up to an hour under a client's control, so checking either only at acceptance
 would leave an agent that had been switched off still answering calls and
-proposing actions for the rest of that hour. The grant set still comes from the
+proposing actions for the rest of that hour. New and subsequent exchanges are
+refused after an agent is disabled, the session is closed, or the feature is
+switched off. An already authorized in-flight exchange is not synchronously
+cancelled in flight; and side-effect tools still cannot perform a provider effect
+without the separate human approval path. The grant set still comes from the
 version the run pinned — what an operator may change is whether this agent runs
 at all, not what an accepted run may call.
 

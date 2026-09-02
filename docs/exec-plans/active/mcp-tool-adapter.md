@@ -240,11 +240,11 @@ row content crosses the boundary.
 - An approved proposal is delivered by the *same* ACT-01 worker path, with the
   same idempotency key derivation.
 - A closed or expired session refuses every MCP request.
-- A session cannot be used by anyone but the member who opened it.
+- A session cannot be driven by anyone but the member who opened it; an organization admin/owner with `mcpSession:create` may close it to recover capacity.
 - A cross-organization session id is not found.
 - A member without `mcpSession: ['create']` is refused.
-- A request carrying an untrusted `Origin` is refused; one carrying none is not.
-- The per-session tool-call ceiling is enforced across requests.
+- A request carrying an untrusted Origin (or wrong scheme/port) is refused; one carrying an exact trusted Origin or none is allowed.
+- The durable per-session cost budget / bounded ceiling with concurrent overshoot is enforced across requests.
 - There is exactly one `ToolExecution` writer in the codebase.
 
 ## Validation
@@ -282,31 +282,54 @@ schema file is read by the generated client.
 - **The reconciler closes expired sessions.** Its existing job is finalizing runs
   nothing else will finalize, and excluding MCP runs instead would leak
   permanently `RUNNING` rows.
-- **A durable per-session tool-call ceiling.** The gateway's in-memory budget is
-  per `authorize()` call and does not survive the request boundary that MCP
-  introduces.
+- **A durable per-session cost budget / bounded ceiling with concurrent overshoot.**
+  The gateway's in-memory budget is per `authorize()` call and does not survive the
+  request boundary that MCP introduces. Counting durable `ToolExecution` rows bounds
+  worst-case cost across requests and restarts. Stated honestly as a cost ceiling
+  rather than an exact atomic meter.
 - **No new credential system.** Authorization is `OPTIONAL` in the current MCP
   specification and the SDK verifies nothing itself, so the existing
   authenticated session plus the organization guard is decisive. The honest
   consequence — a desktop MCP client that cannot present the application's
   session cookie cannot use this endpoint — is a documented limitation rather
   than a reason to build an authorization server.
-- **`Origin` is validated against `BETTER_AUTH_TRUSTED_ORIGINS`.** The
-  specification requires it unconditionally and the SDK leaves it to the
-  caller. Reusing the existing trusted-origin list adds no configuration, and
-  absence of the header is allowed because a non-browser client sends none.
+- **Exact `Origin` validation (scheme + hostname + effective port) against `BETTER_AUTH_TRUSTED_ORIGINS`.**
+  The specification requires it and the SDK leaves it to the caller. Reusing the
+  existing trusted-origin list with exact origin matching prevents DNS rebinding
+  and cross-scheme/cross-port attacks across different ports on the same host,
+  while absence of the header is allowed because non-browser clients send none.
+- **Session close permissions.** Routes that drive the session require the creator.
+  Closing a session may also be performed by an organization admin/owner with
+  `mcpSession:create` to recover in-flight organization run capacity if a creator
+  disconnects.
+- **Pre-existing Outbox claim query fix retained.** During validation,
+  `outbox.e2e-spec.ts` failed on the batch limit test (`honours the batch limit`,
+  received 5 vs expected 2). Proven against the frozen parent (`0f47689`): PostgreSQL's
+  optimizer plans `UPDATE ... WHERE id IN (SELECT ... FOR UPDATE SKIP LOCKED LIMIT n)`
+  as a `Nested Loop Semi Join`, re-evaluating the subquery per outer row and claiming
+  up to all rows. Replacing the subquery with a CTE (`WITH candidate AS (...) UPDATE ... FROM candidate WHERE e.id = candidate.id`)
+  materializes the limit once and guarantees exact batch limit semantics. Retained as an
+  isolated maintenance commit.
 
 ## Progress
 
 - [x] Recovery and reconciliation after an interrupted session
 - [x] Discovery: SDK and application constraints re-derived from source
-- [ ] Design committed
-- [ ] Implementation
-- [ ] Focused tests
-- [ ] Aggregate validation
-- [ ] Specialist reviews and remediation
-- [ ] Docs synchronized
-- [ ] PR open with final-head CI green
+- [x] Design committed
+- [x] Implementation: adapter, headers containment, andCAS close
+- [x] Focused tests: unit and e2e suites green
+- [x] Exact Origin validation narrowed to scheme + host + port
+- [x] Outbox CTE defect proven on frozen parent baseline and fixed
+- [x] Aggregate validation (typecheck, lint, test, build, doc shell script)
+- [x] Specialist reviews (security, test-engineer, code, docs/protocol) completed
+- [x] Docs synchronized across owning documents
+- [x] PR #62 open on open stack against `feat/approval-side-effect`
+
+### Current Delivery State (IMPLEMENTED ON OPEN STACK)
+
+- **IMPLEMENTED ON OPEN STACK**: PR #62 is open against frozen base `feat/approval-side-effect` (#61).
+- **NOT MERGED TO MAIN**: Merging PR #61 and PR #62 requires human review and is outside the agent's authority.
+- **NOT DELIVERED TO STAGING**: Post-merge CD occurs only after human merge of PR #61 and subsequent merge of PR #62.
 
 ## Blockers
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from '@jest/globals';
 import {
   forwardedHeaders,
   refusedMethod,
+  validateExactOriginHeader,
   withoutConsoleWarnings,
 } from '../mcp-session.service';
 
@@ -159,5 +160,81 @@ describe('withoutConsoleWarnings', () => {
     } finally {
       console.warn = originalWarn;
     }
+  });
+});
+
+describe('validateExactOriginHeader', () => {
+  const allowed = new Set([
+    'http://localhost:3000',
+    'https://app.example.test',
+  ]);
+
+  it('allows trusted exact origins', () => {
+    expect(validateExactOriginHeader('http://localhost:3000', allowed)).toEqual(
+      { ok: true },
+    );
+    expect(
+      validateExactOriginHeader('https://app.example.test', allowed),
+    ).toEqual({ ok: true });
+  });
+
+  it('allows an absent, null, or empty Origin header', () => {
+    expect(validateExactOriginHeader(undefined, allowed)).toEqual({ ok: true });
+    expect(validateExactOriginHeader(null, allowed)).toEqual({ ok: true });
+    expect(validateExactOriginHeader('', allowed)).toEqual({ ok: true });
+  });
+
+  it('refuses same hostname with wrong scheme', () => {
+    expect(
+      validateExactOriginHeader('https://localhost:3000', allowed),
+    ).toEqual({
+      ok: false,
+      errorCode: 'origin_not_allowed',
+    });
+    expect(
+      validateExactOriginHeader('http://app.example.test', allowed),
+    ).toEqual({
+      ok: false,
+      errorCode: 'origin_not_allowed',
+    });
+  });
+
+  it('refuses same hostname with wrong port', () => {
+    expect(validateExactOriginHeader('http://localhost:3001', allowed)).toEqual(
+      {
+        ok: false,
+        errorCode: 'origin_not_allowed',
+      },
+    );
+    expect(
+      validateExactOriginHeader('https://app.example.test:8443', allowed),
+    ).toEqual({
+      ok: false,
+      errorCode: 'origin_not_allowed',
+    });
+  });
+
+  it('refuses foreign hostnames', () => {
+    expect(
+      validateExactOriginHeader('https://attacker.example', allowed),
+    ).toEqual({
+      ok: false,
+      errorCode: 'origin_not_allowed',
+    });
+  });
+
+  it('refuses malformed or opaque origins', () => {
+    expect(validateExactOriginHeader('null', allowed)).toEqual({
+      ok: false,
+      errorCode: 'invalid_origin_header',
+    });
+    expect(validateExactOriginHeader('not-a-url', allowed)).toEqual({
+      ok: false,
+      errorCode: 'invalid_origin_header',
+    });
+    expect(validateExactOriginHeader('file:///etc/passwd', allowed)).toEqual({
+      ok: false,
+      errorCode: 'invalid_origin_header',
+    });
   });
 });

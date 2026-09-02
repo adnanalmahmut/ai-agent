@@ -1,7 +1,4 @@
-import {
-  createMcpHandler,
-  validateOriginHeader,
-} from '@modelcontextprotocol/server';
+import { createMcpHandler } from '@modelcontextprotocol/server';
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { createHash } from 'node:crypto';
@@ -54,9 +51,19 @@ const MCP_SESSION_ATTEMPT = 1;
 const MCP_ADAPTER_VERSION = '1.0.0';
 
 /**
- * MCP sessions: acceptance, authority, and one protocol exchange.
+ * Governs the Model Context Protocol adapter for this deployment.
  *
- * The whole design is in what this service does *not* own. It holds no tool
+ * An MCP session is not an alternative to the agent system; it is an external
+ * driver for one run of an installed agent, reaching the same `ToolGateway`
+ * Mastra runs behind and subject to the same invariants.
+ *
+ * It is small because TOOL-01 and ACT-01 did the load-bearing work.
+ * `ToolGateway.authorize()` returns `AgentRuntimeTool[]` — a closure per
+ * granted tool with schemas and tenancy already bound — and that is the exact
+ * shape `@modelcontextprotocol/server`'s `registerTool` takes. That mapping is
+ * why MCP can be an adapter rather than a new system.
+ *
+ * Crucially, this service owns no tool definitions, executes no tool
  * implementations, writes no `ToolExecution` row, makes no approval decision,
  * and performs no external effect. It resolves who is asking and what their
  * run may call, hands `ToolGateway` the question, and hands the protocol SDK
@@ -70,7 +77,7 @@ const MCP_ADAPTER_VERSION = '1.0.0';
  */
 @Injectable()
 export class McpSessionService {
-  private readonly allowedOriginHostnames: string[];
+  private readonly allowedOrigins: ReadonlySet<string>;
 
   constructor(
     private readonly runs: AgentRunService,
@@ -82,28 +89,26 @@ export class McpSessionService {
     @Inject(authConfig.KEY) auth: ConfigType<typeof authConfig>,
   ) {
     /**
-     * Hostnames, because that is what the SDK's validator compares.
+     * Exact origins (scheme + hostname + effective port) derived from `BETTER_AUTH_TRUSTED_ORIGINS`.
      *
-     * `BETTER_AUTH_TRUSTED_ORIGINS` holds URLs, and the SDK's validator compares
-     * hostnames only. That is its documented convention, and it is worth naming
-     * precisely because it is a widening rather than a restatement: comparing
-     * hostnames discards both the scheme and the port, so a trusted entry of
-     * `https://app.example.test` also admits `http://app.example.test:31337`.
-     * The exposure is bounded — an attacker able to serve a page on any port of
-     * a hostname the deployment already trusts is inside the trust boundary
-     * this list draws — and reusing the list keeps one answer to "which browser
-     * origins belong to this deployment" instead of adding a second setting to
-     * disagree with it. An entry that is not a parseable URL is dropped rather
-     * than allowed, because a malformed allowlist entry must not widen an
-     * allowlist.
+     * Validating exact origins prevents DNS rebinding and cross-origin request
+     * forgery from arbitrary ports or schemes on the same host (e.g. http vs https,
+     * or an untrusted local development server on a different port).
+     * Non-browser clients omit Origin and remain allowed.
      */
-    this.allowedOriginHostnames = auth.trustedOrigins.flatMap((origin) => {
-      try {
-        return [new URL(origin).hostname];
-      } catch {
-        return [];
-      }
-    });
+    this.allowedOrigins = new Set(
+      auth.trustedOrigins.flatMap((origin) => {
+        try {
+          const parsed = new URL(origin);
+          if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+            return [parsed.origin];
+          }
+          return [];
+        } catch {
+          return [];
+        }
+      }),
+    );
   }
 
   /**
@@ -230,17 +235,14 @@ export class McpSessionService {
     /**
      * Origin first, before anything is read.
      *
-     * The specification requires a streamable-HTTP server to validate it, and
-     * the SDK deliberately does not: `createMcpHandler` performs no header
-     * validation and expects its host to. Absence passes, because a non-browser
-     * MCP client sends no `Origin`; a present value that is unparseable or
-     * unknown is refused, which is what protects a cookie-authenticated
-     * endpoint from being driven by a page the organization does not own.
+     * The specification requires a streamable-HTTP server to validate it.
+     * Validating exact origin (scheme + hostname + effective port) protects
+     * this cookie-authenticated endpoint from CSRF and DNS rebinding attacks
+     * across different ports or schemes on the same host. Absence passes,
+     * because a non-browser MCP client sends no `Origin`; a present value
+     * that is unparseable or not in `BETTER_AUTH_TRUSTED_ORIGINS` is refused.
      */
-    const origin = validateOriginHeader(
-      input.origin,
-      this.allowedOriginHostnames,
-    );
+    const origin = validateExactOriginHeader(input.origin, this.allowedOrigins);
 
     if (!origin.ok) {
       throw new AppException('FORBIDDEN', {
@@ -739,4 +741,48 @@ export function withoutConsoleWarnings<T>(run: () => T): T {
   } finally {
     console.warn = warn;
   }
+}
+
+/**
+ * Validates an `Origin` header using exact origin semantics (scheme + hostname + effective port).
+ *
+ * - A missing, null, or empty `Origin` header passes: non-browser clients (CLI,
+ *   desktop, direct curl) do not send an Origin header, and only browser requests
+ *   carry this header.
+ * - Allowlist entries are matched against the parsed origin (`scheme://hostname[:port]`).
+ * - Disallows opaque origins (e.g. 'null') and non-http(s) schemes.
+ */
+export function validateExactOriginHeader(
+  originHeader: string | null | undefined,
+  allowedOrigins: ReadonlySet<string>,
+):
+  | { ok: true }
+  | { ok: false; errorCode: 'invalid_origin_header' | 'origin_not_allowed' } {
+  if (
+    originHeader === null ||
+    originHeader === undefined ||
+    originHeader === ''
+  ) {
+    return { ok: true };
+  }
+
+  let requestOrigin: string;
+  try {
+    const parsed = new URL(originHeader);
+    if (
+      parsed.origin === 'null' ||
+      (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+    ) {
+      return { ok: false, errorCode: 'invalid_origin_header' };
+    }
+    requestOrigin = parsed.origin;
+  } catch {
+    return { ok: false, errorCode: 'invalid_origin_header' };
+  }
+
+  if (!allowedOrigins.has(requestOrigin)) {
+    return { ok: false, errorCode: 'origin_not_allowed' };
+  }
+
+  return { ok: true };
 }
