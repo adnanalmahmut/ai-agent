@@ -1121,6 +1121,33 @@ describe('malformed tool-call arguments in application logs', () => {
   async function generateWith(input: string) {
     const fetchSpy = forbidNetwork();
     const received: unknown[] = [];
+
+    /**
+     * `console` is not the whole surface. The bundled AI SDK already prefers
+     * `process.emitWarning` over `console.warn` for its own warnings, and a
+     * direct `process.stderr.write` would bypass both. Neither is used on this
+     * path today — which is the point of watching them: if an upstream change
+     * moved the emission to either sink, the canary assertions below would
+     * otherwise go quiet rather than fail.
+     */
+    const rawSinks: unknown[] = [];
+    const stderrSpy = jest
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: unknown) => {
+        rawSinks.push(chunk);
+        return true;
+      });
+    const stdoutSpy = jest
+      .spyOn(process.stdout, 'write')
+      .mockImplementation((chunk: unknown) => {
+        rawSinks.push(chunk);
+        return true;
+      });
+    const warningSpy = jest
+      .spyOn(process, 'emitWarning')
+      .mockImplementation((...args: unknown[]) => {
+        rawSinks.push(args);
+      });
     const agent = new Agent({
       id: 'tool-input-agent',
       name: 'tool-input-agent',
@@ -1147,12 +1174,16 @@ describe('malformed tool-call arguments in application logs', () => {
 
     const serialized = serializeConsole(spies);
     const total = totalConsoleCalls(spies);
+    const raw = inspect(rawSinks, { depth: null, maxStringLength: null });
 
     jest.restoreAllMocks();
+    void stderrSpy;
+    void stdoutSpy;
+    void warningSpy;
 
     expect(fetchSpy).not.toHaveBeenCalled();
 
-    return { serialized, total, received };
+    return { serialized, total, received, raw };
   }
 
   /**
@@ -1160,7 +1191,7 @@ describe('malformed tool-call arguments in application logs', () => {
    * puts none of the model's argument text on any console sink.
    */
   it('writes no part of a malformed tool argument to the console', async () => {
-    const { serialized } = await generateWith(TRUNCATED_ARGUMENTS);
+    const { serialized, raw } = await generateWith(TRUNCATED_ARGUMENTS);
 
     for (const canary of ARGUMENT_CANARIES) {
       expect(serialized).not.toContain(canary);
@@ -1171,6 +1202,11 @@ describe('malformed tool-call arguments in application logs', () => {
     expect(serialized).not.toContain(TRUNCATED_ARGUMENTS);
     expect(serialized).not.toContain('"query"');
     expect(serialized).not.toContain('Error converting tool call input');
+
+    // And nothing on the sinks that bypass `console` entirely.
+    for (const canary of ARGUMENT_CANARIES) {
+      expect(raw).not.toContain(canary);
+    }
   });
 
   /**
@@ -1181,14 +1217,20 @@ describe('malformed tool-call arguments in application logs', () => {
     const { serialized, total } = await generateWith(TRUNCATED_ARGUMENTS);
 
     /**
-     * One emission is permitted and it is asserted verbatim, because "a
-     * bounded diagnostic" is only a real bound if the exact string is pinned.
-     * A patch that started interpolating anything fails here.
+     * Exactly one emission, asserted verbatim.
+     *
+     * Not `<= 1` with a conditional body: that would pass if the SDK stopped
+     * reaching this branch at all, and a containment test that goes quiet when
+     * the code path disappears is proving nothing. Requiring the line means
+     * this test also asserts the branch is still driven — so if a future
+     * version repairs truncated JSON, or moves the emission, it fails here and
+     * gets re-derived rather than silently becoming vacuous.
+     *
+     * The exact string is pinned because "a bounded diagnostic" is only a real
+     * bound if it is; a patch that started interpolating anything fails.
      */
-    expect(total).toBeLessThanOrEqual(1);
-    if (total === 1) {
-      expect(serialized).toContain('Tool call input could not be parsed');
-    }
+    expect(total).toBe(1);
+    expect(serialized).toContain('Tool call input could not be parsed');
 
     expect(serialized).not.toContain('apps/backend');
     expect(serialized).not.toContain('node_modules');
