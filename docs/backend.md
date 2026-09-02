@@ -162,6 +162,111 @@ resolved against the caller's own organization, so a definition cannot name its
 way into another tenant's material, and an agent with no policy gets nothing
 rather than everything.
 
+### Governed tool execution
+
+An agent may also *call* something, through a code-owned tool registry rather
+than an SDK's. A `ToolDefinition` is identified by an exact `(id, version)`
+pair, carries Zod schemas on both sides, and declares a `read_only` or
+`side_effect` risk. Only `read_only` is executable: `side_effect` exists in the
+vocabulary so the gateway has something to refuse, because nothing in this build
+can yet make an external effect idempotent, revalidate a precondition, or ask a
+human. Composition fails loudly on a duplicate identity, an invalid version, a
+registered tool nothing declares, a declared tool nothing registers, and a
+registered tool with no implementation.
+
+Capability narrows in two steps. `AgentDefinition.maxToolGrants` is the most an
+immutable definition revision may ever call — a maximum, like `modelPolicy`, so
+changing it means publishing a new revision. `OrganizationAgentVersion.toolGrants`
+is the tenant's selection within that maximum, validated on write and refused
+rather than trimmed when it names something outside it. An accepted run already
+pins its organization version, so that pin is the durable authority for its
+grants: a grant added or removed afterwards belongs to a different version row
+and changes nothing for a run already in flight.
+
+`ToolGateway` holds every authority check and hands the runtime nothing but
+closures already bound to the run they belong to. The interesting property is
+not that it checks the caller's identity but that the caller cannot express one:
+a tool's input schema has no field for an organization, a run, a version, or a
+scope, so the model can choose a question and nothing else. Inputs are parsed
+again even though the SDK validates them, because SDK validation sits on the far
+side of a boundary this repository does not own.
+
+`ToolExecution` records what actually ran: the organization, the run and its
+attempt, the exact tool id and version, the parsed input, the parsed result, and
+timestamps. It references its run through the composite
+`(agentRunId, organizationId)`, so PostgreSQL refuses a cross-tenant row. The
+row is written after authorization and before the implementation, so its
+existence means "this was permitted and handed over" — a refused call leaves no
+row, and is therefore never mistaken for a failed one. A failure stores a code
+from a closed union, so no provider or driver text can reach the column. There
+is deliberately no reconciler: a read-only execution left `STARTED` by a process
+death is an honest "outcome unknown" for an operation that changed nothing
+outside this system.
+
+The lifecycle `STARTED -> SUCCEEDED | FAILED` is enforced rather than described.
+Both terminal writes are one compare-and-set: the update requires `status`
+`STARTED` alongside the tenant-scoped id, and requires exactly one row to
+change. A settled execution therefore cannot be rewritten in either direction,
+and a terminal write matching no row fails closed instead of resolving — which
+is what stops `ToolGateway` returning an output to the model that no durable row
+claims was ever completed.
+
+`knowledge.search@1` is the first tool, and it is `AgentContextAssembler` again
+rather than a second retrieval path — the same tenant scoping, the same
+`ContextPolicy` as maximum visibility, the same operator-owned ceiling. The
+model supplies a bounded query; it does not supply a corpus. An agent whose
+definition permits no knowledge searches nothing.
+
+Two properties of the runtime boundary are enforced against the installed SDK
+rather than assumed. Mastra keys its tool record by the model-facing name and
+rewrites any key outside `^[a-zA-Z_][a-zA-Z0-9_-]{0,62}$`, so tools declare an
+explicit audited `runtimeName` and both the registry and the adapter refuse one
+that would be rewritten — otherwise the durable identity `knowledge.search@1`
+would reach the provider as something nobody reviewed. And the agent loop's step
+ceiling defaults to `stepCountIs(5)` as a runtime literal declared in no type
+definition, so a tool-enabled generation passes `maxSteps` explicitly rather
+than depending on a number that can change in a patch release with no type-level
+signal. A generation granted no tools passes none: `maxSteps` composes into the
+loop's stop conditions, so applying it to a definition that cannot emit a tool
+call would change a shipped agent's runtime behavior for a capability it does
+not use.
+
+What a failed tool sends the provider is bounded by construction, and the
+mechanism is worth stating precisely because the obvious reading of it is wrong.
+The installed SDK wraps whatever a tool throws in an error of its own, keeping
+the original as `cause`; it serializes *that wrapper* into
+`{ name, message, stack, ...own enumerable properties }`; and it renders the
+result to the model, which for an application-executed tool means the message
+alone. So the only value a tool may throw is a containment type whose message is
+a constant naming the tool — that constant is what bounds the transcript, since
+anything a driver or implementation raised would otherwise be transmitted
+verbatim and Pino's redaction is nowhere near that path. The type additionally
+carries no stack, because the wrapper keeps it reachable as `cause` and a stack
+there would put this repository's source paths on every consumer of the failure.
+Both halves are asserted against the real SDK rather than argued. The sentence
+names the tool by its audited `runtimeName`, which is the only name the model
+was offered; the durable `id@version` stays in the `ToolExecution` row, which is
+the authority on what happened.
+
+The reverse direction — what a tool *call* can put in this application's logs —
+needs a dependency patch, and it is the only one in the repository.
+`@mastra/core`'s AI-SDK-to-Mastra chunk transform parses the model's tool-call
+argument string, and when both `JSON.parse` and its repair pass fail it calls
+`console.error` directly with the raw string. That call takes no logger and
+nothing gates it, so the adapter's logger containment cannot reach it and Pino
+never sees it to redact it. The argument is model-generated text composed after
+the model was shown the organization's knowledge passages, and reaching the
+branch needs no adversary: the repair pass cannot close a string truncated by
+`maxOutputTokens`. Before this build had tools the line was unreachable.
+
+No supported option, hook or newer release avoids it — the emission is
+unconditional and identical in 1.63.2, the newest release at the time of
+writing. `patches/@mastra__core@1.61.0.patch` therefore replaces that one
+emission, in the ESM and CJS bundles, with a bounded constant carrying no value.
+It changes nothing else, and `pnpm` refuses to install when a patch no longer
+matches its pinned version, so an upgrade cannot silently drop it. A real-SDK
+regression asserts the malformed argument reaches no console sink.
+
 Retrieved passages travel to the runtime separately from the input and are
 rendered into the *user* message, fenced and labelled as quoted material. They
 are never merged into the instructions: they are organization data that some

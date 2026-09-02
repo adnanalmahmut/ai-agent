@@ -2,4 +2,7 @@ packages:
   - "apps/*"
   - "packages/*"
 
+patchedDependencies:
+  "@mastra/core@1.61.0": patches/@mastra__core@1.61.0.patch
+
 sharedWorkspaceLockfile: true

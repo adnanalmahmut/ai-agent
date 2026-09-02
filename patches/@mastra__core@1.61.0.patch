@@ -1,0 +1,26 @@
+diff --git a/dist/stream-BZ38co-u.js b/dist/stream-BZ38co-u.js
+index 2cdf71e53be053108f10634d85b3d0eb46ba2360..6774565e1b125d7c595ba16486eb454f3ac9e847 100644
+--- a/dist/stream-BZ38co-u.js
++++ b/dist/stream-BZ38co-u.js
+@@ -802,7 +802,7 @@ function convertFullStreamChunkToMastra(value, ctx) {
+ 					const repaired = tryRepairJson(sanitized);
+ 					if (repaired) toolCallInput = repaired;
+ 					else {
+-						console.error("Error converting tool call input to JSON", { input: value.input });
++						console.error("Tool call input could not be parsed");
+ 						toolCallInput = void 0;
+ 					}
+ 				}
+diff --git a/dist/stream-BvzorDEY.cjs b/dist/stream-BvzorDEY.cjs
+index 3c23d96a940f8dc666ff0fc26f2a65accf355278..8fd3863b82e1c334ffad6efa83eb57e3d85d735b 100644
+--- a/dist/stream-BvzorDEY.cjs
++++ b/dist/stream-BvzorDEY.cjs
+@@ -804,7 +804,7 @@ function convertFullStreamChunkToMastra(value, ctx) {
+ 					const repaired = tryRepairJson(sanitized);
+ 					if (repaired) toolCallInput = repaired;
+ 					else {
+-						console.error("Error converting tool call input to JSON", { input: value.input });
++						console.error("Tool call input could not be parsed");
+ 						toolCallInput = void 0;
+ 					}
+ 				}

@@ -87,6 +87,11 @@ export type OrganizationAgentInstallation = Prisma.OrganizationAgentInstallation
  */
 export type OrganizationAgentVersion = Prisma.OrganizationAgentVersionModel
 /**
+ * Model ToolExecution
+ * 
+ */
+export type ToolExecution = Prisma.ToolExecutionModel
+/**
  * Model OutboxEvent
  * 
  */

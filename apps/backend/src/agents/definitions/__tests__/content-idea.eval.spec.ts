@@ -200,13 +200,28 @@ const buildHarness = (): Harness => {
   const runtimes = new AgentRuntimeRegistry(
     new MastraRuntime(runtimeConfig as never),
   );
-  const runner = new AgentRunner(definitions, runtimes, assembler, {
-    configurationFor: () => Promise.resolve(null),
-  } as never);
+  const runner = new AgentRunner(
+    definitions,
+    runtimes,
+    assembler,
+    { pinnedVersionFor: () => Promise.resolve(null) } as never,
+    /**
+     * Stubbed empty, which is what content-idea's grants actually are.
+     *
+     * This makes the eval a statement about the runner — that a tool-free run
+     * behaves exactly as it did before tools existed. It is not the proof that
+     * content-idea grants nothing; that is
+     * `agent-definition-tool-grants.spec.ts`, which asserts it of every
+     * production definition.
+     */
+    { authorize: () => [] } as never,
+  );
 
   return {
     run: (organizationId, input) =>
       runner.run({
+        id: 'run_1',
+        attemptCount: 1,
         agentId: CONTENT_IDEA_AGENT_ID,
         agentVersion: CONTENT_IDEA_AGENT_VERSION,
         organizationAgentVersionId: null,

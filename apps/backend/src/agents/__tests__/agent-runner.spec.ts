@@ -37,7 +37,12 @@ const noContext = {
   assemble: jest.fn<() => Promise<never[]>>(() => Promise.resolve([])),
 };
 
+/** These suites are about definitions, pinning and configuration, not tools. */
+const noTools = { authorize: () => [] };
+
 type OptionalRunPin =
+  | 'id'
+  | 'attemptCount'
   | 'organizationAgentVersionId'
   | 'modelPolicyId'
   | 'modelId'
@@ -62,13 +67,16 @@ const runnerFor = (
     new AgentDefinitionRegistry(definitions),
     runtimes,
     context as never,
-    { configurationFor: () => Promise.resolve(null) } as never,
+    { pinnedVersionFor: () => Promise.resolve(null) } as never,
+    noTools as never,
   );
 
   return {
     run: (run: TestRun) =>
       runner.run({
         ...run,
+        id: run.id ?? 'run_1',
+        attemptCount: run.attemptCount ?? 1,
         organizationAgentVersionId: run.organizationAgentVersionId ?? null,
         modelPolicyId: run.modelPolicyId ?? null,
         modelId: run.modelId ?? null,
@@ -118,6 +126,7 @@ describe('AgentRunner', () => {
       configuration: {},
       input: { question: 'hello' },
       context: [],
+      tools: [],
     });
   });
 
@@ -168,6 +177,7 @@ describe('AgentRunner', () => {
       configuration: {},
       input: 'hello',
       context: [],
+      tools: [],
     });
 
     await runner.run({
@@ -184,6 +194,7 @@ describe('AgentRunner', () => {
       configuration: {},
       input: 'hello',
       context: [],
+      tools: [],
     });
   });
 
@@ -213,6 +224,8 @@ describe('AgentRunner model pinning', () => {
   const pinnedRun = (
     overrides: Partial<Parameters<AgentRunner['run']>[0]> = {},
   ): Parameters<AgentRunner['run']>[0] => ({
+    id: 'run_1',
+    attemptCount: 1,
     agentId: definition.id,
     agentVersion: definition.version,
     runtime: definition.runtime,
@@ -315,9 +328,11 @@ describe('AgentRunner organization configuration', () => {
     const runtimeRun = jest
       .fn<(request: unknown) => Promise<{ output: string }>>()
       .mockResolvedValue({ output: 'done' });
-    const configurationFor = jest
+    const pinnedVersionFor = jest
       .fn<(run: unknown) => Promise<unknown>>()
-      .mockResolvedValue(stored);
+      .mockResolvedValue(
+        stored === null ? null : { configuration: stored, toolGrants: [] },
+      );
     const runtime: AgentRuntime = {
       name: 'mastra',
       run: (request) => runtimeRun(request),
@@ -326,13 +341,16 @@ describe('AgentRunner organization configuration', () => {
       new AgentDefinitionRegistry([configuredDefinition]),
       { resolve: () => runtime } as unknown as AgentRuntimeRegistry,
       noContext as never,
-      { configurationFor } as never,
+      { pinnedVersionFor } as never,
+      noTools as never,
     );
 
-    return { runner, runtimeRun, configurationFor };
+    return { runner, runtimeRun, pinnedVersionFor };
   };
 
   const run = (organizationAgentVersionId: string | null) => ({
+    id: 'run_1',
+    attemptCount: 1,
     agentId: configuredDefinition.id,
     agentVersion: 1,
     runtime: 'mastra',
@@ -346,14 +364,14 @@ describe('AgentRunner organization configuration', () => {
   });
 
   it('reloads and passes the parsed pinned configuration', async () => {
-    const { runner, runtimeRun, configurationFor } = configuredRunner({
+    const { runner, runtimeRun, pinnedVersionFor } = configuredRunner({
       tone: 'warm',
     });
 
     await expect(runner.run(run('version_1'))).resolves.toEqual({
       output: 'done',
     });
-    expect(configurationFor).toHaveBeenCalledWith(run('version_1'));
+    expect(pinnedVersionFor).toHaveBeenCalledWith(run('version_1'));
     expect(runtimeRun).toHaveBeenCalledWith(
       expect.objectContaining({ configuration: { tone: 'warm' } }),
     );

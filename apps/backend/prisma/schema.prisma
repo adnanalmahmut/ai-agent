@@ -233,6 +233,7 @@ model Organization {
 
   agentInstallations OrganizationAgentInstallation[]
   auditEvents        OrganizationAuditEvent[]
+  toolExecutions     ToolExecution[]
 
   featureFlagOverrides FeatureFlagOrganizationOverride[]
 
@@ -359,6 +360,7 @@ model AgentRun {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   contentProjects ContentProject[]
+  toolExecutions  ToolExecution[]
 
   @@unique([organizationId, idempotencyKey])
   /// Target for tenant-safe child references. A child that points at a run
@@ -423,6 +425,19 @@ model OrganizationAgentVersion {
   enabled           Boolean
   configuration     Json
 
+  /// The exact tool versions this immutable version selected, as `id@version`.
+  ///
+  /// A subset of the pinned definition's maximum, validated in the application
+  /// before the row is written. Stored on the version rather than on the
+  /// installation because it is part of what a version *is*: an accepted run
+  /// pins a version id, so this column is already the durable, immutable
+  /// authority for that run's grants and needs no second copy on `AgentRun`.
+  ///
+  /// Defaulted so the column is additive. Every row written before this
+  /// existed, and every row an older image writes during a rollback, means
+  /// exactly what the empty list means: no tools.
+  toolGrants String[] @default([])
+
   /// The definition-owned policy revision and its organization-selected model.
   /// New application versions always write both. Nullable together only for
   /// rows created before MOD-01B or by the preceding image during rollback.
@@ -447,6 +462,78 @@ model OrganizationAgentVersion {
   @@index([organizationId])
   @@index([installationId, createdAt, id])
   @@map("organization_agent_version")
+}
+
+/// What happened when an agent used a governed tool.
+///
+/// The durable half of tool execution. A run's answer says what the model
+/// concluded; this says what it actually did to get there, and it is the only
+/// record that survives the process.
+///
+/// `toolId` and `toolVersion` are columns rather than a reference to a table,
+/// because the registry is code: there is no `ToolDefinition` row to point at,
+/// and the pair is exactly what a grant names. They are also not the SDK's tool
+/// name — an adapter that renamed a tool would change what the model sees, and
+/// must not change what history says was run.
+enum ToolExecutionStatus {
+  /// Authorized, input validated, and handed to the implementation.
+  STARTED
+  /// The implementation returned a value its own output schema accepted.
+  SUCCEEDED
+  /// The implementation threw, or returned something its schema refused.
+  FAILED
+
+  @@map("tool_execution_status")
+}
+
+model ToolExecution {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  /// The run this was performed for, referenced as a tenant-safe pair.
+  ///
+  /// `(agentRunId, organizationId)` against `agent_run(id, organizationId)`, so
+  /// a row claiming one organization's execution against another's run is
+  /// refused by PostgreSQL. A service predicate would be the only guard if this
+  /// were a plain `agentRunId`, and a service predicate is one forgotten
+  /// `where` clause away from absent.
+  agentRunId String
+  agentRun   AgentRun @relation(fields: [agentRunId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  /// Which attempt of that run. A retried run performs its tools again, and
+  /// two executions of one tool for one run are only distinguishable by this.
+  agentRunAttempt Int
+
+  toolId      String
+  toolVersion Int
+
+  status ToolExecutionStatus @default(STARTED)
+
+  /// The input as the application parsed it, never as the model sent it.
+  input Json
+
+  /// The result as the tool's own output schema parsed it. Null until the
+  /// execution reaches `SUCCEEDED`, and null forever if it never does.
+  output Json?
+
+  /// A closed application-owned code, never provider or SDK text.
+  ///
+  /// The failure vocabulary is a union of literals in `ToolFailureCode`, so
+  /// this column cannot receive `error.message` without someone widening that
+  /// type first.
+  failureCode String?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId, agentRunId, startedAt])
+  @@index([organizationId, startedAt, id])
+  @@map("tool_execution")
 }
 
 // ---------------------------------------------------------------------------

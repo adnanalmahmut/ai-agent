@@ -19,6 +19,15 @@ export const AgentRunStatus = {
 export type AgentRunStatus = (typeof AgentRunStatus)[keyof typeof AgentRunStatus]
 
 
+export const ToolExecutionStatus = {
+  STARTED: 'STARTED',
+  SUCCEEDED: 'SUCCEEDED',
+  FAILED: 'FAILED'
+} as const
+
+export type ToolExecutionStatus = (typeof ToolExecutionStatus)[keyof typeof ToolExecutionStatus]
+
+
 export const OutboxEventStatus = {
   PENDING: 'PENDING',
   PROCESSING: 'PROCESSING',

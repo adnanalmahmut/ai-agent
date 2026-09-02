@@ -334,6 +334,23 @@ export type JsonNullableWithAggregatesFilterBase<$PrismaModel = never> = {
   _max?: Prisma.NestedJsonNullableFilter<$PrismaModel>
 }
 
+export type EnumToolExecutionStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionStatus | Prisma.EnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel> | $Enums.ToolExecutionStatus
+}
+
+export type EnumToolExecutionStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionStatus | Prisma.EnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionStatusWithAggregatesFilter<$PrismaModel> | $Enums.ToolExecutionStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel>
+}
+
 export type EnumOutboxEventStatusFilter<$PrismaModel = never> = {
   equals?: $Enums.OutboxEventStatus | Prisma.EnumOutboxEventStatusFieldRefInput<$PrismaModel>
   in?: $Enums.OutboxEventStatus[] | Prisma.ListEnumOutboxEventStatusFieldRefInput<$PrismaModel>
@@ -645,6 +662,23 @@ export type NestedJsonNullableFilterBase<$PrismaModel = never> = {
   gt?: runtime.InputJsonValue | Prisma.JsonFieldRefInput<$PrismaModel>
   gte?: runtime.InputJsonValue | Prisma.JsonFieldRefInput<$PrismaModel>
   not?: runtime.InputJsonValue | Prisma.JsonFieldRefInput<$PrismaModel> | Prisma.JsonNullValueFilter
+}
+
+export type NestedEnumToolExecutionStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionStatus | Prisma.EnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel> | $Enums.ToolExecutionStatus
+}
+
+export type NestedEnumToolExecutionStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionStatus | Prisma.EnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionStatus[] | Prisma.ListEnumToolExecutionStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionStatusWithAggregatesFilter<$PrismaModel> | $Enums.ToolExecutionStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumOutboxEventStatusFilter<$PrismaModel = never> = {

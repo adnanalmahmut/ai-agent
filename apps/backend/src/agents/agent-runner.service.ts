@@ -6,6 +6,7 @@ import { AgentDefinitionRegistry } from './agent-definition.registry';
 import { AgentOutputContractError } from './agent-output-contract.error';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import { AgentRunService } from './agent-run.service';
+import { ToolGateway } from './tools/tool.gateway';
 import type {
   AgentConfiguration,
   AgentDefinition,
@@ -26,11 +27,13 @@ export class AgentRunner {
     private readonly runtimes: AgentRuntimeRegistry,
     private readonly context: AgentContextAssembler,
     private readonly runs: AgentRunService,
+    private readonly tools: ToolGateway,
   ) {}
 
   async run(
     run: Pick<
       AgentRun,
+      | 'id'
       | 'agentId'
       | 'agentVersion'
       | 'runtime'
@@ -40,6 +43,7 @@ export class AgentRunner {
       | 'modelPolicyId'
       | 'modelId'
       | 'modelPricingRevisionId'
+      | 'attemptCount'
       | 'createdAt'
     >,
   ): Promise<AgentRuntimeResult> {
@@ -58,15 +62,36 @@ export class AgentRunner {
     const model = pinnedModel(definition, run);
 
     const { organizationAgentVersionId } = run;
-    const storedConfiguration = await this.runs.configurationFor({
+    const pinned = await this.runs.pinnedVersionFor({
       ...run,
       organizationAgentVersionId,
     });
     const configuration = parseConfiguration(
       definition,
-      storedConfiguration,
+      pinned?.configuration ?? null,
       organizationAgentVersionId !== null,
     );
+
+    /**
+     * The tools this run may call, decided from its own pins and nothing else.
+     *
+     * Both sides are historical: the definition revision the run was accepted
+     * against, and the immutable `OrganizationAgentVersion` it named. So a
+     * grant added or removed after acceptance changes nothing for this run —
+     * the newer version is a different row, and this one still points at the
+     * old one. That is the property the pin already had for configuration and
+     * for the model; tools inherit it rather than needing their own snapshot.
+     *
+     * A legacy run with no pinned version gets no tools, which is the same
+     * answer an empty grant list gives.
+     */
+    const tools = this.tools.authorize({
+      definition,
+      organizationId: run.organizationId,
+      agentRunId: run.id,
+      agentRunAttempt: run.attemptCount,
+      grants: pinned?.toolGrants ?? [],
+    });
 
     /**
      * Parsed here rather than trusted from the row.
@@ -98,6 +123,7 @@ export class AgentRunner {
       configuration,
       input: parsedInput.data as AgentValue,
       context,
+      tools,
     });
 
     /**
