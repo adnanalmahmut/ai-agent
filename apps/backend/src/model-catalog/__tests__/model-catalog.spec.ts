@@ -9,7 +9,7 @@ import {
   type GenerationPricingRevision,
   type ModelDefinition,
   type ModelPricingRevision,
-} from '../model-catalog';
+} from '../../ai/models/model-catalog';
 
 const productionModels = (): readonly ModelDefinition[] => [
   APPLICATION_MODEL_CATALOG.model(MODEL_IDS.openAiGpt4oMini),

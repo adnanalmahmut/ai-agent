@@ -13,9 +13,9 @@ import {
 import type { Job } from 'bullmq';
 import { z } from 'zod';
 
-import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
-import type { AgentDefinition } from '../../src/agents/agent.types';
-import { MCP_SESSION_TTL_MS } from '../../src/agents/agent.types';
+import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../src/ai/agents/agent.types';
+import { MCP_SESSION_TTL_MS } from '../../src/ai/agents/agent.types';
 import { MCP_SESSION_TOOL_CALL_BUDGET } from '../../src/agents/mcp/mcp-session.types';
 import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
@@ -25,8 +25,8 @@ import {
   SideEffectExecutionHandler,
   type SideEffectExecutionJob,
 } from '../../src/agents/tools/side-effect-execution.handler';
-import { ToolExecutionService } from '../../src/agents/tools/tool-execution.service';
-import { ToolRegistry } from '../../src/agents/tools/tool.registry';
+import { ToolExecutionService } from '../../src/ai/tools/tool-execution.service';
+import { ToolRegistry } from '../../src/ai/tools/tool.registry';
 import {
   FeatureFlagService,
   RuntimeSettingService,
@@ -40,7 +40,7 @@ import {
   EMBEDDING_DIMENSIONS,
   KnowledgeWriterService,
 } from '../../src/knowledge';
-import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
+import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 import {
   as,
   createHarness,

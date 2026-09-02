@@ -5,17 +5,17 @@ import { PinoLogger } from 'nestjs-pino';
 import { QUEUE_NAMES, type QueueJobHandler } from '../../infrastructure/queue';
 import { PrismaService } from '../../infrastructure/database';
 import type { ToolExecutionStatus } from '../../generated/prisma/client';
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
-import type { AgentDefinition } from '../agent.types';
-import { digestValue } from './digest';
+import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../ai/agents/agent.types';
+import { digestValue } from '../../ai/tools/digest';
 import {
   TERMINAL_TOOL_EXECUTION_STATUSES,
   ToolExecutionService,
   type EffectSettlement,
   type SideEffectExecutionRow,
-} from './tool-execution.service';
-import { TOOL_IMPLEMENTATIONS } from './tool.gateway';
-import { ToolRegistry } from './tool.registry';
+} from '../../ai/tools/tool-execution.service';
+import { TOOL_IMPLEMENTATIONS } from '../../ai/tools/tool.gateway';
+import { ToolRegistry } from '../../ai/tools/tool.registry';
 import {
   isSideEffectImplementation,
   isSideEffectPreconditionError,
@@ -26,7 +26,7 @@ import {
   type ToolFailureCode,
   type ToolInvocationContext,
   type ToolRef,
-} from './tool.types';
+} from '../../ai/tools/tool.types';
 
 export type SideEffectExecutionJob = {
   toolExecutionId: string;

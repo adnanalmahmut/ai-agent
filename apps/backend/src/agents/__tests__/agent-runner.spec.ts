@@ -1,16 +1,19 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { z } from 'zod';
 
-import { MODEL_IDS } from '../../model-catalog/model-catalog';
-import { AgentConfigurationError } from '../agent-configuration.error';
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
-import { AgentOutputContractError } from '../agent-output-contract.error';
-import { AgentRunner } from '../agent-runner.service';
-import type { AgentRuntime } from '../agent-runtime';
-import { AgentRuntimeRegistry } from '../agent-runtime.registry';
-import type { AgentDefinition, AgentOutputContract } from '../agent.types';
-import { MCP_SESSION_RUNTIME } from '../agent.types';
-import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
+import { MODEL_IDS } from '../../ai/models/model-catalog';
+import { AgentConfigurationError } from '../../ai/agents/agent-configuration.error';
+import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
+import { AgentOutputContractError } from '../../ai/execution/agent-output-contract.error';
+import { AgentRunner } from '../../ai/execution/agent-runner.service';
+import type { AgentRuntime } from '../../ai/execution/agent-runtime';
+import { AgentRuntimeRegistry } from '../../ai/execution/agent-runtime.registry';
+import type {
+  AgentDefinition,
+  AgentOutputContract,
+} from '../../ai/agents/agent.types';
+import { MCP_SESSION_RUNTIME } from '../../ai/agents/agent.types';
+import { MastraRuntime } from '../../ai/infrastructure/runtimes/mastra/mastra.runtime';
 
 const definition = {
   id: 'test-support-agent',
@@ -377,7 +380,7 @@ describe('AgentRunner organization configuration', () => {
     const runner = new AgentRunner(
       new AgentDefinitionRegistry([configuredDefinition]),
       { resolve: () => runtime } as unknown as AgentRuntimeRegistry,
-      noContext as never,
+      noContext,
       { pinnedVersionFor } as never,
       noTools as never,
     );

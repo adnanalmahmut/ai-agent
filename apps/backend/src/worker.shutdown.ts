@@ -1,4 +1,4 @@
-import type { AgentRunReconciler } from './agents/agent-run-reconciler.service';
+import type { AgentRunReconciler } from './ai/execution/agent-run-reconciler.service';
 import type { ShutdownStep } from './infrastructure/lifecycle';
 import type { ProcessReadiness } from './infrastructure/lifecycle';
 import type { OutboxDispatcher } from './infrastructure/outbox';

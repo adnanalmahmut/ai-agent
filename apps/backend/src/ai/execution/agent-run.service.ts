@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 
-import { Prisma } from '../generated/prisma/client';
-import { PrismaService } from '../infrastructure/database';
-import { AppException } from '../core/errors';
-import { OutboxRepository } from '../infrastructure/outbox';
+import { AppException } from '../../core/errors';
+import { Prisma } from '../../generated/prisma/client';
+import { PrismaService } from '../../infrastructure/database';
+import { OutboxRepository } from '../../infrastructure/outbox';
 import {
   APPLICATION_MODEL_CATALOG,
   type AgentModelId,
-} from '../model-catalog/model-catalog';
-import { AgentConfigurationError } from './agent-configuration.error';
-import { AgentDefinitionRegistry } from './agent-definition.registry';
+} from '../models/model-catalog';
+import { AgentConfigurationError } from '../agents/agent-configuration.error';
+import { AgentDefinitionRegistry } from '../agents/agent-definition.registry';
 import {
   AGENT_RUN_DRIVERS,
   MCP_SESSION_RUNTIME,
@@ -20,7 +20,7 @@ import {
   type AgentRunStatus,
   type AgentValue,
   type CreateAgentRun,
-} from './agent.types';
+} from '../agents/agent.types';
 
 const AGENT_RUN_QUEUED = 'agent-run.queued';
 

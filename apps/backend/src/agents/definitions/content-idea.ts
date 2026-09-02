@@ -4,8 +4,8 @@ import {
   AGENT_RUNTIME_NAMES,
   type AgentDefinition,
   type AgentOutputContract,
-} from '../agent.types';
-import { MODEL_IDS } from '../../model-catalog/model-catalog';
+} from '../../ai/agents/agent.types';
+import { MODEL_IDS } from '../../ai/models/model-catalog';
 
 export const CONTENT_IDEA_AGENT_ID = 'content-idea';
 export const CONTENT_IDEA_AGENT_VERSION = 1;

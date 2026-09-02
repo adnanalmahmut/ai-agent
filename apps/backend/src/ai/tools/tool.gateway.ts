@@ -1,11 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { AgentConfigurationError } from '../agent-configuration.error';
+import { AgentConfigurationError } from '../agents/agent-configuration.error';
 import type {
   AgentDefinition,
   AgentRuntimeTool,
   AgentValue,
-} from '../agent.types';
+} from '../agents/agent.types';
 import { ToolExecutionService } from './tool-execution.service';
 import { ToolRegistry } from './tool.registry';
 import {

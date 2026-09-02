@@ -1,11 +1,8 @@
 import { z } from 'zod';
 
-import type { AgentConfiguration } from './agent.types';
-import { TOOL_REFS, type ToolRef } from './tools/tool.types';
-import {
-  MODEL_ID_VALUES,
-  type AgentModelId,
-} from '../model-catalog/model-catalog';
+import type { AgentConfiguration } from '../ai/agents/agent.types';
+import { TOOL_REFS, type ToolRef } from '../ai/tools/tool.types';
+import { MODEL_ID_VALUES, type AgentModelId } from '../ai/models/model-catalog';
 
 const agentIdSchema = z.string().trim().min(1).max(120);
 const configurationSchema = z.record(z.string(), z.unknown());

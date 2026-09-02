@@ -9,9 +9,9 @@ import {
 } from '@jest/globals';
 
 import { AgentRunService, type CreateAgentRun } from '../../src/agents';
-import { AgentConfigurationError } from '../../src/agents/agent-configuration.error';
-import type { AgentRuntime } from '../../src/agents/agent-runtime';
-import { AgentRunner } from '../../src/agents/agent-runner.service';
+import { AgentConfigurationError } from '../../src/ai/agents/agent-configuration.error';
+import type { AgentRuntime } from '../../src/ai/execution/agent-runtime';
+import { AgentRunner } from '../../src/ai/execution/agent-runner.service';
 import {
   OUTBOX_EVENT_ROUTES,
   OutboxRepository,
@@ -25,7 +25,7 @@ import { PrismaService } from '../../src/infrastructure/database';
 import {
   APPLICATION_MODEL_CATALOG,
   MODEL_IDS,
-} from '../../src/model-catalog/model-catalog';
+} from '../../src/ai/models/model-catalog';
 import {
   activateTestAgentVersion,
   cleanTestAgentInstallations,
@@ -103,7 +103,7 @@ describe('AgentRun foundation (e2e)', () => {
     const runner = new AgentRunner(
       testAgentRegistry(),
       { resolve: () => runtime } as never,
-      { assemble: () => Promise.resolve([]) } as never,
+      { assemble: () => Promise.resolve([]) },
       service,
       { authorize: () => [] } as never,
     );

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
-import type { AgentDefinition } from '../../src/agents/agent.types';
+import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../src/ai/agents/agent.types';
 import type { PrismaService } from '../../src/infrastructure/database';
-import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
+import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 
 export const TEST_AGENT_ID = 'test-only-agent';
 

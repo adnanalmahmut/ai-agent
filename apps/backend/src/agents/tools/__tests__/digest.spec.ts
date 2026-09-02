@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { digestStrings, digestValue } from '../digest';
+import { digestStrings, digestValue } from '../../../ai/tools/digest';
 
 describe('digestValue', () => {
   it('is stable across key order', () => {

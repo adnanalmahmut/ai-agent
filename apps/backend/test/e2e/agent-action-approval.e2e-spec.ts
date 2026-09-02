@@ -4,9 +4,9 @@ import { createHash } from 'node:crypto';
 import { Client } from 'pg';
 import { z } from 'zod';
 
-import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
+import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
 import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
-import type { AgentDefinition } from '../../src/agents/agent.types';
+import type { AgentDefinition } from '../../src/ai/agents/agent.types';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
 import { NotificationSendTool } from '../../src/agents/tools/notification-send.tool';
 import {
@@ -15,18 +15,18 @@ import {
   SideEffectExecutionHandler,
   type SideEffectExecutionJob,
 } from '../../src/agents/tools/side-effect-execution.handler';
-import { ToolExecutionService } from '../../src/agents/tools/tool-execution.service';
+import { ToolExecutionService } from '../../src/ai/tools/tool-execution.service';
 import {
   ToolExecutionFailure,
   ToolGateway,
-} from '../../src/agents/tools/tool.gateway';
-import { ToolRegistry } from '../../src/agents/tools/tool.registry';
+} from '../../src/ai/tools/tool.gateway';
+import { ToolRegistry } from '../../src/ai/tools/tool.registry';
 import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
 } from '../../src/infrastructure/mail/notification-delivery';
-import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
+import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 import {
   as,
   createHarness,

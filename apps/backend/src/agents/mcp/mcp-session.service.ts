@@ -6,18 +6,18 @@ import { createHash } from 'node:crypto';
 import { authConfig } from '../../infrastructure/config';
 import { RuntimeConfigResolver } from '../../control-plane';
 import { AppException } from '../../core/errors';
-import { AgentConfigurationError } from '../agent-configuration.error';
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
-import { AgentRunService } from '../agent-run.service';
+import { AgentConfigurationError } from '../../ai/agents/agent-configuration.error';
+import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
+import { AgentRunService } from '../../ai/execution/agent-run.service';
 import {
   AGENT_RUN_DRIVERS,
   isMcpSessionExpired,
   MCP_SESSION_TTL_MS,
   type AgentRuntimeTool,
   type AgentValue,
-} from '../agent.types';
-import { ToolExecutionService } from '../tools/tool-execution.service';
-import { ToolExecutionFailure, ToolGateway } from '../tools/tool.gateway';
+} from '../../ai/agents/agent.types';
+import { ToolExecutionService } from '../../ai/tools/tool-execution.service';
+import { ToolExecutionFailure, ToolGateway } from '../../ai/tools/tool.gateway';
 import {
   MCP_EXCHANGE_DEADLINE_MS,
   MCP_FORWARDED_HEADERS,

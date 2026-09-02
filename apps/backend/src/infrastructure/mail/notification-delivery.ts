@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 
+import type { ExternalEffectOutcome } from '../../core/external-effect';
 import { mailConfig } from '../config';
 import { LogNotificationDelivery } from './log-notification.delivery';
 import { formatSender } from './mail-transport';
@@ -49,10 +50,7 @@ export type NotificationMessage = {
  * that threw would put that one `catch` away from a log line. Nothing about
  * the provider's response but its classification crosses this boundary.
  */
-export type ExternalEffectOutcome =
-  | { kind: 'accepted'; providerMessageId: string }
-  | { kind: 'rejected' }
-  | { kind: 'unavailable' };
+export type { ExternalEffectOutcome } from '../../core/external-effect';
 
 export interface NotificationDelivery {
   /**

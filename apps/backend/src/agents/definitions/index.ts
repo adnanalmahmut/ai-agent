@@ -1,4 +1,4 @@
-import type { AgentDefinition } from '../agent.types';
+import type { AgentDefinition } from '../../ai/agents/agent.types';
 import { contentIdeaAgent } from './content-idea';
 
 /**

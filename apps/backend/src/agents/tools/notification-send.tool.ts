@@ -5,8 +5,8 @@ import {
   type NotificationDelivery,
 } from '../../infrastructure/mail/notification-delivery';
 import { PrismaService } from '../../infrastructure/database';
-import type { AgentValue } from '../agent.types';
-import { digestStrings } from './digest';
+import type { AgentValue } from '../../ai/agents/agent.types';
+import { digestStrings } from '../../ai/tools/digest';
 import {
   notificationSendInput,
   type NotificationSendInput,
@@ -17,7 +17,7 @@ import {
   type SideEffectToolImplementation,
   type ToolInvocationContext,
   type ToolRef,
-} from './tool.types';
+} from '../../ai/tools/tool.types';
 
 /**
  * `notification.send@1`: one email to one member of the caller's own

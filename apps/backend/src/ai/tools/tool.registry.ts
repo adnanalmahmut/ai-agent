@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { RUNTIME_TOOL_NAME_PATTERN } from '../agent.types';
+import { RUNTIME_TOOL_NAME_PATTERN } from '../agents/agent.types';
 import {
   TOOL_REFS,
   TOOL_RISKS,

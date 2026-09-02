@@ -2,7 +2,7 @@ import type { ConfigType } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { Logger, PinoLogger } from 'nestjs-pino';
 
-import { AgentRunReconciler } from './agents/agent-run-reconciler.service';
+import { AgentRunReconciler } from './ai/execution/agent-run-reconciler.service';
 import { appConfig, queueConfig } from './infrastructure/config';
 import {
   ProcessReadiness,

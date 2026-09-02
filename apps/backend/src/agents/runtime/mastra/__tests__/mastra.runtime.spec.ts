@@ -8,7 +8,7 @@ import {
 } from '@jest/globals';
 import { z } from 'zod';
 
-import { MODEL_IDS } from '../../../../model-catalog/model-catalog';
+import { MODEL_IDS } from '../../../../ai/models/model-catalog';
 
 /**
  * Mocks `@mastra/core/agent` wholesale to test the adapter's input/output
@@ -34,10 +34,11 @@ const Agent = jest.fn<
 
 jest.unstable_mockModule('@mastra/core/agent', () => ({ Agent }));
 
-let MastraRuntime: typeof import('../mastra.runtime').MastraRuntime;
+let MastraRuntime: typeof import('../../../../ai/infrastructure/runtimes/mastra/mastra.runtime').MastraRuntime;
 
 beforeAll(async () => {
-  ({ MastraRuntime } = await import('../mastra.runtime'));
+  ({ MastraRuntime } =
+    await import('../../../../ai/infrastructure/runtimes/mastra/mastra.runtime'));
 });
 
 beforeEach(() => {
@@ -132,7 +133,7 @@ describe('MastraRuntime', () => {
    */
   it('refuses a model outside the application catalog', async () => {
     const { AgentConfigurationError } =
-      await import('../../../agent-configuration.error');
+      await import('../../../../ai/agents/agent-configuration.error');
     const runtime = new MastraRuntime(runtimeConfig());
 
     const refusal = runtime.run({
@@ -198,7 +199,7 @@ describe('MastraRuntime', () => {
         secret: jest.fn<() => Promise<string>>(() =>
           Promise.reject<string>(thrown),
         ),
-      } as never);
+      });
 
     it('reports the provider as unavailable, quoting nothing from the cause', async () => {
       const runtime = runtimeFailing(

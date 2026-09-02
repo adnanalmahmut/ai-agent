@@ -6,7 +6,11 @@ import {
   KnowledgeSpaceService,
   type EmbeddingPort,
 } from '../knowledge';
-import type { AgentContextPassage, ContextPolicy } from './agent.types';
+import type { AgentContextPort } from '../ai/execution/agent-context.port';
+import type {
+  AgentContextPassage,
+  ContextPolicy,
+} from '../ai/agents/agent.types';
 
 /**
  * Choosing what an agent is allowed to see, in the application.
@@ -23,7 +27,7 @@ import type { AgentContextPassage, ContextPolicy } from './agent.types';
  * resolves to nothing rather than to their material.
  */
 @Injectable()
-export class AgentContextAssembler {
+export class AgentContextAssembler implements AgentContextPort {
   constructor(
     private readonly spaces: KnowledgeSpaceService,
     private readonly retrieval: KnowledgeRetrievalService,

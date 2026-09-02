@@ -5,7 +5,7 @@ import { AppException } from '../../core/errors';
 import {
   APPLICATION_MODEL_CATALOG,
   MODEL_IDS,
-} from '../../model-catalog/model-catalog';
+} from '../../ai/models/model-catalog';
 import { EMBEDDING_DIMENSIONS, type EmbeddingVector } from '../knowledge.types';
 import type { EmbeddingPort } from '../ports/embedding.port';
 

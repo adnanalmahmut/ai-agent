@@ -6,7 +6,10 @@ import { PrismaService } from '../../infrastructure/database';
 import type { Prisma } from '../../generated/prisma/client';
 import { OrganizationAuditService } from '../../organization-audit';
 import { notificationSendInput } from '../tools/definitions/notification-send';
-import { TOOL_FAILURE_CODES, type ToolFailureCode } from '../tools/tool.types';
+import {
+  TOOL_FAILURE_CODES,
+  type ToolFailureCode,
+} from '../../ai/tools/tool.types';
 import {
   beforePosition,
   decodeCursor,

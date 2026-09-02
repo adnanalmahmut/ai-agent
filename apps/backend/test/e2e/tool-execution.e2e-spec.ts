@@ -10,26 +10,26 @@ import { inspect } from 'node:util';
 import { Client } from 'pg';
 import { z } from 'zod';
 
-import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
-import { AgentRunner } from '../../src/agents/agent-runner.service';
-import { AgentRunService } from '../../src/agents/agent-run.service';
+import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
+import { AgentRunner } from '../../src/ai/execution/agent-runner.service';
+import { AgentRunService } from '../../src/ai/execution/agent-run.service';
 import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
 import type {
   AgentDefinition,
   AgentRuntimeTool,
-} from '../../src/agents/agent.types';
+} from '../../src/ai/agents/agent.types';
 import {
   ToolExecutionService,
   ToolExecutionTransitionError,
-} from '../../src/agents/tools/tool-execution.service';
+} from '../../src/ai/tools/tool-execution.service';
 import {
   ToolExecutionFailure,
   ToolGateway,
-} from '../../src/agents/tools/tool.gateway';
-import { ToolRegistry } from '../../src/agents/tools/tool.registry';
+} from '../../src/ai/tools/tool.gateway';
+import { ToolRegistry } from '../../src/ai/tools/tool.registry';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
-import type { ToolImplementation } from '../../src/agents/tools/tool.types';
-import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
+import type { ToolImplementation } from '../../src/ai/tools/tool.types';
+import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 import {
   as,
   createHarness,
@@ -129,7 +129,7 @@ describe('governed tool execution', () => {
     new AgentRunner(
       new AgentDefinitionRegistry(TOOL_AGENT_DEFINITIONS),
       callingRuntime(calls) as never,
-      { assemble: () => Promise.resolve([]) } as never,
+      { assemble: () => Promise.resolve([]) },
       runs,
       gateway(),
     );

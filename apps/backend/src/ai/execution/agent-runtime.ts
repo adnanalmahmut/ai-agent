@@ -2,7 +2,7 @@ import type {
   AgentRuntimeName,
   AgentRuntimeRequest,
   AgentRuntimeResult,
-} from './agent.types';
+} from '../agents/agent.types';
 
 /** Replaceable execution boundary owned by the application, not an SDK. */
 export interface AgentRuntime {

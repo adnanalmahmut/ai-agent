@@ -3,8 +3,11 @@ import { Client } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 
-import type { AgentRuntimeTool, AgentValue } from '../../agent.types';
-import { ToolExecutionFailure } from '../../tools/tool.gateway';
+import type {
+  AgentRuntimeTool,
+  AgentValue,
+} from '../../../ai/agents/agent.types';
+import { ToolExecutionFailure } from '../../../ai/tools/tool.gateway';
 import {
   createGovernedMcpServer,
   MCP_TOOL_UNAVAILABLE,

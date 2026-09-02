@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import {
   APPLICATION_MODEL_CATALOG,
   MODEL_IDS,
-} from '../../model-catalog/model-catalog';
+} from '../../ai/models/model-catalog';
 import {
   EMBEDDING_MODEL,
   OpenAiEmbeddingAdapter,

@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '../tool.types';
+import type { ToolDefinition } from '../../../ai/tools/tool.types';
 import { knowledgeSearchTool } from './knowledge-search';
 import { notificationSendTool } from './notification-send';
 

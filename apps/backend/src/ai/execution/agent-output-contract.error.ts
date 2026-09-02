@@ -1,4 +1,4 @@
-import type { AgentOutputContractViolation } from './agent.types';
+import type { AgentOutputContractViolation } from '../agents/agent.types';
 
 /**
  * A provider answer that parsed and still failed the promise made about it.

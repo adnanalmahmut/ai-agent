@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/server';
 
-import type { AgentRuntimeTool, AgentValue } from '../agent.types';
-import { ToolExecutionFailure } from '../tools/tool.gateway';
+import type { AgentRuntimeTool, AgentValue } from '../../ai/agents/agent.types';
+import { ToolExecutionFailure } from '../../ai/tools/tool.gateway';
 
 /** What the server calls itself over the protocol. */
 export const MCP_SERVER_NAME = 'ai-agent-platform';

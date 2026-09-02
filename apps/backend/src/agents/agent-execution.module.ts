@@ -1,16 +1,20 @@
 import { Module } from '@nestjs/common';
 
-import { QueueModule } from '../infrastructure/queue';
-import { ControlPlaneCoreModule } from '../control-plane';
+import {
+  ControlPlaneCoreModule,
+  RuntimeConfigResolver,
+} from '../control-plane';
+import { AI_RUNTIME_CONFIG } from '../ai/infrastructure/runtime-config.port';
+import { MastraRuntime } from '../ai/infrastructure/runtimes/mastra/mastra.runtime';
+import { AgentRunReconciler } from '../ai/execution/agent-run-reconciler.service';
+import { AgentRunner } from '../ai/execution/agent-runner.service';
+import { AgentRuntimeRegistry } from '../ai/execution/agent-runtime.registry';
 import { DatabaseModule } from '../infrastructure/database';
+import { QueueModule } from '../infrastructure/queue';
 import { KnowledgeCoreModule } from '../knowledge';
 import { AgentDefinitionsModule } from './agent-definitions.module';
 import { AgentExecutionHandler } from './agent-execution.handler';
-import { AgentRunReconciler } from './agent-run-reconciler.service';
-import { AgentRunner } from './agent-runner.service';
-import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import { AgentsModule } from './agents.module';
-import { MastraRuntime } from './runtime/mastra/mastra.runtime';
 import { AgentToolsModule } from './tools/agent-tools.module';
 
 /**
@@ -45,6 +49,7 @@ import { AgentToolsModule } from './tools/agent-tools.module';
     AgentToolsModule,
   ],
   providers: [
+    { provide: AI_RUNTIME_CONFIG, useExisting: RuntimeConfigResolver },
     MastraRuntime,
     AgentRuntimeRegistry,
     AgentRunner,

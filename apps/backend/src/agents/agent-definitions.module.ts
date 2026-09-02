@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import {
   AGENT_DEFINITIONS,
   AgentDefinitionRegistry,
-} from './agent-definition.registry';
+} from '../ai/agents/agent-definition.registry';
 import { PRODUCTION_AGENT_DEFINITIONS } from './definitions';
 
 /** Code-owned definitions shared by API orchestration and worker execution. */

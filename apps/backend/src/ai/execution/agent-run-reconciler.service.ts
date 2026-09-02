@@ -2,10 +2,13 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 
-import { agentsConfig } from '../infrastructure/config';
-import { QUEUE_NAMES, QueueProducer } from '../infrastructure/queue';
+import { agentsConfig } from '../../infrastructure/config';
+import { QUEUE_NAMES, QueueProducer } from '../../infrastructure/queue';
+import {
+  isMcpSessionExpired,
+  MCP_SESSION_RUNTIME,
+} from '../agents/agent.types';
 import { AgentRunService, type StaleRunCursor } from './agent-run.service';
-import { isMcpSessionExpired, MCP_SESSION_RUNTIME } from './agent.types';
 
 /** How many stranded run ids one summary line names before it stops. */
 const MISSING_SAMPLE_SIZE = 5;

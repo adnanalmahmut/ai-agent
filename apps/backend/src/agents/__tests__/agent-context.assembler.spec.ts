@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 
 import { AgentContextAssembler } from '../agent-context.assembler';
-import type { ContextPolicy } from '../agent.types';
+import type { ContextPolicy } from '../../ai/agents/agent.types';
 
 /**
  * What an agent is allowed to be given.

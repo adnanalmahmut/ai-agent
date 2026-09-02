@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
 import { AgentContextAssembler } from '../agent-context.assembler';
-import type { AgentValue } from '../agent.types';
+import type { AgentValue } from '../../ai/agents/agent.types';
 import { knowledgeSearchInput } from './definitions/knowledge-search';
 import type {
   ToolImplementation,
   ToolInvocationContext,
   ToolRef,
-} from './tool.types';
+} from '../../ai/tools/tool.types';
 
 /**
  * `knowledge.search@1`, over the Knowledge path the application already owns.
