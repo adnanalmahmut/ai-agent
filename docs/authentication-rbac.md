@@ -11,9 +11,10 @@ There are two deliberately separate access-control domains:
 | Domain | Roles | Authority |
 |---|---|---|
 | Platform | `user`, `admin`, `super_admin` | account/session administration and platform lifecycle |
-| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore, knowledge read/write, content-idea create/read, content-project create/read, agent-action-approval read/decide |
+| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore, knowledge read/write, content-idea create/read, content-project create/read, agent-action-approval read/decide, MCP session create |
 
-`knowledge`, `contentIdea`, `contentProject`, and `agentActionApproval` are the
+`knowledge`, `contentIdea`, `contentProject`, `agentActionApproval`, and
+`mcpSession` are the
 organization resources Better Auth knows nothing about, so they are added rather
 than narrowed. Reading
 is ordinary membership — a member
@@ -28,7 +29,17 @@ reason of the four: `decide` lets a message an agent wrote leave this system in
 the organization's name, so it belongs to `admin` and `owner`, while `read` —
 seeing what is waiting — is membership.
 
-All four are enforced by one shared guard that runs before body validation and
+`mcpSession` has one verb and is not split, because there is nothing here for a
+member to read: opening a session hands an external client the tools this
+organization granted an installed agent, which is administration, and what a
+session *did* is recorded as `ToolExecution` rows and approvals that
+`agentActionApproval:read` already governs. The permission is also necessary
+rather than sufficient. Every session route additionally requires the caller to
+be the member who opened that session: a role answers "may this person open
+sessions here", not "is this person's session", so knowing an id — or being
+another admin — manufactures no authority.
+
+All five are enforced by one shared guard that runs before body validation and
 authorizes against the organization named in the path, not the session's active
 one. One guard rather than one per feature — a second copy of that reasoning is
 a second place for it to be got subtly wrong.

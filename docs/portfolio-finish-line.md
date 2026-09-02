@@ -107,7 +107,7 @@ The project is **feature complete** when all of the following hold:
 - [x] Retry without duplicate external effect
 - [x] One Human Approval flow
 - [x] Preconditions revalidated before execution
-- [ ] MCP adapter through the same application Tool Gateway
+- [x] MCP adapter through the same application Tool Gateway
 - [ ] Lightweight execution visibility
 - [ ] One realistic integrated vertical slice
 - [ ] Current architecture, docs, and demo
@@ -143,11 +143,20 @@ immediately before the provider call, a stable provider idempotency key derived
 from the execution, and an honest `OUTCOME_UNKNOWN` for a lost response. See
 [the backend's human-approval section](backend.md#human-approval-and-the-idempotent-side-effect).
 
-### MCP-01 — MCP adapter over the Tool Gateway
+### MCP-01 — MCP adapter over the Tool Gateway — implemented
 
 Model Context Protocol as an adapter behind the existing application Tool
 Gateway, subject to the same governance, grants, and approval controls. MCP is
 an adapter, not a second backend.
+
+Delivered as an adapter over `ToolGateway` with no second registry, grant model,
+`ToolExecution` writer, or approval path, and no new credential system: the
+endpoint uses the application's existing authenticated session, which the
+current specification permits because authorization is `OPTIONAL`. A session is
+an `AgentRun` whose runtime the executable-runtime registry cannot resolve, so
+the worker can never run one. `notification.send@1` through MCP can only be
+proposed; a person still decides. See
+[the backend's MCP section](backend.md#mcp-as-an-adapter-over-the-same-gateway).
 
 ### DEMO-01 — Integrated vertical slice and execution inspector
 

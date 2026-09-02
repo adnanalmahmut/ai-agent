@@ -94,7 +94,14 @@ bypass for hypothetical future retention.
 work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,
 `FAILED`) and separate from outbox delivery and BullMQ job state. Runtime is a
 string because application code owns runtime support; adding a runtime does not
-inherently require a database enum migration. Request idempotency is enforced
+inherently require a database enum migration. That column is also what
+distinguishes an MCP session from work a worker executes: a session carries
+`mcp`, a value deliberately absent from the executable-runtime constant, so the
+runtime registry cannot resolve it and the worker cannot run one. A session is
+otherwise an ordinary run — same pinning, same idempotency, same tenant keys —
+which is why it needs no table and no column of its own, and why its tool calls
+satisfy the `(agentRunId, organizationId)` foreign key that is the tenant
+boundary for `tool_execution`. Request idempotency is enforced
 by `UNIQUE (organizationId, idempotencyKey)`, while the run id used as BullMQ's
 job id is only short-lived transport deduplication. The organization foreign key
 restricts deletion so execution history cannot be silently removed, and the
