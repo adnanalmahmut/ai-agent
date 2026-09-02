@@ -40,7 +40,7 @@ WORKDIR /app
 COPY --from=build --chown=node:node /out/backend ./
 USER node
 EXPOSE 3002
-CMD ["node", "dist/src/main"]
+CMD ["node", "dist/src/api/main"]
 
 FROM build AS migration
 
