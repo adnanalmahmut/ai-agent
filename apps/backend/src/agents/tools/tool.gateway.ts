@@ -59,6 +59,15 @@ import {
  * that bare rendering says something true — and not, as it first appears,
  * because the serializer reads it.
  *
+ * The sentence names the tool by its audited `runtimeName`, not by the durable
+ * `id@version`. This is the one string in the failure the model actually reads,
+ * and `knowledge_search_v1` is the only name it was ever offered — telling it
+ * that `knowledge.search@1` failed would name a tool it has no record of. The
+ * durable identity belongs to the `ToolExecution` row, which records `toolId`
+ * and `toolVersion` as columns; it is not secret, and showing it here would
+ * have been harmless, but it would also have been the one place the boundary
+ * `ToolDefinition.runtimeName` exists to draw is crossed for no reason.
+ *
  * Losing the stack costs no diagnosis. This value is caught by the SDK one
  * frame above where it is thrown and never reaches application error handling,
  * and the durable `ToolExecution` row — not the run's outcome, and not this
@@ -329,7 +338,9 @@ export class ToolGateway {
        * uncontained it would be serialized into the transcript and sent to the
        * provider on the next step, so nothing may pass but this sentence.
        */
-      throw new ToolExecutionFailure(`Tool "${ref}" could not be completed`);
+      throw new ToolExecutionFailure(
+        `Tool "${definition.runtimeName}" could not be completed`,
+      );
     }
   }
 
@@ -350,12 +361,14 @@ export class ToolGateway {
      * revoked a grant mid-attempt, would otherwise find no second gate.
      */
     if (!authorized.has(ref)) {
-      throw new ToolExecutionFailure(`Tool "${ref}" is not authorized`);
+      throw new ToolExecutionFailure(
+        `Tool "${definition.runtimeName}" is not authorized`,
+      );
     }
 
     if (budget.remaining <= 0) {
       throw new ToolExecutionFailure(
-        `Tool "${ref}" exceeded this attempt's tool-call budget`,
+        `Tool "${definition.runtimeName}" exceeded this attempt's tool-call budget`,
       );
     }
     budget.remaining -= 1;
@@ -376,7 +389,9 @@ export class ToolGateway {
     if (!parsedInput.success) {
       // No `ToolExecution` row: this was never permitted to run, and a refused
       // call must not be indistinguishable from a failed one in history.
-      throw new ToolExecutionFailure(`Tool "${ref}" received invalid input`);
+      throw new ToolExecutionFailure(
+        `Tool "${definition.runtimeName}" received invalid input`,
+      );
     }
 
     const implementation = this.implementations.get(ref);
@@ -413,7 +428,7 @@ export class ToolGateway {
         'implementation_error',
       );
 
-      throw new ToolExecutionFailure(`Tool "${ref}" failed`);
+      throw new ToolExecutionFailure(`Tool "${definition.runtimeName}" failed`);
     }
 
     /**
@@ -437,7 +452,7 @@ export class ToolGateway {
       );
 
       throw new ToolExecutionFailure(
-        `Tool "${ref}" returned a result its schema refuses`,
+        `Tool "${definition.runtimeName}" returned a result its schema refuses`,
       );
     }
 

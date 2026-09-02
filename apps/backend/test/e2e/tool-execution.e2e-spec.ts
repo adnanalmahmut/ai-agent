@@ -860,7 +860,7 @@ describe('governed tool execution', () => {
       expect(failure).toBeInstanceOf(ToolExecutionFailure);
       // The gateway's constant, not the service's message and not Prisma's.
       expect((failure as Error).message).toBe(
-        'Tool "knowledge.search@1" could not be completed',
+        'Tool "knowledge_search_v1" could not be completed',
       );
       expect((failure as Error).stack).toBeUndefined();
     });
@@ -901,7 +901,7 @@ describe('governed tool execution', () => {
 
       expect(failure).toBeInstanceOf(ToolExecutionFailure);
       expect(failure.message).toBe(
-        'Tool "knowledge.search@1" could not be completed',
+        'Tool "knowledge_search_v1" could not be completed',
       );
       expect(failure.stack).toBeUndefined();
 

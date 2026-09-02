@@ -243,8 +243,29 @@ anything a driver or implementation raised would otherwise be transmitted
 verbatim and Pino's redaction is nowhere near that path. The type additionally
 carries no stack, because the wrapper keeps it reachable as `cause` and a stack
 there would put this repository's source paths on every consumer of the failure.
-Both halves are asserted against the real SDK rather than argued. The durable
-`ToolExecution` row, not the transcript, is the authority on what happened.
+Both halves are asserted against the real SDK rather than argued. The sentence
+names the tool by its audited `runtimeName`, which is the only name the model
+was offered; the durable `id@version` stays in the `ToolExecution` row, which is
+the authority on what happened.
+
+The reverse direction — what a tool *call* can put in this application's logs —
+needs a dependency patch, and it is the only one in the repository.
+`@mastra/core`'s AI-SDK-to-Mastra chunk transform parses the model's tool-call
+argument string, and when both `JSON.parse` and its repair pass fail it calls
+`console.error` directly with the raw string. That call takes no logger and
+nothing gates it, so the adapter's logger containment cannot reach it and Pino
+never sees it to redact it. The argument is model-generated text composed after
+the model was shown the organization's knowledge passages, and reaching the
+branch needs no adversary: the repair pass cannot close a string truncated by
+`maxOutputTokens`. Before this build had tools the line was unreachable.
+
+No supported option, hook or newer release avoids it — the emission is
+unconditional and identical in 1.63.2, the newest release at the time of
+writing. `patches/@mastra__core@1.61.0.patch` therefore replaces that one
+emission, in the ESM and CJS bundles, with a bounded constant carrying no value.
+It changes nothing else, and `pnpm` refuses to install when a patch no longer
+matches its pinned version, so an upgrade cannot silently drop it. A real-SDK
+regression asserts the malformed argument reaches no console sink.
 
 Retrieved passages travel to the runtime separately from the input and are
 rendered into the *user* message, fenced and labelled as quoted material. They

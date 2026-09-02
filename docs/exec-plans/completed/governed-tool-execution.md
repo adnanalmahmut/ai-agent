@@ -108,6 +108,10 @@ needs no new snapshot: the authority is already durable and already immutable.
       that requires exactly one row, and fails closed when none transitions
 - [x] A failed tool transmits nothing to the provider but the application's own
       sentence, proven against the real installed SDK
+- [x] A malformed or truncated tool argument reaches no console sink, proven
+      against the real installed SDK
+- [x] Provider-facing failure prose names the audited `runtimeName`, not the
+      durable identity
 
 ## Validation
 
@@ -183,6 +187,16 @@ keeping the original as `cause`; `serializeToolError` builds
 `{ name, message, stack, ...own enumerable properties }` from that wrapper; and
 `createToolModelOutput` renders the result to the model — as the message alone
 for an application-executed tool, as the object for a `providerExecuted` one.
+
+A fourth fact closed the remaining gap, and it runs the other way. Mastra's
+chunk transform calls `console.error` with the model's raw tool-call argument
+string when that string is unparseable and unrepairable — bypassing the
+adapter's logger containment and Pino's redaction, and reachable through
+ordinary `maxOutputTokens` truncation rather than through an attack. Tool
+arguments are model-generated from tenant input and retrieved passages, so this
+is tenant material in container logs. The emission is unconditional, has no
+hook, and is unchanged in the newest release, so a pinned pnpm patch replaces
+that one line with a bounded constant.
 
 The wrapper is why the containment type controls less than it appears to: the
 serialized `name` and own properties are the wrapper's whatever the thrown class

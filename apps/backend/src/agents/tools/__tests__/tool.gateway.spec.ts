@@ -273,7 +273,7 @@ describe('ToolGateway execution', () => {
     const secret = 'postgres://user:hunter2@db/app';
 
     await expect(run(() => Promise.reject(new Error(secret)))).rejects.toThrow(
-      'Tool "knowledge.search@1" failed',
+      'Tool "knowledge_search_v1" failed',
     );
 
     expect(durable.fail).toHaveBeenCalledWith(
@@ -587,7 +587,7 @@ describe('ToolGateway when a terminal write refuses', () => {
     )) as Error;
 
     expect(failure.message).toBe(
-      'Tool "knowledge.search@1" could not be completed',
+      'Tool "knowledge_search_v1" could not be completed',
     );
     expect(failure.stack).toBeUndefined();
     expect(Object.keys(failure)).toEqual([]);
