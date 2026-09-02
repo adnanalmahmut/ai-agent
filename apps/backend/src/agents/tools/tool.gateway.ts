@@ -17,27 +17,90 @@ import {
 } from './tool.types';
 
 /**
- * The only thing allowed to leave a tool call. Carries no cause.
+ * The only thing allowed to leave a tool call. Carries no cause and no stack.
  *
  * This is a containment type, not a control-flow one, because a thrown tool
  * error does not end the run. Mastra catches everything a tool throws except
- * its own `FGADeniedError` and turns it into a tool *result*: it serializes the
- * error's name, message, stack and own enumerable properties into the
- * transcript and hands that back to the model, which then keeps going. So an
- * error raised in here is not a failure signal travelling up to
- * `AgentExecutionHandler` — it is a string this application is about to send to
+ * its own `FGADeniedError` and turns it into a tool *result*, so an error
+ * raised in here is not a failure signal travelling up to
+ * `AgentExecutionHandler` — it is a value this application is about to send to
  * a provider.
  *
- * That is why the message is a constant naming only the tool. Anything a driver
- * or an implementation threw — a query, a payload, a connection string, a stack
- * — would otherwise be transmitted, and Pino's redaction is nowhere near this
- * path.
+ * The installed `@mastra/core@1.61.0` handles it in two stages, and both are
+ * why this class is shaped the way it is:
  *
- * The durable `ToolExecution` row is therefore the authority on what happened,
- * not the run's outcome. A run whose tool failed can still succeed, and its
- * history will say a tool call failed inside it.
+ * 1. The tool-call step catches the throw and calls `serializeToolError`,
+ *    which builds `{ name, message, stack, ...own enumerable properties }`.
+ *    That object — stack included — is the failure representation that travels
+ *    through the workflow result, the `tool-error` chunk, `onChunk`, and
+ *    anything that persists a message list.
+ * 2. Rendering that to the model goes through `createToolModelOutput`. For an
+ *    application-executed tool the mode is `"text"`, so the provider receives
+ *    `{ type: 'error-text', value: error.message }` — the message and nothing
+ *    else. The sibling `"json"` mode, which emits `toJSONValue(error)`, is
+ *    reached only by `providerExecuted` tools, which this build never
+ *    registers.
+ *
+ * So a constant message would already bound stage 2 today. It would not bound
+ * stage 1, and it would depend on the SDK continuing to pick `"text"` — a
+ * choice made by a runtime literal this repository does not own. Rather than
+ * assert that the replacement stack is harmless, the object is made to have
+ * nothing to leak:
+ *
+ * - `message` is a constant naming only the tool. Anything a driver or an
+ *   implementation threw — a query, a payload, a connection string — would
+ *   otherwise be transmitted verbatim, and Pino's redaction is nowhere near
+ *   this path.
+ * - `name` is pinned to a bounded application constant. Left alone it would
+ *   inherit `'Error'`, which is harmless but is also the field `"json"` mode
+ *   actually emits.
+ * - `stack` is discarded, so stage 1 has no file paths, no `node_modules`
+ *   frames, and no repository layout to copy, and stage 2 cannot start
+ *   reporting one if a future SDK switches modes.
+ *
+ * No own enumerable property is ever set on an instance, so the spread in
+ * `serializeToolError` contributes nothing.
+ *
+ * Losing the stack costs no diagnosis. This value is caught by the SDK one
+ * frame above where it is thrown and never reaches application error handling,
+ * and the durable `ToolExecution` row — not the run's outcome, and not this
+ * object — is the authority on what happened. A run whose tool failed can
+ * still succeed, and its history will say a tool call failed inside it.
  */
-export class ToolExecutionFailure extends Error {}
+export class ToolExecutionFailure extends Error {
+  constructor(message: string) {
+    super(message);
+
+    /**
+     * Set rather than left to the prototype: `class X extends Error` does not
+     * set `name`, so an instance reports `'Error'`.
+     *
+     * `defineProperty` rather than assignment, because assignment would create
+     * an own *enumerable* `name` and the whole point of this constructor is
+     * that the instance has no own enumerable property at all. `Error.prototype`
+     * declares `name` non-enumerable and this matches it, which also keeps
+     * `JSON.stringify` of the value at `{}`.
+     */
+    Object.defineProperty(this, 'name', {
+      value: 'ToolExecutionFailure',
+      enumerable: false,
+      writable: true,
+      configurable: true,
+    });
+
+    /**
+     * Removes the frames `Error` captured in `super()`.
+     *
+     * `delete` rather than assigning `undefined`, so the own property V8
+     * installs is gone rather than present and empty. `serializeToolError`
+     * reads `error.stack` and would see `undefined` either way; the difference
+     * is that anything enumerating or copying own properties — a structured
+     * clone, a spread, a serializer that walks `Object.getOwnPropertyNames` —
+     * finds no `stack` to carry at all.
+     */
+    delete this.stack;
+  }
+}
 
 export const TOOL_IMPLEMENTATIONS = Symbol('TOOL_IMPLEMENTATIONS');
 
