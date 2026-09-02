@@ -6,6 +6,7 @@ import {
   expect,
   it,
 } from '@jest/globals';
+import { inspect } from 'node:util';
 import { Client } from 'pg';
 import { z } from 'zod';
 
@@ -17,8 +18,14 @@ import type {
   AgentDefinition,
   AgentRuntimeTool,
 } from '../../src/agents/agent.types';
-import { ToolExecutionService } from '../../src/agents/tools/tool-execution.service';
-import { ToolGateway } from '../../src/agents/tools/tool.gateway';
+import {
+  ToolExecutionService,
+  ToolExecutionTransitionError,
+} from '../../src/agents/tools/tool-execution.service';
+import {
+  ToolExecutionFailure,
+  ToolGateway,
+} from '../../src/agents/tools/tool.gateway';
 import { ToolRegistry } from '../../src/agents/tools/tool.registry';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
 import type { ToolImplementation } from '../../src/agents/tools/tool.types';
@@ -662,7 +669,14 @@ describe('governed tool execution', () => {
         input: { query: 'tone' },
       });
 
-      await durable.succeed(id, otherOrganizationId, { passages: [] });
+      /**
+       * Rejects rather than resolving. The tenant predicate always kept the
+       * row from changing, but a silent no-op made "wrote nothing" and "wrote
+       * the outcome" the same observation to the caller.
+       */
+      await expect(
+        durable.succeed(id, otherOrganizationId, { passages: [] }),
+      ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
 
       const row = await harness.prisma.toolExecution.findUniqueOrThrow({
         where: { id },
@@ -670,6 +684,236 @@ describe('governed tool execution', () => {
 
       expect(row.status).toBe('STARTED');
       expect(row.completedAt).toBeNull();
+    });
+  });
+
+  /**
+   * The lifecycle, enforced against PostgreSQL rather than described in a
+   * comment.
+   *
+   * `STARTED -> SUCCEEDED | FAILED` was always the documented shape, but the
+   * terminal writes matched on `{ id, organizationId }` and ignored
+   * `updateMany.count`, so nothing stopped a settled row from being rewritten
+   * and nothing distinguished a write that landed from one that matched no row
+   * at all. These run against the real database because the guarantee is the
+   * `WHERE` clause: a mocked Prisma would only be asserting the arguments this
+   * service passes, which is the part that was already right.
+   */
+  describe('terminal transitions', () => {
+    let transitionOrganizationId: string;
+    let transitionRunId: string;
+
+    beforeAll(async () => {
+      transitionOrganizationId = await createOrganization(
+        owner,
+        'tools-transitions',
+      );
+      const installed = await install(transitionOrganizationId, owner.id, [
+        REF,
+      ]);
+      const run = await acceptedRun({
+        organizationId: transitionOrganizationId,
+        organizationAgentVersionId: installed.activeVersionId,
+      });
+      transitionRunId = run.id;
+    });
+
+    const started = () =>
+      durable.start({
+        organizationId: transitionOrganizationId,
+        agentRunId: transitionRunId,
+        agentRunAttempt: 1,
+        toolId: 'knowledge.search',
+        toolVersion: 1,
+        input: { query: 'tone' },
+      });
+
+    const row = (id: string) =>
+      harness.prisma.toolExecution.findUniqueOrThrow({ where: { id } });
+
+    it('settles STARTED -> SUCCEEDED exactly once', async () => {
+      const id = await started();
+
+      await expect(
+        durable.succeed(id, transitionOrganizationId, { passages: [] }),
+      ).resolves.toBeUndefined();
+
+      const first = await row(id);
+
+      expect(first.status).toBe('SUCCEEDED');
+      expect(first.completedAt).not.toBeNull();
+
+      // The second attempt matches no STARTED row and must not rewrite the
+      // outcome, nor refresh `completedAt`.
+      await expect(
+        durable.succeed(id, transitionOrganizationId, {
+          passages: ['rewritten'],
+        }),
+      ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
+
+      const second = await row(id);
+
+      expect(second.status).toBe('SUCCEEDED');
+      expect(second.output).toEqual({ passages: [] });
+      expect(second.completedAt).toEqual(first.completedAt);
+    });
+
+    it('settles STARTED -> FAILED exactly once', async () => {
+      const id = await started();
+
+      await expect(
+        durable.fail(id, transitionOrganizationId, 'implementation_error'),
+      ).resolves.toBeUndefined();
+
+      const first = await row(id);
+
+      expect(first.status).toBe('FAILED');
+      expect(first.failureCode).toBe('implementation_error');
+
+      await expect(
+        durable.fail(id, transitionOrganizationId, 'output_rejected'),
+      ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
+
+      const second = await row(id);
+
+      expect(second.failureCode).toBe('implementation_error');
+      expect(second.completedAt).toEqual(first.completedAt);
+    });
+
+    it('will not turn a SUCCEEDED execution into a FAILED one', async () => {
+      const id = await started();
+      await durable.succeed(id, transitionOrganizationId, { passages: [] });
+
+      await expect(
+        durable.fail(id, transitionOrganizationId, 'implementation_error'),
+      ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
+
+      const settled = await row(id);
+
+      expect(settled.status).toBe('SUCCEEDED');
+      expect(settled.failureCode).toBeNull();
+    });
+
+    it('will not turn a FAILED execution into a SUCCEEDED one', async () => {
+      const id = await started();
+      await durable.fail(id, transitionOrganizationId, 'implementation_error');
+
+      await expect(
+        durable.succeed(id, transitionOrganizationId, { passages: [] }),
+      ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
+
+      const settled = await row(id);
+
+      expect(settled.status).toBe('FAILED');
+      expect(settled.output).toBeNull();
+    });
+
+    /** No row at all: the update matches nothing and must not resolve. */
+    it('refuses a terminal write for an execution that does not exist', async () => {
+      await expect(
+        durable.succeed(
+          '00000000-0000-4000-8000-000000000000',
+          transitionOrganizationId,
+          { passages: [] },
+        ),
+      ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
+    });
+
+    /**
+     * The consequence that matters, and the reason this is a required
+     * correction rather than tidiness.
+     *
+     * A terminal write matching zero rows used to resolve, so `ToolGateway`
+     * returned the tool's output to the model with no durable row claiming the
+     * call ever completed — the transcript and the history would disagree, and
+     * the history is the authority. Now the gateway fails closed, and the
+     * failure is contained on the way out like any other.
+     */
+    it('does not let the gateway answer when no row transitioned', async () => {
+      const id = await started();
+      // Settle it out from under the gateway, so its own `succeed` matches
+      // nothing — the same observation as a lost row or a crashed transition.
+      await durable.succeed(id, transitionOrganizationId, { passages: [] });
+
+      const stuck = new ToolExecutionService(harness.prisma);
+      const tools = new ToolGateway(
+        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+        {
+          start: () => Promise.resolve(id),
+          succeed: stuck.succeed.bind(stuck),
+          fail: stuck.fail.bind(stuck),
+        } as never,
+        [{ ref: REF, execute: succeeding }],
+      ).authorize({
+        definition: toolAgent(1, [REF]),
+        organizationId: transitionOrganizationId,
+        agentRunId: transitionRunId,
+        agentRunAttempt: 1,
+        grants: [REF],
+      });
+
+      const failure = await tools[0]?.execute({ query: 'tone' }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+
+      expect(failure).toBeInstanceOf(ToolExecutionFailure);
+      // The gateway's constant, not the service's message and not Prisma's.
+      expect((failure as Error).message).toBe(
+        'Tool "knowledge.search@1" could not be completed',
+      );
+      expect((failure as Error).stack).toBeUndefined();
+    });
+
+    /**
+     * The same path with a real driver rejection rather than a lost race, so
+     * the containment is proven against the message Prisma actually writes —
+     * which names the connection target and renders the invocation arguments.
+     */
+    it('lets no raw database error out through the tool result', async () => {
+      const exploding = {
+        start: () => Promise.resolve('execution-1'),
+        succeed: () =>
+          harness.prisma.toolExecution.create({
+            // Deliberately invalid: Prisma renders the arguments it was given,
+            // which at this point would be the tool's own values.
+            data: { organizationId: null } as never,
+          }),
+        fail: () => Promise.resolve(),
+      };
+
+      const tools = new ToolGateway(
+        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+        exploding as never,
+        [{ ref: REF, execute: succeeding }],
+      ).authorize({
+        definition: toolAgent(1, [REF]),
+        organizationId: transitionOrganizationId,
+        agentRunId: transitionRunId,
+        agentRunAttempt: 1,
+        grants: [REF],
+      });
+
+      const failure = (await tools[0]?.execute({ query: 'tone' }).then(
+        () => null,
+        (error: unknown) => error,
+      )) as Error;
+
+      expect(failure).toBeInstanceOf(ToolExecutionFailure);
+      expect(failure.message).toBe(
+        'Tool "knowledge.search@1" could not be completed',
+      );
+      expect(failure.stack).toBeUndefined();
+
+      const serialized = inspect(failure, {
+        depth: null,
+        maxStringLength: null,
+      });
+
+      expect(serialized).not.toContain('prisma');
+      expect(serialized).not.toContain('toolExecution');
+      expect(serialized).not.toContain('organizationId');
+      expect(Object.keys(failure)).toEqual([]);
     });
   });
 

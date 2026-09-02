@@ -508,3 +508,91 @@ describe('ToolGateway uses the parsed value', () => {
     );
   });
 });
+
+/**
+ * What the gateway does when the durable half refuses.
+ *
+ * The e2e suite proves the compare-and-set against PostgreSQL, which is where
+ * the guarantee actually lives. These cover the gateway's half of the contract
+ * — that a refused terminal write is never treated as a completed call — which
+ * needs no database and would otherwise only be exercised behind one.
+ */
+describe('ToolGateway when a terminal write refuses', () => {
+  const refusing = () =>
+    Promise.reject(new Error('ToolExecution "x" could not transition'));
+
+  it('does not return the output when the SUCCEEDED transition matched nothing', async () => {
+    const durable = executions();
+    durable.succeed.mockImplementation(refusing);
+    const gateway = new ToolGateway(
+      new ToolRegistry([toolDefinition()]),
+      durable as never,
+      [{ ref: REF, execute: () => Promise.resolve({ passages: ['a'] }) }],
+    );
+    const [tool] = authorizeOne(gateway);
+
+    /**
+     * The point of the whole correction. The implementation succeeded and its
+     * output parsed, so before this change the gateway returned it to the model
+     * while no durable row claimed the call had completed.
+     */
+    await expect(tool.execute({ query: 'refunds' })).rejects.toBeInstanceOf(
+      ToolExecutionFailure,
+    );
+    await expect(tool.execute({ query: 'refunds' })).rejects.toThrow(
+      'could not be completed',
+    );
+  });
+
+  it('still fails the call when the FAILED transition matched nothing', async () => {
+    const durable = executions();
+    durable.fail.mockImplementation(refusing);
+    const gateway = new ToolGateway(
+      new ToolRegistry([toolDefinition()]),
+      durable as never,
+      [{ ref: REF, execute: () => Promise.reject(new Error('driver')) }],
+    );
+    const [tool] = authorizeOne(gateway);
+
+    // Still contained, and still a failure: an unrecorded failure must not
+    // become a successful call either.
+    await expect(tool.execute({ query: 'refunds' })).rejects.toBeInstanceOf(
+      ToolExecutionFailure,
+    );
+  });
+
+  /** Nothing from the refusal reaches the value the SDK will serialize. */
+  it('contains the transition failure like any other', async () => {
+    const durable = executions();
+    durable.succeed.mockImplementation(() =>
+      Promise.reject(
+        Object.assign(
+          new Error('Invalid `prisma.toolExecution.updateMany()`'),
+          {
+            meta: { target: 'org_secret' },
+          },
+        ),
+      ),
+    );
+    const gateway = new ToolGateway(
+      new ToolRegistry([toolDefinition()]),
+      durable as never,
+      [{ ref: REF, execute: () => Promise.resolve({ passages: [] }) }],
+    );
+    const [tool] = authorizeOne(gateway);
+
+    const failure = (await tool.execute({ query: 'refunds' }).then(
+      () => null,
+      (error: unknown) => error,
+    )) as Error;
+
+    expect(failure.message).toBe(
+      'Tool "knowledge.search@1" could not be completed',
+    );
+    expect(failure.stack).toBeUndefined();
+    expect(Object.keys(failure)).toEqual([]);
+    expect(JSON.stringify(failure)).toBe('{}');
+    expect(JSON.stringify(failure.message)).not.toContain('prisma');
+    expect(JSON.stringify(failure.message)).not.toContain('org_secret');
+  });
+});
