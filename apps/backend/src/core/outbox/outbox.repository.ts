@@ -179,13 +179,7 @@ export class OutboxRepository {
     const types = Prisma.join(options.types.map((type) => Prisma.sql`${type}`));
 
     const rows = await this.prisma.$queryRaw<ClaimedRow[]>`
-      UPDATE "outbox_event" AS e
-      SET "status" = 'PROCESSING',
-          "attempts" = e."attempts" + 1,
-          "leaseExpiresAt" = NOW() + INTERVAL '1 millisecond' * ${options.leaseMs},
-          "claimedBy" = ${options.claimedBy},
-          "updatedAt" = NOW()
-      WHERE e."id" IN (
+      WITH "candidate" AS (
         SELECT c."id"
         FROM "outbox_event" AS c
         WHERE c."type" IN (${types})
@@ -197,6 +191,14 @@ export class OutboxRepository {
         FOR UPDATE SKIP LOCKED
         LIMIT ${options.limit}
       )
+      UPDATE "outbox_event" AS e
+      SET "status" = 'PROCESSING',
+          "attempts" = e."attempts" + 1,
+          "leaseExpiresAt" = NOW() + INTERVAL '1 millisecond' * ${options.leaseMs},
+          "claimedBy" = ${options.claimedBy},
+          "updatedAt" = NOW()
+      FROM "candidate"
+      WHERE e."id" = "candidate"."id"
       RETURNING e."id",
                 e."type",
                 e."payload"::text AS "payload",
