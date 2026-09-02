@@ -5,6 +5,7 @@ import { PinoLogger } from 'nestjs-pino';
 import { agentsConfig } from '../config';
 import { QUEUE_NAMES, QueueProducer } from '../core/queue';
 import { AgentRunService, type StaleRunCursor } from './agent-run.service';
+import { isMcpSessionExpired, MCP_SESSION_RUNTIME } from './agent.types';
 
 /** How many stranded run ids one summary line names before it stops. */
 const MISSING_SAMPLE_SIZE = 5;
@@ -16,6 +17,25 @@ export type ReconciliationPass = {
   missing: number;
   pending: number;
   reconciled: number;
+  /**
+   * MCP sessions this pass finalized because their lifetime had run out.
+   *
+   * Counted separately from `reconciled` because it is not a reconciliation:
+   * nothing failed and no transport was consulted. It is a session ending the
+   * only way an abandoned one can.
+   */
+  expiredSessions: number;
+  /** Sessions seen while still inside their lifetime, and so left alone. */
+  liveSessions: number;
+  /**
+   * Expired sessions whose outcome somebody else had already written.
+   *
+   * Counted rather than ignored so that `pending + failed + missing +
+   * expiredSessions + liveSessions + racedSessions + abandoned` still accounts
+   * for every candidate the pass examined. A pass that silently drops a branch
+   * reads as lost work, which is the same reason `abandoned` exists.
+   */
+  racedSessions: number;
   /**
    * Candidates the pass never reached because shutdown began.
    *
@@ -252,6 +272,9 @@ export class AgentRunReconciler {
       missing: 0,
       pending: 0,
       reconciled: 0,
+      expiredSessions: 0,
+      liveSessions: 0,
+      racedSessions: 0,
       abandoned: 0,
     };
 
@@ -272,6 +295,43 @@ export class AgentRunReconciler {
       if (this.stopping) {
         pass.abandoned = candidates.length - index;
         break;
+      }
+
+      /**
+       * A session is finalized here, and never asked about over the transport.
+       *
+       * It has no job by design — acceptance appends no outbox event — so the
+       * transport would answer `missing` for every session on every pass, and
+       * `missing` is deliberately not a terminal verdict. Left to that path a
+       * session would stay `RUNNING` forever while being logged as a stranded
+       * row indefinitely: a durable lie about a session that ended, plus an
+       * unbounded stream of lines describing it.
+       *
+       * Age is the only signal needed, and it is sufficient: a session's
+       * lifetime is absolute from acceptance, so whether it is over is a
+       * property of the row rather than of anything a client might still be
+       * doing. A session inside its lifetime is left strictly alone.
+       */
+      if (candidate.runtime === MCP_SESSION_RUNTIME) {
+        if (!isMcpSessionExpired(candidate.createdAt, new Date())) {
+          pass.liveSessions += 1;
+          this.advancePast(candidate);
+          continue;
+        }
+
+        const closed = await this.runs.closeMcpSession({
+          id: candidate.id,
+          organizationId: candidate.organizationId,
+          closedBy: 'expiry',
+        });
+
+        // False means the client closed it first, between the read above and
+        // this write. Its own outcome stands; there is nothing to correct —
+        // but the candidate is still counted, so the pass adds up.
+        if (closed) pass.expiredSessions += 1;
+        else pass.racedSessions += 1;
+        this.advancePast(candidate);
+        continue;
       }
 
       /**
@@ -376,7 +436,12 @@ export class AgentRunReconciler {
       );
     }
 
-    if (pass.reconciled > 0 || pass.missing > 0 || pass.abandoned > 0) {
+    if (
+      pass.reconciled > 0 ||
+      pass.missing > 0 ||
+      pass.abandoned > 0 ||
+      pass.expiredSessions > 0
+    ) {
       this.logger.info(pass, 'Agent run reconciliation pass completed');
     }
 

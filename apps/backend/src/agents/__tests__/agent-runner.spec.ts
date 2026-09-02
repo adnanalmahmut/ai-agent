@@ -5,10 +5,11 @@ import { MODEL_IDS } from '../../model-catalog/model-catalog';
 import { AgentConfigurationError } from '../agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import { AgentOutputContractError } from '../agent-output-contract.error';
-import type { AgentRuntime } from '../agent-runtime';
-import type { AgentDefinition, AgentOutputContract } from '../agent.types';
-import { AgentRuntimeRegistry } from '../agent-runtime.registry';
 import { AgentRunner } from '../agent-runner.service';
+import type { AgentRuntime } from '../agent-runtime';
+import { AgentRuntimeRegistry } from '../agent-runtime.registry';
+import type { AgentDefinition, AgentOutputContract } from '../agent.types';
+import { MCP_SESSION_RUNTIME } from '../agent.types';
 import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
 
 const definition = {
@@ -144,6 +145,42 @@ describe('AgentRunner', () => {
         input: 'hello',
       }),
     ).rejects.toThrow('does not match definition runtime');
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The worker/runner cannot execute an MCP session.
+   *
+   * Persisted runtime ("mcp") disagrees with the definition's runtime ("mastra").
+   * The runner throws AgentConfigurationError before resolving any runtime.
+   */
+  it('refuses to execute an MCP session run before resolving any runtime', async () => {
+    const resolve = jest.fn();
+    const runtimes = { resolve } as unknown as AgentRuntimeRegistry;
+    const runner = runnerFor([definition], runtimes);
+
+    await expect(
+      runner.run({
+        agentId: definition.id,
+        agentVersion: 1,
+        runtime: MCP_SESSION_RUNTIME,
+        organizationId: 'org_1',
+        input: 'hello',
+      }),
+    ).rejects.toThrow(AgentConfigurationError);
+
+    await expect(
+      runner.run({
+        agentId: definition.id,
+        agentVersion: 1,
+        runtime: MCP_SESSION_RUNTIME,
+        organizationId: 'org_1',
+        input: 'hello',
+      }),
+    ).rejects.toThrow(
+      'AgentRun runtime "mcp" does not match definition runtime "mastra"',
+    );
+
     expect(resolve).not.toHaveBeenCalled();
   });
 

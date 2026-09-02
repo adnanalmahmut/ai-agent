@@ -37,6 +37,24 @@ export const FEATURE_FLAGS = {
     defaultEnabled: false,
     organizationOverridable: true,
   },
+  'mcp.enabled': {
+    description: 'Accept MCP sessions and tool calls over the MCP endpoint.',
+    /**
+     * Default off, like every other acceptance boundary that spends money —
+     * and with one addition specific to this one: it is the only boundary that
+     * hands tool execution to a client outside this system. An operator turns
+     * that on deliberately.
+     *
+     * Checked on session acceptance *and* on every tool call, unlike the
+     * feature flags above. Those gate work that finishes on its own, so
+     * refusing acceptance is enough to stop the spending. A session lives up
+     * to an hour and spends on each call, so a switch that only gated
+     * acceptance would leave every open session free to keep calling tools
+     * after an operator had stopped the feature.
+     */
+    defaultEnabled: false,
+    organizationOverridable: true,
+  },
 } as const satisfies Record<string, FeatureFlagDefinition>;
 
 export type FeatureFlagDefinition = {

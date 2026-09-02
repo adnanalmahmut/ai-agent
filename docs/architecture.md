@@ -32,6 +32,23 @@ flowchart LR
   D -. denied .-> E
 ```
 
+Agent tool execution has one authority, and the runtimes and protocols around
+it are adapters into it rather than peers of it:
+
+```mermaid
+flowchart LR
+  M[Mastra runtime] --> G[ToolGateway]
+  C[External MCP client] --> S[MCP adapter] --> G
+  G --> R[Code-owned ToolRegistry]
+  G --> V[Pinned OrganizationAgentVersion grants]
+  G --> E[(ToolExecution)]
+  G -->|side effect| H[Human approval] --> O[(Outbox)] --> Q[BullMQ] --> K[Side-effect worker] --> P[Provider]
+```
+
+Neither adapter holds authority. Each receives only the bound closures the
+gateway returns for one accepted run, so neither can name an organization,
+widen a grant, or reach a provider.
+
 ## Invariants
 
 - PostgreSQL is authoritative. Redis is coordination and may be lost without
@@ -51,5 +68,13 @@ flowchart LR
 - The deploy identity cannot read `runtime.env`, use Docker directly, or run an
   arbitrary shell. The root wrapper validates the file and passes only each
   process's allowlisted settings to Compose.
+- `ToolGateway` is the only authority over what an agent may do. A runtime or
+  protocol adapter receives bound closures for one accepted run and never the
+  gateway, the registry, grant state, or a tenant id. Adding an adapter must
+  never add a second registry, grant model, `ToolExecution` writer, or approval
+  path.
+- An external side effect is proposed by a model and performed by nobody until
+  an authorized person decides. The API may execute read-only and proposing
+  tool calls in-process; only the worker performs the effect.
 
 See the focused documents for enforcement and failure behavior.

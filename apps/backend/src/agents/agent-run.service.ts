@@ -11,6 +11,8 @@ import {
 import { AgentConfigurationError } from './agent-configuration.error';
 import { AgentDefinitionRegistry } from './agent-definition.registry';
 import {
+  AGENT_RUN_DRIVERS,
+  MCP_SESSION_RUNTIME,
   TERMINAL_TRANSPORT_FAILURE,
   type AgentFailureDiagnostic,
   type AgentConfiguration,
@@ -54,6 +56,20 @@ export type StaleAgentRun = {
   status: AgentRunStatus;
   attemptCount: number;
   updatedAt: Date;
+  /**
+   * Needed to tell a stranded worker run from an abandoned MCP session, which
+   * are reconciled by opposite means: one is asked about over the transport,
+   * the other has no transport record by design and is finalized on age.
+   *
+   * `organizationId` is loaded with them, which the selection comment above
+   * anticipates being avoided — it is here because closing a session is a
+   * tenant-scoped compare-and-set and the reconciler has no other way to name
+   * the tenant. It informs a write rather than a log line, and the pass's log
+   * keys are asserted so it cannot quietly become one.
+   */
+  runtime: string;
+  createdAt: Date;
+  organizationId: string;
 };
 
 /** Internal acceptance boundary for durable background agent work. */
@@ -148,11 +164,19 @@ export class AgentRunService {
           acceptedAt,
         );
 
+        /**
+         * A session is accepted already running, and running is the truth:
+         * the external MCP client can call a tool on its very next request,
+         * so there is no queued interval to represent. `attemptCount` is 1
+         * because a session has exactly one attempt — nothing retries it.
+         */
+        const session = input.driver === AGENT_RUN_DRIVERS.mcpClient;
+
         const created = await tx.agentRun.create({
           data: {
             agentId: input.agentId,
             agentVersion: effective.definitionVersion,
-            runtime: effective.runtime,
+            runtime: session ? MCP_SESSION_RUNTIME : effective.runtime,
             organizationId: input.organizationId,
             organizationAgentVersionId: effective.id,
             modelPolicyId: effective.modelPolicyId,
@@ -162,14 +186,32 @@ export class AgentRunService {
             input: input.input as Prisma.InputJsonValue,
             idempotencyKey: input.idempotencyKey,
             createdAt: acceptedAt,
+            ...(session
+              ? {
+                  status: 'RUNNING' as const,
+                  startedAt: acceptedAt,
+                  attemptCount: 1,
+                }
+              : {}),
           },
         });
 
-        await this.outbox.append(tx, {
-          type: AGENT_RUN_QUEUED,
-          payload: { runId: created.id },
-          dedupeKey: created.id,
-        });
+        /**
+         * No event for a session, because there is no work to deliver.
+         *
+         * The run's "runtime" is a client this process does not control, and
+         * publishing a job for it would create a delivery the worker must
+         * refuse — `AgentRunner` throws on the disagreement between the
+         * definition's runtime and the row's — which is a failure recorded
+         * against a healthy session.
+         */
+        if (!session) {
+          await this.outbox.append(tx, {
+            type: AGENT_RUN_QUEUED,
+            payload: { runId: created.id },
+            dedupeKey: created.id,
+          });
+        }
 
         return created;
       });
@@ -352,8 +394,106 @@ export class AgentRunService {
       },
       orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
       take: limit,
-      select: { id: true, status: true, attemptCount: true, updatedAt: true },
+      select: {
+        id: true,
+        status: true,
+        attemptCount: true,
+        updatedAt: true,
+        runtime: true,
+        createdAt: true,
+        organizationId: true,
+      },
     });
+  }
+
+  /**
+   * The one row an MCP request is allowed to act on.
+   *
+   * Predicated on the runtime as well as the tenant, so a worker run's id
+   * cannot be presented as a session: an `AgentRun` that Mastra is executing
+   * has grants pinned for *its* attempt, and driving it from outside would
+   * write tool executions against a run whose transcript nobody is keeping.
+   * Returns null rather than throwing, so the caller decides what a miss means
+   * — and a miss is deliberately indistinguishable from another
+   * organization's session.
+   */
+  findMcpSession(input: { id: string; organizationId: string }): Promise<{
+    id: string;
+    agentId: string;
+    agentVersion: number;
+    organizationAgentVersionId: string | null;
+    organizationId: string;
+    status: AgentRunStatus;
+    createdByUserId: string | null;
+    createdAt: Date;
+  } | null> {
+    return this.prisma.agentRun.findFirst({
+      where: {
+        id: input.id,
+        organizationId: input.organizationId,
+        runtime: MCP_SESSION_RUNTIME,
+      },
+      select: {
+        id: true,
+        agentId: true,
+        agentVersion: true,
+        organizationAgentVersionId: true,
+        organizationId: true,
+        status: true,
+        createdByUserId: true,
+        createdAt: true,
+      },
+    });
+  }
+
+  /**
+   * Ends a session, once.
+   *
+   * Compare-and-set on the tenant, the runtime and `RUNNING`, so an explicit
+   * close by the client and an expiry observed elsewhere cannot both write an
+   * outcome — the loser matches no row and reports false. That matters because
+   * the two disagree about `closedBy`, and a session that recorded both would
+   * be a row whose own history contradicts itself.
+   *
+   * `SUCCEEDED` rather than a new terminal status: a session that ran and
+   * ended did not fail, whatever its tools did. What each tool call did is the
+   * `ToolExecution` rows' business, and a session whose every call failed is
+   * still a session that completed.
+   */
+  async closeMcpSession(input: {
+    id: string;
+    organizationId: string;
+    closedBy: 'client' | 'expiry';
+  }): Promise<boolean> {
+    const closedAt = new Date();
+
+    const { count } = await this.prisma.agentRun.updateMany({
+      where: {
+        id: input.id,
+        organizationId: input.organizationId,
+        runtime: MCP_SESSION_RUNTIME,
+        /**
+         * Every non-terminal status, not only `RUNNING`.
+         *
+         * Acceptance always writes `RUNNING` for a session, so `QUEUED` is
+         * unreachable from this code — but the reconciler selects its MCP
+         * branch on the runtime alone, so a `QUEUED` session row arriving from
+         * a data repair would be visited on every pass, closed by nothing, and
+         * left non-terminal forever. That is exactly the durable lie the branch
+         * exists to prevent, so the set it can close matches the set it is
+         * asked about. Terminal statuses stay excluded, which is what keeps
+         * client-close and expiry mutually exclusive.
+         */
+        status: { in: ['QUEUED', 'RUNNING'] },
+      },
+      data: {
+        status: 'SUCCEEDED',
+        completedAt: closedAt,
+        output: { closedBy: input.closedBy },
+      },
+    });
+
+    return count === 1;
   }
 
   /**

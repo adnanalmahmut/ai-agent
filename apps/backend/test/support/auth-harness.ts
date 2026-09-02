@@ -9,6 +9,8 @@ import { AppModule } from '../../src/app.module';
 import { httpConfig } from '../../src/config';
 import { GeoIpService, type GeoIpLocation } from '../../src/core/geoip';
 import { configureTrustedProxy } from '../../src/core/http';
+import { AGENT_DEFINITIONS } from '../../src/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../src/agents/agent.types';
 import { EMBEDDING_PORT } from '../../src/knowledge';
 import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
 import type { MailTransport } from '../../src/core/mail/mail-transport';
@@ -97,6 +99,18 @@ export async function createHarness(
       maxBatch: number;
       embed: (texts: readonly string[]) => Promise<number[][]>;
     };
+    /**
+     * Substitutes the code-owned agent catalog.
+     *
+     * The production catalog deliberately grants no tools — `content-idea@1`
+     * has no `maxToolGrants`, because the first product agent that needs one
+     * is DEMO-01's. A suite proving the tool boundary over real HTTP therefore
+     * has to supply its own definition, the same way the gateway-level suites
+     * construct one directly. Overriding the injection token rather than the
+     * registry keeps the registry's own validation in force, so a test-only
+     * definition still has to be a legal one.
+     */
+    definitions?: readonly AgentDefinition[];
   } = {},
 ): Promise<Harness> {
   const transport = new CapturingTransport();
@@ -116,6 +130,12 @@ export async function createHarness(
     builder = builder
       .overrideProvider(EMBEDDING_PORT)
       .useValue(options.embeddings);
+  }
+
+  if (options.definitions) {
+    builder = builder
+      .overrideProvider(AGENT_DEFINITIONS)
+      .useValue(options.definitions);
   }
 
   const moduleRef = await builder.compile();

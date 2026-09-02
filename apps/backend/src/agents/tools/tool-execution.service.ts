@@ -252,6 +252,24 @@ export class ToolExecutionService {
   }
 
   /**
+   * How many tool calls a run has already been permitted.
+   *
+   * Every row this counts is a call the gateway accepted, whatever became of
+   * it: a failed execution still cost an embedding, a vector search and two
+   * writes, so a budget that only counted successes would be a budget a caller
+   * could evade by failing. Refused calls are correctly absent — nothing
+   * durable is written for a call that never ran.
+   *
+   * Exists for the MCP session, whose lifetime spans many HTTP requests and so
+   * cannot be bounded by the gateway's per-`authorize` in-memory budget.
+   */
+  countForRun(agentRunId: string, organizationId: string): Promise<number> {
+    return this.prisma.toolExecution.count({
+      where: { agentRunId, organizationId },
+    });
+  }
+
+  /**
    * One side-effect execution with its decision and the run's pins.
    *
    * Scoped by the tenant carried in the job payload as well as by id. The

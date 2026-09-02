@@ -136,8 +136,33 @@ Primary boundaries:
   environment; an unreadable credential is reported as the provider being
   unavailable and carries nothing from the cause, because the one thing that
   report must not do is describe the secret it failed to read.
+- MCP boundary: the MCP endpoint is authenticated by the application's own
+  session and authorized by the shared organization guard, and `mcpSession`
+  belongs to `admin` and `owner`. Routes that drive the session additionally
+  require the member who opened that session, while an organization admin/owner
+  with `mcpSession:create` may close it to recover capacity; ordinary members
+  cannot close another's session. An id is not a capability and reconnecting
+  manufactures no authority; a missing session, another organization's session,
+  another member's session (for driving), and a worker run all answer `404`. `Origin` is
+  validated against `BETTER_AUTH_TRUSTED_ORIGINS` — the specification requires
+  it and the SDK performs no header validation — which is what protects a
+  cookie-authenticated endpoint from being driven by a page the organization
+  does not own; absence passes, because a non-browser client sends none. Only
+  content negotiation and `mcp-`-prefixed headers are forwarded to the protocol
+  SDK, so the session cookie never enters a third-party library. A tool failure
+  crosses as the gateway's constant sentence; an unknown tool fails closed. The
+  adapter holds no gateway, registry, grant state, or tenant id, so it cannot
+  make an authority decision, and `notification.send@1` through MCP can only be
+  proposed. Authorization is `OPTIONAL` in the current MCP specification and no
+  credential product was built, so a client that cannot present the
+  application's session cannot connect — a deliberate limitation, not an
+  oversight.
 - Agent spend: acceptance checks `agents.enabled` before the per-feature flag,
-  so an operator has one switch that stops every agent. It also enforces
+  so an operator has one switch that stops every agent. `mcp.enabled` gates the
+  MCP surface separately and is re-checked on every exchange rather than only at
+  acceptance, because a session outlives the request that opened it; a session
+  also carries a durable per-session tool-call ceiling, because the gateway's
+  per-attempt budget does not survive the adapter's request boundary. It also enforces
   `agents.max_concurrent_runs_per_organization` against the organization's
   in-flight runs — the per-user rate limit bounds one member, and the bill is
   the organization's. The generation call carries an output-token ceiling, a

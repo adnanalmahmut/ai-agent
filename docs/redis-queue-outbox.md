@@ -135,7 +135,7 @@ interval, and each pass:
 
 1. reads a bounded page of the oldest `QUEUED`/`RUNNING` runs from PostgreSQL;
 2. asks the transport for each one's job state — the job id is the run id, so no
-   mapping is needed;
+   mapping is needed — except for MCP sessions, which are never asked about;
 3. writes `FAILED` with `completedAt` and an application-owned constant for the
    ones whose job is in the failed set.
 
@@ -184,6 +184,19 @@ survives a restart and depends on nothing held in memory. A pass that fails
 because PostgreSQL or Redis was unreachable is logged and retried on the next
 interval; it holds no lease and no claim, so an abandoned pass costs latency
 only.
+
+MCP sessions take the other branch, and it is not an exclusion. A session has
+no job by design — acceptance appends no outbox event — so the transport would
+answer `missing` for every session on every pass, and `missing` is deliberately
+not a terminal verdict. Left to that path a session would sit `RUNNING` forever
+while being logged as a stranded row indefinitely: a durable lie about a session
+that ended, plus an unbounded stream of lines describing a static set. So the
+pass finalizes a session whose absolute lifetime has run out and leaves a live
+one strictly alone. Age is the only signal needed and it is sufficient, because
+the lifetime is measured from acceptance rather than from activity. Closing is a
+compare-and-set, so a client that closed first keeps its own outcome and the
+pass counts nothing — the two disagree about `closedBy`, and a row whose history
+contradicts itself is worse than an uncounted sweep.
 
 Two things the reconciler deliberately does not do. It never re-queues: a fresh
 job restarts `attemptsStarted` at 1 while the run still holds a higher
