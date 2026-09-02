@@ -456,6 +456,33 @@ understanding the database state.
 - Suspected credential exposure: revoke at the owning boundary, replace the VPS
   runtime file/key, and redeploy; do not paste evidence containing secret values.
 
+## The first release that performs agent notifications
+
+The release that introduces the approved notification action needs host bundle
+6 installed *before* it deploys. Its worker composes the mail configuration and
+refuses to start without `MAIL_FROM_ADDRESS`, and a bundle-5 compose never hands
+the worker that variable however `runtime.env` is written — so on a bundle-5
+host the migration would apply and the worker would then crash-loop, taking
+agent execution and knowledge embedding down with it. `MIN_VERSION=6` turns that
+into a refusal before `compose run --rm migrate`, naming the bundle reinstall as
+the remedy; the deployment gate is the control, this procedure is how to satisfy
+it in the right order.
+
+Before merging the release, on the host, with no deployment in flight
+(`sudo ai-agent-deploy status staging` and the Actions tab):
+
+```sh
+sudo ops/lightsail/install-host-bundle.sh   # from a checkout of the release branch
+sudo ai-agent-runtime-preflight staging /etc/ai-agent/runtime.env
+```
+
+`runtime.env` already carries `MAIL_DRIVER`, `MAIL_FROM_ADDRESS` and the Resend
+key for the API; the bundle-6 compose only passes them to the worker as well, so
+no new value is required unless the driver is SES or SMTP, in which case the
+worker performs no notification and records `delivery_unsupported` — by design.
+Installing bundle 6 while the previous release is still running is safe: the
+running worker ignores the new mappings.
+
 ## Approved agent actions that never settled
 
 An approved `notification.send@1` execution should leave `APPROVED` within the

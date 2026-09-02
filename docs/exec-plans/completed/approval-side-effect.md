@@ -229,6 +229,15 @@ pre-existing non-blocking finding with a candidate fix — materialize the
 candidate selection in a CTE so the limit is applied exactly once — for a
 separate maintenance change rather than widened into this slice.
 
+**Host bundle 6.** The first CI run on the branch failed the container-topology
+step: the compose file is part of the release-coupled host bundle, and the
+ledger refuses a changed bundle file under an unchanged version. The worker now
+composes the mail configuration and requires `MAIL_FROM_ADDRESS` at boot, which
+a bundle-5 compose never passes it, so this is the bundle-4 case: `VERSION` and
+`MIN_VERSION` both move to 6, and the operator must install bundle 6 on Staging
+before the release merges or the deployment gate refuses it. The runbook has the
+procedure.
+
 ## Outcome
 
 Delivered on `feat/approval-side-effect`, based on `main` at

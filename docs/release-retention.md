@@ -195,6 +195,11 @@ carries — so a host on bundle 3 is refused a bundle-4 release outright rather
 than deploying it without retention. The split rollout described below therefore
 does not repeat: by the time a bundle-4 release runs, its wrapper is installed.
 
+Retention is untouched at host bundle 6 as well, which changes only the compose
+file's worker allowlist so the worker can perform approved agent notifications;
+`MIN_VERSION` moves to 6 there for a reason unrelated to retention, and the
+wrapper is unchanged.
+
 Retention is likewise untouched at host bundle 5, which adds only the operator
 rotation verb to the deploy wrapper. `MIN_VERSION` stays at 4 there, so that
 bundle behaves the way bundle 3 did: a host still on bundle 4 deploys the

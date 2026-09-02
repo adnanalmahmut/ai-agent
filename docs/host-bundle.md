@@ -124,6 +124,24 @@ release merges. Until then `sudo ai-agent-deploy rotate-managed-secret-keys`
 exits with `unsupported operation`. See
 [managed secret key rotation](operations-runbook.md#managed-secret-key-rotation).
 
+Bundle 6 is the bundle-4 case again, for the same structural reason: a release
+that needs bundle 6 cannot run on bundle 5. The approved agent notification is
+performed by the worker, so the worker now
+composes the mail configuration the API always had — and that configuration
+requires `MAIL_FROM_ADDRESS` at boot. The compose file's worker allowlist gains
+the mail driver values (`MAIL_DRIVER`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`,
+`MAIL_TIMEOUT_MS`, `RESEND_API_KEY`) and the non-secret SMTP and SES
+discriminators (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `AWS_REGION`) so the
+worker boots under whichever driver is configured; the SMTP and SES credentials
+stay out, because those drivers cannot honour the effect's idempotency contract
+and the effect fails closed on them. A bundle-5 host handed a bundle-6 release
+would run the migration and then start a worker that refuses its own
+configuration, so `MIN_VERSION` moves to 6 with it. Bundle 6 is safe to install
+before the release that needs it: every new mapping either defaults or is empty
+until the operator sets it, and the image currently deployed ignores them.
+Nothing else in the bundle changes; retention and the rotation verb are as they
+were at bundle 5.
+
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by
 `ops/backup/install-backups.sh` on their own schedule.
