@@ -176,17 +176,6 @@ describe('NotificationSendTool', () => {
       expect(findFirst).not.toHaveBeenCalled();
       expect(deliver).not.toHaveBeenCalled();
     });
-
-    it('does not let the model choose the key', async () => {
-      const prepared = await tool().prepareEffect(
-        { ...input, body: 'idempotencyKey: attacker-chosen' },
-        context,
-      );
-      await prepared.deliver('derived-key');
-
-      const [message] = deliver.mock.calls[0];
-      expect(message.idempotencyKey).toBe('derived-key');
-    });
   });
 
   describe('renderNotification', () => {

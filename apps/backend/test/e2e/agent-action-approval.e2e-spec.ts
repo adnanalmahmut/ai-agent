@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import type { Job } from 'bullmq';
+import { createHash } from 'node:crypto';
 import { Client } from 'pg';
 import { z } from 'zod';
 
@@ -9,6 +10,8 @@ import type { AgentDefinition } from '../../src/agents/agent.types';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
 import { NotificationSendTool } from '../../src/agents/tools/notification-send.tool';
 import {
+  EFFECT_RETRY_WINDOW_MS,
+  idempotencyKeyFor,
   SideEffectExecutionHandler,
   type SideEffectExecutionJob,
 } from '../../src/agents/tools/side-effect-execution.handler';
@@ -64,6 +67,14 @@ const approvalAgent = (maxToolGrants: readonly string[]): AgentDefinition => ({
 const DEFINITIONS = [approvalAgent([KNOWLEDGE_REF, REF])] as const;
 
 /**
+ * What a real provider would answer: an identifier that is a function of the
+ * key without *containing* it, so a row holding the id proves nothing about the
+ * key having leaked. The log driver derives its id the same way.
+ */
+const providerIdFor = (key: string) =>
+  `msg_${createHash('sha256').update(key).digest('hex').slice(0, 24)}`;
+
+/**
  * A provider double that records every call and answers as instructed.
  *
  * Its default answer is `accepted` with an id derived from the key, exactly
@@ -78,7 +89,7 @@ class RecordingDelivery implements NotificationDelivery {
   ) =>
     Promise.resolve({
       kind: 'accepted',
-      providerMessageId: `msg:${message.idempotencyKey}`,
+      providerMessageId: providerIdFor(message.idempotencyKey),
     });
 
   deliver(message: NotificationMessage): Promise<ExternalEffectOutcome> {
@@ -91,7 +102,7 @@ class RecordingDelivery implements NotificationDelivery {
     this.answer = (message) =>
       Promise.resolve({
         kind: 'accepted',
-        providerMessageId: `msg:${message.idempotencyKey}`,
+        providerMessageId: providerIdFor(message.idempotencyKey),
       });
   }
 }
@@ -468,17 +479,55 @@ describe('human approval and the idempotent side effect', () => {
           subject: 'Handoff ready',
         },
       });
-      expect(JSON.stringify(view)).not.toContain('idempotency');
+      expect(JSON.stringify(view)).not.toContain('effectPayloadDigest');
       expect(JSON.stringify(view)).not.toContain('providerMessageId');
+      expect(JSON.stringify(view)).not.toContain(
+        idempotencyKeyFor({
+          id: executionId,
+          toolId: 'notification.send',
+          toolVersion: 1,
+        }),
+      );
     });
 
-    it('refuses a member the decision', async () => {
-      const response = await as(harness, member).post(
-        `${base()}/${executionId}/approve`,
+    it.each(['approve', 'reject'])(
+      'refuses a member the decision: %s',
+      async (decision) => {
+        const response = await as(harness, member).post(
+          `${base()}/${executionId}/${decision}`,
+        );
+
+        expect(response.status).toBe(403);
+        expect(errorBody(response).errorCode).toBe('FORBIDDEN');
+        expect((await execution(executionId)).status).toBe('AWAITING_APPROVAL');
+      },
+    );
+
+    /**
+     * The service predicate, not the guard. An outsider is a member of the
+     * *other* organization, so the guard admits them to its own path; the
+     * proposal must still be invisible there because every read carries the
+     * path's organization as a predicate.
+     */
+    it('does not show another organization the proposal through its own path', async () => {
+      const detail = await as(harness, outsider).get(
+        `${base(otherOrganizationId)}/${executionId}`,
+      );
+      expect(detail.status).toBe(404);
+
+      const list = await as(harness, outsider).get(base(otherOrganizationId));
+      expect(list.status).toBe(200);
+      const items = (
+        list.body as { data: { items: { toolExecutionId: string }[] } }
+      ).data.items;
+      expect(items.some((item) => item.toolExecutionId === executionId)).toBe(
+        false,
       );
 
-      expect(response.status).toBe(403);
-      expect(errorBody(response).errorCode).toBe('FORBIDDEN');
+      const reject = await as(harness, outsider).post(
+        `${base(otherOrganizationId)}/${executionId}/reject`,
+      );
+      expect(reject.status).toBe(404);
       expect((await execution(executionId)).status).toBe('AWAITING_APPROVAL');
     });
 
@@ -493,11 +542,19 @@ describe('human approval and the idempotent side effect', () => {
     });
 
     it('grants a platform admin nothing inside a tenant', async () => {
-      const response = await as(harness, platformAdmin).post(
+      const read = await as(harness, platformAdmin).get(
+        `${base()}/${executionId}`,
+      );
+      const approve = await as(harness, platformAdmin).post(
         `${base()}/${executionId}/approve`,
       );
+      const reject = await as(harness, platformAdmin).post(
+        `${base()}/${executionId}/reject`,
+      );
 
-      expect(response.status).toBe(404);
+      expect([read.status, approve.status, reject.status]).toEqual([
+        404, 404, 404,
+      ]);
       expect((await execution(executionId)).status).toBe('AWAITING_APPROVAL');
     });
 
@@ -769,17 +826,96 @@ describe('human approval and the idempotent side effect', () => {
       });
 
       const row = await execution(executionId);
+      const key = idempotencyKeyFor({
+        id: executionId,
+        toolId: 'notification.send',
+        toolVersion: 1,
+      });
       expect(row).toMatchObject({
         status: 'SUCCEEDED',
         effectAttemptCount: 1,
-        providerMessageId: `msg:notification.send@1:${executionId}`,
+        providerMessageId: providerIdFor(key),
       });
       expect(row.effectFirstAttemptedAt).not.toBeNull();
       expect(row.effectPayloadDigest).toMatch(/^[0-9a-f]{64}$/);
       expect(row.completedAt).not.toBeNull();
-      // The key and the address are derived, not stored.
-      expect(JSON.stringify(row)).not.toContain('idempotency');
+      // The key and the address are derived, not stored: neither appears
+      // anywhere in the row.
+      expect(JSON.stringify(row)).not.toContain(key);
       expect(JSON.stringify(row)).not.toContain(recipient.email);
+
+      // Nor does the API view carry the digest or the provider id.
+      const view = await as(harness, owner).get(`${base()}/${executionId}`);
+      expect(view.status).toBe(200);
+      expect(JSON.stringify(view.body)).not.toContain(key);
+      expect(JSON.stringify(view.body)).not.toContain('effectPayloadDigest');
+      expect(JSON.stringify(view.body)).not.toContain(providerIdFor(key));
+    });
+
+    /**
+     * The only exit from `APPROVED`, proven against the database rather than
+     * against a mock of itself: a settlement for a row that already left
+     * `APPROVED`, or for a row in another organization, matches nothing and
+     * changes nothing.
+     */
+    it('settles an approved effect exactly once, and only in its own organization', async () => {
+      delivery.reset();
+      const { executionId } = await approved();
+      await handler.handle(job(executionId, organizationId));
+      const settled = await execution(executionId);
+      expect(settled.status).toBe('SUCCEEDED');
+
+      await expect(
+        executions.settleEffect(executionId, organizationId, {
+          status: 'FAILED',
+          failureCode: 'provider_rejected',
+        }),
+      ).resolves.toBe(false);
+      await expect(
+        executions.settleEffect(executionId, organizationId, {
+          status: 'OUTCOME_UNKNOWN',
+        }),
+      ).resolves.toBe(false);
+
+      const after = await execution(executionId);
+      expect(after.status).toBe('SUCCEEDED');
+      expect(after.providerMessageId).toBe(settled.providerMessageId);
+      expect(after.failureCode).toBeNull();
+      expect(after.completedAt).toEqual(settled.completedAt);
+
+      // And a row still APPROVED cannot be settled from another organization.
+      const other = await approved();
+      await expect(
+        executions.settleEffect(other.executionId, otherOrganizationId, {
+          status: 'OUTCOME_UNKNOWN',
+        }),
+      ).resolves.toBe(false);
+      expect((await execution(other.executionId)).status).toBe('APPROVED');
+    });
+
+    it('does not resend past the provider idempotency window, against the real row', async () => {
+      delivery.reset();
+      const { executionId } = await approved();
+      delivery.answer = () => Promise.resolve({ kind: 'unavailable' });
+      await expect(
+        handler.handle(job(executionId, organizationId, { attemptsMade: 0 })),
+      ).rejects.toThrow();
+
+      await harness.prisma.toolExecution.update({
+        where: { id: executionId },
+        data: {
+          effectFirstAttemptedAt: new Date(
+            Date.now() - EFFECT_RETRY_WINDOW_MS - 60 * 60 * 1_000,
+          ),
+        },
+      });
+      delivery.reset();
+      await handler.handle(
+        job(executionId, organizationId, { attemptsMade: 1 }),
+      );
+
+      expect(delivery.calls).toEqual([]);
+      expect((await execution(executionId)).status).toBe('OUTCOME_UNKNOWN');
     });
 
     it('does not send again on a duplicate delivery', async () => {
@@ -809,7 +945,7 @@ describe('human approval and the idempotent side effect', () => {
             () =>
               resolve({
                 kind: 'accepted',
-                providerMessageId: `msg:${message.idempotencyKey}`,
+                providerMessageId: providerIdFor(message.idempotencyKey),
               }),
             50,
           ),

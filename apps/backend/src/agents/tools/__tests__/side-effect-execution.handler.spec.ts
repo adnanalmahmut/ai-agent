@@ -463,6 +463,91 @@ describe('SideEffectExecutionHandler', () => {
     });
   });
 
+  /**
+   * Every log line is application identifiers and closed words. The failure
+   * paths are the ones that carry material — a recipient, a provider's text, a
+   * driver's message — and none of it may reach the logger.
+   */
+  describe('log containment', () => {
+    const ALLOWED_KEYS = new Set([
+      'toolExecutionId',
+      'attemptsStarted',
+      'attemptsMade',
+      'reason',
+      'status',
+      'failureCode',
+    ]);
+
+    const capturing = () => {
+      const calls: Record<string, unknown>[] = [];
+      const log = {
+        setContext: () => undefined,
+        info: (fields: Record<string, unknown>) => {
+          calls.push(fields);
+        },
+        warn: (fields: Record<string, unknown>) => {
+          calls.push(fields);
+        },
+      };
+      return { calls, log };
+    };
+
+    const withLogger = (log: unknown) =>
+      new SideEffectExecutionHandler(
+        prisma() as never,
+        executions() as never,
+        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+        new AgentDefinitionRegistry([agent]),
+        [implementation()],
+        log as never,
+      );
+
+    it.each([
+      [
+        'a recipient gone',
+        () =>
+          prepare.mockRejectedValue(
+            new SideEffectPreconditionError('precondition_recipient'),
+          ),
+      ],
+      [
+        'an adapter that throws',
+        () =>
+          deliver.mockRejectedValue(
+            new Error('re_secret leaked sara@example.com'),
+          ),
+      ],
+      [
+        'a provider refusal',
+        () => deliver.mockResolvedValue({ kind: 'rejected' }),
+      ],
+      [
+        'an ambiguous provider answer',
+        () => deliver.mockResolvedValue({ kind: 'unavailable' }),
+      ],
+      ['a lost claim', () => claim.mockResolvedValue(false)],
+    ])('logs only closed fields for %s', async (_name, arrange) => {
+      arrange();
+      const { calls, log } = capturing();
+
+      await withLogger(log)
+        .handle(job({ attemptsMade: 2, opts: { attempts: 3 } } as never))
+        .catch(() => undefined);
+
+      expect(calls.length).toBeGreaterThan(0);
+      for (const fields of calls) {
+        for (const key of Object.keys(fields)) {
+          expect(ALLOWED_KEYS.has(key)).toBe(true);
+        }
+        const serialized = JSON.stringify(fields);
+        expect(serialized).not.toContain('sara@example.com');
+        expect(serialized).not.toContain('re_secret');
+        expect(serialized).not.toContain('digest-a');
+        expect(serialized).not.toContain('notification.send@1:exec_1');
+      }
+    });
+  });
+
   describe('idempotencyKeyFor', () => {
     it('derives the key from the exact action version and the execution', () => {
       expect(

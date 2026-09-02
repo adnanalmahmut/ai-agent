@@ -125,6 +125,13 @@ describe('organization approvals block', () => {
     await screen.findByText('Kettle teardown is ready');
     expect(screen.queryByRole('button', { name: /approve and send/i })).toBeNull();
     expect(screen.getByText(/only an organization admin or owner/i)).toBeInTheDocument();
+    // The gate asks the decide permission, not read: a member holds read.
+    expect(authClientStub.organization.checkRolePermission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        role: 'member',
+        permissions: { agentActionApproval: ['decide'] },
+      }),
+    );
   });
 
   it('approves in place and shows the decided state', async () => {
