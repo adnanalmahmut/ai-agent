@@ -155,6 +155,7 @@ describe('OrganizationAuditService', () => {
 
     expect(surface.sort()).toEqual([
       'list',
+      'recordAgentActionDecision',
       'recordBusinessProfileReplacement',
       'recordContentProjectCreation',
     ]);

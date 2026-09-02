@@ -17,11 +17,14 @@ import {
 } from './lib/application-api';
 import { CONTENT_IDEA_FAILURES } from './features/organization/content-idea-failures';
 import {
+  AGENT_ACTION_APPROVAL_STATUSES,
   CONTENT_IDEA_FORMATS,
   CONTENT_IDEA_LANGUAGES,
   CONTENT_IDEA_STATUSES,
   CONTENT_IDEA_UNAVAILABLE_REASONS,
   KNOWLEDGE_SPACE_SLUGS,
+  TOOL_EXECUTION_STATUSES,
+  TOOL_FAILURE_CODES,
 } from './features/organization/organization-api';
 
 /**
@@ -114,6 +117,42 @@ describe('every supported locale is covered', () => {
 });
 
 describe('every state the code can reach has copy', () => {
+  /**
+   * The approval vocabularies: the decision states, the execution states the
+   * effect passes through, and the closed failure codes the worker writes. A
+   * status with no copy renders its own key path where a badge should be.
+   */
+  it.each(AGENT_ACTION_APPROVAL_STATUSES)('Approvals.status.%s', (status) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `Approvals.status.${status}`),
+        `${locale}: ${status}`,
+      ).toBeTruthy();
+      expect(
+        valueAt(tree as Tree, `Approvals.filter.${status}`),
+        `${locale}: filter ${status}`,
+      ).toBeTruthy();
+    }
+  });
+
+  it.each(TOOL_EXECUTION_STATUSES)('Approvals.effect.%s', (status) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `Approvals.effect.${status}`),
+        `${locale}: ${status}`,
+      ).toBeTruthy();
+    }
+  });
+
+  it.each(TOOL_FAILURE_CODES)('Approvals.failure.%s', (code) => {
+    for (const [locale, tree] of Object.entries(DICTIONARIES)) {
+      expect(
+        valueAt(tree as Tree, `Approvals.failure.${code}`),
+        `${locale}: ${code}`,
+      ).toBeTruthy();
+    }
+  });
+
   it.each(AUTH_ERROR_CODES)('Auth.errors.%s', (code) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       expect(

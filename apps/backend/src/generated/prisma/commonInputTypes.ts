@@ -351,6 +351,23 @@ export type EnumToolExecutionStatusWithAggregatesFilter<$PrismaModel = never> = 
   _max?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel>
 }
 
+export type EnumToolExecutionApprovalStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionApprovalStatus | Prisma.EnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionApprovalStatusFilter<$PrismaModel> | $Enums.ToolExecutionApprovalStatus
+}
+
+export type EnumToolExecutionApprovalStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionApprovalStatus | Prisma.EnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionApprovalStatusWithAggregatesFilter<$PrismaModel> | $Enums.ToolExecutionApprovalStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumToolExecutionApprovalStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumToolExecutionApprovalStatusFilter<$PrismaModel>
+}
+
 export type EnumOutboxEventStatusFilter<$PrismaModel = never> = {
   equals?: $Enums.OutboxEventStatus | Prisma.EnumOutboxEventStatusFieldRefInput<$PrismaModel>
   in?: $Enums.OutboxEventStatus[] | Prisma.ListEnumOutboxEventStatusFieldRefInput<$PrismaModel>
@@ -679,6 +696,23 @@ export type NestedEnumToolExecutionStatusWithAggregatesFilter<$PrismaModel = nev
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel>
   _max?: Prisma.NestedEnumToolExecutionStatusFilter<$PrismaModel>
+}
+
+export type NestedEnumToolExecutionApprovalStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionApprovalStatus | Prisma.EnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionApprovalStatusFilter<$PrismaModel> | $Enums.ToolExecutionApprovalStatus
+}
+
+export type NestedEnumToolExecutionApprovalStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.ToolExecutionApprovalStatus | Prisma.EnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.ToolExecutionApprovalStatus[] | Prisma.ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumToolExecutionApprovalStatusWithAggregatesFilter<$PrismaModel> | $Enums.ToolExecutionApprovalStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumToolExecutionApprovalStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumToolExecutionApprovalStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumOutboxEventStatusFilter<$PrismaModel = never> = {

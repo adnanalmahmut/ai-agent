@@ -42,6 +42,17 @@ const TOOL_AGENT_ID = 'tool-only-agent';
 const REF = 'knowledge.search@1';
 
 /**
+ * The second declared tool, stubbed so the gateway composes. Never granted to
+ * this suite's agent; its own lifecycle is the approval suite's subject.
+ */
+const sideEffectStub = {
+  ref: 'notification.send@1' as const,
+  kind: 'side_effect' as const,
+  propose: () => Promise.resolve(),
+  prepareEffect: () => Promise.reject(new Error('never')),
+};
+
+/**
  * A test-only definition, deliberately not registered in the production
  * catalog. TOOL-01 must prove tool execution without inventing a product agent
  * whose only purpose is to have tools.
@@ -97,6 +108,7 @@ describe('governed tool execution', () => {
   const gateway = () =>
     new ToolGateway(new ToolRegistry(APPLICATION_TOOL_DEFINITIONS), durable, [
       { ref: REF, execute: (input, context) => implementation(input, context) },
+      sideEffectStub,
     ]);
 
   /** A runtime that calls every tool it was given, then answers. */
@@ -843,7 +855,7 @@ describe('governed tool execution', () => {
           succeed: stuck.succeed.bind(stuck),
           fail: stuck.fail.bind(stuck),
         } as never,
-        [{ ref: REF, execute: succeeding }],
+        [{ ref: REF, execute: succeeding }, sideEffectStub],
       ).authorize({
         definition: toolAgent(1, [REF]),
         organizationId: transitionOrganizationId,
@@ -885,7 +897,7 @@ describe('governed tool execution', () => {
       const tools = new ToolGateway(
         new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
         exploding as never,
-        [{ ref: REF, execute: succeeding }],
+        [{ ref: REF, execute: succeeding }, sideEffectStub],
       ).authorize({
         definition: toolAgent(1, [REF]),
         organizationId: transitionOrganizationId,

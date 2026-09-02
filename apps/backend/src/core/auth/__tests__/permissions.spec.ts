@@ -206,6 +206,7 @@ const OWN_ORGANIZATION_RESOURCES: readonly string[] = [
   'knowledge',
   'contentIdea',
   'contentProject',
+  'agentActionApproval',
 ];
 
 /** What an ordinary member may do. Everything else must be refused. */
@@ -213,6 +214,7 @@ const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
   ['knowledge', 'read'],
   ['contentIdea', 'read'],
   ['contentProject', 'read'],
+  ['agentActionApproval', 'read'],
 ];
 
 describe('organization access control', () => {
@@ -288,6 +290,20 @@ describe('organization access control', () => {
         false,
       );
     });
+
+    /**
+     * The decision that lets a message leave the system belongs to whoever
+     * runs the organization. A member sees what is waiting and decides
+     * nothing.
+     */
+    it('sees proposed agent actions but cannot decide them', () => {
+      expect(
+        allowsOrganization('member', { agentActionApproval: ['read'] }),
+      ).toBe(true);
+      expect(
+        allowsOrganization('member', { agentActionApproval: ['decide'] }),
+      ).toBe(false);
+    });
   });
 
   describe('admin', () => {
@@ -298,6 +314,8 @@ describe('organization access control', () => {
       ['member', 'delete'],
       ['invitation', 'create'],
       ['invitation', 'cancel'],
+      ['agentActionApproval', 'read'],
+      ['agentActionApproval', 'decide'],
     ])('may %s:%s', (resource, action) => {
       expect(allowsOrganization('admin', { [resource]: [action] })).toBe(true);
     });

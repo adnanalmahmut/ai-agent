@@ -64,7 +64,16 @@ describe('core/mail boundaries', () => {
         PROVIDER_SDKS.some((sdk) => specifier.startsWith(sdk)),
       );
 
-      if (file.endsWith('-mail.transport.ts')) return;
+      // Two adapter shapes may name a vendor: the auth-mail transports, and
+      // the governed-notification delivery adapters, which exist beside them
+      // precisely because they carry a provider idempotency key the transport
+      // interface does not.
+      if (
+        file.endsWith('-mail.transport.ts') ||
+        file.endsWith('-notification.delivery.ts')
+      ) {
+        return;
+      }
 
       expect(offending).toEqual([]);
     },

@@ -282,6 +282,14 @@ export function createRoutes(): RouteObject[] {
                                   },
                                 },
                                 {
+                                  path: 'approvals',
+                                  lazy: {
+                                    Component: async () =>
+                                      (await organizationModule())
+                                        .OrganizationApprovalsRoute,
+                                  },
+                                },
+                                {
                                   path: 'settings',
                                   loader: organizationBusinessProfileLoader,
                                   lazy: {

@@ -10,6 +10,15 @@ export { MailModule } from './mail.module';
 export { MailService } from './mail.service';
 export { MailRendererService } from './mail-renderer.service';
 export { MailDeliveryError } from './mail-transport';
+export {
+  NOTIFICATION_DELIVERY,
+  NotificationDeliveryModule,
+} from './notification-delivery';
+export type {
+  ExternalEffectOutcome,
+  NotificationDelivery,
+  NotificationMessage,
+} from './notification-delivery';
 export { MAIL_DRIVERS, MAIL_TEMPLATES } from './mail.types';
 export type {
   MailDeliveryResult,

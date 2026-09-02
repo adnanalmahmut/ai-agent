@@ -5,6 +5,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { appConfig, observabilityConfig, workerConfigurations } from './config';
 import { AgentExecutionHandler } from './agents/agent-execution.handler';
 import { AgentExecutionModule } from './agents/agent-execution.module';
+import { SideEffectExecutionHandler } from './agents/tools/side-effect-execution.handler';
 import { ControlPlaneCoreModule } from './control-plane';
 import { KnowledgeCoreModule, KnowledgeEmbeddingHandler } from './knowledge';
 import { LifecycleModule } from './core/lifecycle';
@@ -80,11 +81,16 @@ import { DatabaseModule } from './database';
     QueueWorkerRunner,
     {
       provide: QUEUE_JOB_HANDLERS,
-      inject: [AgentExecutionHandler, KnowledgeEmbeddingHandler],
+      inject: [
+        AgentExecutionHandler,
+        KnowledgeEmbeddingHandler,
+        SideEffectExecutionHandler,
+      ],
       useFactory: (
         agentExecution: AgentExecutionHandler,
         knowledgeEmbedding: KnowledgeEmbeddingHandler,
-      ): QueueJobHandler[] => [agentExecution, knowledgeEmbedding],
+        sideEffect: SideEffectExecutionHandler,
+      ): QueueJobHandler[] => [agentExecution, knowledgeEmbedding, sideEffect],
     },
   ],
 })

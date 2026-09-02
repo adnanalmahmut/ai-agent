@@ -48,6 +48,10 @@ describe('WorkerModule agent composition', () => {
       'dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=';
     process.env.APP_ENCRYPTION_ACTIVE_KEY_VERSION ??= 'test-v1';
     process.env.APP_ENCRYPTION_DECRYPT_KEYS ??= '';
+    // The worker now composes the mail driver for approved notifications, so
+    // its root parses the same variables the API does. `log` sends nothing.
+    process.env.MAIL_DRIVER ??= 'log';
+    process.env.MAIL_FROM_ADDRESS ??= 'no-reply@example.test';
 
     moduleRef = await Test.createTestingModule({
       imports: [WorkerModule],
@@ -76,16 +80,21 @@ describe('WorkerModule agent composition', () => {
     }));
 
     // Order is an artifact of the factory's argument list, not a contract.
-    expect(registered).toHaveLength(2);
+    expect(registered).toHaveLength(3);
     expect(registered).toEqual(
       expect.arrayContaining([
         { queue: QUEUE_NAMES.agentExecution, jobName: 'execute' },
         { queue: QUEUE_NAMES.knowledgeEmbedding, jobName: 'embed' },
+        { queue: QUEUE_NAMES.toolSideEffect, jobName: 'deliver' },
       ]),
     );
 
     expect([...runner.queueNames].sort()).toEqual(
-      [QUEUE_NAMES.agentExecution, QUEUE_NAMES.knowledgeEmbedding].sort(),
+      [
+        QUEUE_NAMES.agentExecution,
+        QUEUE_NAMES.knowledgeEmbedding,
+        QUEUE_NAMES.toolSideEffect,
+      ].sort(),
     );
   });
 

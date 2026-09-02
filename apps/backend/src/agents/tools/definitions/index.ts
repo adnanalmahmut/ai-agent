@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '../tool.types';
 import { knowledgeSearchTool } from './knowledge-search';
+import { notificationSendTool } from './notification-send';
 
 /**
  * Every tool this build can execute, listed explicitly.
@@ -10,4 +11,5 @@ import { knowledgeSearchTool } from './knowledge-search';
  */
 export const APPLICATION_TOOL_DEFINITIONS: readonly ToolDefinition[] = [
   knowledgeSearchTool,
+  notificationSendTool,
 ];

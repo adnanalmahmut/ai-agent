@@ -508,7 +508,24 @@ describe('provider-facing tool-error serialization', () => {
         output: z.object({ passages: z.array(z.string()) }).strict(),
         risk: 'read_only',
       },
+      // Declared, so the registry is complete; never granted here.
+      {
+        id: 'notification.send',
+        version: 1,
+        runtimeName: 'notification_send_v1',
+        description: 'Propose a notification.',
+        input: z.object({ recipientMemberId: z.string() }).strict(),
+        output: z.object({ status: z.literal('awaiting_approval') }).strict(),
+        risk: 'side_effect',
+      },
     ]);
+
+  const sideEffectStub = {
+    ref: 'notification.send@1' as ToolRef,
+    kind: 'side_effect' as const,
+    propose: () => Promise.resolve(),
+    prepareEffect: () => Promise.reject(new Error('never')),
+  };
 
   const agentDefinition = {
     id: 'containment-tool-agent',
@@ -543,6 +560,7 @@ describe('provider-facing tool-error serialization', () => {
   ) {
     const gateway = new ToolGateway(registry(), durable, [
       { ref: TOOL_REF, execute },
+      sideEffectStub,
     ]);
 
     return gateway.authorize({

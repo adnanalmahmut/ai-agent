@@ -12,6 +12,8 @@ import type { OrganizationBusinessProfile } from '../organization-settings/organ
 export const ORGANIZATION_AUDIT_ACTIONS = [
   'organizationBusinessProfile.replaced',
   'contentProject.created',
+  'agentActionApproval.approved',
+  'agentActionApproval.rejected',
 ] as const;
 
 export type OrganizationAuditAction =
@@ -20,6 +22,7 @@ export type OrganizationAuditAction =
 export const ORGANIZATION_AUDIT_SUBJECTS = [
   'organizationBusinessProfile',
   'contentProject',
+  'toolExecution',
 ] as const;
 
 export type OrganizationAuditSubject =
@@ -87,8 +90,34 @@ export type ContentProjectAuditState = {
  * future variant without one would silently relax the excess-property check
  * that keeps each projection closed.
  */
+/**
+ * What a human decision on a proposed agent action records.
+ *
+ * Identifiers and two closed vocabularies. The proposal itself — the subject
+ * and body the agent wrote, the recipient — stays on the `ToolExecution` row,
+ * which the reader can follow by `toolExecutionId`; copying it here would put
+ * model-written prose into a table that promises to hold none. The decision
+ * note is absent for the same reason: it is human free text, bounded on its
+ * own row, and an identifier is enough to find it.
+ *
+ * The provider outcome is deliberately not an audit action. Whether the
+ * message was accepted is a durable fact on the execution (`status`,
+ * `providerMessageId`, `completedAt`), and a second copy of it here would be
+ * two places for one truth.
+ */
+export type AgentActionApprovalAuditState = {
+  kind: 'agentActionApproval';
+  toolExecutionId: string;
+  agentRunId: string;
+  toolId: string;
+  toolVersion: number;
+  decision: 'approved' | 'rejected';
+};
+
 export type OrganizationAuditState =
-  OrganizationBusinessProfileAuditState | ContentProjectAuditState;
+  | OrganizationBusinessProfileAuditState
+  | ContentProjectAuditState
+  | AgentActionApprovalAuditState;
 
 export type OrganizationAuditEntry = {
   id: string;
@@ -183,6 +212,52 @@ export class OrganizationAuditService {
           language: input.language,
           draftRevision: input.draftRevision,
         }),
+      },
+    });
+  }
+
+  /**
+   * One human decision on one proposed agent action.
+   *
+   * Appended inside the transaction that records the decision and, for an
+   * approval, the outbox event that will perform it — so the three commit or
+   * roll back together. An audit row for an approval that never took effect,
+   * or an effect with no decision behind it, is the kind of history this
+   * table exists not to hold.
+   */
+  async recordAgentActionDecision(
+    tx: OrganizationAuditWriter,
+    input: {
+      organizationId: string;
+      actorUserId: string;
+      toolExecutionId: string;
+      agentRunId: string;
+      toolId: string;
+      toolVersion: number;
+      decision: 'approved' | 'rejected';
+    },
+  ): Promise<void> {
+    const state: AgentActionApprovalAuditState = {
+      kind: 'agentActionApproval',
+      toolExecutionId: input.toolExecutionId,
+      agentRunId: input.agentRunId,
+      toolId: input.toolId,
+      toolVersion: input.toolVersion,
+      decision: input.decision,
+    };
+
+    await tx.organizationAuditEvent.create({
+      data: {
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        action:
+          input.decision === 'approved'
+            ? 'agentActionApproval.approved'
+            : 'agentActionApproval.rejected',
+        subjectType: 'toolExecution',
+        subjectId: input.toolExecutionId,
+        before: Prisma.DbNull,
+        after: asJson(state),
       },
     });
   }

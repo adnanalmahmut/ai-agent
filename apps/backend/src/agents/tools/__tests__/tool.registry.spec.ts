@@ -17,28 +17,42 @@ const valid = (overrides: Partial<ToolDefinition> = {}): ToolDefinition => ({
   ...overrides,
 });
 
+/**
+ * The second declared reference, so a registry built from `valid()` alone is
+ * not refused for the unrelated reason that `notification.send@1` is missing.
+ */
+const sideEffect = (): ToolDefinition => ({
+  id: 'notification.send',
+  version: 1,
+  runtimeName: 'notification_send_v1',
+  description: 'Propose a notification.',
+  input: z.object({ recipientMemberId: z.string() }).strict(),
+  output: z.object({ status: z.literal('awaiting_approval') }).strict(),
+  risk: 'side_effect',
+});
+
+const registryOf = (...definitions: ToolDefinition[]) =>
+  new ToolRegistry([...definitions, sideEffect()]);
+
 describe('ToolRegistry composition', () => {
   it('registers the production tool set', () => {
     const registry = new ToolRegistry(APPLICATION_TOOL_DEFINITIONS);
 
     expect(registry.refs()).toEqual([...TOOL_REFS]);
     expect(registry.resolve('knowledge.search@1').risk).toBe('read_only');
+    expect(registry.resolve('notification.send@1').risk).toBe('side_effect');
   });
 
   it('refuses a duplicate exact identity', () => {
     // Distinct runtime names, so this reaches the identity check rather than
     // being caught earlier as a name collision.
-    expect(
-      () =>
-        new ToolRegistry([
-          valid(),
-          valid({ runtimeName: 'knowledge_search_v1_again' }),
-        ]),
+    expect(() =>
+      registryOf(valid(), valid({ runtimeName: 'knowledge_search_v1_again' })),
     ).toThrow('Duplicate tool "knowledge.search@1"');
   });
 
   it('refuses two tools offered to the model under one name', () => {
-    expect(() => new ToolRegistry([valid(), valid()])).toThrow(
+    expect(() => registryOf(valid(), valid())).toThrow(
       'Duplicate tool runtime name "knowledge_search_v1"',
     );
   });
@@ -48,12 +62,11 @@ describe('ToolRegistry composition', () => {
    * a stored grant and a stored `ToolExecution` ambiguous.
    */
   it('distinguishes versions of one tool id', () => {
-    expect(
-      () =>
-        new ToolRegistry([
-          valid(),
-          valid({ version: 2, runtimeName: 'knowledge_search_v2' }),
-        ]),
+    expect(() =>
+      registryOf(
+        valid(),
+        valid({ version: 2, runtimeName: 'knowledge_search_v2' }),
+      ),
     ).toThrow('Tool "knowledge.search@2" is not a declared tool reference');
   });
 
@@ -68,7 +81,7 @@ describe('ToolRegistry composition', () => {
   });
 
   it('refuses an unknown reference that is not declared', () => {
-    expect(() => new ToolRegistry([valid({ id: 'invented.tool' })])).toThrow(
+    expect(() => registryOf(valid({ id: 'invented.tool' }))).toThrow(
       'Tool "invented.tool@1" is not a declared tool reference',
     );
   });
@@ -81,15 +94,15 @@ describe('ToolRegistry composition', () => {
   });
 
   it('refuses an invalid risk classification', () => {
-    expect(
-      () => new ToolRegistry([valid({ risk: 'destructive' as never })]),
-    ).toThrow('invalid risk classification');
+    expect(() => registryOf(valid({ risk: 'destructive' as never }))).toThrow(
+      'invalid risk classification',
+    );
   });
 
   it.each([[''], ['   '], ['x'.repeat(501)]])(
     'refuses an unusable description %p',
     (description) => {
-      expect(() => new ToolRegistry([valid({ description })])).toThrow(
+      expect(() => registryOf(valid({ description }))).toThrow(
         'invalid description',
       );
     },
@@ -106,7 +119,7 @@ describe('ToolRegistry composition', () => {
     ['-leading-dash'],
     ['x'.repeat(64)],
   ])('refuses a runtime name an SDK would rewrite: %p', (runtimeName) => {
-    expect(() => new ToolRegistry([valid({ runtimeName })])).toThrow(
+    expect(() => registryOf(valid({ runtimeName }))).toThrow(
       'runtime name an SDK would rewrite',
     );
   });

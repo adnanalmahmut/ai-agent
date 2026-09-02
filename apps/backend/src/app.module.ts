@@ -3,7 +3,11 @@ import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 
 import { appConfig, configurations, observabilityConfig } from './config';
-import { AgentsModule, OrganizationAgentInstallationsModule } from './agents';
+import {
+  AgentActionApprovalModule,
+  AgentsModule,
+  OrganizationAgentInstallationsModule,
+} from './agents';
 import { AppAuthModule } from './core/auth';
 import { HealthModule } from './core/health';
 import { HttpInfrastructureModule } from './core/http';
@@ -34,6 +38,7 @@ import { DatabaseModule } from './database';
     LifecycleModule,
     AgentsModule,
     OrganizationAgentInstallationsModule,
+    AgentActionApprovalModule,
     ControlPlaneModule,
     KnowledgeModule,
     ContentIdeaModule,

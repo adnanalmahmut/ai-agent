@@ -9,6 +9,7 @@ export {
   type OrganizationAuditEntry,
   type OrganizationAuditState,
   type ContentProjectAuditState,
+  type AgentActionApprovalAuditState,
   type OrganizationBusinessProfileAuditState,
   type OrganizationAuditSubject,
 } from './organization-audit.service';

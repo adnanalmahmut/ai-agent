@@ -234,6 +234,7 @@ model Organization {
   agentInstallations OrganizationAgentInstallation[]
   auditEvents        OrganizationAuditEvent[]
   toolExecutions     ToolExecution[]
+  toolExecutionApprovals ToolExecutionApproval[]
 
   featureFlagOverrides FeatureFlagOrganizationOverride[]
 
@@ -478,12 +479,33 @@ model OrganizationAgentVersion {
 enum ToolExecutionStatus {
   /// Authorized, input validated, and handed to the implementation.
   STARTED
-  /// The implementation returned a value its own output schema accepted.
+  /// The implementation returned a value its own output schema accepted, or
+  /// the approved external effect was confirmed by the provider.
   SUCCEEDED
-  /// The implementation threw, or returned something its schema refused.
+  /// The implementation threw, returned something its schema refused, or a
+  /// side effect was refused before or by the provider. Never used when the
+  /// provider may have accepted the request.
   FAILED
+  /// A side-effect proposal: recorded durably, no external effect performed,
+  /// waiting for an authorized human decision.
+  AWAITING_APPROVAL
+  /// A human approved the proposal; the effect is queued or in progress.
+  APPROVED
+  /// A human rejected the proposal. Terminal; nothing was performed.
+  REJECTED
+  /// The provider may have accepted the request but the outcome was lost and
+  /// the safe retry window is over. Terminal; needs a person to reconcile.
+  OUTCOME_UNKNOWN
 
   @@map("tool_execution_status")
+}
+
+enum ToolExecutionApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+
+  @@map("tool_execution_approval_status")
 }
 
 model ToolExecution {
@@ -525,15 +547,79 @@ model ToolExecution {
   /// type first.
   failureCode String?
 
+  /// Side-effect bookkeeping. Null or zero for a read-only execution.
+  ///
+  /// `effectAttemptCount` is the concurrency fence for effect delivery: a
+  /// worker claims an attempt by matching the count it read and bumping it, so
+  /// two deliveries of one approved action cannot both hold the same attempt.
+  /// `effectFirstAttemptedAt` bounds retries to the provider's idempotency
+  /// window. `effectPayloadDigest` is the digest of the effective payload the
+  /// first attempt sent; a later attempt whose payload differs cannot know
+  /// whether the first reached the provider, so it resolves to
+  /// `OUTCOME_UNKNOWN` rather than sending something else under the same key.
+  /// `providerMessageId` is the provider's own identifier for the accepted
+  /// effect — the durable fact success is reconstructed from.
+  effectAttemptCount     Int       @default(0)
+  effectFirstAttemptedAt DateTime?
+  effectPayloadDigest    String?
+  providerMessageId      String?
+
   startedAt   DateTime  @default(now())
   completedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  approval ToolExecutionApproval?
+
+  /// Target for tenant-safe child references, so an approval carries
+  /// `(toolExecutionId, organizationId)` as a pair.
+  @@unique([id, organizationId])
   @@index([organizationId, agentRunId, startedAt])
   @@index([organizationId, startedAt, id])
   @@map("tool_execution")
+}
+
+/// The human decision on one side-effect proposal.
+///
+/// Exactly one per side-effect `ToolExecution`, enforced by the unique on
+/// `toolExecutionId`. A separate row rather than columns on the execution
+/// because the decision is a different fact: it has its own actor, its own
+/// time, and its own digest of what was decided. The composite foreign key is
+/// what lets PostgreSQL — not a service predicate — refuse an approval that
+/// names another organization's execution.
+model ToolExecutionApproval {
+  id String @id @default(uuid())
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  toolExecutionId String        @unique
+  toolExecution   ToolExecution @relation(fields: [toolExecutionId, organizationId], references: [id, organizationId], onDelete: Restrict)
+
+  status ToolExecutionApprovalStatus @default(PENDING)
+
+  /// Digest of the parsed proposal the approver saw. Revalidated immediately
+  /// before the effect, so an input rewritten after approval never sends.
+  inputDigest String
+
+  requestedAt DateTime  @default(now())
+  decidedAt   DateTime?
+
+  /// Who decided. Not a relation, for the same reason audit attribution is
+  /// not one: the decision must survive a later actor-lifecycle change.
+  decidedByUserId String?
+  /// Bounded, human-entered, and the only free text on the row.
+  decisionNote    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Required by Prisma for a one-to-one over a composite pair; implied by the
+  /// unique on `toolExecutionId` alone, and harmless as a second index.
+  @@unique([toolExecutionId, organizationId])
+  @@index([organizationId, status, requestedAt, id])
+  @@map("tool_execution_approval")
 }
 
 // ---------------------------------------------------------------------------

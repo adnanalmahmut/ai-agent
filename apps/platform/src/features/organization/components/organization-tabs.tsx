@@ -6,6 +6,7 @@ import {
   Lightbulb,
   Mail,
   Settings,
+  ShieldCheck,
   Users,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -67,6 +68,12 @@ export function OrganizationTabs({
       href: ORGANIZATION_ROUTES.contentProjects(organizationId),
       label: t('tabs.contentProjects'),
       Icon: FolderKanban,
+      exact: false,
+    },
+    {
+      href: ORGANIZATION_ROUTES.approvals(organizationId),
+      label: t('tabs.approvals'),
+      Icon: ShieldCheck,
       exact: false,
     },
     {
