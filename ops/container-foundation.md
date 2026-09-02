@@ -15,9 +15,10 @@ has no port. PostgreSQL and Redis are attached only to the internal `data`
 network. Persistent state lives in the `postgres_data`, `redis_data`, and
 `geoip_data` named volumes.
 
-The Backend API and Worker use the same image and select `dist/src/main` or
-`dist/src/worker` as their command. The migration target includes Prisma CLI
-and committed migrations; migrations do not run in either application startup.
+The Backend API and Worker use the same image and select `dist/src/api/main` or
+`dist/src/workers/main` as their command. The migration target includes Prisma
+CLI and committed migrations; migrations do not run in either application
+startup.
 
 ## Local verification
 
