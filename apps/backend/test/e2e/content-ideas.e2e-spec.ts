@@ -13,12 +13,12 @@ import { Client } from 'pg';
 import {
   AGENT_RUN_CAPACITY_LOCK,
   CONTENT_IDEA_AGENT_ID,
-} from '../../src/agents';
-import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
+} from '../../src/features/agent-management';
+import { OrganizationAgentInstallationService } from '../../src/features/agent-management/organization-agent-installation.service';
 import {
   FeatureFlagService,
   RuntimeSettingService,
-} from '../../src/control-plane';
+} from '../../src/features/control-plane';
 import {
   as,
   createHarness,

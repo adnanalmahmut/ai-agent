@@ -5,16 +5,16 @@ import { Client } from 'pg';
 import { z } from 'zod';
 
 import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
-import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
+import { OrganizationAgentInstallationService } from '../../src/features/agent-management/organization-agent-installation.service';
 import type { AgentDefinition } from '../../src/ai/agents/agent.types';
-import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
-import { NotificationSendTool } from '../../src/agents/tools/notification-send.tool';
+import { APPLICATION_TOOL_DEFINITIONS } from '../../src/features/agent-management/tools/definitions';
+import { NotificationSendTool } from '../../src/features/agent-management/tools/notification-send.tool';
 import {
   EFFECT_RETRY_WINDOW_MS,
   idempotencyKeyFor,
   SideEffectExecutionHandler,
   type SideEffectExecutionJob,
-} from '../../src/agents/tools/side-effect-execution.handler';
+} from '../../src/workers/handlers/side-effect-execution.handler';
 import { ToolExecutionService } from '../../src/ai/tools/tool-execution.service';
 import {
   ToolExecutionFailure,

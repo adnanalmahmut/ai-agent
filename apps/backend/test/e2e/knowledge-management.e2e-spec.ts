@@ -7,11 +7,11 @@ import {
   it,
 } from '@jest/globals';
 
-import { FeatureFlagService } from '../../src/control-plane';
-import { KNOWLEDGE_SPACE_SLUGS } from '../../src/knowledge/knowledge-space.registry';
-import { KNOWLEDGE_DOCUMENT_INGESTED } from '../../src/knowledge/knowledge.events';
-import { EMBEDDING_MODEL } from '../../src/knowledge/adapters/openai-embedding.adapter';
-import { KnowledgeController } from '../../src/knowledge/knowledge.controller';
+import { FeatureFlagService } from '../../src/features/control-plane';
+import { KNOWLEDGE_SPACE_SLUGS } from '../../src/features/knowledge/knowledge-space.registry';
+import { KNOWLEDGE_DOCUMENT_INGESTED } from '../../src/features/knowledge/knowledge.events';
+import { EMBEDDING_MODEL } from '../../src/features/knowledge/adapters/openai-embedding.adapter';
+import { KnowledgeController } from '../../src/features/knowledge/knowledge.controller';
 import {
   as,
   createHarness,

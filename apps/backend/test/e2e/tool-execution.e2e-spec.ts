@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
 import { AgentRunner } from '../../src/ai/execution/agent-runner.service';
 import { AgentRunService } from '../../src/ai/execution/agent-run.service';
-import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
+import { OrganizationAgentInstallationService } from '../../src/features/agent-management/organization-agent-installation.service';
 import type {
   AgentDefinition,
   AgentRuntimeTool,
@@ -27,7 +27,7 @@ import {
   ToolGateway,
 } from '../../src/ai/tools/tool.gateway';
 import { ToolRegistry } from '../../src/ai/tools/tool.registry';
-import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
+import { APPLICATION_TOOL_DEFINITIONS } from '../../src/features/agent-management/tools/definitions';
 import type { ToolImplementation } from '../../src/ai/tools/tool.types';
 import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 import {

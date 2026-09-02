@@ -1,7 +1,7 @@
 # Backend
 
 `apps/backend` is NestJS 11 with three entrypoints: `src/main.ts` serves HTTP,
-`src/worker.ts` dispatches the transactional outbox and runs BullMQ consumers,
+`src/workers/main.ts` dispatches the transactional outbox and runs BullMQ consumers,
 and `src/cli.ts` runs operator commands and exits. Each has its own composition
 root, so what a process cannot do is as much of the design as what it can: the
 API has no queue producer in request handlers, and accepted asynchronous work
@@ -26,7 +26,7 @@ Mail is provider-selected (`log`, SMTP, Resend, or SES) behind `MailService`.
 Provider credentials are validated only when active, and outbound locale is
 resolved from validated account/request state.
 
-The organization business-settings domain (`src/organization-settings/`) owns
+The organization business-settings domain (`src/features/organizations/settings/`) owns
 the typed defaults and profile that sit beside Better Auth's name, slug, and
 logo. `GET` and full-replacement `PUT` at
 `/organizations/:organizationId/business-profile` are path-scoped by the
@@ -39,7 +39,7 @@ an application-specific version token for compare-and-swap. Repeating an
 already-applied replacement is a no-op, while a stale replacement that would
 change state is a conflict rather than a silent overwrite.
 
-The organization product-audit domain (`src/organization-audit/`) records
+The organization product-audit domain (`src/features/organizations/audit/`) records
 meaningful tenant mutations separately from application logs, agent execution,
 and the operator-only control-plane history. Its closed actions are
 `organizationBusinessProfile.replaced` and `contentProject.created`. A real
@@ -608,7 +608,7 @@ to be restated as fact in a caption, `design.system` has nothing to say about
 prose, and `faq` holds the organization's most quotable liabilities.
 
 A repository-owned evaluation set
-(`src/agents/definitions/__tests__/content-idea.eval-cases.ts`) drives every case
+(`src/features/content/ideas/agent-definitions/__tests__/content-idea.eval-cases.ts`) drives every case
 through the real runner, assembler, and adapter with three fakes at the edges.
 It measures application-owned behavior — normalization, language and goal
 reaching the prompt, context drawn only from the declared spaces, cross-tenant
@@ -616,8 +616,8 @@ isolation, both budgets binding, and the output being both parsed and contracted
 against the requested idea count before it is stored — and it deliberately
 measures nothing about model quality.
 
-`content-idea@1` (`src/agents/definitions/`) is the first production definition,
-and `src/content-ideas/` is the business surface in front of it: one route to
+`content-idea@1` (`src/features/content/ideas/agent-definitions/`) is the first production definition,
+and `src/features/content/ideas/` is the business surface in front of it: one route to
 request ideas and one to read the operation. Generation is asynchronous because
 it is a provider call that takes seconds and can fail, so the request returns an
 operation the caller polls; there is deliberately no synchronous variant.
@@ -647,7 +647,7 @@ digest of the parsed request, so an honest retry finds its own run while the
 same key sent with a different body is a different key rather than a way to
 receive somebody else's answer.
 
-`src/content-projects/` is what happens after the ideas come back. One route
+`src/features/content/projects/` is what happens after the ideas come back. One route
 promotes a single idea into a `ContentProject`, and two read what has been
 promoted. Creation is synchronous — unlike generation it spends no provider call
 and writes two rows in one transaction, so there is nothing to poll.
@@ -697,7 +697,7 @@ required and, as with generation, the stored key mixes it with a digest of the
 request, so a retry finds its own project while the same key with a different
 body is a different request.
 
-The control plane (`src/control-plane/`) holds operational state an operator can
+The control plane (`src/features/control-plane/`) holds operational state an operator can
 change without a deployment: feature flags, typed runtime settings, and
 encrypted provider credentials. Every key is registered in code with its schema,
 default and bounds, so the Platform cannot create a setting nothing reads or
@@ -745,7 +745,7 @@ another. A cursor carries a position and no authority: the query keeps its own
 `organizationId` and `spaceId` predicates, so a cursor minted elsewhere can only
 position over rows the caller could already read.
 
-The Knowledge domain (`src/knowledge/`) holds organization-owned reference
+The Knowledge domain (`src/features/knowledge/`) holds organization-owned reference
 material — spaces, documents, and embedded chunks — and answers one question:
 which of an organization's passages bear on this, within the spaces the caller
 was granted. Storage is PostgreSQL with pgvector, behind a `RetrievalPort`, and

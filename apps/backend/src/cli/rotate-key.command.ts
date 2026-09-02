@@ -2,8 +2,8 @@ import type {
   ManagedSecretRotationService,
   RotationOutcome,
   RotationReport,
-} from '../control-plane/managed-secrets/managed-secret-rotation.service';
-import { MAX_ROTATION_BATCH_SIZE } from '../control-plane/managed-secrets/managed-secret-rotation.service';
+} from '../features/control-plane/managed-secrets/managed-secret-rotation.service';
+import { MAX_ROTATION_BATCH_SIZE } from '../features/control-plane/managed-secrets/managed-secret-rotation.service';
 import type { CommandIo } from './super-admin.command';
 
 /**

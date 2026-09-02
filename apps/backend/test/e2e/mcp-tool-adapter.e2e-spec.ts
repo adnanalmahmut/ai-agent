@@ -16,21 +16,21 @@ import { z } from 'zod';
 import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
 import type { AgentDefinition } from '../../src/ai/agents/agent.types';
 import { MCP_SESSION_TTL_MS } from '../../src/ai/agents/agent.types';
-import { MCP_SESSION_TOOL_CALL_BUDGET } from '../../src/agents/mcp/mcp-session.types';
-import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
-import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
-import { NotificationSendTool } from '../../src/agents/tools/notification-send.tool';
+import { MCP_SESSION_TOOL_CALL_BUDGET } from '../../src/features/agent-management/mcp/mcp-session.types';
+import { OrganizationAgentInstallationService } from '../../src/features/agent-management/organization-agent-installation.service';
+import { APPLICATION_TOOL_DEFINITIONS } from '../../src/features/agent-management/tools/definitions';
+import { NotificationSendTool } from '../../src/features/agent-management/tools/notification-send.tool';
 import {
   idempotencyKeyFor,
   SideEffectExecutionHandler,
   type SideEffectExecutionJob,
-} from '../../src/agents/tools/side-effect-execution.handler';
+} from '../../src/workers/handlers/side-effect-execution.handler';
 import { ToolExecutionService } from '../../src/ai/tools/tool-execution.service';
 import { ToolRegistry } from '../../src/ai/tools/tool.registry';
 import {
   FeatureFlagService,
   RuntimeSettingService,
-} from '../../src/control-plane';
+} from '../../src/features/control-plane';
 import type {
   ExternalEffectOutcome,
   NotificationDelivery,
@@ -39,7 +39,7 @@ import type {
 import {
   EMBEDDING_DIMENSIONS,
   KnowledgeWriterService,
-} from '../../src/knowledge';
+} from '../../src/features/knowledge';
 import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 import {
   as,

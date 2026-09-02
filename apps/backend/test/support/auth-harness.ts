@@ -14,7 +14,7 @@ import {
 import { configureTrustedProxy } from '../../src/infrastructure/http';
 import { AGENT_DEFINITIONS } from '../../src/ai/agents/agent-definition.registry';
 import type { AgentDefinition } from '../../src/ai/agents/agent.types';
-import { EMBEDDING_PORT } from '../../src/knowledge';
+import { EMBEDDING_PORT } from '../../src/features/knowledge';
 import { MAIL_TRANSPORT } from '../../src/infrastructure/mail/mail-transport';
 import type { MailTransport } from '../../src/infrastructure/mail/mail-transport';
 import type {

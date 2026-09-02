@@ -9,9 +9,9 @@ import {
 import request from 'supertest';
 
 import encryptionConfig from '../../src/infrastructure/config/encryption.config';
-import { FEATURE_FLAG_KEYS } from '../../src/control-plane';
-import { ControlPlaneController } from '../../src/control-plane/control-plane.controller';
-import { ManagedSecretKeyring } from '../../src/control-plane/managed-secrets/managed-secret-keyring';
+import { FEATURE_FLAG_KEYS } from '../../src/features/control-plane';
+import { ControlPlaneController } from '../../src/features/control-plane/control-plane.controller';
+import { ManagedSecretKeyring } from '../../src/features/control-plane/managed-secrets/managed-secret-keyring';
 import {
   as,
   createHarness,

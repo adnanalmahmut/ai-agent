@@ -12,7 +12,7 @@ import {
   AgentsModule,
   McpModule,
   OrganizationAgentInstallationsModule,
-} from './agents';
+} from './features/agent-management';
 import { AppAuthModule } from './infrastructure/auth';
 import { HealthModule } from './infrastructure/health';
 import { HttpInfrastructureModule } from './infrastructure/http';
@@ -21,12 +21,12 @@ import { LifecycleModule } from './infrastructure/lifecycle';
 import { MailModule } from './infrastructure/mail';
 import { createLoggerOptions } from './infrastructure/providers/logger.options';
 import { RateLimitModule } from './infrastructure/rate-limit';
-import { ControlPlaneModule } from './control-plane';
-import { ContentIdeaModule } from './content-ideas';
-import { ContentProjectModule } from './content-projects';
-import { KnowledgeModule } from './knowledge';
-import { OrganizationBusinessProfileModule } from './organization-settings';
-import { OrganizationAuditModule } from './organization-audit';
+import { ControlPlaneModule } from './features/control-plane';
+import { ContentIdeaModule } from './features/content/ideas';
+import { ContentProjectModule } from './features/content/projects';
+import { KnowledgeModule } from './features/knowledge';
+import { OrganizationBusinessProfileModule } from './features/organizations/settings';
+import { OrganizationAuditModule } from './features/organizations/audit';
 import { DatabaseModule } from './infrastructure/database';
 
 @Module({

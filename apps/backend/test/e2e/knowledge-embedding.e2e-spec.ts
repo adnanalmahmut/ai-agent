@@ -8,14 +8,14 @@ import {
 } from '@jest/globals';
 import type { Job } from 'bullmq';
 
-import { FeatureFlagService } from '../../src/control-plane';
-import { KNOWLEDGE_DOCUMENT_INGESTED } from '../../src/knowledge/knowledge.events';
+import { FeatureFlagService } from '../../src/features/control-plane';
+import { KNOWLEDGE_DOCUMENT_INGESTED } from '../../src/features/knowledge/knowledge.events';
 import {
   EMBEDDING_DIMENSIONS,
   KnowledgeEmbeddingHandler,
   KnowledgeRetrievalService,
   type KnowledgeDocumentIngestedJob,
-} from '../../src/knowledge';
+} from '../../src/features/knowledge';
 import {
   as,
   createHarness,

@@ -9,13 +9,13 @@ import {
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
-import type { AgentDefinition } from '../../src/agents';
+import type { AgentDefinition } from '../../src/features/agent-management';
 import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
 import {
   CONTENT_IDEA_AGENT_ID,
   CONTENT_IDEA_AGENT_VERSION,
-} from '../../src/agents/definitions/content-idea';
-import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
+} from '../../src/features/content/ideas/agent-definitions/content-idea';
+import { OrganizationAgentInstallationService } from '../../src/features/agent-management/organization-agent-installation.service';
 import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 import {
   as,

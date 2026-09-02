@@ -8,7 +8,7 @@ import {
   jest,
 } from '@jest/globals';
 
-import { OrganizationAuditService } from '../../src/organization-audit';
+import { OrganizationAuditService } from '../../src/features/organizations/audit';
 
 import {
   as,
