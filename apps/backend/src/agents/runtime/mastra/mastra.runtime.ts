@@ -67,16 +67,16 @@ const GENERATION_BUDGET = {
 } as const;
 
 /**
- * How many model round-trips one generation may take.
+ * How many model round-trips one *tool-enabled* generation may take.
  *
- * Passed explicitly, always, because the SDK's own default is not part of its
- * public contract. `maxSteps` and `stopWhen` are both declared in
- * `AgentExecutionOptionsBase`, but the fallback when neither is given —
- * `stepCountIs(5)` — exists only as a runtime literal inside the bundle and is
- * declared in no `.d.ts`. Depending on it would mean depending on a number that
- * can change in a patch release with no type-level signal, and the failure
- * would be silent: a run that needs one more step stops mid-task and returns a
- * finish reason rather than an error.
+ * Passed explicitly, and only when the run was granted a tool, because the
+ * SDK's own default is not part of its public contract. `maxSteps` and
+ * `stopWhen` are both declared in `AgentExecutionOptionsBase`, but the fallback
+ * when neither is given — `stepCountIs(5)` — exists only as a runtime literal
+ * inside the bundle and is declared in no `.d.ts`. Depending on it would mean
+ * depending on a number that can change in a patch release with no type-level
+ * signal, and the failure would be silent: a run that needs one more step stops
+ * mid-task and returns a finish reason rather than an error.
  *
  * `maxSteps` rather than `stopWhen` deliberately. When `maxSteps` is given the
  * SDK composes `[stepCountIs(maxSteps), ...stopWhen]`, so it is a hard ceiling
@@ -90,8 +90,19 @@ const GENERATION_BUDGET = {
  * output parse — noisy, and the right failure for a number that has become too
  * small. Code-owned for this first real use case; a control-plane setting would
  * be inventing an operator decision nobody has asked to make.
+ *
+ * A generation with no tools is left exactly as it was before tools existed.
+ * The loop bound is a control on the capability being introduced, and applying
+ * it to `content-idea@1` — which is granted nothing and cannot emit a tool call
+ * — would change the options of a shipped definition to no observable end. It
+ * is not merely unnecessary: `maxSteps` composes into `stopWhen`, so passing it
+ * on the no-tool path makes a live agent's generation options depend on a
+ * number introduced for a different feature. The step a toolless model takes is
+ * bounded at one by having nothing to call, and every other budget it runs
+ * under — `maxOutputTokens`, `maxRetries`, `timeout` — is unchanged and still
+ * unconditional.
  */
-const MAX_GENERATION_STEPS = 4;
+const MAX_TOOL_GENERATION_STEPS = 4;
 
 @Injectable()
 export class MastraRuntime implements AgentRuntime {
@@ -183,12 +194,22 @@ export class MastraRuntime implements AgentRuntime {
      * untrusted side of the boundary and an SDK that returned a partially
      * conforming object would otherwise be believed.
      */
+    /**
+     * The step ceiling is attached only when there is a loop to bound.
+     *
+     * Spread rather than `maxSteps: undefined`, so the no-tool call site hands
+     * the SDK an options object with no `maxSteps` key at all — the same object
+     * shape it received before tools existed, rather than one carrying an
+     * explicit `undefined` that a future SDK could distinguish from absence.
+     */
     const result = await agent.generate(
       toPrompt(request.input, request.context),
       {
         structuredOutput: { schema: definition.output as never },
         modelSettings: GENERATION_BUDGET,
-        maxSteps: MAX_GENERATION_STEPS,
+        ...(request.tools.length > 0
+          ? { maxSteps: MAX_TOOL_GENERATION_STEPS }
+          : {}),
       },
     );
 

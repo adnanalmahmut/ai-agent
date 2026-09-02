@@ -498,7 +498,7 @@ describe('MastraRuntime tool boundary', () => {
    * type. Depending on it would mean depending on a number that can change in a
    * patch release, and the failure mode is silent truncation of the run.
    */
-  it('bounds the tool-call loop explicitly on every generation', async () => {
+  it('bounds the tool-call loop explicitly when a tool is granted', async () => {
     await runWith([toolOf()]);
 
     const options = generate.mock.calls[0]?.[1] as { maxSteps?: number };
@@ -533,5 +533,104 @@ describe('MastraRuntime tool boundary', () => {
 
     // One argument only: nothing the SDK knows about identity is read back out.
     expect(tool.execute).toHaveBeenCalledWith({ query: 'refunds' });
+  });
+});
+
+/**
+ * The loop bound applies to the capability that introduced it, and to nothing
+ * else.
+ *
+ * `maxSteps` is a control on tool-calling, and every production definition in
+ * this build — `content-idea@1` among them — is granted no tools and cannot
+ * emit a tool call. Passing it on that path would change the generation options
+ * of a shipped agent for a feature it does not use, which is a runtime change
+ * wearing a tool-execution change's clothes.
+ *
+ * It is not a no-op in the SDK either. `maxSteps` is not passed through: when
+ * present the loop composes `[stepCountIs(maxSteps), ...stopWhen]`, and when
+ * absent it takes `stopWhen ?? stepCountIs(5)`. So the two paths reach the
+ * agentic loop with different stop conditions, and only one of them is the
+ * condition `content-idea@1` has been running under.
+ */
+describe('MastraRuntime generation scope', () => {
+  const optionsFor = async (tools: unknown[]) => {
+    generate.mockResolvedValue({ object: { answer: 'ok' } });
+    const runtime = new MastraRuntime(runtimeConfig());
+
+    await runtime.run({
+      definition: definitionOf(),
+      model: MODEL_IDS.openAiGpt4oMini,
+      configuration: {},
+      input: 'hello',
+      context: [],
+      tools: tools as never,
+    });
+
+    return generate.mock.calls[0]?.[1] as Record<string, unknown>;
+  };
+
+  const toolOf = () => ({
+    name: 'knowledge_search_v1',
+    description: 'Search knowledge.',
+    input: z.object({ query: z.string() }).strict(),
+    output: z.object({ passages: z.array(z.string()) }).strict(),
+    execute: () => Promise.resolve({ passages: [] }),
+  });
+
+  /**
+   * Absent, not `undefined`. The options object handed to the SDK must have no
+   * `maxSteps` key at all — the shape it had before tools existed — so a future
+   * SDK that distinguishes an explicit `undefined` from an omitted key cannot
+   * read a decision into it.
+   */
+  it('passes no step ceiling for a generation with no tools', async () => {
+    const options = await optionsFor([]);
+
+    expect('maxSteps' in options).toBe(false);
+    expect(Object.keys(options).sort()).toEqual([
+      'modelSettings',
+      'structuredOutput',
+    ]);
+  });
+
+  it('passes an explicit step ceiling for a tool-enabled generation', async () => {
+    const options = await optionsFor([toolOf()]);
+
+    expect(options.maxSteps).toEqual(expect.any(Number));
+    expect(options.maxSteps as number).toBeGreaterThan(0);
+  });
+
+  /**
+   * Everything else is unchanged by the presence of a tool. The budgets are
+   * spend controls on the provider call itself, so they were unconditional
+   * before this feature and stay unconditional — the only difference between
+   * the two paths is the one key.
+   */
+  it('changes nothing but the step ceiling between the two paths', async () => {
+    const withoutTools = await optionsFor([]);
+    generate.mockClear();
+    Agent.mockClear();
+    const withTools = await optionsFor([toolOf()]);
+
+    const { maxSteps, ...toolEnabledRest } = withTools;
+
+    expect(maxSteps).toBeDefined();
+    // The key sets differ by exactly one, and it is that one.
+    expect(Object.keys(toolEnabledRest).sort()).toEqual(
+      Object.keys(withoutTools).sort(),
+    );
+    // The spend controls are identical values, not merely identical keys.
+    expect(toolEnabledRest.modelSettings).toEqual(withoutTools.modelSettings);
+    /**
+     * The schema is compared by identity with the definition's rather than
+     * deeply: two `definitionOf()` calls build separate Zod instances that are
+     * equal in every respect a deep compare can see, so a deep compare here
+     * would assert nothing about which schema was passed.
+     */
+    for (const options of [toolEnabledRest, withoutTools]) {
+      expect(options.structuredOutput).toEqual({
+        schema: expect.anything(),
+      });
+    }
   });
 });
