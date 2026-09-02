@@ -720,12 +720,20 @@ describe('provider-facing tool-error serialization', () => {
     expect(results).toHaveLength(1);
     expect(results[0]?.output).toEqual({
       type: 'error-text',
-      value: 'Tool "knowledge.search@1" failed',
+      value: 'Tool "knowledge_search_v1" failed',
     });
 
     for (const secret of IMPLEMENTATION_SECRETS) {
       expect(serialized).not.toContain(secret);
     }
+
+    /**
+     * The failure names the tool the way the model was offered it. The durable
+     * `id@version` is what `ToolExecution` records and what a grant selects; it
+     * is not what the model knows this tool as, and `ToolDefinition.runtimeName`
+     * exists precisely to keep the two apart.
+     */
+    expect(serialized).not.toContain('knowledge.search@1');
   });
 
   /**
@@ -747,7 +755,7 @@ describe('provider-facing tool-error serialization', () => {
 
     expect(results[0]?.output).toEqual({
       type: 'error-text',
-      value: 'Tool "knowledge.search@1" could not be completed',
+      value: 'Tool "knowledge_search_v1" could not be completed',
     });
 
     for (const secret of IMPLEMENTATION_SECRETS) {
@@ -817,7 +825,7 @@ describe('provider-facing tool-error serialization', () => {
      * wrapper keeps the application error as `cause`, which is where a
      * restored stack would surface.
      */
-    expect(error.message).toContain('Tool "knowledge.search@1" failed');
+    expect(error.message).toContain('Tool "knowledge_search_v1" failed');
     expect(error.stack ?? '').not.toContain('apps/backend');
 
     const serialized = dump(error);
@@ -918,7 +926,7 @@ describe('provider-facing tool-error serialization', () => {
     // The budget is twelve, so the thirteenth call in the step is refused.
     expect(errors).toHaveLength(1);
     expect(errors[0]?.message).toBe(
-      'Tool "knowledge.search@1" exceeded this attempt\'s tool-call budget',
+      'Tool "knowledge_search_v1" exceeded this attempt\'s tool-call budget',
     );
 
     const stack = errors[0]?.stack ?? '';
@@ -980,17 +988,241 @@ describe('provider-facing tool-error serialization', () => {
    */
   it('carries no stack and no own enumerable property to serialize', () => {
     const failure = new ToolExecutionFailure(
-      'Tool "knowledge.search@1" failed',
+      'Tool "knowledge_search_v1" failed',
     );
 
     expect(failure.stack).toBeUndefined();
     expect(Object.hasOwn(failure, 'stack')).toBe(false);
     expect(failure.name).toBe('ToolExecutionFailure');
-    expect(failure.message).toBe('Tool "knowledge.search@1" failed');
+    expect(failure.message).toBe('Tool "knowledge_search_v1" failed');
     // What the SDK's spread over `Object.entries(error)` would contribute.
     expect(Object.keys(failure)).toEqual([]);
     // What `"json"` mode's `JSON.stringify` would emit.
     expect(JSON.stringify(failure)).toBe('{}');
     expect(dump(failure)).not.toContain('node_modules');
+  });
+});
+
+/**
+ * The other direction: what a tool *call* can put in this application's logs.
+ *
+ * Every suite above follows application material outbound to a provider. This
+ * one follows model material inbound to stdout, and it exists because the two
+ * are not the same boundary and only one of them was defended.
+ *
+ * `convertFullStreamChunkToMastra` (`dist/stream-BZ38co-u.js`, and the same
+ * function in the `.cjs` bundle) converts each AI SDK stream chunk into a
+ * Mastra one. For a `tool-call` it parses the model's argument string, and when
+ * both `JSON.parse` and `tryRepairJson` fail it reaches for `console.error`
+ * directly:
+ *
+ *     console.error("Error converting tool call input to JSON",
+ *                   { input: value.input })
+ *
+ * That is a bare global call inside a pure transform. It takes no logger, `ctx`
+ * carries only `runId`, and nothing gates it — so `containMastraAgent` cannot
+ * reach it, `agent.__setLogger` cannot reach it, and because it never enters
+ * Pino it is not redacted. The argument string it prints is model-generated
+ * text composed *after* the model was shown the organization's knowledge
+ * passages by `toPrompt`, so a query quoting a tenant document lands verbatim
+ * in worker container logs.
+ *
+ * Reaching it needs no adversary. `tryRepairJson` fixes unquoted keys, single
+ * quotes, trailing commas and bare dates; it cannot close a truncated object or
+ * string. `GENERATION_BUDGET.maxOutputTokens` is 2000, so a tool call cut off
+ * mid-argument is an ordinary outcome, and that is exactly the input this line
+ * prints. Before tools existed the line was unreachable, which is why it
+ * belongs to the change that introduced them.
+ *
+ * The remediation is a pnpm patch pinned to `@mastra/core@1.61.0`
+ * (`patches/@mastra__core@1.61.0.patch`) replacing that one emission in both
+ * bundles with a bounded constant carrying no value. No supported option, hook
+ * or newer release avoids it — 1.63.2, the newest at the time of writing, has
+ * the identical line. See `docs/backend.md`.
+ *
+ * These tests are the patch's regression. They run against the installed
+ * package, so if the patch is dropped, unapplied, or silently defeated by an
+ * upgrade, the canary reappears here.
+ */
+describe('malformed tool-call arguments in application logs', () => {
+  beforeAll(() => {
+    expect(typeof Agent).toBe('function');
+    expect(jest.isMockFunction(Agent)).toBe(false);
+  });
+
+  /**
+   * Each canary stands for a class of material the model can be induced to put
+   * in a tool argument: what the caller typed, what retrieval handed it, and
+   * the tenant it belongs to.
+   */
+  const USER_INPUT_CANARY = 'CANARY_USER_INPUT_ARG_u1u1';
+  const KNOWLEDGE_CANARY = 'CANARY_KNOWLEDGE_PASSAGE_k2k2';
+  const TENANT_CANARY = 'org_CANARY_TENANT_t3t3';
+
+  const ARGUMENT_CANARIES = [
+    USER_INPUT_CANARY,
+    KNOWLEDGE_CANARY,
+    TENANT_CANARY,
+  ] as const;
+
+  /**
+   * Truncated mid-string, which is what `maxOutputTokens` produces and what
+   * `tryRepairJson` provably cannot recover: it closes no brace and no quote.
+   */
+  const TRUNCATED_ARGUMENTS =
+    `{"query":"${USER_INPUT_CANARY} ${KNOWLEDGE_CANARY}` +
+    ` for ${TENANT_CANARY}`;
+
+  /** Emits one tool call carrying `input`, then answers. */
+  function modelEmitting(input: string) {
+    let call = 0;
+
+    const respond = () => {
+      call += 1;
+
+      if (call === 1) {
+        return {
+          content: [
+            {
+              type: 'tool-call',
+              toolCallId: 'call_1',
+              toolName: 'knowledge_search_v1',
+              input,
+            },
+          ],
+          finishReason: 'tool-calls',
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+          warnings: [],
+        };
+      }
+
+      return {
+        content: [{ type: 'text', text: 'answered' }],
+        finishReason: 'stop',
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        warnings: [],
+      };
+    };
+
+    return {
+      specificationVersion: 'v2',
+      provider: 'stub-provider',
+      modelId: 'stub-model-1',
+      supportedUrls: {},
+      doGenerate: () => Promise.resolve(respond()),
+      doStream: () => Promise.resolve(respond()),
+    };
+  }
+
+  /**
+   * Runs one generation whose single tool call carries `input`, with every
+   * console sink captured, and reports what the tool actually received.
+   */
+  async function generateWith(input: string) {
+    const fetchSpy = forbidNetwork();
+    const received: unknown[] = [];
+    const agent = new Agent({
+      id: 'tool-input-agent',
+      name: 'tool-input-agent',
+      instructions: 'Answer.',
+      model: modelEmitting(input) as unknown as MastraAgentModel,
+      tools: toMastraTools([
+        {
+          name: 'knowledge_search_v1',
+          description: 'Search knowledge.',
+          input: z.object({ query: z.string() }).strict(),
+          output: z.object({ passages: z.array(z.string()) }).strict(),
+          execute: (args) => {
+            received.push(args);
+            return Promise.resolve({ passages: [] });
+          },
+        },
+      ]) as never,
+    });
+    containMastraAgent(agent);
+
+    const spies = captureConsole();
+
+    await agent.generate('find the refund policy', { maxSteps: 3 });
+
+    const serialized = serializeConsole(spies);
+    const total = totalConsoleCalls(spies);
+
+    jest.restoreAllMocks();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    return { serialized, total, received };
+  }
+
+  /**
+   * The regression. A truncated tool call reaches the unrepairable branch and
+   * puts none of the model's argument text on any console sink.
+   */
+  it('writes no part of a malformed tool argument to the console', async () => {
+    const { serialized } = await generateWith(TRUNCATED_ARGUMENTS);
+
+    for (const canary of ARGUMENT_CANARIES) {
+      expect(serialized).not.toContain(canary);
+    }
+
+    // Not merely the canaries: no fragment of the raw argument string, and
+    // nothing describing it.
+    expect(serialized).not.toContain(TRUNCATED_ARGUMENTS);
+    expect(serialized).not.toContain('"query"');
+    expect(serialized).not.toContain('Error converting tool call input');
+  });
+
+  /**
+   * And nothing else rides along on that path either — the diagnostic must not
+   * grow a payload of tenant identity, credentials or source paths.
+   */
+  it('writes only a bounded diagnostic, if anything at all', async () => {
+    const { serialized, total } = await generateWith(TRUNCATED_ARGUMENTS);
+
+    /**
+     * One emission is permitted and it is asserted verbatim, because "a
+     * bounded diagnostic" is only a real bound if the exact string is pinned.
+     * A patch that started interpolating anything fails here.
+     */
+    expect(total).toBeLessThanOrEqual(1);
+    if (total === 1) {
+      expect(serialized).toContain('Tool call input could not be parsed');
+    }
+
+    expect(serialized).not.toContain('apps/backend');
+    expect(serialized).not.toContain('node_modules');
+    expect(serialized).not.toContain(process.cwd());
+    expect(serialized).not.toMatch(/\bat\s+\S+\s+\(/);
+  });
+
+  /**
+   * The patch must not have bought containment by breaking the feature. A
+   * well-formed call still parses, still reaches the application closure, and
+   * still arrives with exactly the model's arguments.
+   */
+  it('still delivers a valid tool call to the application closure', async () => {
+    const { received, serialized } = await generateWith(
+      `{"query":"${USER_INPUT_CANARY}"}`,
+    );
+
+    expect(received).toEqual([{ query: USER_INPUT_CANARY }]);
+    // The happy path says nothing at all.
+    expect(serialized).not.toContain('could not be parsed');
+  });
+
+  /**
+   * The repair path is untouched too: malformed-but-recoverable arguments are
+   * still repaired rather than dropped, so the patch removed an emission and
+   * not a behaviour.
+   */
+  it('still repairs recoverable malformed arguments', async () => {
+    const { received, serialized } = await generateWith(
+      `{query:'${USER_INPUT_CANARY}',}`,
+    );
+
+    expect(received).toEqual([{ query: USER_INPUT_CANARY }]);
+    expect(serialized).not.toContain('could not be parsed');
+    expect(serialized).not.toContain(USER_INPUT_CANARY);
   });
 });
