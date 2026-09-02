@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { QUEUE_NAMES, type QueueJobHandler } from '../../core/queue';
 import { PrismaService } from '../../database';
+import type { ToolExecutionStatus } from '../../generated/prisma/client';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import type { AgentDefinition } from '../agent.types';
 import { digestValue } from './digest';
@@ -80,14 +81,34 @@ export const EFFECT_RETRY_WINDOW_MS = 20 * 60 * 60 * 1_000;
  *      Otherwise the first attempt may have reached the provider and this one
  *      cannot safely repeat it — `OUTCOME_UNKNOWN`, honestly.
  *   5. Claim the attempt by compare-and-set on the attempt count, so two
- *      deliveries cannot both proceed.
+ *      deliveries cannot both hold the same attempt.
  *   6. Call the provider with the stable key. Accepted → `SUCCEEDED`; refused
  *      deterministically → `FAILED`; anything else → retry with the same key,
  *      or on the last attempt `OUTCOME_UNKNOWN`.
  *
+ * One rule cuts across steps 2, 3 and 6: once any attempt has reached the
+ * provider (`effectAttemptCount > 0`), no refusal may be recorded as `FAILED`.
+ * A recipient who left between attempts, an archived organization, a revoked
+ * grant, or a provider `409` for a changed payload all mean "this must not be
+ * sent again" — they do not mean "this was not sent". Those settle
+ * `OUTCOME_UNKNOWN`. `FAILED` is reserved for a refusal before the first
+ * provider call, when nothing can have left.
+ *
+ * The attempt fence prevents two deliveries from claiming the same attempt; it
+ * does not make the provider call mutually exclusive. A delivery that stalls
+ * past the queue's lock can be joined by a second one at the next count, and
+ * both may reach the provider with the same key. The key is what prevents a
+ * duplicate email in that case; the worst outcome is `OUTCOME_UNKNOWN` for a
+ * message that was in fact accepted, which is honest but not exact.
+ *
  * The key is derived, never stored and never generated: the same execution
  * yields the same key on every attempt, which is what makes step 6 safe to
  * repeat.
+ *
+ * Every database call is contained the way `AgentExecutionHandler` contains
+ * its durable writes: a Prisma rejection names the connection target and
+ * renders its arguments, and this handler's rejection becomes BullMQ's
+ * `failedReason` in Redis. Only the constant may follow it there.
  */
 @Injectable()
 export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExecutionJob> {
@@ -159,10 +180,10 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
       return;
     }
 
-    const refusal = await this.revalidate(row);
+    const refusal = await this.contained(() => this.revalidate(row));
 
     if (refusal !== null) {
-      await this.settle(row, { status: 'FAILED', failureCode: refusal }, job);
+      await this.refuse(row, refusal, job);
       return;
     }
 
@@ -176,22 +197,14 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
     if (!implementation) {
       // Unreachable after `revalidate`, which already required it. Kept so
       // the narrowing below is honest rather than asserted.
-      await this.settle(
-        row,
-        { status: 'FAILED', failureCode: 'precondition_authority' },
-        job,
-      );
+      await this.refuse(row, 'precondition_authority', job);
       return;
     }
 
-    const prepared = await this.prepare(implementation, row, definition);
+    const prepared = await this.prepare(implementation, row, definition, job);
 
     if ('failureCode' in prepared) {
-      await this.settle(
-        row,
-        { status: 'FAILED', failureCode: prepared.failureCode },
-        job,
-      );
+      await this.refuse(row, prepared.failureCode, job);
       return;
     }
 
@@ -220,11 +233,13 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
       }
     }
 
-    const claimed = await this.executions.claimEffectAttempt(
-      row.id,
-      row.organizationId,
-      row.effectAttemptCount,
-      prepared.payloadDigest,
+    const claimed = await this.contained(() =>
+      this.executions.claimEffectAttempt(
+        row.id,
+        row.organizationId,
+        row.effectAttemptCount,
+        prepared.payloadDigest,
+      ),
     );
 
     if (!claimed) {
@@ -254,18 +269,18 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
         return;
 
       case 'rejected':
-        await this.settle(
-          row,
-          { status: 'FAILED', failureCode: 'provider_rejected' },
-          job,
-        );
+        /**
+         * Deterministic on a first attempt: nothing left, and the same payload
+         * would be refused again. On a retry it is a different fact — the
+         * provider may be refusing *because* an earlier request with this key
+         * was accepted with a payload it considers different — so `refuse`
+         * resolves it by attempt count rather than by the provider's word.
+         */
+        await this.refuse(row, 'provider_rejected', job);
         return;
 
       case 'unavailable': {
-        const attempts = job.opts.attempts ?? 1;
-        const final = job.attemptsMade + 1 >= attempts;
-
-        if (final) {
+        if (isFinalAttempt(job)) {
           /**
            * The provider may have accepted a request whose answer was lost,
            * and the transport is out of attempts. Not `FAILED`: that would
@@ -372,6 +387,7 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
     implementation: SideEffectToolImplementation,
     row: SideEffectExecutionRow,
     definition: AgentDefinition,
+    job: Job<SideEffectExecutionJob>,
   ): Promise<PreparedEffect | { failureCode: ToolFailureCode }> {
     const context: ToolInvocationContext = {
       organizationId: row.organizationId,
@@ -387,7 +403,52 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
         return { failureCode: error.code };
       }
 
-      // A database fault while resolving the recipient. Not read; retried.
+      /**
+       * A database fault while resolving the recipient. Not read. Retried
+       * while the queue has attempts left; on the last one the row must not be
+       * left `APPROVED` with nothing coming back for it, so it is settled —
+       * as unknown if an earlier attempt reached the provider, as the tool
+       * having failed if none did.
+       */
+      if (!isFinalAttempt(job)) throw new Error(SIDE_EFFECT_ATTEMPT_FAILED);
+
+      return { failureCode: 'implementation_error' };
+    }
+  }
+
+  /**
+   * Records that the effect will not be performed, honestly.
+   *
+   * `FAILED` says nothing left this system. That is only knowable before the
+   * first provider call, so a refusal reached after any attempt was claimed
+   * settles `OUTCOME_UNKNOWN` instead: the precondition that failed explains
+   * why nothing more may be sent, not whether something already was.
+   */
+  private async refuse(
+    row: SideEffectExecutionRow,
+    failureCode: ToolFailureCode,
+    job: Job<SideEffectExecutionJob>,
+  ): Promise<void> {
+    if (row.effectAttemptCount > 0) {
+      this.log('refused_after_attempt', row.id, job, undefined, failureCode);
+      await this.settle(row, { status: 'OUTCOME_UNKNOWN' }, job);
+      return;
+    }
+
+    await this.settle(row, { status: 'FAILED', failureCode }, job);
+  }
+
+  /**
+   * Runs a durable read or write with its rejection replaced by the constant.
+   *
+   * The caught value is never read. A Prisma message names the connection
+   * target and, for an argument fault, renders the arguments — ids, statuses
+   * and a digest here, but the rule is the rule.
+   */
+  private async contained<T>(work: () => Promise<T>): Promise<T> {
+    try {
+      return await work();
+    } catch {
       throw new Error(SIDE_EFFECT_ATTEMPT_FAILED);
     }
   }
@@ -436,11 +497,11 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
    * payload, no provider response, no error object.
    */
   private log(
-    reason: string,
+    reason: SideEffectLogReason,
     toolExecutionId: string,
     job: Job<SideEffectExecutionJob>,
-    status?: string,
-    failureCode?: string,
+    status?: ToolExecutionStatus,
+    failureCode?: ToolFailureCode,
   ): void {
     this.logger.info(
       {
@@ -454,6 +515,37 @@ export class SideEffectExecutionHandler implements QueueJobHandler<SideEffectExe
       'Side-effect delivery',
     );
   }
+}
+
+/**
+ * The fixed operator vocabulary for a delivery log line.
+ *
+ * Every value is a literal chosen at the call site from application-owned
+ * facts, the same discipline `AgentExecutionHandler.reasonFor` keeps: nothing
+ * about a provider, a row or an error decides the word an operator reads.
+ */
+type SideEffectLogReason =
+  | 'missing'
+  | 'already_settled'
+  | 'not_approved'
+  | 'payload_changed'
+  | 'window_expired'
+  | 'claim_lost'
+  | 'refused_after_attempt'
+  | 'outcome_unknown'
+  | 'provider_unavailable'
+  | 'settled'
+  | 'settlement_lost';
+
+/**
+ * Whether the queue will try again after this delivery rejects.
+ *
+ * `attemptsMade + 1 >= attempts`, the same arithmetic `AgentExecutionHandler`
+ * uses: `attemptsMade` counts finished attempts, so the one in progress is the
+ * last when it brings the count to the configured total.
+ */
+function isFinalAttempt(job: Job<SideEffectExecutionJob>): boolean {
+  return job.attemptsMade + 1 >= (job.opts.attempts ?? 1);
 }
 
 /**

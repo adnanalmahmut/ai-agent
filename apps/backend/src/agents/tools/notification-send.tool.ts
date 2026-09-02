@@ -35,8 +35,9 @@ import {
  * Deliverable means: still a member of *this* organization, and an account
  * that is neither deactivated nor banned. The address is the account's own,
  * read at the last moment and never stored on the execution; what is stored
- * is a digest of the payload, so a retry can prove it is sending the same
- * thing without the row holding the address.
+ * is a digest of the payload — sender, address, subject, text and HTML — so a
+ * retry can prove it is sending the same thing without the row holding the
+ * address.
  */
 @Injectable()
 export class NotificationSendTool implements SideEffectToolImplementation {
@@ -81,11 +82,19 @@ export class NotificationSendTool implements SideEffectToolImplementation {
     );
     const rendered = renderNotification(parsed);
 
+    /**
+     * Everything the provider deduplicates on: sender, recipient, subject and
+     * both bodies. A change to any of them between two attempts is a changed
+     * request under the same key, and the digest has to say so before the
+     * provider does.
+     */
     return {
       payloadDigest: digestStrings([
+        this.delivery.sender,
         recipient.email,
         rendered.subject,
         rendered.text,
+        rendered.html,
       ]),
       deliver: (idempotencyKey) =>
         this.delivery.deliver({

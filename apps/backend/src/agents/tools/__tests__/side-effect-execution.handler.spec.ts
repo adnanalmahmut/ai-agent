@@ -154,7 +154,7 @@ describe('SideEffectExecutionHandler', () => {
   });
 
   describe('when nothing may be performed', () => {
-    it.each(['SUCCEEDED', 'FAILED', 'REJECTED', 'OUTCOME_UNKNOWN'])(
+    it.each(['SUCCEEDED', 'FAILED', 'REJECTED', 'OUTCOME_UNKNOWN'] as const)(
       'does nothing for a %s execution',
       async (status) => {
         current = row({ status });
@@ -352,7 +352,7 @@ describe('SideEffectExecutionHandler', () => {
       expect(settle).not.toHaveBeenCalled();
     });
 
-    it('records a deterministic provider refusal as FAILED', async () => {
+    it('records a deterministic provider refusal on a first attempt as FAILED', async () => {
       deliver.mockResolvedValue({ kind: 'rejected' });
 
       await handler().handle(job());
@@ -360,6 +360,24 @@ describe('SideEffectExecutionHandler', () => {
       expect(settlements()).toEqual([
         { status: 'FAILED', failureCode: 'provider_rejected' },
       ]);
+    });
+
+    /**
+     * On a retry the provider may be refusing *because* the earlier request
+     * with this key was accepted. The provider's word is not enough to write
+     * FAILED over a message that may have been delivered.
+     */
+    it('records a provider refusal on a retry as OUTCOME_UNKNOWN', async () => {
+      current = row({
+        effectAttemptCount: 1,
+        effectFirstAttemptedAt: new Date(),
+        effectPayloadDigest: 'digest-a',
+      });
+      deliver.mockResolvedValue({ kind: 'rejected' });
+
+      await handler().handle(job({ attemptsMade: 1 }));
+
+      expect(settlements()).toEqual([{ status: 'OUTCOME_UNKNOWN' }]);
     });
 
     it('retries an ambiguous outcome while attempts remain', async () => {

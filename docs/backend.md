@@ -323,7 +323,9 @@ so "approved" and "queued to perform" are one fact. A rejection writes
 `REJECTED`, the audit row, and no event.
 
 **Revalidation, then the effect.** `SideEffectExecutionHandler` runs in the
-worker only and is handed two identifiers. It re-derives every fact from
+worker only and is handed two identifiers; every database call it makes is
+contained to a constant, so a Prisma rejection never becomes BullMQ's
+`failedReason`. It re-derives every fact from
 PostgreSQL: a terminal execution is a no-op, a non-approved one performs
 nothing, and before any provider call it checks that the organization is still
 operational, that the approval still stands and its digest still equals the
@@ -347,12 +349,19 @@ both proceed; the first attempt records when it began and a digest of the
 effective payload (address, subject, text), and a later attempt whose payload
 differs or that arrives after the 20-hour safe window is settled
 `OUTCOME_UNKNOWN` without calling the provider. An `accepted` answer settles
-`SUCCEEDED` with the provider's message id; a deterministic refusal settles
-`FAILED` with `provider_rejected`; anything else retries with the same key
-through BullMQ's bounded attempts, and on the last attempt settles
+`SUCCEEDED` with the provider's message id; a deterministic refusal on a first
+attempt settles `FAILED` with `provider_rejected`; anything else retries with
+the same key through BullMQ's bounded attempts, and on the last attempt settles
 `OUTCOME_UNKNOWN`. That state exists because the alternative is a lie:
 `FAILED` claims nothing was sent, and a lost response cannot support that
-claim. Exactly-once is not asserted; at-least-once delivery with a provider
+claim. The same rule governs every refusal reached after an attempt has been
+claimed: a recipient who left between attempts, an organization archived
+between attempts, or a provider `409` for a payload it considers changed all
+settle `OUTCOME_UNKNOWN`, because they say the message must not be sent
+again, not that it was never sent. `FAILED` is reserved for a refusal before
+the first provider call. The attempt fence stops two deliveries holding the
+same attempt; it does not make the provider call mutually exclusive, and the
+key is what makes two concurrent calls one send. Exactly-once is not asserted; at-least-once delivery with a provider
 that deduplicates on a stable key is what is asserted, and the guarantee ends
 where the provider's window does.
 

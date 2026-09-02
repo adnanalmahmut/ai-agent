@@ -1,6 +1,6 @@
 import { Badge, Button, Card, CardContent, Textarea } from '@repo/ui';
 import { Loader2, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -51,6 +51,19 @@ export function OrganizationApprovalsBlock() {
   });
 
   const [filter, setFilter] = useState<Filter>('PENDING');
+  /**
+   * The filter the list currently belongs to, readable after an `await`.
+   *
+   * `loadMore` appends into whatever list is on screen when its request
+   * resolves. If the reader switched filters while it was in flight, that
+   * list is a different one, and the page must be dropped rather than
+   * appended onto it.
+   */
+  const currentFilter = useRef<Filter>(filter);
+
+  useEffect(() => {
+    currentFilter.current = filter;
+  }, [filter]);
   const [items, setItems] = useState<AgentActionApproval[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>('loading');
@@ -66,6 +79,9 @@ export function OrganizationApprovalsBlock() {
    */
   const changeFilter = (next: Filter) => {
     setFilter(next);
+    setItems([]);
+    setCursor(null);
+    setAppendFailed(false);
     setState('loading');
   };
 
@@ -105,6 +121,7 @@ export function OrganizationApprovalsBlock() {
   const loadMore = useCallback(async () => {
     if (cursor === null) return;
 
+    const requested = filter;
     setIsAppending(true);
     setAppendFailed(false);
 
@@ -112,13 +129,16 @@ export function OrganizationApprovalsBlock() {
       const page = await listAgentActionApprovals(organizationId, {
         limit: PAGE_SIZE,
         cursor,
-        ...(filter === 'ALL' ? {} : { status: filter }),
+        ...(requested === 'ALL' ? {} : { status: requested }),
       });
+
+      // A page for a filter the reader has since left belongs to nobody.
+      if (currentFilter.current !== requested) return;
 
       setItems((previous) => [...previous, ...page.items]);
       setCursor(page.nextCursor);
     } catch {
-      setAppendFailed(true);
+      if (currentFilter.current === requested) setAppendFailed(true);
     } finally {
       setIsAppending(false);
     }

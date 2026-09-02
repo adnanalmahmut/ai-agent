@@ -6,6 +6,7 @@ import { PrismaService } from '../../database';
 import type { Prisma } from '../../generated/prisma/client';
 import { OrganizationAuditService } from '../../organization-audit';
 import { notificationSendInput } from '../tools/definitions/notification-send';
+import { TOOL_FAILURE_CODES, type ToolFailureCode } from '../tools/tool.types';
 import {
   beforePosition,
   decodeCursor,
@@ -14,7 +15,6 @@ import {
   type AgentActionApprovalPage,
   type AgentActionApprovalStatus,
   type AgentActionApprovalView,
-  type AgentActionProposalView,
 } from './agent-action-approval.types';
 
 const TOOL_EXECUTION_APPROVED = 'tool-execution.approved';
@@ -136,13 +136,14 @@ export class AgentActionApprovalService {
   /**
    * One decision, as one transaction.
    *
-   * The approval row moves first, because it is the row that carries the
-   * unique constraint and therefore the row two concurrent deciders contend
-   * on: under READ COMMITTED the second `UPDATE` waits for the first to
-   * commit, re-evaluates `status = PENDING`, matches nothing, and is refused.
-   * The execution row moves second under its own predicate; a mismatch there
-   * means the two rows disagree about the world and the whole transaction
-   * rolls back rather than record half a decision.
+   * The approval row moves first because its predicate is the one that tells
+   * "no such proposal here" from "already decided" — `refusal` reads it to
+   * choose between 404 and 409. Under READ COMMITTED a second decider's
+   * `UPDATE` waits for the first to commit, re-evaluates `status = PENDING`,
+   * matches nothing, and is refused. The execution row moves second under its
+   * own predicate; a mismatch there means the two rows disagree about the
+   * world and the whole transaction rolls back rather than record half a
+   * decision.
    */
   private async decide(
     input: DecisionInput,
@@ -324,7 +325,7 @@ export class AgentActionApprovalService {
           attemptCount: execution.effectAttemptCount,
           firstAttemptedAt: execution.effectFirstAttemptedAt,
           completedAt: execution.completedAt,
-          failureCode: execution.failureCode,
+          failureCode: toFailureCode(execution.failureCode),
         },
       } satisfies AgentActionApprovalView;
     });
@@ -359,10 +360,20 @@ function proposalOf(row: ApprovalRow): {
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * The stored column is `String?`; the view promises the closed union. A value
+ * outside it cannot be written by this code, and is answered as `null` rather
+ * than passed through as a string the client would render as its own key.
+ */
+function toFailureCode(value: string | null): ToolFailureCode | null {
+  return value !== null &&
+    (TOOL_FAILURE_CODES as readonly string[]).includes(value)
+    ? (value as ToolFailureCode)
+    : null;
+}
+
 function notFound(): AppException {
   return new AppException('NOT_FOUND', {
     context: { resource: 'agentActionApproval' },
   });
 }
-
-export type { AgentActionProposalView };

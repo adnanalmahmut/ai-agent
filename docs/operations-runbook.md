@@ -455,3 +455,20 @@ understanding the database state.
 - Bad release: use application rollback only when schema remains compatible.
 - Suspected credential exposure: revoke at the owning boundary, replace the VPS
   runtime file/key, and redeploy; do not paste evidence containing secret values.
+
+## Approved agent actions that never settled
+
+An approved `notification.send@1` execution should leave `APPROVED` within the
+queue's retry budget. One that has not — `tool_execution.status = 'APPROVED'`,
+`effectAttemptCount > 0`, `updatedAt` older than the retry horizon — means the
+worker reached the provider and died before writing the outcome, and the
+transport gave up before the handler ran again. Nothing sweeps these rows,
+because no state would be honest without asking the provider.
+
+Reconcile by hand: look the message up at the provider by its idempotency key,
+`notification.send@1:<executionId>`. If the provider holds it, the message was
+sent; if it does not and the 24-hour key window has passed, it was not and
+must not be resent under that key. Record what you found where the
+organization can see it. Do not requeue the outbox event: a fresh delivery
+inside the window would replay the same request and is safe, but outside it
+the same request would send again.

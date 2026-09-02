@@ -257,4 +257,52 @@ describe('organization approvals block', () => {
     await waitFor(() => expect(listAgentActionApprovals).toHaveBeenCalledTimes(2));
     expect(listAgentActionApprovals.mock.calls[1]?.[1]).not.toHaveProperty('status');
   });
+
+  /**
+   * A page requested under one filter must not land on another filter's list.
+   * The append resolves after the switch; its rows are dropped.
+   */
+  it('drops a page that arrives after the filter changed', async () => {
+    authClientStub.organization.checkRolePermission.mockReturnValue(true);
+    let resolveAppend: (page: unknown) => void = () => undefined;
+    listAgentActionApprovals
+      .mockResolvedValueOnce({ items: [proposal()], nextCursor: 'cursor-1' })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveAppend = resolve;
+          }),
+      )
+      .mockResolvedValueOnce({ items: [], nextCursor: null });
+
+    render();
+
+    await screen.findByText('Kettle teardown is ready');
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'All' }));
+    await waitFor(() =>
+      expect(listAgentActionApprovals).toHaveBeenCalledTimes(3),
+    );
+
+    resolveAppend({
+      items: [
+        proposal({
+          toolExecutionId: 'exec_2',
+          proposal: {
+            kind: 'notification.send@1',
+            recipient: null,
+            subject: 'Late page',
+            body: 'x',
+          },
+        }),
+      ],
+      nextCursor: null,
+    });
+
+    // The append has settled and the ALL list is what is on screen: empty,
+    // and without the late page.
+    expect(await screen.findByText(/nothing waiting/i)).toBeInTheDocument();
+    expect(screen.queryByText('Late page')).toBeNull();
+    expect(screen.queryByText('Kettle teardown is ready')).toBeNull();
+  });
 });

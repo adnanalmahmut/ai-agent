@@ -119,13 +119,13 @@ unless a new explicit human decision changes the goal.
 
 ## Bounded roadmap
 
-Three slices remain; TOOL-01 is delivered and ACT-01 is implemented on its
-branch. PORT-PLAN-01 — the roadmap reset — was governance, not a technical
-capability, and is not counted among them.
+Three slices remain; TOOL-01 and ACT-01 are delivered. PORT-PLAN-01 — the
+roadmap reset — was governance, not a technical capability, and is not counted
+among them.
 
-Gate P1 closes when ACT-01 is merged and delivered to Staging; the checked
-criteria above describe the code on the ACT-01 branch, not what `main` proves
-until that merge.
+Gate P1 closes when ACT-01's merge has deployed to Staging through the
+automatic delivery chain; until that chain is green the four criteria above
+describe `main`, not a running environment.
 
 ### TOOL-01 — Governed durable tool execution — **delivered**
 
@@ -134,7 +134,7 @@ organization grants subsetting definition maxima; `knowledge.search@1` as the
 first real read-only tool; durable `ToolExecution` records in PostgreSQL. See
 [the backend's governed tool execution section](backend.md).
 
-### ACT-01 — Human approval and idempotent side effect — **implemented, pending merge**
+### ACT-01 — Human approval and idempotent side effect — **delivered**
 
 One side-effecting action, and only one: `notification.send@1`, proposal-only.
 A separate tenant-safe approval row, compare-and-set decisions committed with

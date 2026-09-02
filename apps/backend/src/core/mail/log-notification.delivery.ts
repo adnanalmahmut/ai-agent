@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { PinoLogger } from 'nestjs-pino';
 
+import { formatSender } from './mail-transport';
 import { maskEmail } from './mail-redaction';
 import type {
   ExternalEffectOutcome,
@@ -23,8 +24,13 @@ import type {
  */
 export class LogNotificationDelivery implements NotificationDelivery {
   readonly idempotent = true;
+  readonly sender: string;
 
-  constructor(private readonly logger: PinoLogger) {
+  constructor(
+    from: { address: string; name: string },
+    private readonly logger: PinoLogger,
+  ) {
+    this.sender = formatSender(from);
     this.logger.setContext(LogNotificationDelivery.name);
   }
 

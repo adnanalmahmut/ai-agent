@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../database';
-import { Prisma } from '../../generated/prisma/client';
+import {
+  Prisma,
+  type ToolExecutionApprovalStatus,
+  type ToolExecutionStatus,
+} from '../../generated/prisma/client';
 import type { AgentValue } from '../agent.types';
 import { digestValue } from './digest';
 import type { ToolFailureCode } from './tool.types';
@@ -28,12 +32,12 @@ export type SideEffectExecutionRow = {
   agentRunAttempt: number;
   toolId: string;
   toolVersion: number;
-  status: string;
+  status: ToolExecutionStatus;
   input: AgentValue;
   effectAttemptCount: number;
   effectFirstAttemptedAt: Date | null;
   effectPayloadDigest: string | null;
-  approval: { status: string; inputDigest: string } | null;
+  approval: { status: ToolExecutionApprovalStatus; inputDigest: string } | null;
   agentRun: {
     agentId: string;
     agentVersion: number;
@@ -50,8 +54,8 @@ export type EffectSettlement =
 /**
  * The durable half of tool execution.
  *
- * Three narrow writes rather than a repository: a tool execution has exactly
- * one lifecycle and it is linear, so anything more general would be a shape
+ * Narrow, named writes rather than a repository: each method is one transition
+ * or one read a real caller needs, so anything more general would be a shape
  * invented for callers that do not exist.
  *
  * The lifecycle is `STARTED -> SUCCEEDED | FAILED`, and it is enforced here
@@ -293,11 +297,12 @@ export class ToolExecutionService {
    * Claims one delivery attempt, fenced on the count the caller read.
    *
    * `effectAttemptCount = expected` in the predicate is what makes two
-   * concurrent deliveries of one approved action unable to both proceed: the
-   * first to commit bumps the count, and the second's predicate no longer
-   * matches. The loser is told `false` and must reject its job so the queue
-   * retries it later — by which time the row is terminal, or reclaimable at
-   * the new count if the winner died mid-call.
+   * concurrent deliveries unable to hold the same attempt: the first to commit
+   * bumps the count, and the second's predicate no longer matches. The loser is
+   * told `false` and must reject its job so the queue retries it later — by
+   * which time the row is terminal, or reclaimable at the new count if the
+   * winner died mid-call. It is a fence on the attempt, not a lock across the
+   * provider call; the idempotency key is what makes two calls one send.
    *
    * The first attempt also records when it began and the digest of what it is
    * about to send. Both are written once and never overwritten: the window and

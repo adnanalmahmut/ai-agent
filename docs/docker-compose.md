@@ -15,8 +15,10 @@ GeoIP, and rate-limit values out of the worker; the migration process receives
 only `DATABASE_URL`. The worker does receive the mail driver values
 (`MAIL_DRIVER`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`, `MAIL_TIMEOUT_MS`,
 `RESEND_API_KEY`), because it is the process that performs an approved agent
-notification; SES and SMTP variables are not passed to it, since those drivers
-cannot honour the idempotency contract and the effect fails closed on them. The deployment wrapper runs a non-printing
+notification, plus the non-secret SMTP and SES discriminators (`SMTP_HOST`,
+`SMTP_PORT`, `SMTP_SECURE`, `AWS_REGION`) so it boots under those drivers too.
+The SMTP and SES credentials are not passed to it: those drivers cannot honour
+the idempotency contract, and the effect fails closed on them before any send. The deployment wrapper runs a non-printing
 preflight before starting any production service.
 
 Never use volume-removing teardown or volume prune commands. Migrations run

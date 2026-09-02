@@ -93,22 +93,22 @@ No MCP, no demo agent, no inspector — those are MCP-01 and DEMO-01.
 
 ## Acceptance criteria
 
-- [ ] `notification.send@1` composes as a `side_effect` tool; `knowledge.search@1`
+- [x] `notification.send@1` composes as a `side_effect` tool; `knowledge.search@1`
       and `content-idea@1` are unchanged
-- [ ] A side-effect call writes `AWAITING_APPROVAL` plus one `PENDING` approval
+- [x] A side-effect call writes `AWAITING_APPROVAL` plus one `PENDING` approval
       in one transaction and performs no external effect
-- [ ] Authorization: member cannot decide; admin and owner can; outsider,
+- [x] Authorization: member cannot decide; admin and owner can; outsider,
       platform admin without membership, and wrong organization are refused
-- [ ] Exactly one approval per execution; approve/approve and approve/reject
+- [x] Exactly one approval per execution; approve/approve and approve/reject
       races leave exactly one decision
-- [ ] A rejected proposal never executes; nothing executes before approval
-- [ ] Revalidation refuses: recipient removed, recipient in another tenant,
+- [x] A rejected proposal never executes; nothing executes before approval
+- [x] Revalidation refuses: recipient removed, recipient in another tenant,
       organization archived, grant mismatch, payload mismatch
-- [ ] Duplicate and concurrent deliveries produce one provider effect with one key
-- [ ] Ambiguous outcome is recorded honestly and never retried past the window
-- [ ] Provider errors, headers and keys are contained everywhere
-- [ ] PostgreSQL refuses a cross-organization approval reference
-- [ ] Approval decisions are audited with a closed projection
+- [x] Duplicate and concurrent deliveries produce one provider effect with one key
+- [x] Ambiguous outcome is recorded honestly and never retried past the window
+- [x] Provider errors, headers and keys are contained everywhere
+- [x] PostgreSQL refuses a cross-organization approval reference
+- [x] Approval decisions are audited with a closed projection
 
 ## Validation
 
@@ -140,18 +140,54 @@ zero-drift output; specialist review findings and their remediation.
   SES and SMTP cannot honour the retry guarantee, so the effect fails closed
   before any send rather than pretending.
 
+## Review outcomes
+
+Three specialist reviews ran; none found a blocking defect, and two found the
+same class of dishonesty from different directions.
+
+**A refusal after an ambiguous attempt was recorded as `FAILED` (code review,
+high; security review, medium).** Revalidation ran before the attempt-count
+check, so a recipient who left between a timed-out first attempt and the
+retry settled `FAILED` — a claim that nothing was sent, which the first attempt
+made unknowable. Independently, the Resend adapter classified
+`invalid_idempotent_request` as `rejected`, and that code is returned only
+when an *earlier* request with the same key was accepted. Both now resolve
+through one rule: once any attempt has been claimed, every refusal settles
+`OUTCOME_UNKNOWN`, and `FAILED` is reserved for a refusal before the first
+provider call. The payload digest also gained the sender and the rendered HTML,
+so a deploy-time change to either is caught before the provider sees it.
+
+**The worker could not boot under `ses` or `smtp` (code review, high).**
+`workerConfigurations` gained `mailConfig`, whose driver schemas require
+`AWS_REGION` or `SMTP_HOST`, and the compose allowlist withheld them. The
+non-secret discriminators are now passed and asserted; the credentials stay
+withheld, and a composition test proves both drivers compose and answer that
+they cannot be idempotent.
+
+**Stranded `APPROVED` rows (both reviews, medium/low).** A tool fault on the
+last attempt now settles rather than rethrowing, and the residual case — a
+process death between the provider call and the settlement, past the stalled
+allowance — is documented in the outbox document and the runbook rather than
+swept by a reconciler that could not be honest.
+
+Smaller findings remediated: every database call in the handler is contained
+to the constant; the handler's log vocabulary and the row and view status
+fields are closed unions rather than strings; comments that overclaimed mutual
+exclusion of the provider call were corrected; the Platform's load-more drops a
+page that arrives after the filter changed; two dead exports removed.
+
 ## Progress
 
 - [x] Discovery
-- [ ] Execution plan committed
-- [ ] Schema and migration
-- [ ] Tool definition and gateway proposal path
-- [ ] Approval service, controller, authorization, audit
-- [ ] Delivery port and side-effect worker
-- [ ] Platform approval surface
-- [ ] Tests
-- [ ] Documentation
-- [ ] Specialist reviews and remediation
+- [x] Execution plan committed
+- [x] Schema and migration
+- [x] Tool definition and gateway proposal path
+- [x] Approval service, controller, authorization, audit
+- [x] Delivery port and side-effect worker
+- [x] Platform approval surface
+- [x] Tests
+- [x] Documentation
+- [x] Specialist reviews and remediation
 - [ ] Aggregate validation
 - [ ] PR and final-head CI
 

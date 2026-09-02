@@ -54,11 +54,15 @@ describe('NotificationSendTool', () => {
     (message: NotificationMessage) => Promise<ExternalEffectOutcome>
   >;
   let idempotent: boolean;
+  let sender = 'Acme <no-reply@example.test>';
 
   const tool = () =>
     new NotificationSendTool({ member: { findFirst } } as never, {
       get idempotent() {
         return idempotent;
+      },
+      get sender() {
+        return sender;
       },
       deliver,
     });
@@ -81,6 +85,7 @@ describe('NotificationSendTool', () => {
       } as const),
     );
     idempotent = true;
+    sender = 'Acme <no-reply@example.test>';
   });
 
   describe('propose', () => {
@@ -137,6 +142,14 @@ describe('NotificationSendTool', () => {
     it('changes the digest when the recipient address changes', async () => {
       const first = await tool().prepareEffect(input, context);
       findFirst.mockResolvedValue(member({ email: 'other@example.com' }));
+      const second = await tool().prepareEffect(input, context);
+
+      expect(first.payloadDigest).not.toBe(second.payloadDigest);
+    });
+
+    it('changes the digest when the sender changes', async () => {
+      const first = await tool().prepareEffect(input, context);
+      sender = 'Acme <hello@example.test>';
       const second = await tool().prepareEffect(input, context);
 
       expect(first.payloadDigest).not.toBe(second.payloadDigest);

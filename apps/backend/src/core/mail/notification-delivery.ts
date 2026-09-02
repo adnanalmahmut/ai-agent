@@ -4,6 +4,7 @@ import { PinoLogger } from 'nestjs-pino';
 
 import { mailConfig } from '../../config';
 import { LogNotificationDelivery } from './log-notification.delivery';
+import { formatSender } from './mail-transport';
 import { ResendNotificationDelivery } from './resend-notification.delivery';
 
 /**
@@ -58,12 +59,20 @@ export interface NotificationDelivery {
    * Whether this adapter can honour the retry contract.
    *
    * `false` means the configured provider offers no idempotency guarantee, so
-   * a retried delivery could send twice. The worker reads this before it
-   * records an attempt and fails the effect closed instead of sending once and
-   * hoping — a side effect this application cannot make safe is one it does
-   * not perform.
+   * a retried delivery could send twice. The tool reads this in
+   * `prepareEffect`, before any lookup and before any attempt is recorded, and
+   * refuses with `delivery_unsupported` — a side effect this application
+   * cannot make safe is one it does not perform.
    */
   readonly idempotent: boolean;
+  /**
+   * The sender exactly as it will appear on the wire.
+   *
+   * Part of the payload the provider deduplicates on, so part of what the
+   * tool digests: a sender changed between two attempts is a changed payload,
+   * and the digest has to say so before the provider does.
+   */
+  readonly sender: string;
   deliver(message: NotificationMessage): Promise<ExternalEffectOutcome>;
 }
 
@@ -74,28 +83,33 @@ export interface NotificationDelivery {
  */
 class UnsupportedNotificationDelivery implements NotificationDelivery {
   readonly idempotent = false;
+  readonly sender: string;
+
+  constructor(from: { address: string; name: string }) {
+    this.sender = formatSender(from);
+  }
 
   deliver(): Promise<ExternalEffectOutcome> {
-    // Never reached by the worker, which checks `idempotent` first. Answered
-    // honestly all the same: nothing was attempted, and nothing may be.
+    // Never reached: the tool refuses on `idempotent` before any attempt.
+    // Answered honestly all the same: nothing was attempted, and nothing may be.
     return Promise.resolve({ kind: 'rejected' });
   }
 }
 
-function createNotificationDelivery(
+export function createNotificationDelivery(
   config: ConfigType<typeof mailConfig>,
   logger: PinoLogger,
 ): NotificationDelivery {
   switch (config.driver) {
     case 'log':
-      return new LogNotificationDelivery(logger);
+      return new LogNotificationDelivery(config.from, logger);
 
     case 'resend':
       return new ResendNotificationDelivery(config);
 
     case 'ses':
     case 'smtp':
-      return new UnsupportedNotificationDelivery();
+      return new UnsupportedNotificationDelivery(config.from);
   }
 }
 

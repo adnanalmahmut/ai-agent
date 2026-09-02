@@ -241,15 +241,22 @@ services:
       AGENT_RUN_RECONCILE_STALE_AFTER_MS: ${AGENT_RUN_RECONCILE_STALE_AFTER_MS:-120000}
       AGENT_RUN_RECONCILE_BATCH_SIZE: ${AGENT_RUN_RECONCILE_BATCH_SIZE:-50}
       # The worker performs approved agent notifications through the same mail
-      # driver the API uses for auth mail, so it composes the same variables.
-      # The Resend key is the one credential it needs for that; SES and SMTP
-      # cannot honour the idempotency contract and the effect fails closed on
-      # them, so their variables are deliberately not passed.
+      # driver the API uses for auth mail, so it composes the same variables
+      # and must boot under whichever driver is configured. The Resend key is
+      # the one credential it needs. SES and SMTP cannot honour the idempotency
+      # contract and the effect fails closed on them, so their *credentials*
+      # are deliberately not passed — but their non-secret discriminators are,
+      # because the driver schema needs them to parse and a worker that cannot
+      # boot would take agent execution down with it.
       MAIL_DRIVER: ${MAIL_DRIVER:-}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-API Service}
       MAIL_TIMEOUT_MS: ${MAIL_TIMEOUT_MS:-10000}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
+      AWS_REGION: ${AWS_REGION:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
     networks:
       - edge
       - data

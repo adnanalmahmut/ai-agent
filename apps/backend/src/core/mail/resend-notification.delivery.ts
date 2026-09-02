@@ -32,11 +32,13 @@ import type {
  */
 export class ResendNotificationDelivery implements NotificationDelivery {
   readonly idempotent = true;
+  readonly sender: string;
 
   private readonly client: Resend;
 
   constructor(private readonly config: ResendMailConfig) {
     this.client = new Resend(config.apiKey);
+    this.sender = formatSender(config.from);
   }
 
   async deliver(message: NotificationMessage): Promise<ExternalEffectOutcome> {
@@ -46,7 +48,7 @@ export class ResendNotificationDelivery implements NotificationDelivery {
       response = await withTimeout(
         this.client.emails.send(
           {
-            from: formatSender(this.config.from),
+            from: this.sender,
             to: [message.to],
             subject: message.subject,
             html: message.html,
@@ -90,11 +92,15 @@ export class ResendNotificationDelivery implements NotificationDelivery {
  * and that a retry with the same payload would be refused again. An unknown
  * code cannot support that claim.
  *
- * `invalid_idempotent_request` is here because it is exactly that: the key was
- * reused with a different payload, the provider sent nothing, and the same
- * request would be refused again. The worker's own payload-digest check exists
- * so this is never reached, and if it is reached it is a defect worth a
- * `FAILED` row rather than a retry loop.
+ * `invalid_idempotent_request` is deliberately *not* here. Resend answers it
+ * only when an earlier request with this key was accepted and this one's
+ * payload differs — so the message was sent, by the earlier attempt whose
+ * answer was lost. This request sent nothing, but "nothing was sent" is false
+ * for the execution, and `rejected` would let the worker write `FAILED` over a
+ * delivered message. It is `unavailable`, which the worker resolves to
+ * `OUTCOME_UNKNOWN` on its last attempt. The tool's payload digest covers the
+ * sender and the rendered body so this branch is not reached by a deploy-time
+ * change; if it is reached anyway, unknown is the honest answer.
  */
 const REJECTED: ReadonlySet<string> = new Set([
   'validation_error',
@@ -103,7 +109,6 @@ const REJECTED: ReadonlySet<string> = new Set([
   'invalid_from_address',
   'invalid_attachment',
   'invalid_idempotency_key',
-  'invalid_idempotent_request',
   'missing_api_key',
   'invalid_api_key',
   'restricted_api_key',

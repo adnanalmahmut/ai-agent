@@ -26,7 +26,6 @@ export {
 } from './agent.types';
 export { AgentsModule } from './agents.module';
 export { AgentActionApprovalModule } from './approvals/agent-action-approval.module';
-export { AgentActionApprovalService } from './approvals/agent-action-approval.service';
 export {
   AGENT_ACTION_APPROVAL_STATUSES,
   type AgentActionApprovalStatus,

@@ -69,6 +69,16 @@ attempts are exhausted on an ambiguous answer the row is settled
 `OUTCOME_UNKNOWN`, not `FAILED`, and no later delivery sends. See
 [the backend document](backend.md#human-approval-and-the-idempotent-side-effect).
 
+One gap is stated rather than closed. A row can stay `APPROVED` with
+`effectAttemptCount > 0` if the process dies after the provider call and
+before the settlement is written, and the job then exhausts its stalled-job
+allowance without the handler running again; or if the settlement write itself
+rejects on the last attempt. No sweep re-derives those rows — unlike an agent
+run, an `APPROVED` execution has no transport verdict that would make a
+terminal state honest — so an operator finds them by status and age and
+reconciles against the provider by the key `toolId@toolVersion:executionId`;
+see [the operations runbook](operations-runbook.md).
+
 The handler stores BullMQ's `attemptsStarted` active-start ordinal as the durable
 AgentRun `attemptCount` compare-and-set version. Unlike `attemptsMade`, that
 ordinal advances for stalled-job recovery as well as ordinary retries.

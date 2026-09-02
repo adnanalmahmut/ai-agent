@@ -71,6 +71,7 @@ const DEFINITIONS = [approvalAgent([KNOWLEDGE_REF, REF])] as const;
  */
 class RecordingDelivery implements NotificationDelivery {
   readonly idempotent = true;
+  readonly sender = 'Acme <no-reply@example.test>';
   readonly calls: NotificationMessage[] = [];
   answer: (message: NotificationMessage) => Promise<ExternalEffectOutcome> = (
     message,
@@ -912,6 +913,7 @@ describe('human approval and the idempotent side effect', () => {
           },
           new NotificationSendTool(harness.prisma, {
             idempotent: false,
+            sender: 'Acme <no-reply@example.test>',
             deliver: () => {
               delivery.calls.push({} as NotificationMessage);
               return Promise.resolve({ kind: 'rejected' as const });
@@ -974,6 +976,36 @@ describe('human approval and the idempotent side effect', () => {
         failureCode: 'precondition_recipient',
         effectAttemptCount: 0,
       });
+    });
+
+    /**
+     * The honesty rule under the real database: a recipient removed *after*
+     * an attempt may have reached the provider is an unknown outcome, because
+     * "must not send again" does not mean "was never sent".
+     */
+    it('records OUTCOME_UNKNOWN for a recipient removed after an ambiguous attempt', async () => {
+      delivery.reset();
+      const leaver = await createUser(harness);
+      await addMember(leaver, 'member');
+      const leaverMemberId = await memberIdOf(leaver.id);
+      const { executionId } = await approved({
+        recipientMemberId: leaverMemberId,
+      });
+      delivery.answer = () => Promise.resolve({ kind: 'unavailable' });
+      await expect(
+        handler.handle(job(executionId, organizationId, { attemptsMade: 0 })),
+      ).rejects.toThrow();
+
+      await harness.prisma.member.delete({ where: { id: leaverMemberId } });
+      delivery.reset();
+      await handler.handle(
+        job(executionId, organizationId, { attemptsMade: 1 }),
+      );
+
+      expect(delivery.calls).toEqual([]);
+      const row = await execution(executionId);
+      expect(row.status).toBe('OUTCOME_UNKNOWN');
+      expect(row.failureCode).toBeNull();
     });
 
     it('does not send to a member who moved to another organization', async () => {

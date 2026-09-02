@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { AppException } from '../../core/errors';
+import type { ToolExecutionStatus } from '../../generated/prisma/client';
+import type { ToolFailureCode } from '../tools/tool.types';
 
 export const AGENT_ACTION_APPROVAL_STATUSES = [
   'PENDING',
@@ -59,7 +61,7 @@ export type AgentActionApprovalView = {
   toolId: string;
   toolVersion: number;
   /** The execution's own lifecycle state, which is where the effect lives. */
-  executionStatus: string;
+  executionStatus: ToolExecutionStatus;
   approval: {
     status: AgentActionApprovalStatus;
     requestedAt: Date;
@@ -72,7 +74,7 @@ export type AgentActionApprovalView = {
     attemptCount: number;
     firstAttemptedAt: Date | null;
     completedAt: Date | null;
-    failureCode: string | null;
+    failureCode: ToolFailureCode | null;
   };
 };
 

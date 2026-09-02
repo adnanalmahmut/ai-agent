@@ -43,8 +43,9 @@ describe('ResendNotificationDelivery', () => {
     );
   });
 
-  it('declares itself idempotent', () => {
+  it('declares itself idempotent and exposes the sender it will use', () => {
     expect(delivery().idempotent).toBe(true);
+    expect(delivery().sender).toBe('Acme <no-reply@example.test>');
   });
 
   it('sends the payload with the key as the Idempotency-Key option', async () => {
@@ -69,7 +70,6 @@ describe('ResendNotificationDelivery', () => {
     ['validation_error', 422],
     ['invalid_from_address', 403],
     ['invalid_idempotency_key', 400],
-    ['invalid_idempotent_request', 409],
     ['invalid_api_key', 401],
   ])(
     'classifies %s as rejected, keeping the provider text',
@@ -91,7 +91,13 @@ describe('ResendNotificationDelivery', () => {
     },
   );
 
+  /**
+   * `invalid_idempotent_request` means an earlier request with this key was
+   * accepted: the message was sent, by an attempt whose answer was lost. It
+   * is not "not sent", so it must not be `rejected`.
+   */
   it.each([
+    ['invalid_idempotent_request', 409],
     ['concurrent_idempotent_requests', 409],
     ['rate_limit_exceeded', 429],
     ['application_error', 500],
