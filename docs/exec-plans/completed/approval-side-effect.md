@@ -188,9 +188,50 @@ page that arrives after the filter changed; two dead exports removed.
 - [x] Tests
 - [x] Documentation
 - [x] Specialist reviews and remediation
-- [ ] Aggregate validation
-- [ ] PR and final-head CI
+- [x] Aggregate validation
+- [x] PR opened; final-head CI recorded on the PR
 
 ## Blockers
 
 None.
+
+## Verified evidence
+
+- `pnpm agents:check` — passed, 113 harness tests.
+- `pnpm typecheck`, `pnpm lint` — clean, no `--fix` in verification.
+- `pnpm test` — backend 1476 (six new specs), platform 877, web 2 files.
+- Backend e2e — 33 suites; the new approval suite 44/44 against the real
+  database; the full run 723/724 with the one failure being the carried
+  `outbox.e2e-spec.ts` "honours the batch limit" observation (see below).
+- `prisma validate`; `prisma generate` idempotent; migrations from zero on a
+  fresh database; `migrate diff` exit 0; rollback compatibility executed as a
+  test — the preceding image's column-omitting `INSERT` is accepted with the
+  defaults meaning "no effect attempted".
+- Cross-tenant `tool_execution_approval` insert refused by
+  `tool_execution_approval_toolExecutionId_organizationId_fkey` with a
+  positive control.
+- Resend semantics read from the installed SDK and the provider's
+  documentation, not assumed: key ≤ 256 characters, 24-hour window,
+  same-payload replay, `409 invalid_idempotent_request` on a changed payload,
+  `409 concurrent_idempotent_requests` on a concurrent duplicate.
+
+**The carried outbox observation recurred once**, in one of four full or
+focused runs, and this branch changes nothing in `OutboxRepository.claim`.
+The failing assertion received five claimed rows for `LIMIT 2`, all with
+`attempts = 1`, which is the signature of the `LIMIT ... FOR UPDATE SKIP
+LOCKED` subquery inside `WHERE id IN (...)` being evaluated more than once by a
+planner that chose a nested plan — a plan choice that depends on table
+statistics and therefore on what earlier suites left behind. `EXPLAIN
+ANALYZE` on the same database afterwards showed a hash semi-join evaluating
+the subquery once and returning two rows. The over-claim is a batch-size
+violation, not a delivery or idempotency defect. It is recorded as a confirmed
+pre-existing non-blocking finding with a candidate fix — materialize the
+candidate selection in a CTE so the limit is applied exactly once — for a
+separate maintenance change rather than widened into this slice.
+
+## Outcome
+
+Delivered on `feat/approval-side-effect`, based on `main` at
+`eead84a8d34ba7440f10135a6d4101c4d85ce2bd`, first of the four-slot train
+ACT → MCP → DEMO → PORT. Together with TOOL-01 it satisfies the eight tool and
+action exit criteria; Gate P1 closes when the merge has deployed to Staging.
