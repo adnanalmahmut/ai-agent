@@ -11,11 +11,11 @@ import { Test } from '@nestjs/testing';
 
 import { RotationCliModule } from '../../src/cli/rotation-cli.module';
 import { ControlPlaneAuditService } from '../../src/control-plane/audit/control-plane-audit.service';
-import encryptionConfig from '../../src/config/encryption.config';
+import encryptionConfig from '../../src/infrastructure/config/encryption.config';
 import { ManagedSecretKeyring } from '../../src/control-plane/managed-secrets/managed-secret-keyring';
 import { ManagedSecretRotationService } from '../../src/control-plane/managed-secrets/managed-secret-rotation.service';
 import { sealSecret } from '../../src/control-plane/managed-secrets/secret-cipher';
-import { PrismaService } from '../../src/database';
+import { PrismaService } from '../../src/infrastructure/database';
 
 /**
  * Rotation against a real PostgreSQL row.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 import type { ConfigType } from '@nestjs/config';
 
-import type { encryptionConfig } from '../../../config';
+import type { encryptionConfig } from '../../../infrastructure/config';
 import type { ManagedSecretKey } from '../managed-secret.registry';
 import {
   ManagedSecretKeyring,

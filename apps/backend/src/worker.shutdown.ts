@@ -1,8 +1,8 @@
 import type { AgentRunReconciler } from './agents/agent-run-reconciler.service';
-import type { ShutdownStep } from './core/lifecycle';
-import type { ProcessReadiness } from './core/lifecycle';
-import type { OutboxDispatcher } from './core/outbox';
-import type { QueueProducer, QueueWorkerRunner } from './core/queue';
+import type { ShutdownStep } from './infrastructure/lifecycle';
+import type { ProcessReadiness } from './infrastructure/lifecycle';
+import type { OutboxDispatcher } from './infrastructure/outbox';
+import type { QueueProducer, QueueWorkerRunner } from './infrastructure/queue';
 
 /**
  * Held back from the two draining steps so the closing ones are never left with

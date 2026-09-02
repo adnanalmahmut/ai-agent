@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
-import { rotationConfigurations } from '../config';
+import { rotationConfigurations } from '../infrastructure/config';
 import { ControlPlaneAuditService } from '../control-plane/audit/control-plane-audit.service';
 import { ManagedSecretKeyring } from '../control-plane/managed-secrets/managed-secret-keyring';
 import { ManagedSecretRotationService } from '../control-plane/managed-secrets/managed-secret-rotation.service';
-import { DatabaseModule } from '../database';
+import { DatabaseModule } from '../infrastructure/database';
 
 /**
  * The key-rotation command's composition root.

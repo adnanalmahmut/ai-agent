@@ -3,10 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import { LoggerModule } from 'nestjs-pino';
 
-import { cliConfigurations } from '../config';
-import { AppAuthModule, type AppAuth } from '../core/auth';
-import { AppI18nModule } from '../core/i18n';
-import { DatabaseModule } from '../database';
+import { cliConfigurations } from '../infrastructure/config';
+import { AppAuthModule, type AppAuth } from '../infrastructure/auth';
+import { AppI18nModule } from '../infrastructure/i18n';
+import { DatabaseModule } from '../infrastructure/database';
 import {
   ADMIN_USER_API,
   PASSWORD_POLICY,

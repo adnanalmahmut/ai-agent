@@ -5,14 +5,14 @@ import { Logger, PinoLogger } from 'nestjs-pino';
 import { setTimeout as delay } from 'node:timers/promises';
 
 import { AppModule } from './app.module';
-import { appConfig, httpConfig } from './config';
-import { setupOpenApi } from './core/docs';
-import { configureTrustedProxy } from './core/http';
+import { appConfig, httpConfig } from './infrastructure/config';
+import { setupOpenApi } from './infrastructure/docs';
+import { configureTrustedProxy } from './infrastructure/http';
 import {
   ProcessReadiness,
   onTerminationSignal,
   runShutdownSequence,
-} from './core/lifecycle';
+} from './infrastructure/lifecycle';
 
 /**
  * Held back from the load-balancer pause, so draining in-flight requests and

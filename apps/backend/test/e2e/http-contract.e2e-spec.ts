@@ -4,8 +4,8 @@ import type { Response } from 'express';
 import request from 'supertest';
 import { z } from 'zod';
 
-import { createZodDto } from '../../src/core/http/validation';
-import { RawResponse } from '../../src/core/http/response';
+import { createZodDto } from '../../src/infrastructure/http/validation';
+import { RawResponse } from '../../src/infrastructure/http/response';
 import { AppException } from '../../src/core/errors';
 import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import { createHarness, type Harness } from '../support/auth-harness';

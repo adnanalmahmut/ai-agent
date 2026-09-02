@@ -25,7 +25,7 @@ import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
-} from '../../src/core/mail/notification-delivery';
+} from '../../src/infrastructure/mail/notification-delivery';
 import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
 import {
   as,

@@ -9,7 +9,7 @@ import {
 
 import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
 import { AppException } from '../../../core/errors';
-import type { PrismaService } from '../../../database';
+import type { PrismaService } from '../../../infrastructure/database';
 import { Prisma } from '../../../generated/prisma/client';
 import type {
   FeatureFlagDefinition,

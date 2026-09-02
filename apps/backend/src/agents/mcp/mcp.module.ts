@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 
-import { OrganizationAccessModule } from '../../core/auth';
+import { OrganizationAccessModule } from '../../infrastructure/auth';
 import { ControlPlaneModule } from '../../control-plane';
-import { DatabaseModule } from '../../database';
+import { DatabaseModule } from '../../infrastructure/database';
 import { AgentDefinitionsModule } from '../agent-definitions.module';
 import { AgentsModule } from '../agents.module';
 import { AgentToolsModule } from '../tools/agent-tools.module';

@@ -58,7 +58,8 @@ docker compose -f ../../docker-compose.yml --profile test up -d postgres-test re
 # PostgreSQL 5433, Redis 6378; both bind to loopback only.
 ```
 
-Configuration is validated by Zod at boot — see `src/config/*.config.ts`, and
+Configuration is validated by Zod at boot — see
+`src/infrastructure/config/*.config.ts`, and
 `.env.example` for every variable with the reasoning behind its default. A
 missing or malformed value stops the process at startup rather than surfacing
 as a runtime failure later.
@@ -85,14 +86,14 @@ and no job can exist for a row that does not.
 
 ## Where the code lives
 
-`src/core` is the one place for shared backend platform and cross-cutting
-runtime concerns. There is deliberately no second technical layer beside it:
+`src/infrastructure` owns technical adapters and cross-cutting runtime concerns:
 
 ```
-src/core/
+src/infrastructure/
   auth/       authentication and authorization
+  config/     validated runtime configuration
+  database/   the Prisma client
   docs/       the OpenAPI document and its reference UI
-  errors/     the application exception and its codes
   geoip/      fail-open local MMDB session enrichment
   health/     liveness and readiness probes
   http/       the HTTP boundary: pipes, filters, response envelope
@@ -106,8 +107,9 @@ src/core/
   redis/      connection provisioning per role
 ```
 
-`src/database` holds the Prisma client; `src/config` holds the validated
-environment. Feature modules live outside `core`.
+`src/core` is deliberately small; it currently contains only the generic
+application exception and its stable codes. Feature modules live outside both
+technical layers.
 
 Each folder is flat: implementation files sit directly in it, `index.ts` is its
 public surface, and every `*.spec.ts` lives in a `__tests__/` subfolder beside

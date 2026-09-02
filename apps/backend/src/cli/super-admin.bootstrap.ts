@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 
-import { databaseConfig } from '../config';
-import { SUPER_ADMIN_ROLE } from '../core/auth';
-import { PrismaService } from '../database';
+import { databaseConfig } from '../infrastructure/config';
+import { SUPER_ADMIN_ROLE } from '../infrastructure/auth';
+import { PrismaService } from '../infrastructure/database';
 import {
   ADMIN_USER_API,
   PASSWORD_POLICY,

@@ -17,11 +17,14 @@ import request, { type Response } from 'supertest';
 import type { App } from 'supertest/types';
 import { z } from 'zod';
 
-import { configurations } from '../../src/config';
+import { configurations } from '../../src/infrastructure/config';
 import { AppException } from '../../src/core/errors';
-import { createZodDto, HttpInfrastructureModule } from '../../src/core/http';
-import { AppI18nModule } from '../../src/core/i18n';
-import { MailModule, MailRendererService } from '../../src/core/mail';
+import {
+  createZodDto,
+  HttpInfrastructureModule,
+} from '../../src/infrastructure/http';
+import { AppI18nModule } from '../../src/infrastructure/i18n';
+import { MailModule, MailRendererService } from '../../src/infrastructure/mail';
 
 interface FieldErrorBody {
   field: string;

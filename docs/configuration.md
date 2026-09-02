@@ -78,7 +78,7 @@ See [the first version-aware release](operations-runbook.md#first-version-aware-
 ## Validation and distribution
 
 - Backend configuration is parsed by Zod in
-  `apps/backend/src/config/*.config.ts`; required active-provider settings fail
+  `apps/backend/src/infrastructure/config/*.config.ts`; required active-provider settings fail
   at boot.
 - `ops/environments/runtime.env.example` is the authoritative names-only VPS
   template. `ops/runtime-preflight.sh` validates it without printing values.

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { UnrecoverableError, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
-import { QUEUE_NAMES, type QueueJobHandler } from '../core/queue';
+import { QUEUE_NAMES, type QueueJobHandler } from '../infrastructure/queue';
 import { isAgentConfigurationError } from './agent-configuration.error';
 import { isAgentOutputContractError } from './agent-output-contract.error';
 import { AgentRunService } from './agent-run.service';

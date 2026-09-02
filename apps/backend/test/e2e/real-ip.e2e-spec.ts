@@ -5,7 +5,7 @@ import { AllowAnonymous } from '@thallesp/nestjs-better-auth';
 import type { Request } from 'express';
 import request from 'supertest';
 
-import { configureTrustedProxy } from '../../src/core/http';
+import { configureTrustedProxy } from '../../src/infrastructure/http';
 import {
   createHarness,
   createUser,

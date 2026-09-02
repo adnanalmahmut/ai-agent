@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { AppException } from '../../core/errors';
 import { Prisma } from '../../generated/prisma/client';
-import { PrismaService } from '../../database';
+import { PrismaService } from '../../infrastructure/database';
 
 /**
  * Every control-plane mutation that is recorded, named once.

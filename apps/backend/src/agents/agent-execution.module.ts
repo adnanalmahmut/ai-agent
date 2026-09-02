@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 
-import { QueueModule } from '../core/queue';
+import { QueueModule } from '../infrastructure/queue';
 import { ControlPlaneCoreModule } from '../control-plane';
-import { DatabaseModule } from '../database';
+import { DatabaseModule } from '../infrastructure/database';
 import { KnowledgeCoreModule } from '../knowledge';
 import { AgentDefinitionsModule } from './agent-definitions.module';
 import { AgentExecutionHandler } from './agent-execution.handler';

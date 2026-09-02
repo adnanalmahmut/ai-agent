@@ -2,8 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
-import { QUEUE_NAMES, type QueueJobHandler } from '../../core/queue';
-import { PrismaService } from '../../database';
+import { QUEUE_NAMES, type QueueJobHandler } from '../../infrastructure/queue';
+import { PrismaService } from '../../infrastructure/database';
 import type { ToolExecutionStatus } from '../../generated/prisma/client';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import type { AgentDefinition } from '../agent.types';

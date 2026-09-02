@@ -1,6 +1,6 @@
 import { AuthService } from '@thallesp/nestjs-better-auth';
 
-import type { AppAuth } from '../core/auth';
+import type { AppAuth } from '../infrastructure/auth';
 
 /** Injection token for the narrowed admin surface the CLI needs. */
 export const ADMIN_USER_API = Symbol('ADMIN_USER_API');

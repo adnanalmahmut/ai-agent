@@ -11,14 +11,14 @@ import {
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
-import { createZodDto } from '../core/http';
-import { UserRateLimit } from '../core/rate-limit';
+import { createZodDto } from '../infrastructure/http';
+import { UserRateLimit } from '../infrastructure/rate-limit';
 import { AppException } from '../core/errors';
 import { KnowledgeIngestionService } from './knowledge-ingestion.service';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
-} from '../core/auth/organization-permission.guard';
+} from '../infrastructure/auth/organization-permission.guard';
 import {
   KNOWLEDGE_SPACE_SLUGS,
   isKnowledgeSpaceSlug,

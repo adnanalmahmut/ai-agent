@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { OrganizationAccessModule } from '../core/auth/organization-access.module';
-import { DatabaseModule } from '../database';
+import { OrganizationAccessModule } from '../infrastructure/auth/organization-access.module';
+import { DatabaseModule } from '../infrastructure/database';
 import { OrganizationAuditController } from './organization-audit.controller';
 import { OrganizationAuditService } from './organization-audit.service';
 

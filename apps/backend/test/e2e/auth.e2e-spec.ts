@@ -19,14 +19,14 @@ import type { App } from 'supertest/types';
 import { z } from 'zod';
 
 import { AppModule } from '../../src/app.module';
-import { createZodDto } from '../../src/core/http';
-import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
-import type { MailTransport } from '../../src/core/mail/mail-transport';
+import { createZodDto } from '../../src/infrastructure/http';
+import { MAIL_TRANSPORT } from '../../src/infrastructure/mail/mail-transport';
+import type { MailTransport } from '../../src/infrastructure/mail/mail-transport';
 import type {
   MailDeliveryResult,
   OutboundMail,
-} from '../../src/core/mail/mail.types';
-import { PrismaService } from '../../src/database';
+} from '../../src/infrastructure/mail/mail.types';
+import { PrismaService } from '../../src/infrastructure/database';
 
 /**
  * Sentinels. Every one of these stands for a real secret; each is asserted

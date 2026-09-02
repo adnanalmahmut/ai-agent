@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { RuntimeConfigResolver } from '../control-plane';
 import { AppException } from '../core/errors';
-import { PrismaService } from '../database';
+import { PrismaService } from '../infrastructure/database';
 import {
   KNOWLEDGE_SPACE_SLUGS,
   knowledgeSpaceDefinition,

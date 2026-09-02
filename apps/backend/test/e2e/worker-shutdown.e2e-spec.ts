@@ -9,18 +9,21 @@ import {
 import { Queue, type Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 
-import { PrismaService } from '../../src/database';
+import { PrismaService } from '../../src/infrastructure/database';
 import {
   ProcessReadiness,
   runShutdownSequence,
-} from '../../src/core/lifecycle';
-import { OutboxDispatcher, OutboxRepository } from '../../src/core/outbox';
+} from '../../src/infrastructure/lifecycle';
+import {
+  OutboxDispatcher,
+  OutboxRepository,
+} from '../../src/infrastructure/outbox';
 import {
   QueueProducer,
   QueueWorkerRunner,
   QUEUE_NAMES,
   type QueueJobHandler,
-} from '../../src/core/queue';
+} from '../../src/infrastructure/queue';
 import {
   workerShutdownSteps,
   type WorkerShutdownDeps,

@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { DatabaseModule } from '../database';
+import { DatabaseModule } from '../infrastructure/database';
 import { ControlPlaneAuditService } from './audit/control-plane-audit.service';
 import { ControlPlaneController } from './control-plane.controller';
 import { FeatureFlagService } from './feature-flags/feature-flag.service';

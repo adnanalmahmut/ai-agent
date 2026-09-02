@@ -10,7 +10,7 @@ import {
   type ContentIdeaFormat,
   type ContentIdeaLanguage,
 } from '../agents';
-import { PrismaService } from '../database';
+import { PrismaService } from '../infrastructure/database';
 import { OrganizationAuditService } from '../organization-audit';
 import {
   beforePosition,

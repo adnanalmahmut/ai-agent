@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { ConfigType } from '@nestjs/config';
 
-import type { encryptionConfig } from '../../../config';
-import type { PrismaService } from '../../../database';
+import type { encryptionConfig } from '../../../infrastructure/config';
+import type { PrismaService } from '../../../infrastructure/database';
 import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
 import { ManagedSecretKeyring } from '../managed-secret-keyring';
 import {

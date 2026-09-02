@@ -16,7 +16,7 @@ import {
 import { z } from 'zod';
 
 import { AppException } from '../core/errors';
-import { createZodDto } from '../core/http';
+import { createZodDto } from '../infrastructure/http';
 import {
   CONTROL_PLANE_AUDIT_RESOURCES,
   ControlPlaneAuditService,

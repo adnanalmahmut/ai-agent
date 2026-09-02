@@ -15,10 +15,10 @@ import { contentIdeaInput } from '../agents';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
-} from '../core/auth';
+} from '../infrastructure/auth';
 import { AppException } from '../core/errors';
-import { createZodDto } from '../core/http';
-import { UserRateLimit } from '../core/rate-limit';
+import { createZodDto } from '../infrastructure/http';
+import { UserRateLimit } from '../infrastructure/rate-limit';
 import { ContentIdeaService } from './content-idea.service';
 
 /**

@@ -1,6 +1,6 @@
 import type { AgentRunReconciler } from './agents/agent-run-reconciler.service';
-import type { OutboxDispatcher } from './core/outbox';
-import type { QueueProducer, QueueWorkerRunner } from './core/queue';
+import type { OutboxDispatcher } from './infrastructure/outbox';
+import type { QueueProducer, QueueWorkerRunner } from './infrastructure/queue';
 
 export type WorkerRuntimeDeps = {
   producer: Pick<QueueProducer, 'init'>;

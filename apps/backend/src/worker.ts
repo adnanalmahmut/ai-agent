@@ -3,14 +3,14 @@ import { NestFactory } from '@nestjs/core';
 import { Logger, PinoLogger } from 'nestjs-pino';
 
 import { AgentRunReconciler } from './agents/agent-run-reconciler.service';
-import { appConfig, queueConfig } from './config';
+import { appConfig, queueConfig } from './infrastructure/config';
 import {
   ProcessReadiness,
   onTerminationSignal,
   runShutdownSequence,
-} from './core/lifecycle';
-import { OutboxDispatcher } from './core/outbox';
-import { QueueProducer, QueueWorkerRunner } from './core/queue';
+} from './infrastructure/lifecycle';
+import { OutboxDispatcher } from './infrastructure/outbox';
+import { QueueProducer, QueueWorkerRunner } from './infrastructure/queue';
 import { WorkerModule } from './worker.module';
 import { startWorkerRuntime } from './worker.runtime';
 import { workerShutdownSteps } from './worker.shutdown';

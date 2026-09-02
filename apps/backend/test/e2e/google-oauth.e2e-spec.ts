@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { AuthService } from '@thallesp/nestjs-better-auth';
 import request from 'supertest';
 
-import authConfig from '../../src/config/auth.config';
+import authConfig from '../../src/infrastructure/config/auth.config';
 import {
   as,
   createHarness,

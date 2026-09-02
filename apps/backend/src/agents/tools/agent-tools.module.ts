@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { NotificationDeliveryModule } from '../../core/mail/notification-delivery';
-import { DatabaseModule } from '../../database';
+import { NotificationDeliveryModule } from '../../infrastructure/mail/notification-delivery';
+import { DatabaseModule } from '../../infrastructure/database';
 import { KnowledgeCoreModule } from '../../knowledge';
 import { AgentContextAssembler } from '../agent-context.assembler';
 import { AgentDefinitionsModule } from '../agent-definitions.module';

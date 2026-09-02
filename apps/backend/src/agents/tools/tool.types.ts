@@ -1,6 +1,6 @@
 import type { ZodType } from 'zod';
 
-import type { ExternalEffectOutcome } from '../../core/mail/notification-delivery';
+import type { ExternalEffectOutcome } from '../../infrastructure/mail/notification-delivery';
 import type { AgentDefinition, AgentValue } from '../agent.types';
 
 /**

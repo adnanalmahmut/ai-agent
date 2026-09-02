@@ -2,23 +2,27 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
 
-import { appConfig, observabilityConfig, workerConfigurations } from './config';
+import {
+  appConfig,
+  observabilityConfig,
+  workerConfigurations,
+} from './infrastructure/config';
 import { AgentExecutionHandler } from './agents/agent-execution.handler';
 import { AgentExecutionModule } from './agents/agent-execution.module';
 import { SideEffectExecutionHandler } from './agents/tools/side-effect-execution.handler';
 import { ControlPlaneCoreModule } from './control-plane';
 import { KnowledgeCoreModule, KnowledgeEmbeddingHandler } from './knowledge';
-import { LifecycleModule } from './core/lifecycle';
-import { OutboxModule } from './core/outbox';
-import { createLoggerOptions } from './core/providers/logger.options';
+import { LifecycleModule } from './infrastructure/lifecycle';
+import { OutboxModule } from './infrastructure/outbox';
+import { createLoggerOptions } from './infrastructure/providers/logger.options';
 import {
   QUEUE_JOB_HANDLERS,
   QueueModule,
   QueueWorkerRunner,
   type QueueJobHandler,
-} from './core/queue';
-import { RedisModule } from './core/redis';
-import { DatabaseModule } from './database';
+} from './infrastructure/queue';
+import { RedisModule } from './infrastructure/redis';
+import { DatabaseModule } from './infrastructure/database';
 
 /**
  * The worker process's composition root.

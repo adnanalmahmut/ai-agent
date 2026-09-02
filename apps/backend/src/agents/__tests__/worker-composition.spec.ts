@@ -3,7 +3,10 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 
 import { AppModule } from '../../app.module';
-import { OUTBOX_EVENT_ROUTES, ROUTABLE_EVENT_TYPES } from '../../core/outbox';
+import {
+  OUTBOX_EVENT_ROUTES,
+  ROUTABLE_EVENT_TYPES,
+} from '../../infrastructure/outbox';
 import {
   QUEUE_JOB_HANDLERS,
   QUEUE_NAMES,
@@ -11,7 +14,7 @@ import {
   QueueProducer,
   QueueWorkerRunner,
   type QueueJobHandler,
-} from '../../core/queue';
+} from '../../infrastructure/queue';
 import {
   KNOWLEDGE_SPACE_SLUGS,
   isKnowledgeSpaceSlug,

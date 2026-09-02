@@ -5,8 +5,8 @@ import { z } from 'zod';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
-} from '../core/auth';
-import { createZodDto } from '../core/http';
+} from '../infrastructure/auth';
+import { createZodDto } from '../infrastructure/http';
 import { OrganizationAuditService } from './organization-audit.service';
 
 const organizationAuditQuerySchema = z

@@ -11,10 +11,11 @@ The CLI exists for the one action that cannot be authorized, because it is what
 makes authorization possible — creating the platform's first super
 administrator. See [Operator commands](#operator-commands).
 
-`src/core` owns cross-cutting modules: auth, errors, GeoIP, health, HTTP/i18n,
-lifecycle, mail, outbox, queue, rate limiting, Redis, and request logging.
-`src/database` owns Prisma. Configuration is split into Zod-validated
-`src/config/*.config.ts`; invalid required values fail at boot.
+`src/infrastructure` owns technical application modules: auth, configuration,
+Prisma, GeoIP, health, HTTP/i18n, lifecycle, mail, outbox, queue, rate limiting,
+Redis, and request logging. `src/core` remains deliberately small and currently
+owns only generic application errors. Configuration is split into Zod-validated
+`src/infrastructure/config/*.config.ts`; invalid required values fail at boot.
 
 HTTP uses one response envelope, `AppException` machine codes, an exhaustive
 HTTP/i18n mapping, Zod validation, request IDs, and Pino structured logs.

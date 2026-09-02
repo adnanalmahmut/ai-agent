@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { OutboxPersistenceModule } from '../core/outbox';
-import { DatabaseModule } from '../database';
+import { OutboxPersistenceModule } from '../infrastructure/outbox';
+import { DatabaseModule } from '../infrastructure/database';
 import { AgentDefinitionsModule } from './agent-definitions.module';
 import { AgentRunService } from './agent-run.service';
 

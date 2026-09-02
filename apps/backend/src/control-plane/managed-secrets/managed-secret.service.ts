@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
 
 import { AppException } from '../../core/errors';
-import { PrismaService } from '../../database';
+import { PrismaService } from '../../infrastructure/database';
 import {
   ControlPlaneAuditService,
   type ControlPlaneAuditState,

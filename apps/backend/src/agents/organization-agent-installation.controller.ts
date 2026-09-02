@@ -14,8 +14,8 @@ import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
-} from '../core/auth';
-import { createZodDto } from '../core/http';
+} from '../infrastructure/auth';
+import { createZodDto } from '../infrastructure/http';
 import { OrganizationAgentInstallationService } from './organization-agent-installation.service';
 import {
   createOrganizationAgentInstallationSchema,
