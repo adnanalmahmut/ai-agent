@@ -156,7 +156,10 @@ describe('routes stay thin', () => {
 
       // A route may read its loader data, read the query string, and render a
       // block. Anything longer is a page that has grown a feature inside it.
-      expect(source.split('\n').length).toBeLessThan(90);
+      // The budget grew from 90 to 100 when the organization gained its ninth
+      // tab: one export per tab is composition, and the four assertions below
+      // are what actually catch a feature growing in here.
+      expect(source.split('\n').length).toBeLessThan(100);
 
       expect(source).not.toMatch(/\buseState\b/);
       expect(source).not.toMatch(/\buseEffect\b/);

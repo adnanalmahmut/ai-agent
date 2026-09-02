@@ -1,6 +1,7 @@
 import { useLoaderData, useParams } from 'react-router';
 
 import { CreateOrganizationBlock } from '@/features/organization/blocks/create-organization-block';
+import { OrganizationApprovalsBlock } from '@/features/organization/blocks/organization-approvals-block';
 import { OrganizationInvitationsBlock } from '@/features/organization/blocks/organization-invitations-block';
 import { OrganizationContentIdeasBlock } from '@/features/organization/blocks/organization-content-ideas-block';
 import { OrganizationContentProjectBlock } from '@/features/organization/blocks/organization-content-project-block';
@@ -111,6 +112,13 @@ export function OrganizationContentProjectRoute() {
       key={`${organization.id}:${projectId ?? ''}`}
     />
   );
+}
+
+/** Keyed on the organization, for the reason the lists above are. */
+export function OrganizationApprovalsRoute() {
+  const { organization } = useOrganizationContext();
+
+  return <OrganizationApprovalsBlock key={organization.id} />;
 }
 
 export function OrganizationSettingsRoute() {

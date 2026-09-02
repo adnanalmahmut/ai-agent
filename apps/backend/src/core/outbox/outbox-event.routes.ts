@@ -36,6 +36,16 @@ export const OUTBOX_EVENT_ROUTES = {
     queue: QUEUE_NAMES.knowledgeEmbedding,
     jobName: 'embed',
   },
+  /**
+   * A side-effect proposal was approved. Written in the same transaction as
+   * the approval decision and the execution's move to `APPROVED`, with the
+   * execution id as the dedupe key. The payload is `{ toolExecutionId,
+   * organizationId }` and nothing else — the worker re-reads every fact.
+   */
+  'tool-execution.approved': {
+    queue: QUEUE_NAMES.toolSideEffect,
+    jobName: 'deliver',
+  },
 } as const satisfies Record<string, { queue: QueueName; jobName: string }>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_ROUTES;

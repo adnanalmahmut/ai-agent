@@ -33,6 +33,17 @@ export const QUEUE_NAMES = {
    * runs behind it.
    */
   knowledgeEmbedding: 'knowledge-embedding',
+  /**
+   * Performing one approved external side effect.
+   *
+   * Its own queue for the same reason embedding has one: the shape differs.
+   * A delivery is one short provider call with a strict idempotency contract,
+   * and the retry budget it needs — bounded attempts inside the provider's
+   * 24-hour key window — is a policy about *this* work, not about a model
+   * call. Sharing a queue would also let a run backlog delay an approved
+   * message a person is waiting on.
+   */
+  toolSideEffect: 'tool-side-effect',
 } as const;
 
 export type QueueName = (typeof QUEUE_NAMES)[keyof typeof QUEUE_NAMES];

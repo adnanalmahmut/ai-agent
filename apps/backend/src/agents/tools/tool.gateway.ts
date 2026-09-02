@@ -9,9 +9,11 @@ import type {
 import { ToolExecutionService } from './tool-execution.service';
 import { ToolRegistry } from './tool.registry';
 import {
+  isSideEffectImplementation,
+  isSideEffectPreconditionError,
   isToolRef,
+  type AnyToolImplementation,
   type ToolDefinition,
-  type ToolImplementation,
   type ToolInvocationContext,
   type ToolRef,
 } from './tool.types';
@@ -148,15 +150,15 @@ const MAX_TOOL_INVOCATIONS_PER_ATTEMPT = 12;
  */
 @Injectable()
 export class ToolGateway {
-  private readonly implementations: ReadonlyMap<ToolRef, ToolImplementation>;
+  private readonly implementations: ReadonlyMap<ToolRef, AnyToolImplementation>;
 
   constructor(
     private readonly registry: ToolRegistry,
     private readonly executions: ToolExecutionService,
     @Inject(TOOL_IMPLEMENTATIONS)
-    implementations: readonly ToolImplementation[],
+    implementations: readonly AnyToolImplementation[],
   ) {
-    const indexed = new Map<ToolRef, ToolImplementation>();
+    const indexed = new Map<ToolRef, AnyToolImplementation>();
 
     for (const implementation of implementations) {
       const { ref } = implementation;
@@ -182,21 +184,22 @@ export class ToolGateway {
       }
 
       /**
-       * Refused at composition, not merely when a run tries to use it.
+       * The classification and the implementation must agree, at composition.
        *
-       * The check also exists in `expose`, but that one fires per run: a
-       * definition that named a `side_effect` tool and an organization that
-       * selected it would both be accepted, and then *every* run of that agent
-       * would fail at authorize time — including runs where the model would
-       * never have called it. Failing the build instead makes it one loud
-       * error at the moment the tool is added.
-       *
-       * The change that adds idempotency, precondition revalidation and human
-       * approval is the change that relaxes this line.
+       * A `side_effect` definition with a plain `execute` would be a side
+       * effect the generation performs inline — exactly what the risk class
+       * exists to prevent — and a `read_only` definition with a `propose`
+       * would be a harmless read that stops and waits for a human. Either
+       * mismatch is a build that lies about one of its tools, so it fails
+       * here, once, rather than on whichever run first calls it.
        */
-      if (this.registry.resolve(ref).risk !== 'read_only') {
+      const definition = this.registry.resolve(ref);
+      const implementation = indexed.get(ref) as AnyToolImplementation;
+      const sideEffect = isSideEffectImplementation(implementation);
+
+      if ((definition.risk === 'side_effect') !== sideEffect) {
         throw new Error(
-          `Tool "${ref}" is not read-only and this build cannot execute one`,
+          `Tool "${ref}" is classified ${definition.risk} but its implementation is not`,
         );
       }
     }
@@ -273,21 +276,6 @@ export class ToolGateway {
     budget: { remaining: number },
   ): AgentRuntimeTool {
     const definition = this.registry.resolve(ref);
-
-    /**
-     * Refused here rather than at registration.
-     *
-     * A `side_effect` tool is a legitimate thing to *have* in the registry — a
-     * later change adds the machinery that runs one safely — but nothing in
-     * this build knows how to make an external effect idempotent, revalidate a
-     * precondition, or ask a human. Until that exists, exposing one would be
-     * offering a capability the application cannot honour.
-     */
-    if (definition.risk !== 'read_only') {
-      throw new AgentConfigurationError(
-        `Tool "${ref}" is not read-only and cannot be executed by this build`,
-      );
-    }
 
     return {
       // The audited SDK-safe name, not the durable identity. See
@@ -402,6 +390,18 @@ export class ToolGateway {
 
     const input = parsedInput.data as AgentValue;
 
+    /**
+     * A side effect stops here: recorded, not performed.
+     *
+     * The order is the same as the read-only path — nothing durable for a
+     * refused call — but what is written is a proposal awaiting a human, and
+     * what is returned tells the model only that. The effect itself happens in
+     * the worker, after approval, after every precondition is read again.
+     */
+    if (isSideEffectImplementation(implementation)) {
+      return this.propose(definition, implementation, context, input);
+    }
+
     const executionId = await this.executions.start({
       organizationId: context.organizationId,
       agentRunId: context.agentRunId,
@@ -460,5 +460,63 @@ export class ToolGateway {
     await this.executions.succeed(executionId, context.organizationId, output);
 
     return output;
+  }
+
+  /**
+   * The side-effect half of a call: validate, record, answer.
+   *
+   * `propose` is the implementation's chance to refuse before anything is
+   * written — a recipient who is not a member of this organization, for
+   * instance. A precondition refusal is contained to the same constant shape
+   * every other tool failure has: the model learns the tool could not record
+   * the proposal, and not why, because the why names a row in this tenant.
+   *
+   * The answer is parsed through the tool's own output schema like any other
+   * result, so a side-effect tool's contract with the model is stated in the
+   * same place as a read-only tool's.
+   */
+  private async propose(
+    definition: ToolDefinition,
+    implementation: Extract<AnyToolImplementation, { kind: 'side_effect' }>,
+    context: ToolInvocationContext,
+    input: AgentValue,
+  ): Promise<AgentValue> {
+    try {
+      await implementation.propose(input, context);
+    } catch (error) {
+      if (isSideEffectPreconditionError(error)) {
+        throw new ToolExecutionFailure(
+          `Tool "${definition.runtimeName}" could not record the proposal`,
+        );
+      }
+      // Anything else — a driver rejection, a defect — and nothing of it.
+      throw new ToolExecutionFailure(
+        `Tool "${definition.runtimeName}" could not be completed`,
+      );
+    }
+
+    await this.executions.propose({
+      organizationId: context.organizationId,
+      agentRunId: context.agentRunId,
+      agentRunAttempt: context.agentRunAttempt,
+      toolId: definition.id,
+      toolVersion: definition.version,
+      input,
+    });
+
+    const parsedOutput = definition.output.safeParse({
+      status: 'awaiting_approval',
+    });
+
+    if (!parsedOutput.success) {
+      // A side-effect definition whose output schema cannot say "awaiting
+      // approval" is a definition defect, and the build should have refused
+      // it. Fail closed rather than hand the model an unparsed object.
+      throw new ToolExecutionFailure(
+        `Tool "${definition.runtimeName}" returned a result its schema refuses`,
+      );
+    }
+
+    return parsedOutput.data as AgentValue;
   }
 }

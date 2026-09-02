@@ -105,6 +105,27 @@ Primary boundaries:
   because that bound disappears the first time this agent is given a tool. The provider's answer is parsed against the definition's declared
   schema before it is stored, because a model is an untrusted source that this
   application happens to pay for.
+- The one external side effect an agent can cause is not the agent's to
+  perform. `notification.send@1` is proposal-only: the model names a member of
+  its own organization by membership id — never an address — and a bounded
+  subject and body; the application records the proposal and nothing leaves
+  until a member holding `agentActionApproval:decide` approves it. That is the
+  bound the paragraph above says would disappear when the agent gained a tool:
+  a hostile passage that talks the model into proposing a message still costs a
+  person a click, not an email. Approval is not permanent authority. The worker
+  re-reads every mutable precondition immediately before the provider call —
+  organization operational, approval intact and matching the digest of the
+  stored proposal, pinned grant and definition still authorizing the tool,
+  recipient still a deliverable member of the same organization — and a
+  proposal rewritten after approval never sends. Decisions are compare-and-set
+  so two approvers cannot both win; the provider call carries an idempotency
+  key derived from the execution so a redelivery replays rather than resends;
+  and a lost response past the provider's window is recorded as
+  `OUTCOME_UNKNOWN` rather than as a failure that might be false. Nothing from a
+  provider response — its code, its prose, its headers, or the key — reaches
+  the execution row, the audit row, a log, the API, or the model. Drivers
+  without a request-level idempotency key (SES, SMTP) refuse the effect rather
+  than perform it best-effort.
 - Provider credentials at execution: the key is resolved per run from the
   encrypted store and handed to the SDK on its model config. It is never
   exported to the environment, never placed in a job payload, and never read

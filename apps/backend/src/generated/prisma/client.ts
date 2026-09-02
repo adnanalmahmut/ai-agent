@@ -114,6 +114,18 @@ export type OrganizationAgentVersion = Prisma.OrganizationAgentVersionModel
  */
 export type ToolExecution = Prisma.ToolExecutionModel
 /**
+ * Model ToolExecutionApproval
+ * The human decision on one side-effect proposal.
+ * 
+ * Exactly one per side-effect `ToolExecution`, enforced by the unique on
+ * `toolExecutionId`. A separate row rather than columns on the execution
+ * because the decision is a different fact: it has its own actor, its own
+ * time, and its own digest of what was decided. The composite foreign key is
+ * what lets PostgreSQL — not a service predicate — refuse an approval that
+ * names another organization's execution.
+ */
+export type ToolExecutionApproval = Prisma.ToolExecutionApprovalModel
+/**
  * Model OutboxEvent
  * 
  */

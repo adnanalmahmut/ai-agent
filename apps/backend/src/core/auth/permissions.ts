@@ -250,6 +250,17 @@ export const ORGANIZATION_PERMISSION_STATEMENTS = {
    * was chosen.
    */
   contentProject: ['create', 'read'],
+  /**
+   * Deciding whether an agent may perform a proposed external action.
+   *
+   * `read` is ordinary membership, on the same reasoning as the resources
+   * above: a proposal names a member of this organization and text an agent
+   * wrote for them, and the team being able to see what is waiting is the
+   * point. `decide` is the authority — an approval sends a message that leaves
+   * this system in the organization's name, and that belongs to whoever runs
+   * the organization rather than to whoever belongs to it.
+   */
+  agentActionApproval: ['read', 'decide'],
 } as const;
 
 const organizationAc = createAccessControl(ORGANIZATION_PERMISSION_STATEMENTS);
@@ -264,6 +275,7 @@ const organizationMember = organizationAc.newRole({
   knowledge: ['read'],
   contentIdea: ['read'],
   contentProject: ['read'],
+  agentActionApproval: ['read'],
 });
 
 /** Runs the organization day to day, but cannot end its life. */
@@ -274,6 +286,7 @@ const organizationAdmin = organizationAc.newRole({
   knowledge: ['read', 'write'],
   contentIdea: ['create', 'read'],
   contentProject: ['create', 'read'],
+  agentActionApproval: ['read', 'decide'],
 });
 
 /**
@@ -290,6 +303,7 @@ const organizationOwner = organizationAc.newRole({
   knowledge: ['read', 'write'],
   contentIdea: ['create', 'read'],
   contentProject: ['create', 'read'],
+  agentActionApproval: ['read', 'decide'],
 });
 
 export const organizationAccessControl = organizationAc;

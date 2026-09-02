@@ -120,6 +120,7 @@ const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
   ['knowledge', 'read'],
   ['contentIdea', 'read'],
   ['contentProject', 'read'],
+  ['agentActionApproval', 'read'],
 ];
 
 describe('organization roles', () => {

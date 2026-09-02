@@ -40,6 +40,8 @@ export const ORGANIZATION_ROUTES = {
     `/organizations/${encodeURIComponent(id)}/content-ideas`,
   contentProjects: (id: string) =>
     `/organizations/${encodeURIComponent(id)}/content-projects`,
+  approvals: (id: string) =>
+    `/organizations/${encodeURIComponent(id)}/approvals`,
   settings: (id: string) => `/organizations/${encodeURIComponent(id)}/settings`,
 } as const;
 

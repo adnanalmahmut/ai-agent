@@ -515,3 +515,163 @@ export function getContentProject(
     { signal },
   );
 }
+
+/* ------------------------- agent action approvals ---------------------- */
+
+/**
+ * The decision states a proposal can be in, mirrored from the backend.
+ *
+ * Mirrored rather than imported for the same reason the knowledge slugs are:
+ * the two applications share no module, and holding the list here is what
+ * lets the message test assert copy for every state rather than for whichever
+ * ones a server happened to return.
+ */
+export const AGENT_ACTION_APPROVAL_STATUSES = [
+  'PENDING',
+  'APPROVED',
+  'REJECTED',
+] as const;
+
+export type AgentActionApprovalStatus =
+  (typeof AGENT_ACTION_APPROVAL_STATUSES)[number];
+
+/**
+ * The execution's own lifecycle, which is where the effect lives.
+ *
+ * `STARTED` is a read-only execution and never appears on an approval, but
+ * the vocabulary is the backend's whole enum so a value arriving here always
+ * has copy.
+ */
+export const TOOL_EXECUTION_STATUSES = [
+  'STARTED',
+  'AWAITING_APPROVAL',
+  'APPROVED',
+  'REJECTED',
+  'SUCCEEDED',
+  'FAILED',
+  'OUTCOME_UNKNOWN',
+] as const;
+
+export type ToolExecutionStatus = (typeof TOOL_EXECUTION_STATUSES)[number];
+
+/**
+ * The closed failure vocabulary the backend writes to an execution, mirrored
+ * so a code with no copy renders a generic "not sent" rather than its own key
+ * path.
+ */
+export const TOOL_FAILURE_CODES = [
+  'precondition_organization',
+  'precondition_authority',
+  'precondition_approval',
+  'precondition_recipient',
+  'delivery_unsupported',
+  'provider_rejected',
+  'implementation_error',
+  'output_rejected',
+] as const;
+
+export type ToolFailureCode = (typeof TOOL_FAILURE_CODES)[number];
+
+/**
+ * The proposal, as the server projects it for a reader.
+ *
+ * One `kind` for now. The recipient is resolved server-side at read time and
+ * is `null` when the member the agent named is no longer one — the reader is
+ * deciding whether to send to a person, and the person may be gone.
+ */
+export type AgentActionProposal = {
+  kind: 'notification.send@1';
+  recipient: { memberId: string; name: string; email: string } | null;
+  subject: string;
+  body: string;
+};
+
+export type AgentActionApproval = {
+  toolExecutionId: string;
+  organizationId: string;
+  agentRunId: string;
+  agentId: string;
+  agentVersion: number;
+  toolId: string;
+  toolVersion: number;
+  executionStatus: ToolExecutionStatus;
+  approval: {
+    status: AgentActionApprovalStatus;
+    requestedAt: string;
+    decidedAt: string | null;
+    decidedByUserId: string | null;
+    decisionNote: string | null;
+  };
+  proposal: AgentActionProposal | null;
+  effect: {
+    attemptCount: number;
+    firstAttemptedAt: string | null;
+    completedAt: string | null;
+    failureCode: string | null;
+  };
+};
+
+export type AgentActionApprovalPage = {
+  items: AgentActionApproval[];
+  nextCursor: string | null;
+};
+
+const approvalsBase = (organizationId: string) =>
+  `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/agent-action-approvals`;
+
+export function listAgentActionApprovals(
+  organizationId: string,
+  options: {
+    status?: AgentActionApprovalStatus;
+    cursor?: string;
+    limit?: number;
+  } = {},
+  signal?: AbortSignal,
+): Promise<AgentActionApprovalPage> {
+  const query = new URLSearchParams();
+  if (options.status !== undefined) query.set('status', options.status);
+  if (options.cursor !== undefined) query.set('cursor', options.cursor);
+  if (options.limit !== undefined) query.set('limit', String(options.limit));
+
+  const suffix = query.size === 0 ? '' : `?${query.toString()}`;
+
+  return apiRequest(`${approvalsBase(organizationId)}${suffix}`, { signal });
+}
+
+export function getAgentActionApproval(
+  organizationId: string,
+  toolExecutionId: string,
+  signal?: AbortSignal,
+): Promise<AgentActionApproval> {
+  return apiRequest(
+    `${approvalsBase(organizationId)}/${encodeURIComponent(toolExecutionId)}`,
+    { signal },
+  );
+}
+
+/**
+ * The two decisions. Each is one request, answered with the decided view, and
+ * refused with 409 when somebody else decided first — which the block shows
+ * as exactly that rather than as a failure of the reader's own click.
+ */
+export function approveAgentAction(
+  organizationId: string,
+  toolExecutionId: string,
+  note?: string,
+): Promise<AgentActionApproval> {
+  return apiRequest(
+    `${approvalsBase(organizationId)}/${encodeURIComponent(toolExecutionId)}/approve`,
+    { method: 'POST', body: note ? { note } : {} },
+  );
+}
+
+export function rejectAgentAction(
+  organizationId: string,
+  toolExecutionId: string,
+  note?: string,
+): Promise<AgentActionApproval> {
+  return apiRequest(
+    `${approvalsBase(organizationId)}/${encodeURIComponent(toolExecutionId)}/reject`,
+    { method: 'POST', body: note ? { note } : {} },
+  );
+}

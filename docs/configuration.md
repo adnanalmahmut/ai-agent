@@ -84,7 +84,9 @@ See [the first version-aware release](operations-runbook.md#first-version-aware-
   template. `ops/runtime-preflight.sh` validates it without printing values.
 - `docker-compose.yml` uses explicit per-service `environment` allowlists. It
   deliberately does not use `env_file`, so worker and migration containers do
-  not inherit API-only credentials.
+  not inherit API-only credentials. The worker's allowlist includes the mail
+  driver values, and the worker parses `mailConfig` at boot, because it
+  performs approved agent notifications through the same driver.
 - Vite `VITE_*` configuration is compiled into the Platform image. It is not a
   runtime secret or a mutable VPS setting.
 - Next.js server/public separation lives under `apps/web/src/config/`.

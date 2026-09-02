@@ -409,6 +409,7 @@ export const ModelName = {
   OrganizationAgentInstallation: 'OrganizationAgentInstallation',
   OrganizationAgentVersion: 'OrganizationAgentVersion',
   ToolExecution: 'ToolExecution',
+  ToolExecutionApproval: 'ToolExecutionApproval',
   OutboxEvent: 'OutboxEvent',
   FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
   FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
@@ -436,7 +437,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "organizationAgentInstallation" | "organizationAgentVersion" | "toolExecution" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "organizationAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk" | "contentProject" | "contentDraft"
+    modelProps: "user" | "session" | "account" | "verification" | "rateLimit" | "organization" | "member" | "invitation" | "agentRun" | "organizationAgentInstallation" | "organizationAgentVersion" | "toolExecution" | "toolExecutionApproval" | "outboxEvent" | "featureFlagPlatformOverride" | "featureFlagOrganizationOverride" | "runtimeSetting" | "managedSecret" | "controlPlaneAuditEvent" | "organizationAuditEvent" | "knowledgeSpace" | "knowledgeDocument" | "knowledgeChunk" | "contentProject" | "contentDraft"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1325,6 +1326,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.ToolExecutionCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.ToolExecutionCountAggregateOutputType> | number
+        }
+      }
+    }
+    ToolExecutionApproval: {
+      payload: Prisma.$ToolExecutionApprovalPayload<ExtArgs>
+      fields: Prisma.ToolExecutionApprovalFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.ToolExecutionApprovalFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.ToolExecutionApprovalFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>
+        }
+        findFirst: {
+          args: Prisma.ToolExecutionApprovalFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.ToolExecutionApprovalFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>
+        }
+        findMany: {
+          args: Prisma.ToolExecutionApprovalFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>[]
+        }
+        create: {
+          args: Prisma.ToolExecutionApprovalCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>
+        }
+        createMany: {
+          args: Prisma.ToolExecutionApprovalCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.ToolExecutionApprovalCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>[]
+        }
+        delete: {
+          args: Prisma.ToolExecutionApprovalDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>
+        }
+        update: {
+          args: Prisma.ToolExecutionApprovalUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>
+        }
+        deleteMany: {
+          args: Prisma.ToolExecutionApprovalDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.ToolExecutionApprovalUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.ToolExecutionApprovalUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>[]
+        }
+        upsert: {
+          args: Prisma.ToolExecutionApprovalUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$ToolExecutionApprovalPayload>
+        }
+        aggregate: {
+          args: Prisma.ToolExecutionApprovalAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateToolExecutionApproval>
+        }
+        groupBy: {
+          args: Prisma.ToolExecutionApprovalGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ToolExecutionApprovalGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.ToolExecutionApprovalCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.ToolExecutionApprovalCountAggregateOutputType> | number
         }
       }
     }
@@ -2452,6 +2527,10 @@ export const ToolExecutionScalarFieldEnum = {
   input: 'input',
   output: 'output',
   failureCode: 'failureCode',
+  effectAttemptCount: 'effectAttemptCount',
+  effectFirstAttemptedAt: 'effectFirstAttemptedAt',
+  effectPayloadDigest: 'effectPayloadDigest',
+  providerMessageId: 'providerMessageId',
   startedAt: 'startedAt',
   completedAt: 'completedAt',
   createdAt: 'createdAt',
@@ -2459,6 +2538,23 @@ export const ToolExecutionScalarFieldEnum = {
 } as const
 
 export type ToolExecutionScalarFieldEnum = (typeof ToolExecutionScalarFieldEnum)[keyof typeof ToolExecutionScalarFieldEnum]
+
+
+export const ToolExecutionApprovalScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  toolExecutionId: 'toolExecutionId',
+  status: 'status',
+  inputDigest: 'inputDigest',
+  requestedAt: 'requestedAt',
+  decidedAt: 'decidedAt',
+  decidedByUserId: 'decidedByUserId',
+  decisionNote: 'decisionNote',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ToolExecutionApprovalScalarFieldEnum = (typeof ToolExecutionApprovalScalarFieldEnum)[keyof typeof ToolExecutionApprovalScalarFieldEnum]
 
 
 export const OutboxEventScalarFieldEnum = {
@@ -2802,6 +2898,20 @@ export type ListEnumToolExecutionStatusFieldRefInput<$PrismaModel> = FieldRefInp
 
 
 /**
+ * Reference to a field of type 'ToolExecutionApprovalStatus'
+ */
+export type EnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ToolExecutionApprovalStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'ToolExecutionApprovalStatus[]'
+ */
+export type ListEnumToolExecutionApprovalStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'ToolExecutionApprovalStatus[]'>
+    
+
+
+/**
  * Reference to a field of type 'OutboxEventStatus'
  */
 export type EnumOutboxEventStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'OutboxEventStatus'>
@@ -3005,6 +3115,7 @@ export type GlobalOmitConfig = {
   organizationAgentInstallation?: Prisma.OrganizationAgentInstallationOmit
   organizationAgentVersion?: Prisma.OrganizationAgentVersionOmit
   toolExecution?: Prisma.ToolExecutionOmit
+  toolExecutionApproval?: Prisma.ToolExecutionApprovalOmit
   outboxEvent?: Prisma.OutboxEventOmit
   featureFlagPlatformOverride?: Prisma.FeatureFlagPlatformOverrideOmit
   featureFlagOrganizationOverride?: Prisma.FeatureFlagOrganizationOverrideOmit

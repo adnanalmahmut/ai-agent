@@ -63,6 +63,7 @@ export const ModelName = {
   OrganizationAgentInstallation: 'OrganizationAgentInstallation',
   OrganizationAgentVersion: 'OrganizationAgentVersion',
   ToolExecution: 'ToolExecution',
+  ToolExecutionApproval: 'ToolExecutionApproval',
   OutboxEvent: 'OutboxEvent',
   FeatureFlagPlatformOverride: 'FeatureFlagPlatformOverride',
   FeatureFlagOrganizationOverride: 'FeatureFlagOrganizationOverride',
@@ -290,6 +291,10 @@ export const ToolExecutionScalarFieldEnum = {
   input: 'input',
   output: 'output',
   failureCode: 'failureCode',
+  effectAttemptCount: 'effectAttemptCount',
+  effectFirstAttemptedAt: 'effectFirstAttemptedAt',
+  effectPayloadDigest: 'effectPayloadDigest',
+  providerMessageId: 'providerMessageId',
   startedAt: 'startedAt',
   completedAt: 'completedAt',
   createdAt: 'createdAt',
@@ -297,6 +302,23 @@ export const ToolExecutionScalarFieldEnum = {
 } as const
 
 export type ToolExecutionScalarFieldEnum = (typeof ToolExecutionScalarFieldEnum)[keyof typeof ToolExecutionScalarFieldEnum]
+
+
+export const ToolExecutionApprovalScalarFieldEnum = {
+  id: 'id',
+  organizationId: 'organizationId',
+  toolExecutionId: 'toolExecutionId',
+  status: 'status',
+  inputDigest: 'inputDigest',
+  requestedAt: 'requestedAt',
+  decidedAt: 'decidedAt',
+  decidedByUserId: 'decidedByUserId',
+  decisionNote: 'decisionNote',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ToolExecutionApprovalScalarFieldEnum = (typeof ToolExecutionApprovalScalarFieldEnum)[keyof typeof ToolExecutionApprovalScalarFieldEnum]
 
 
 export const OutboxEventScalarFieldEnum = {

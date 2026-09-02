@@ -99,4 +99,9 @@ export const workerConfigurations = [
   // Worker-only: the reconciler runs nowhere else, so the API process never
   // parses or requires these variables.
   agentsConfig,
+  // The worker performs the approved notification effect, so it composes the
+  // same delivery driver the API's auth mail uses — and parses the same
+  // variables, so a driver misconfiguration fails at boot rather than at the
+  // first approved action.
+  mailConfig,
 ];

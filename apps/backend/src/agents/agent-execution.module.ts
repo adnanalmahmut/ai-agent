@@ -51,6 +51,10 @@ import { AgentToolsModule } from './tools/agent-tools.module';
     AgentExecutionHandler,
     AgentRunReconciler,
   ],
-  exports: [AgentExecutionHandler, AgentRunReconciler],
+  /**
+   * `AgentToolsModule` is re-exported so the worker root can register the
+   * side-effect handler it provides beside the two handlers here.
+   */
+  exports: [AgentExecutionHandler, AgentRunReconciler, AgentToolsModule],
 })
 export class AgentExecutionModule {}

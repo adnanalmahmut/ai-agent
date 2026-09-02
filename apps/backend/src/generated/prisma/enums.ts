@@ -22,10 +22,23 @@ export type AgentRunStatus = (typeof AgentRunStatus)[keyof typeof AgentRunStatus
 export const ToolExecutionStatus = {
   STARTED: 'STARTED',
   SUCCEEDED: 'SUCCEEDED',
-  FAILED: 'FAILED'
+  FAILED: 'FAILED',
+  AWAITING_APPROVAL: 'AWAITING_APPROVAL',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  OUTCOME_UNKNOWN: 'OUTCOME_UNKNOWN'
 } as const
 
 export type ToolExecutionStatus = (typeof ToolExecutionStatus)[keyof typeof ToolExecutionStatus]
+
+
+export const ToolExecutionApprovalStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED'
+} as const
+
+export type ToolExecutionApprovalStatus = (typeof ToolExecutionApprovalStatus)[keyof typeof ToolExecutionApprovalStatus]
 
 
 export const OutboxEventStatus = {

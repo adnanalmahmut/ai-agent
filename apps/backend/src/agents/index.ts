@@ -25,6 +25,12 @@ export {
   AGENT_RUNTIME_NAMES,
 } from './agent.types';
 export { AgentsModule } from './agents.module';
+export { AgentActionApprovalModule } from './approvals/agent-action-approval.module';
+export {
+  AGENT_ACTION_APPROVAL_STATUSES,
+  type AgentActionApprovalStatus,
+  type AgentActionApprovalView,
+} from './approvals/agent-action-approval.types';
 export { OrganizationAgentInstallationsModule } from './organization-agent-installations.module';
 export type { AgentContextPassage, ContextPolicy } from './agent.types';
 export {

@@ -6,13 +6,16 @@ import type { AgentDefinition, AgentValue } from '../../agent.types';
 import { MODEL_IDS } from '../../../model-catalog/model-catalog';
 import { ToolExecutionFailure, ToolGateway } from '../tool.gateway';
 import { ToolRegistry } from '../tool.registry';
-import type {
-  ToolDefinition,
-  ToolImplementation,
-  ToolRef,
+import {
+  SideEffectPreconditionError,
+  type SideEffectToolImplementation,
+  type ToolDefinition,
+  type ToolImplementation,
+  type ToolRef,
 } from '../tool.types';
 
 const REF: ToolRef = 'knowledge.search@1';
+const SIDE_EFFECT_REF: ToolRef = 'notification.send@1';
 
 const toolDefinition = (
   overrides: Partial<ToolDefinition> = {},
@@ -44,6 +47,36 @@ const agentDefinition = (
   ...(maxToolGrants ? { maxToolGrants } : {}),
 });
 
+/**
+ * The second declared tool, so a registry built for these tests is complete.
+ *
+ * A stub whose `propose` accepts everything, swapped per test where the
+ * proposal path itself is under test.
+ */
+const sideEffectDefinition = (
+  overrides: Partial<ToolDefinition> = {},
+): ToolDefinition => ({
+  id: 'notification.send',
+  version: 1,
+  runtimeName: 'notification_send_v1',
+  description: 'Propose a notification.',
+  input: z
+    .object({ recipientMemberId: z.string().min(1), subject: z.string() })
+    .strict(),
+  output: z.object({ status: z.literal('awaiting_approval') }).strict(),
+  risk: 'side_effect',
+  ...overrides,
+});
+
+const sideEffectImplementation = (
+  propose: SideEffectToolImplementation['propose'] = () => Promise.resolve(),
+): SideEffectToolImplementation => ({
+  ref: SIDE_EFFECT_REF,
+  kind: 'side_effect',
+  propose,
+  prepareEffect: () => Promise.reject(new Error('not under test')),
+});
+
 const executions = () => ({
   start: jest.fn<(input: unknown) => Promise<string>>(() =>
     Promise.resolve('execution-1'),
@@ -52,17 +85,21 @@ const executions = () => ({
     Promise.resolve(),
   ),
   fail: jest.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve()),
+  propose: jest.fn<(input: unknown) => Promise<string>>(() =>
+    Promise.resolve('execution-2'),
+  ),
 });
 
 const gatewayWith = (
   execute: ToolImplementation['execute'],
   definition: ToolDefinition = toolDefinition(),
+  sideEffect: SideEffectToolImplementation = sideEffectImplementation(),
 ) => {
   const durable = executions();
   const gateway = new ToolGateway(
-    new ToolRegistry([definition]),
+    new ToolRegistry([definition, sideEffectDefinition()]),
     durable as never,
-    [{ ref: REF, execute }],
+    [{ ref: REF, execute }, sideEffect],
   );
 
   return { gateway, durable };
@@ -85,13 +122,14 @@ describe('ToolGateway composition', () => {
     expect(
       () =>
         new ToolGateway(
-          new ToolRegistry([toolDefinition()]),
+          new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
           executions() as never,
           [
             {
               ref: 'invented@1' as ToolRef,
               execute: () => Promise.resolve({}),
             },
+            sideEffectImplementation(),
           ],
         ),
     ).toThrow('is not registered');
@@ -101,9 +139,9 @@ describe('ToolGateway composition', () => {
     expect(
       () =>
         new ToolGateway(
-          new ToolRegistry([toolDefinition()]),
+          new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
           executions() as never,
-          [],
+          [sideEffectImplementation()],
         ),
     ).toThrow('has no registered implementation');
   });
@@ -112,14 +150,53 @@ describe('ToolGateway composition', () => {
     expect(
       () =>
         new ToolGateway(
-          new ToolRegistry([toolDefinition()]),
+          new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
           executions() as never,
           [
             { ref: REF, execute: () => Promise.resolve({}) },
             { ref: REF, execute: () => Promise.resolve({}) },
+            sideEffectImplementation(),
           ],
         ),
     ).toThrow('Duplicate tool implementation');
+  });
+
+  /**
+   * The classification and the implementation must agree. A `side_effect`
+   * definition with a plain `execute` would perform the effect inside the
+   * generation, which is the one thing the risk class exists to prevent.
+   */
+  it('refuses a side-effect definition implemented as a read-only tool', () => {
+    expect(
+      () =>
+        new ToolGateway(
+          new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
+          executions() as never,
+          [
+            { ref: REF, execute: () => Promise.resolve({}) },
+            { ref: SIDE_EFFECT_REF, execute: () => Promise.resolve({}) },
+          ],
+        ),
+    ).toThrow('is classified side_effect but its implementation is not');
+  });
+
+  it('refuses a read-only definition implemented as a side effect', () => {
+    expect(
+      () =>
+        new ToolGateway(
+          new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
+          executions() as never,
+          [
+            {
+              ref: REF,
+              kind: 'side_effect',
+              propose: () => Promise.resolve(),
+              prepareEffect: () => Promise.reject(new Error('never')),
+            },
+            sideEffectImplementation(),
+          ],
+        ),
+    ).toThrow('is classified read_only but its implementation is not');
   });
 });
 
@@ -189,21 +266,135 @@ describe('ToolGateway authorization', () => {
       'grants unknown tool "invented@1"',
     );
   });
+});
 
-  /**
-   * Refused when the build is composed, not when a run first reaches it.
-   *
-   * Deferring it to authorize time would accept the definition and the
-   * organization's selection, then fail every run of that agent — including
-   * runs where the model would never have called the tool.
-   */
-  it('refuses to compose a build containing a tool it cannot execute', () => {
-    expect(() =>
-      gatewayWith(
-        () => Promise.resolve({ passages: [] }),
-        toolDefinition({ risk: 'side_effect' }),
+describe('ToolGateway side-effect proposals', () => {
+  const authorizeSideEffect = (
+    gateway: ToolGateway,
+    grants: readonly string[] = [SIDE_EFFECT_REF],
+  ) =>
+    gateway.authorize({
+      definition: agentDefinition([REF, SIDE_EFFECT_REF]),
+      organizationId: 'org_1',
+      agentRunId: 'run_1',
+      agentRunAttempt: 3,
+      grants,
+    });
+
+  const proposalInput = { recipientMemberId: 'member_1', subject: 'Hello' };
+
+  it('records the proposal and tells the model only that it is waiting', async () => {
+    const { gateway, durable } = gatewayWith(() => Promise.resolve({}));
+    const [tool] = authorizeSideEffect(gateway);
+
+    await expect(tool.execute(proposalInput)).resolves.toEqual({
+      status: 'awaiting_approval',
+    });
+
+    // The proposal path, not the read-only one: nothing STARTED, nothing
+    // SUCCEEDED, and the parsed input is what was recorded.
+    expect(durable.start).not.toHaveBeenCalled();
+    expect(durable.succeed).not.toHaveBeenCalled();
+    expect(durable.propose).toHaveBeenCalledWith({
+      organizationId: 'org_1',
+      agentRunId: 'run_1',
+      agentRunAttempt: 3,
+      toolId: 'notification.send',
+      toolVersion: 1,
+      input: proposalInput,
+    });
+  });
+
+  it('performs nothing and offers no execute on the implementation', () => {
+    // Structural: the side-effect contract has no inline execution at all.
+    const implementation = sideEffectImplementation();
+
+    expect('execute' in implementation).toBe(false);
+  });
+
+  it('writes nothing when the implementation refuses the proposal', async () => {
+    const { gateway, durable } = gatewayWith(
+      () => Promise.resolve({}),
+      toolDefinition(),
+      sideEffectImplementation(() =>
+        Promise.reject(
+          new SideEffectPreconditionError('precondition_recipient'),
+        ),
       ),
-    ).toThrow('is not read-only and this build cannot execute one');
+    );
+    const [tool] = authorizeSideEffect(gateway);
+
+    const failure = await tool.execute(proposalInput).then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure).toBeInstanceOf(ToolExecutionFailure);
+    expect(failure?.message).toBe(
+      'Tool "notification_send_v1" could not record the proposal',
+    );
+    // The code names a member row in this tenant; the model does not learn it.
+    expect(failure?.message).not.toContain('recipient');
+    expect(durable.propose).not.toHaveBeenCalled();
+  });
+
+  it('contains anything else the implementation throws', async () => {
+    const { gateway, durable } = gatewayWith(
+      () => Promise.resolve({}),
+      toolDefinition(),
+      sideEffectImplementation(() =>
+        Promise.reject(new Error('postgres://user:hunter2@db timed out')),
+      ),
+    );
+    const [tool] = authorizeSideEffect(gateway);
+
+    const failure = await tool.execute(proposalInput).then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure?.message).toBe(
+      'Tool "notification_send_v1" could not be completed',
+    );
+    expect(failure?.message).not.toContain('hunter2');
+    expect(durable.propose).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing for a proposal whose input the schema refuses', async () => {
+    const { gateway, durable } = gatewayWith(() => Promise.resolve({}));
+    const [tool] = authorizeSideEffect(gateway);
+
+    await expect(
+      tool.execute({ recipientMemberId: 'member_1', to: 'x@example.com' }),
+    ).rejects.toThrow('received invalid input');
+    expect(durable.propose).not.toHaveBeenCalled();
+  });
+
+  it('contains a failure to record the proposal', async () => {
+    const { gateway, durable } = gatewayWith(() => Promise.resolve({}));
+    durable.propose.mockRejectedValueOnce(
+      new Error('Invalid `prisma.toolExecution.create()` invocation: hunter2'),
+    );
+    const [tool] = authorizeSideEffect(gateway);
+
+    const failure = await tool.execute(proposalInput).then(
+      () => null,
+      (error: unknown) => error as Error,
+    );
+
+    expect(failure).toBeInstanceOf(ToolExecutionFailure);
+    expect(failure?.message).toBe(
+      'Tool "notification_send_v1" could not be completed',
+    );
+    expect(failure?.message).not.toContain('hunter2');
+  });
+
+  it('is not exposed to a run whose version did not select it', () => {
+    const { gateway } = gatewayWith(() => Promise.resolve({}));
+
+    expect(
+      authorizeSideEffect(gateway, [REF]).map((tool) => tool.name),
+    ).toEqual(['knowledge_search_v1']);
   });
 });
 
@@ -330,9 +521,9 @@ describe('ToolGateway containment', () => {
       Promise.resolve({ passages: [] }),
   ) => {
     const gateway = new ToolGateway(
-      new ToolRegistry([toolDefinition()]),
+      new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
       durable as never,
-      [{ ref: REF, execute }],
+      [{ ref: REF, execute }, sideEffectImplementation()],
     );
     const [tool] = authorizeOne(gateway);
 
@@ -467,7 +658,7 @@ describe('ToolGateway uses the parsed value', () => {
     const seen: unknown[] = [];
     const durable = executions();
     const gateway = new ToolGateway(
-      new ToolRegistry([transforming]),
+      new ToolRegistry([transforming, sideEffectDefinition()]),
       durable as never,
       [
         {
@@ -477,6 +668,7 @@ describe('ToolGateway uses the parsed value', () => {
             return Promise.resolve({ passages: [] });
           },
         },
+        sideEffectImplementation(),
       ],
     );
     const [tool] = authorizeOne(gateway);
@@ -493,9 +685,12 @@ describe('ToolGateway uses the parsed value', () => {
   it('returns and records the parsed output, not the raw one', async () => {
     const durable = executions();
     const gateway = new ToolGateway(
-      new ToolRegistry([transforming]),
+      new ToolRegistry([transforming, sideEffectDefinition()]),
       durable as never,
-      [{ ref: REF, execute: () => Promise.resolve({ passages: ['a'] }) }],
+      [
+        { ref: REF, execute: () => Promise.resolve({ passages: ['a'] }) },
+        sideEffectImplementation(),
+      ],
     );
     const [tool] = authorizeOne(gateway);
 
@@ -525,9 +720,12 @@ describe('ToolGateway when a terminal write refuses', () => {
     const durable = executions();
     durable.succeed.mockImplementation(refusing);
     const gateway = new ToolGateway(
-      new ToolRegistry([toolDefinition()]),
+      new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
       durable as never,
-      [{ ref: REF, execute: () => Promise.resolve({ passages: ['a'] }) }],
+      [
+        { ref: REF, execute: () => Promise.resolve({ passages: ['a'] }) },
+        sideEffectImplementation(),
+      ],
     );
     const [tool] = authorizeOne(gateway);
 
@@ -548,9 +746,12 @@ describe('ToolGateway when a terminal write refuses', () => {
     const durable = executions();
     durable.fail.mockImplementation(refusing);
     const gateway = new ToolGateway(
-      new ToolRegistry([toolDefinition()]),
+      new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
       durable as never,
-      [{ ref: REF, execute: () => Promise.reject(new Error('driver')) }],
+      [
+        { ref: REF, execute: () => Promise.reject(new Error('driver')) },
+        sideEffectImplementation(),
+      ],
     );
     const [tool] = authorizeOne(gateway);
 
@@ -575,9 +776,12 @@ describe('ToolGateway when a terminal write refuses', () => {
       ),
     );
     const gateway = new ToolGateway(
-      new ToolRegistry([toolDefinition()]),
+      new ToolRegistry([toolDefinition(), sideEffectDefinition()]),
       durable as never,
-      [{ ref: REF, execute: () => Promise.resolve({ passages: [] }) }],
+      [
+        { ref: REF, execute: () => Promise.resolve({ passages: [] }) },
+        sideEffectImplementation(),
+      ],
     );
     const [tool] = authorizeOne(gateway);
 

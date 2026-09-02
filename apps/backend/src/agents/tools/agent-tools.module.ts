@@ -1,14 +1,18 @@
 import { Module } from '@nestjs/common';
 
+import { NotificationDeliveryModule } from '../../core/mail/notification-delivery';
 import { DatabaseModule } from '../../database';
 import { KnowledgeCoreModule } from '../../knowledge';
 import { AgentContextAssembler } from '../agent-context.assembler';
+import { AgentDefinitionsModule } from '../agent-definitions.module';
 import { KnowledgeSearchTool } from './knowledge-search.tool';
+import { NotificationSendTool } from './notification-send.tool';
 import { APPLICATION_TOOL_DEFINITIONS } from './definitions';
+import { SideEffectExecutionHandler } from './side-effect-execution.handler';
 import { TOOL_DEFINITIONS, ToolRegistry } from './tool.registry';
 import { ToolExecutionService } from './tool-execution.service';
 import { TOOL_IMPLEMENTATIONS, ToolGateway } from './tool.gateway';
-import type { ToolImplementation } from './tool.types';
+import type { AnyToolImplementation } from './tool.types';
 
 /**
  * The governed tool boundary, composed once.
@@ -20,13 +24,25 @@ import type { ToolImplementation } from './tool.types';
  * may read, which is exactly one too many.
  */
 @Module({
-  imports: [DatabaseModule, KnowledgeCoreModule],
+  /**
+   * `NotificationDeliveryModule` and `AgentDefinitionsModule` are here for the
+   * side-effect half: the notification tool delivers through the port, and the
+   * worker handler re-resolves the pinned definition before it performs
+   * anything. Both are pure composition — no HTTP, no queue consumer.
+   */
+  imports: [
+    DatabaseModule,
+    KnowledgeCoreModule,
+    NotificationDeliveryModule,
+    AgentDefinitionsModule,
+  ],
   providers: [
     { provide: TOOL_DEFINITIONS, useValue: APPLICATION_TOOL_DEFINITIONS },
     ToolRegistry,
     ToolExecutionService,
     AgentContextAssembler,
     KnowledgeSearchTool,
+    NotificationSendTool,
     {
       /**
        * Listed explicitly, not discovered.
@@ -38,11 +54,13 @@ import type { ToolImplementation } from './tool.types';
       provide: TOOL_IMPLEMENTATIONS,
       useFactory: (
         knowledgeSearch: KnowledgeSearchTool,
-      ): ToolImplementation[] => [knowledgeSearch],
-      inject: [KnowledgeSearchTool],
+        notificationSend: NotificationSendTool,
+      ): AnyToolImplementation[] => [knowledgeSearch, notificationSend],
+      inject: [KnowledgeSearchTool, NotificationSendTool],
     },
     ToolGateway,
+    SideEffectExecutionHandler,
   ],
-  exports: [ToolGateway, AgentContextAssembler],
+  exports: [ToolGateway, AgentContextAssembler, SideEffectExecutionHandler],
 })
 export class AgentToolsModule {}

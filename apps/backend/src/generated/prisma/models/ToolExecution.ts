@@ -29,11 +29,13 @@ export type AggregateToolExecution = {
 export type ToolExecutionAvgAggregateOutputType = {
   agentRunAttempt: number | null
   toolVersion: number | null
+  effectAttemptCount: number | null
 }
 
 export type ToolExecutionSumAggregateOutputType = {
   agentRunAttempt: number | null
   toolVersion: number | null
+  effectAttemptCount: number | null
 }
 
 export type ToolExecutionMinAggregateOutputType = {
@@ -45,6 +47,10 @@ export type ToolExecutionMinAggregateOutputType = {
   toolVersion: number | null
   status: $Enums.ToolExecutionStatus | null
   failureCode: string | null
+  effectAttemptCount: number | null
+  effectFirstAttemptedAt: Date | null
+  effectPayloadDigest: string | null
+  providerMessageId: string | null
   startedAt: Date | null
   completedAt: Date | null
   createdAt: Date | null
@@ -60,6 +66,10 @@ export type ToolExecutionMaxAggregateOutputType = {
   toolVersion: number | null
   status: $Enums.ToolExecutionStatus | null
   failureCode: string | null
+  effectAttemptCount: number | null
+  effectFirstAttemptedAt: Date | null
+  effectPayloadDigest: string | null
+  providerMessageId: string | null
   startedAt: Date | null
   completedAt: Date | null
   createdAt: Date | null
@@ -77,6 +87,10 @@ export type ToolExecutionCountAggregateOutputType = {
   input: number
   output: number
   failureCode: number
+  effectAttemptCount: number
+  effectFirstAttemptedAt: number
+  effectPayloadDigest: number
+  providerMessageId: number
   startedAt: number
   completedAt: number
   createdAt: number
@@ -88,11 +102,13 @@ export type ToolExecutionCountAggregateOutputType = {
 export type ToolExecutionAvgAggregateInputType = {
   agentRunAttempt?: true
   toolVersion?: true
+  effectAttemptCount?: true
 }
 
 export type ToolExecutionSumAggregateInputType = {
   agentRunAttempt?: true
   toolVersion?: true
+  effectAttemptCount?: true
 }
 
 export type ToolExecutionMinAggregateInputType = {
@@ -104,6 +120,10 @@ export type ToolExecutionMinAggregateInputType = {
   toolVersion?: true
   status?: true
   failureCode?: true
+  effectAttemptCount?: true
+  effectFirstAttemptedAt?: true
+  effectPayloadDigest?: true
+  providerMessageId?: true
   startedAt?: true
   completedAt?: true
   createdAt?: true
@@ -119,6 +139,10 @@ export type ToolExecutionMaxAggregateInputType = {
   toolVersion?: true
   status?: true
   failureCode?: true
+  effectAttemptCount?: true
+  effectFirstAttemptedAt?: true
+  effectPayloadDigest?: true
+  providerMessageId?: true
   startedAt?: true
   completedAt?: true
   createdAt?: true
@@ -136,6 +160,10 @@ export type ToolExecutionCountAggregateInputType = {
   input?: true
   output?: true
   failureCode?: true
+  effectAttemptCount?: true
+  effectFirstAttemptedAt?: true
+  effectPayloadDigest?: true
+  providerMessageId?: true
   startedAt?: true
   completedAt?: true
   createdAt?: true
@@ -240,6 +268,10 @@ export type ToolExecutionGroupByOutputType = {
   input: runtime.JsonValue
   output: runtime.JsonValue | null
   failureCode: string | null
+  effectAttemptCount: number
+  effectFirstAttemptedAt: Date | null
+  effectPayloadDigest: string | null
+  providerMessageId: string | null
   startedAt: Date
   completedAt: Date | null
   createdAt: Date
@@ -280,12 +312,17 @@ export type ToolExecutionWhereInput = {
   input?: Prisma.JsonFilter<"ToolExecution">
   output?: Prisma.JsonNullableFilter<"ToolExecution">
   failureCode?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
+  effectAttemptCount?: Prisma.IntFilter<"ToolExecution"> | number
+  effectFirstAttemptedAt?: Prisma.DateTimeNullableFilter<"ToolExecution"> | Date | string | null
+  effectPayloadDigest?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
+  providerMessageId?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
   startedAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
   completedAt?: Prisma.DateTimeNullableFilter<"ToolExecution"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
   organization?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   agentRun?: Prisma.XOR<Prisma.AgentRunScalarRelationFilter, Prisma.AgentRunWhereInput>
+  approval?: Prisma.XOR<Prisma.ToolExecutionApprovalNullableScalarRelationFilter, Prisma.ToolExecutionApprovalWhereInput> | null
 }
 
 export type ToolExecutionOrderByWithRelationInput = {
@@ -299,16 +336,22 @@ export type ToolExecutionOrderByWithRelationInput = {
   input?: Prisma.SortOrder
   output?: Prisma.SortOrderInput | Prisma.SortOrder
   failureCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  effectAttemptCount?: Prisma.SortOrder
+  effectFirstAttemptedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  effectPayloadDigest?: Prisma.SortOrderInput | Prisma.SortOrder
+  providerMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   organization?: Prisma.OrganizationOrderByWithRelationInput
   agentRun?: Prisma.AgentRunOrderByWithRelationInput
+  approval?: Prisma.ToolExecutionApprovalOrderByWithRelationInput
 }
 
 export type ToolExecutionWhereUniqueInput = Prisma.AtLeast<{
   id?: string
+  id_organizationId?: Prisma.ToolExecutionIdOrganizationIdCompoundUniqueInput
   AND?: Prisma.ToolExecutionWhereInput | Prisma.ToolExecutionWhereInput[]
   OR?: Prisma.ToolExecutionWhereInput[]
   NOT?: Prisma.ToolExecutionWhereInput | Prisma.ToolExecutionWhereInput[]
@@ -321,13 +364,18 @@ export type ToolExecutionWhereUniqueInput = Prisma.AtLeast<{
   input?: Prisma.JsonFilter<"ToolExecution">
   output?: Prisma.JsonNullableFilter<"ToolExecution">
   failureCode?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
+  effectAttemptCount?: Prisma.IntFilter<"ToolExecution"> | number
+  effectFirstAttemptedAt?: Prisma.DateTimeNullableFilter<"ToolExecution"> | Date | string | null
+  effectPayloadDigest?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
+  providerMessageId?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
   startedAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
   completedAt?: Prisma.DateTimeNullableFilter<"ToolExecution"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
   organization?: Prisma.XOR<Prisma.OrganizationScalarRelationFilter, Prisma.OrganizationWhereInput>
   agentRun?: Prisma.XOR<Prisma.AgentRunScalarRelationFilter, Prisma.AgentRunWhereInput>
-}, "id">
+  approval?: Prisma.XOR<Prisma.ToolExecutionApprovalNullableScalarRelationFilter, Prisma.ToolExecutionApprovalWhereInput> | null
+}, "id" | "id_organizationId">
 
 export type ToolExecutionOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -340,6 +388,10 @@ export type ToolExecutionOrderByWithAggregationInput = {
   input?: Prisma.SortOrder
   output?: Prisma.SortOrderInput | Prisma.SortOrder
   failureCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  effectAttemptCount?: Prisma.SortOrder
+  effectFirstAttemptedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  effectPayloadDigest?: Prisma.SortOrderInput | Prisma.SortOrder
+  providerMessageId?: Prisma.SortOrderInput | Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -365,6 +417,10 @@ export type ToolExecutionScalarWhereWithAggregatesInput = {
   input?: Prisma.JsonWithAggregatesFilter<"ToolExecution">
   output?: Prisma.JsonNullableWithAggregatesFilter<"ToolExecution">
   failureCode?: Prisma.StringNullableWithAggregatesFilter<"ToolExecution"> | string | null
+  effectAttemptCount?: Prisma.IntWithAggregatesFilter<"ToolExecution"> | number
+  effectFirstAttemptedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ToolExecution"> | Date | string | null
+  effectPayloadDigest?: Prisma.StringNullableWithAggregatesFilter<"ToolExecution"> | string | null
+  providerMessageId?: Prisma.StringNullableWithAggregatesFilter<"ToolExecution"> | string | null
   startedAt?: Prisma.DateTimeWithAggregatesFilter<"ToolExecution"> | Date | string
   completedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"ToolExecution"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"ToolExecution"> | Date | string
@@ -380,12 +436,17 @@ export type ToolExecutionCreateInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   organization: Prisma.OrganizationCreateNestedOneWithoutToolExecutionsInput
   agentRun: Prisma.AgentRunCreateNestedOneWithoutToolExecutionsInput
+  approval?: Prisma.ToolExecutionApprovalCreateNestedOneWithoutToolExecutionInput
 }
 
 export type ToolExecutionUncheckedCreateInput = {
@@ -399,10 +460,15 @@ export type ToolExecutionUncheckedCreateInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  approval?: Prisma.ToolExecutionApprovalUncheckedCreateNestedOneWithoutToolExecutionInput
 }
 
 export type ToolExecutionUpdateInput = {
@@ -414,12 +480,17 @@ export type ToolExecutionUpdateInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutToolExecutionsNestedInput
   agentRun?: Prisma.AgentRunUpdateOneRequiredWithoutToolExecutionsNestedInput
+  approval?: Prisma.ToolExecutionApprovalUpdateOneWithoutToolExecutionNestedInput
 }
 
 export type ToolExecutionUncheckedUpdateInput = {
@@ -433,10 +504,15 @@ export type ToolExecutionUncheckedUpdateInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  approval?: Prisma.ToolExecutionApprovalUncheckedUpdateOneWithoutToolExecutionNestedInput
 }
 
 export type ToolExecutionCreateManyInput = {
@@ -450,6 +526,10 @@ export type ToolExecutionCreateManyInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
@@ -465,6 +545,10 @@ export type ToolExecutionUpdateManyMutationInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -482,6 +566,10 @@ export type ToolExecutionUncheckedUpdateManyInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -498,6 +586,11 @@ export type ToolExecutionOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
+export type ToolExecutionIdOrganizationIdCompoundUniqueInput = {
+  id: string
+  organizationId: string
+}
+
 export type ToolExecutionCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   organizationId?: Prisma.SortOrder
@@ -509,6 +602,10 @@ export type ToolExecutionCountOrderByAggregateInput = {
   input?: Prisma.SortOrder
   output?: Prisma.SortOrder
   failureCode?: Prisma.SortOrder
+  effectAttemptCount?: Prisma.SortOrder
+  effectFirstAttemptedAt?: Prisma.SortOrder
+  effectPayloadDigest?: Prisma.SortOrder
+  providerMessageId?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -518,6 +615,7 @@ export type ToolExecutionCountOrderByAggregateInput = {
 export type ToolExecutionAvgOrderByAggregateInput = {
   agentRunAttempt?: Prisma.SortOrder
   toolVersion?: Prisma.SortOrder
+  effectAttemptCount?: Prisma.SortOrder
 }
 
 export type ToolExecutionMaxOrderByAggregateInput = {
@@ -529,6 +627,10 @@ export type ToolExecutionMaxOrderByAggregateInput = {
   toolVersion?: Prisma.SortOrder
   status?: Prisma.SortOrder
   failureCode?: Prisma.SortOrder
+  effectAttemptCount?: Prisma.SortOrder
+  effectFirstAttemptedAt?: Prisma.SortOrder
+  effectPayloadDigest?: Prisma.SortOrder
+  providerMessageId?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -544,6 +646,10 @@ export type ToolExecutionMinOrderByAggregateInput = {
   toolVersion?: Prisma.SortOrder
   status?: Prisma.SortOrder
   failureCode?: Prisma.SortOrder
+  effectAttemptCount?: Prisma.SortOrder
+  effectFirstAttemptedAt?: Prisma.SortOrder
+  effectPayloadDigest?: Prisma.SortOrder
+  providerMessageId?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -553,6 +659,12 @@ export type ToolExecutionMinOrderByAggregateInput = {
 export type ToolExecutionSumOrderByAggregateInput = {
   agentRunAttempt?: Prisma.SortOrder
   toolVersion?: Prisma.SortOrder
+  effectAttemptCount?: Prisma.SortOrder
+}
+
+export type ToolExecutionScalarRelationFilter = {
+  is?: Prisma.ToolExecutionWhereInput
+  isNot?: Prisma.ToolExecutionWhereInput
 }
 
 export type ToolExecutionCreateNestedManyWithoutOrganizationInput = {
@@ -643,6 +755,20 @@ export type EnumToolExecutionStatusFieldUpdateOperationsInput = {
   set?: $Enums.ToolExecutionStatus
 }
 
+export type ToolExecutionCreateNestedOneWithoutApprovalInput = {
+  create?: Prisma.XOR<Prisma.ToolExecutionCreateWithoutApprovalInput, Prisma.ToolExecutionUncheckedCreateWithoutApprovalInput>
+  connectOrCreate?: Prisma.ToolExecutionCreateOrConnectWithoutApprovalInput
+  connect?: Prisma.ToolExecutionWhereUniqueInput
+}
+
+export type ToolExecutionUpdateOneRequiredWithoutApprovalNestedInput = {
+  create?: Prisma.XOR<Prisma.ToolExecutionCreateWithoutApprovalInput, Prisma.ToolExecutionUncheckedCreateWithoutApprovalInput>
+  connectOrCreate?: Prisma.ToolExecutionCreateOrConnectWithoutApprovalInput
+  upsert?: Prisma.ToolExecutionUpsertWithoutApprovalInput
+  connect?: Prisma.ToolExecutionWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.ToolExecutionUpdateToOneWithWhereWithoutApprovalInput, Prisma.ToolExecutionUpdateWithoutApprovalInput>, Prisma.ToolExecutionUncheckedUpdateWithoutApprovalInput>
+}
+
 export type ToolExecutionCreateWithoutOrganizationInput = {
   id?: string
   agentRunAttempt: number
@@ -652,11 +778,16 @@ export type ToolExecutionCreateWithoutOrganizationInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   agentRun: Prisma.AgentRunCreateNestedOneWithoutToolExecutionsInput
+  approval?: Prisma.ToolExecutionApprovalCreateNestedOneWithoutToolExecutionInput
 }
 
 export type ToolExecutionUncheckedCreateWithoutOrganizationInput = {
@@ -669,10 +800,15 @@ export type ToolExecutionUncheckedCreateWithoutOrganizationInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  approval?: Prisma.ToolExecutionApprovalUncheckedCreateNestedOneWithoutToolExecutionInput
 }
 
 export type ToolExecutionCreateOrConnectWithoutOrganizationInput = {
@@ -715,6 +851,10 @@ export type ToolExecutionScalarWhereInput = {
   input?: Prisma.JsonFilter<"ToolExecution">
   output?: Prisma.JsonNullableFilter<"ToolExecution">
   failureCode?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
+  effectAttemptCount?: Prisma.IntFilter<"ToolExecution"> | number
+  effectFirstAttemptedAt?: Prisma.DateTimeNullableFilter<"ToolExecution"> | Date | string | null
+  effectPayloadDigest?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
+  providerMessageId?: Prisma.StringNullableFilter<"ToolExecution"> | string | null
   startedAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
   completedAt?: Prisma.DateTimeNullableFilter<"ToolExecution"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"ToolExecution"> | Date | string
@@ -730,11 +870,16 @@ export type ToolExecutionCreateWithoutAgentRunInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   organization: Prisma.OrganizationCreateNestedOneWithoutToolExecutionsInput
+  approval?: Prisma.ToolExecutionApprovalCreateNestedOneWithoutToolExecutionInput
 }
 
 export type ToolExecutionUncheckedCreateWithoutAgentRunInput = {
@@ -746,10 +891,15 @@ export type ToolExecutionUncheckedCreateWithoutAgentRunInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
+  approval?: Prisma.ToolExecutionApprovalUncheckedCreateNestedOneWithoutToolExecutionInput
 }
 
 export type ToolExecutionCreateOrConnectWithoutAgentRunInput = {
@@ -778,6 +928,106 @@ export type ToolExecutionUpdateManyWithWhereWithoutAgentRunInput = {
   data: Prisma.XOR<Prisma.ToolExecutionUpdateManyMutationInput, Prisma.ToolExecutionUncheckedUpdateManyWithoutAgentRunInput>
 }
 
+export type ToolExecutionCreateWithoutApprovalInput = {
+  id?: string
+  agentRunAttempt: number
+  toolId: string
+  toolVersion: number
+  status?: $Enums.ToolExecutionStatus
+  input: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
+  startedAt?: Date | string
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  organization: Prisma.OrganizationCreateNestedOneWithoutToolExecutionsInput
+  agentRun: Prisma.AgentRunCreateNestedOneWithoutToolExecutionsInput
+}
+
+export type ToolExecutionUncheckedCreateWithoutApprovalInput = {
+  id?: string
+  organizationId: string
+  agentRunId: string
+  agentRunAttempt: number
+  toolId: string
+  toolVersion: number
+  status?: $Enums.ToolExecutionStatus
+  input: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
+  startedAt?: Date | string
+  completedAt?: Date | string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+}
+
+export type ToolExecutionCreateOrConnectWithoutApprovalInput = {
+  where: Prisma.ToolExecutionWhereUniqueInput
+  create: Prisma.XOR<Prisma.ToolExecutionCreateWithoutApprovalInput, Prisma.ToolExecutionUncheckedCreateWithoutApprovalInput>
+}
+
+export type ToolExecutionUpsertWithoutApprovalInput = {
+  update: Prisma.XOR<Prisma.ToolExecutionUpdateWithoutApprovalInput, Prisma.ToolExecutionUncheckedUpdateWithoutApprovalInput>
+  create: Prisma.XOR<Prisma.ToolExecutionCreateWithoutApprovalInput, Prisma.ToolExecutionUncheckedCreateWithoutApprovalInput>
+  where?: Prisma.ToolExecutionWhereInput
+}
+
+export type ToolExecutionUpdateToOneWithWhereWithoutApprovalInput = {
+  where?: Prisma.ToolExecutionWhereInput
+  data: Prisma.XOR<Prisma.ToolExecutionUpdateWithoutApprovalInput, Prisma.ToolExecutionUncheckedUpdateWithoutApprovalInput>
+}
+
+export type ToolExecutionUpdateWithoutApprovalInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  agentRunAttempt?: Prisma.IntFieldUpdateOperationsInput | number
+  toolId?: Prisma.StringFieldUpdateOperationsInput | string
+  toolVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  status?: Prisma.EnumToolExecutionStatusFieldUpdateOperationsInput | $Enums.ToolExecutionStatus
+  input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  organization?: Prisma.OrganizationUpdateOneRequiredWithoutToolExecutionsNestedInput
+  agentRun?: Prisma.AgentRunUpdateOneRequiredWithoutToolExecutionsNestedInput
+}
+
+export type ToolExecutionUncheckedUpdateWithoutApprovalInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  organizationId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentRunId?: Prisma.StringFieldUpdateOperationsInput | string
+  agentRunAttempt?: Prisma.IntFieldUpdateOperationsInput | number
+  toolId?: Prisma.StringFieldUpdateOperationsInput | string
+  toolVersion?: Prisma.IntFieldUpdateOperationsInput | number
+  status?: Prisma.EnumToolExecutionStatusFieldUpdateOperationsInput | $Enums.ToolExecutionStatus
+  input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+}
+
 export type ToolExecutionCreateManyOrganizationInput = {
   id?: string
   agentRunId: string
@@ -788,6 +1038,10 @@ export type ToolExecutionCreateManyOrganizationInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
@@ -803,11 +1057,16 @@ export type ToolExecutionUpdateWithoutOrganizationInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   agentRun?: Prisma.AgentRunUpdateOneRequiredWithoutToolExecutionsNestedInput
+  approval?: Prisma.ToolExecutionApprovalUpdateOneWithoutToolExecutionNestedInput
 }
 
 export type ToolExecutionUncheckedUpdateWithoutOrganizationInput = {
@@ -820,10 +1079,15 @@ export type ToolExecutionUncheckedUpdateWithoutOrganizationInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  approval?: Prisma.ToolExecutionApprovalUncheckedUpdateOneWithoutToolExecutionNestedInput
 }
 
 export type ToolExecutionUncheckedUpdateManyWithoutOrganizationInput = {
@@ -836,6 +1100,10 @@ export type ToolExecutionUncheckedUpdateManyWithoutOrganizationInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -851,6 +1119,10 @@ export type ToolExecutionCreateManyAgentRunInput = {
   input: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: string | null
+  effectAttemptCount?: number
+  effectFirstAttemptedAt?: Date | string | null
+  effectPayloadDigest?: string | null
+  providerMessageId?: string | null
   startedAt?: Date | string
   completedAt?: Date | string | null
   createdAt?: Date | string
@@ -866,11 +1138,16 @@ export type ToolExecutionUpdateWithoutAgentRunInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   organization?: Prisma.OrganizationUpdateOneRequiredWithoutToolExecutionsNestedInput
+  approval?: Prisma.ToolExecutionApprovalUpdateOneWithoutToolExecutionNestedInput
 }
 
 export type ToolExecutionUncheckedUpdateWithoutAgentRunInput = {
@@ -882,10 +1159,15 @@ export type ToolExecutionUncheckedUpdateWithoutAgentRunInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  approval?: Prisma.ToolExecutionApprovalUncheckedUpdateOneWithoutToolExecutionNestedInput
 }
 
 export type ToolExecutionUncheckedUpdateManyWithoutAgentRunInput = {
@@ -897,6 +1179,10 @@ export type ToolExecutionUncheckedUpdateManyWithoutAgentRunInput = {
   input?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   failureCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  effectAttemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  effectFirstAttemptedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  effectPayloadDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  providerMessageId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   startedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -916,12 +1202,17 @@ export type ToolExecutionSelect<ExtArgs extends runtime.Types.Extensions.Interna
   input?: boolean
   output?: boolean
   failureCode?: boolean
+  effectAttemptCount?: boolean
+  effectFirstAttemptedAt?: boolean
+  effectPayloadDigest?: boolean
+  providerMessageId?: boolean
   startedAt?: boolean
   completedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   agentRun?: boolean | Prisma.AgentRunDefaultArgs<ExtArgs>
+  approval?: boolean | Prisma.ToolExecution$approvalArgs<ExtArgs>
 }, ExtArgs["result"]["toolExecution"]>
 
 export type ToolExecutionSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -935,6 +1226,10 @@ export type ToolExecutionSelectCreateManyAndReturn<ExtArgs extends runtime.Types
   input?: boolean
   output?: boolean
   failureCode?: boolean
+  effectAttemptCount?: boolean
+  effectFirstAttemptedAt?: boolean
+  effectPayloadDigest?: boolean
+  providerMessageId?: boolean
   startedAt?: boolean
   completedAt?: boolean
   createdAt?: boolean
@@ -954,6 +1249,10 @@ export type ToolExecutionSelectUpdateManyAndReturn<ExtArgs extends runtime.Types
   input?: boolean
   output?: boolean
   failureCode?: boolean
+  effectAttemptCount?: boolean
+  effectFirstAttemptedAt?: boolean
+  effectPayloadDigest?: boolean
+  providerMessageId?: boolean
   startedAt?: boolean
   completedAt?: boolean
   createdAt?: boolean
@@ -973,16 +1272,21 @@ export type ToolExecutionSelectScalar = {
   input?: boolean
   output?: boolean
   failureCode?: boolean
+  effectAttemptCount?: boolean
+  effectFirstAttemptedAt?: boolean
+  effectPayloadDigest?: boolean
+  providerMessageId?: boolean
   startedAt?: boolean
   completedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type ToolExecutionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "agentRunId" | "agentRunAttempt" | "toolId" | "toolVersion" | "status" | "input" | "output" | "failureCode" | "startedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["toolExecution"]>
+export type ToolExecutionOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "organizationId" | "agentRunId" | "agentRunAttempt" | "toolId" | "toolVersion" | "status" | "input" | "output" | "failureCode" | "effectAttemptCount" | "effectFirstAttemptedAt" | "effectPayloadDigest" | "providerMessageId" | "startedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["toolExecution"]>
 export type ToolExecutionInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   agentRun?: boolean | Prisma.AgentRunDefaultArgs<ExtArgs>
+  approval?: boolean | Prisma.ToolExecution$approvalArgs<ExtArgs>
 }
 export type ToolExecutionIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
@@ -998,6 +1302,7 @@ export type $ToolExecutionPayload<ExtArgs extends runtime.Types.Extensions.Inter
   objects: {
     organization: Prisma.$OrganizationPayload<ExtArgs>
     agentRun: Prisma.$AgentRunPayload<ExtArgs>
+    approval: Prisma.$ToolExecutionApprovalPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -1037,6 +1342,24 @@ export type $ToolExecutionPayload<ExtArgs extends runtime.Types.Extensions.Inter
      * type first.
      */
     failureCode: string | null
+    /**
+     * Side-effect bookkeeping. Null or zero for a read-only execution.
+     * 
+     * `effectAttemptCount` is the concurrency fence for effect delivery: a
+     * worker claims an attempt by matching the count it read and bumping it, so
+     * two deliveries of one approved action cannot both hold the same attempt.
+     * `effectFirstAttemptedAt` bounds retries to the provider's idempotency
+     * window. `effectPayloadDigest` is the digest of the effective payload the
+     * first attempt sent; a later attempt whose payload differs cannot know
+     * whether the first reached the provider, so it resolves to
+     * `OUTCOME_UNKNOWN` rather than sending something else under the same key.
+     * `providerMessageId` is the provider's own identifier for the accepted
+     * effect — the durable fact success is reconstructed from.
+     */
+    effectAttemptCount: number
+    effectFirstAttemptedAt: Date | null
+    effectPayloadDigest: string | null
+    providerMessageId: string | null
     startedAt: Date
     completedAt: Date | null
     createdAt: Date
@@ -1437,6 +1760,7 @@ export interface Prisma__ToolExecutionClient<T, Null = never, ExtArgs extends ru
   readonly [Symbol.toStringTag]: "PrismaPromise"
   organization<T extends Prisma.OrganizationDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.OrganizationDefaultArgs<ExtArgs>>): Prisma.Prisma__OrganizationClient<runtime.Types.Result.GetResult<Prisma.$OrganizationPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
   agentRun<T extends Prisma.AgentRunDefaultArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.AgentRunDefaultArgs<ExtArgs>>): Prisma.Prisma__AgentRunClient<runtime.Types.Result.GetResult<Prisma.$AgentRunPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | Null, Null, ExtArgs, GlobalOmitOptions>
+  approval<T extends Prisma.ToolExecution$approvalArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.ToolExecution$approvalArgs<ExtArgs>>): Prisma.Prisma__ToolExecutionApprovalClient<runtime.Types.Result.GetResult<Prisma.$ToolExecutionApprovalPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1476,6 +1800,10 @@ export interface ToolExecutionFieldRefs {
   readonly input: Prisma.FieldRef<"ToolExecution", 'Json'>
   readonly output: Prisma.FieldRef<"ToolExecution", 'Json'>
   readonly failureCode: Prisma.FieldRef<"ToolExecution", 'String'>
+  readonly effectAttemptCount: Prisma.FieldRef<"ToolExecution", 'Int'>
+  readonly effectFirstAttemptedAt: Prisma.FieldRef<"ToolExecution", 'DateTime'>
+  readonly effectPayloadDigest: Prisma.FieldRef<"ToolExecution", 'String'>
+  readonly providerMessageId: Prisma.FieldRef<"ToolExecution", 'String'>
   readonly startedAt: Prisma.FieldRef<"ToolExecution", 'DateTime'>
   readonly completedAt: Prisma.FieldRef<"ToolExecution", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"ToolExecution", 'DateTime'>
@@ -1878,6 +2206,25 @@ export type ToolExecutionDeleteManyArgs<ExtArgs extends runtime.Types.Extensions
    * Limit how many ToolExecutions to delete.
    */
   limit?: number
+}
+
+/**
+ * ToolExecution.approval
+ */
+export type ToolExecution$approvalArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ToolExecutionApproval
+   */
+  select?: Prisma.ToolExecutionApprovalSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ToolExecutionApproval
+   */
+  omit?: Prisma.ToolExecutionApprovalOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ToolExecutionApprovalInclude<ExtArgs> | null
+  where?: Prisma.ToolExecutionApprovalWhereInput
 }
 
 /**

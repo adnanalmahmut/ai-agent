@@ -488,7 +488,8 @@
       "knowledge": "Knowledge",
       "contentIdeas": "Content ideas",
       "settings": "Settings",
-      "contentProjects": "Projects"
+      "contentProjects": "Projects",
+      "approvals": "Approvals"
     },
     "overview": {
       "memberCount": "Members",
@@ -1065,6 +1066,74 @@
       "goal": "Goal:",
       "audience": "Audience:",
       "guidance": "Guidance:"
+    }
+  },
+  "Approvals": {
+    "title": "Agent action approvals",
+    "description": "Actions an agent proposed that leave this system. Nothing is sent until someone who runs this organization approves it, and every precondition is checked again right before it goes out.",
+    "loading": "Loading proposals",
+    "loadMore": "Load more",
+    "readOnly": "Only an organization admin or owner can decide this.",
+    "requestedAt": "Proposed {at, date, medium} {at, time, short}",
+    "filter": {
+      "label": "Decision filter",
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected",
+      "ALL": "All"
+    },
+    "empty": {
+      "title": "Nothing waiting",
+      "description": "When an agent proposes an action that leaves this system, it appears here for a decision."
+    },
+    "error": {
+      "load": "The proposals could not be loaded.",
+      "retry": "Try again",
+      "more": "The next page could not be loaded.",
+      "conflict": "Somebody else decided this one first.",
+      "decide": "The decision could not be recorded."
+    },
+    "tool": {
+      "notificationSend": "Email notification",
+      "unknown": "Agent action"
+    },
+    "status": {
+      "PENDING": "Awaiting decision",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "effect": {
+      "STARTED": "Started",
+      "AWAITING_APPROVAL": "Awaiting approval",
+      "APPROVED": "Queued to send",
+      "REJECTED": "Rejected",
+      "SUCCEEDED": "Sent",
+      "FAILED": "Not sent",
+      "OUTCOME_UNKNOWN": "Outcome unknown — needs manual check"
+    },
+    "proposal": {
+      "recipient": "To:",
+      "recipientGone": "This member is no longer in the organization; the message will not be sent.",
+      "subject": "Subject:",
+      "unreadable": "This proposal cannot be displayed."
+    },
+    "note": {
+      "label": "Note:",
+      "placeholder": "Optional note for the record"
+    },
+    "actions": {
+      "approve": "Approve and send",
+      "reject": "Reject"
+    },
+    "failure": {
+      "precondition_organization": "Not sent: the organization was archived before delivery.",
+      "precondition_authority": "Not sent: the agent no longer holds the grant it was approved under.",
+      "precondition_approval": "Not sent: the approval no longer matched the proposal.",
+      "precondition_recipient": "Not sent: the recipient is no longer a deliverable member.",
+      "delivery_unsupported": "Not sent: this deployment's mail driver cannot deliver safely.",
+      "provider_rejected": "Not sent: the mail provider refused the message.",
+      "implementation_error": "The tool failed.",
+      "output_rejected": "The tool returned an unusable result."
     }
   }
 }

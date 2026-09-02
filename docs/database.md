@@ -58,6 +58,30 @@ carries `status = 'STARTED'` beside the tenant-scoped id and requires exactly
 one row — so a settled execution is never rewritten and a terminal write that
 matches nothing is a refusal rather than a silent no-op.
 
+A side effect uses the same row with a second lifecycle:
+`AWAITING_APPROVAL -> REJECTED | APPROVED -> SUCCEEDED | FAILED |
+OUTCOME_UNKNOWN`. `effectAttemptCount` is the concurrency fence for delivery — a
+worker claims an attempt by matching the count it read and bumping it —
+`effectFirstAttemptedAt` bounds retries to the provider's idempotency window,
+`effectPayloadDigest` records what the first attempt sent so a later attempt can
+prove it repeats the same payload without the row holding the recipient's
+address, and `providerMessageId` is the provider's identifier for an accepted
+effect. `OUTCOME_UNKNOWN` carries no failure code: it is the honest state for a
+request the provider may have accepted whose answer was lost past the safe
+retry window. All four columns are defaulted or nullable, so a row written by
+the preceding image means what a read-only execution means.
+
+`tool_execution_approval` is the human decision on one side-effect execution:
+exactly one per execution (unique on `toolExecutionId`), `PENDING | APPROVED |
+REJECTED`, who decided, when, a bounded note, and the digest of the parsed
+proposal the approver saw. It reaches its execution through the composite
+`("toolExecutionId", "organizationId")` against a new unique on
+`tool_execution("id", "organizationId")`, so PostgreSQL refuses an approval
+recorded against another organization's execution. A separate row rather than
+columns on the execution because the decision is a different fact with its own
+actor and its own time, and because the composite foreign key is what makes the
+tenant boundary the database's.
+
 Product audit history is retained indefinitely until a concrete product or
 legal retention requirement is approved. Current volume is bounded by real
 product mutations and reads are tenant-indexed and paginated; guessing a

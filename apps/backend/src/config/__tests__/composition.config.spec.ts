@@ -31,6 +31,10 @@ describe('process configuration composition', () => {
       redisConfig,
       queueConfig,
       agentsConfig,
+      // The worker performs approved agent notifications through the mail
+      // driver, so it parses the same variables the API does — and fails at
+      // boot on a misconfigured driver rather than at the first approval.
+      mailConfig,
     ]);
 
     /**
@@ -45,7 +49,6 @@ describe('process configuration composition', () => {
         authConfig,
         geoIpConfig,
         httpConfig,
-        mailConfig,
         openapiConfig,
       ]),
     );
