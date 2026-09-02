@@ -160,12 +160,16 @@ A new organization permission `mcpSession: ['create']` is granted to `admin` and
 `owner`, not to `member`: opening a session hands an external client the
 organization's granted tools, which is administration rather than membership.
 
-Every session route additionally requires `run.createdByUserId` to equal the
-authenticated user. A session belongs to whoever opened it, so reconnecting — or
-another admin discovering the id — manufactures no authority. The response
-deliberately carries no endpoint URL: the server does not reliably know its own
-public prefix, and inventing one would be a configuration dependency for no
-gain. The path shape is documented instead.
+Routes that drive or use an MCP session (`POST /:runId/mcp`) additionally require
+`run.createdByUserId` to equal the authenticated user. A session is driven only
+by whoever opened it, so reconnecting — or another admin discovering the id —
+manufactures no authority. Close (`DELETE /:runId`) is the deliberate exception:
+an organization admin or owner with `mcpSession:create` may close another
+member's session in the same organization to recover in-flight run capacity if an
+opener disconnects, while ordinary members cannot. The response deliberately
+carries no endpoint URL: the server does not reliably know its own public
+prefix, and inventing one would be a configuration dependency for no gain. The
+path shape is documented instead.
 
 ### Per-request authority, nothing cached
 

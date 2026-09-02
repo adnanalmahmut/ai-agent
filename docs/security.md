@@ -138,10 +138,12 @@ Primary boundaries:
   report must not do is describe the secret it failed to read.
 - MCP boundary: the MCP endpoint is authenticated by the application's own
   session and authorized by the shared organization guard, and `mcpSession`
-  belongs to `admin` and `owner`. Every session route additionally requires the
-  member who opened that session, so an id is not a capability and reconnecting
+  belongs to `admin` and `owner`. Routes that drive the session additionally
+  require the member who opened that session, while an organization admin/owner
+  with `mcpSession:create` may close it to recover capacity; ordinary members
+  cannot close another's session. An id is not a capability and reconnecting
   manufactures no authority; a missing session, another organization's session,
-  another member's session, and a worker run all answer `404`. `Origin` is
+  another member's session (for driving), and a worker run all answer `404`. `Origin` is
   validated against `BETTER_AUTH_TRUSTED_ORIGINS` — the specification requires
   it and the SDK performs no header validation — which is what protects a
   cookie-authenticated endpoint from being driven by a page the organization

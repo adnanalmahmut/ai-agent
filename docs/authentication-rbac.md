@@ -34,10 +34,12 @@ member to read: opening a session hands an external client the tools this
 organization granted an installed agent, which is administration, and what a
 session *did* is recorded as `ToolExecution` rows and approvals that
 `agentActionApproval:read` already governs. The permission is also necessary
-rather than sufficient. Every session route additionally requires the caller to
-be the member who opened that session: a role answers "may this person open
-sessions here", not "is this person's session", so knowing an id — or being
-another admin — manufactures no authority.
+rather than sufficient. Routes that drive the session additionally require the
+caller to be the member who opened that session: a role answers "may this person
+open sessions here", not "is this person's session", so knowing an id
+manufactures no authority. Closing is the one exception: an organization admin
+or owner with `mcpSession:create` may close another member's session in the same
+organization to recover capacity, while ordinary members cannot.
 
 All five are enforced by one shared guard that runs before body validation and
 authorizes against the organization named in the path, not the session's active
