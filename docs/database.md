@@ -53,7 +53,10 @@ is exactly what a grant names. `organization_agent_version.toolGrants` holds the
 tenant's selected `id@version` list, defaulted so the column is additive: a row
 written by an image that predates it means what an empty list means. A row left
 `STARTED` is an honest unknown outcome for a read-only call, and nothing sweeps
-it terminal.
+it terminal. Leaving `STARTED` at all is one compare-and-set — the update
+carries `status = 'STARTED'` beside the tenant-scoped id and requires exactly
+one row — so a settled execution is never rewritten and a terminal write that
+matches nothing is a refusal rather than a silent no-op.
 
 Product audit history is retained indefinitely until a concrete product or
 legal retention requirement is approved. Current volume is bounded by real

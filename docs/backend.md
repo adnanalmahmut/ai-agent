@@ -203,6 +203,14 @@ is deliberately no reconciler: a read-only execution left `STARTED` by a process
 death is an honest "outcome unknown" for an operation that changed nothing
 outside this system.
 
+The lifecycle `STARTED -> SUCCEEDED | FAILED` is enforced rather than described.
+Both terminal writes are one compare-and-set: the update requires `status`
+`STARTED` alongside the tenant-scoped id, and requires exactly one row to
+change. A settled execution therefore cannot be rewritten in either direction,
+and a terminal write matching no row fails closed instead of resolving — which
+is what stops `ToolGateway` returning an output to the model that no durable row
+claims was ever completed.
+
 `knowledge.search@1` is the first tool, and it is `AgentContextAssembler` again
 rather than a second retrieval path — the same tenant scoping, the same
 `ContextPolicy` as maximum visibility, the same operator-owned ceiling. The
@@ -216,9 +224,24 @@ explicit audited `runtimeName` and both the registry and the adapter refuse one
 that would be rewritten — otherwise the durable identity `knowledge.search@1`
 would reach the provider as something nobody reviewed. And the agent loop's step
 ceiling defaults to `stepCountIs(5)` as a runtime literal declared in no type
-definition, so `maxSteps` is passed explicitly on every generation rather than
-depending on a number that can change in a patch release with no type-level
-signal.
+definition, so a tool-enabled generation passes `maxSteps` explicitly rather
+than depending on a number that can change in a patch release with no type-level
+signal. A generation granted no tools passes none: `maxSteps` composes into the
+loop's stop conditions, so applying it to a definition that cannot emit a tool
+call would change a shipped agent's runtime behavior for a capability it does
+not use.
+
+What a failed tool sends the provider is bounded by construction. The installed
+SDK serializes a thrown tool error into the transcript in two stages — it builds
+`{ name, message, stack, ...own enumerable properties }`, then renders that to
+the model, which for an application-executed tool means the message alone. So
+the only value a tool may throw is a containment type carrying a constant
+sentence that names the tool, a pinned name, no own enumerable property, and no
+stack at all. Everything a driver or implementation raised — a query, a payload,
+a connection string, this repository's source paths — is dropped rather than
+described, because Pino's redaction is nowhere near that path and the value is
+about to become part of a provider request. The durable `ToolExecution` row, not
+the transcript, is the authority on what happened.
 
 Retrieved passages travel to the runtime separately from the input and are
 rendered into the *user* message, fenced and labelled as quoted material. They

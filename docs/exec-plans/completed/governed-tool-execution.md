@@ -101,8 +101,13 @@ needs no new snapshot: the authority is already durable and already immutable.
       at a scope by its caller
 - [x] Only effective tools reach the runtime; a non-granted call fails closed
 - [x] Tool calls per generation are explicitly bounded
-- [x] `content-idea@1` behavior is unchanged
+- [x] `content-idea@1` behavior is unchanged, including the generation options
+      it is invoked with
 - [x] No raw error text reaches a failure field or a log
+- [x] A terminal `ToolExecution` transition is a compare-and-set on `STARTED`
+      that requires exactly one row, and fails closed when none transitions
+- [x] A failed tool transmits nothing to the provider but the application's own
+      sentence, proven against the real installed SDK
 
 ## Validation
 
@@ -162,15 +167,23 @@ than from documentation, and two findings changed the design:
   therefore declare an explicit audited `runtimeName`, checked at composition
   and again in the adapter. A real-SDK test demonstrates the rewrite.
 - **The agent loop's step ceiling defaults to `stepCountIs(5)`, a runtime
-  literal declared in no `.d.ts`.** `maxSteps` is now passed on every
-  generation. Passing only `stopWhen` would have *replaced* the default and
-  removed the ceiling entirely, so `maxSteps` is the right mechanism.
+  literal declared in no `.d.ts`.** `maxSteps` is passed explicitly on a
+  tool-enabled generation. Passing only `stopWhen` would have *replaced* the
+  default and removed the ceiling entirely, so `maxSteps` is the right
+  mechanism. A generation with no tools passes none and keeps the options it
+  had before this change, because `maxSteps` composes into the loop's stop
+  conditions rather than being inert.
 
 A third fact emerged during review and changed the containment design: Mastra
 catches everything a tool throws except its own `FGADeniedError` and turns it
-into a tool *result*, serializing the error's name, message, stack and own
-properties into the transcript and continuing. A thrown tool error is therefore
-outbound text to a provider, not a failure signal.
+into a tool *result* and continues. A thrown tool error is therefore outbound
+material to a provider, not a failure signal. Reading the installed bundle
+resolved it into two stages: `serializeToolError` builds
+`{ name, message, stack, ...own enumerable properties }`, and
+`createToolModelOutput` renders that to the model — as the message alone for an
+application-executed tool, as the object for a `providerExecuted` one. The
+containment type is therefore shaped so both stages have nothing to carry: a
+constant message, a pinned name, no own enumerable property, and no stack.
 
 ## Review outcomes
 
