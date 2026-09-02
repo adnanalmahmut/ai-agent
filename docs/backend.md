@@ -231,17 +231,20 @@ loop's stop conditions, so applying it to a definition that cannot emit a tool
 call would change a shipped agent's runtime behavior for a capability it does
 not use.
 
-What a failed tool sends the provider is bounded by construction. The installed
-SDK serializes a thrown tool error into the transcript in two stages — it builds
-`{ name, message, stack, ...own enumerable properties }`, then renders that to
-the model, which for an application-executed tool means the message alone. So
-the only value a tool may throw is a containment type carrying a constant
-sentence that names the tool, a pinned name, no own enumerable property, and no
-stack at all. Everything a driver or implementation raised — a query, a payload,
-a connection string, this repository's source paths — is dropped rather than
-described, because Pino's redaction is nowhere near that path and the value is
-about to become part of a provider request. The durable `ToolExecution` row, not
-the transcript, is the authority on what happened.
+What a failed tool sends the provider is bounded by construction, and the
+mechanism is worth stating precisely because the obvious reading of it is wrong.
+The installed SDK wraps whatever a tool throws in an error of its own, keeping
+the original as `cause`; it serializes *that wrapper* into
+`{ name, message, stack, ...own enumerable properties }`; and it renders the
+result to the model, which for an application-executed tool means the message
+alone. So the only value a tool may throw is a containment type whose message is
+a constant naming the tool — that constant is what bounds the transcript, since
+anything a driver or implementation raised would otherwise be transmitted
+verbatim and Pino's redaction is nowhere near that path. The type additionally
+carries no stack, because the wrapper keeps it reachable as `cause` and a stack
+there would put this repository's source paths on every consumer of the failure.
+Both halves are asserted against the real SDK rather than argued. The durable
+`ToolExecution` row, not the transcript, is the authority on what happened.
 
 Retrieved passages travel to the runtime separately from the input and are
 rendered into the *user* message, fenced and labelled as quoted material. They

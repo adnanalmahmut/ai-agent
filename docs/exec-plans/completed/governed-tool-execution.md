@@ -178,12 +178,19 @@ A third fact emerged during review and changed the containment design: Mastra
 catches everything a tool throws except its own `FGADeniedError` and turns it
 into a tool *result* and continues. A thrown tool error is therefore outbound
 material to a provider, not a failure signal. Reading the installed bundle
-resolved it into two stages: `serializeToolError` builds
-`{ name, message, stack, ...own enumerable properties }`, and
-`createToolModelOutput` renders that to the model — as the message alone for an
-application-executed tool, as the object for a `providerExecuted` one. The
-containment type is therefore shaped so both stages have nothing to carry: a
-constant message, a pinned name, no own enumerable property, and no stack.
+resolved it into three steps: `Tool.execute` wraps the throw in a `MastraError`
+keeping the original as `cause`; `serializeToolError` builds
+`{ name, message, stack, ...own enumerable properties }` from that wrapper; and
+`createToolModelOutput` renders the result to the model — as the message alone
+for an application-executed tool, as the object for a `providerExecuted` one.
+
+The wrapper is why the containment type controls less than it appears to: the
+serialized `name` and own properties are the wrapper's whatever the thrown class
+looks like. Two things are therefore load-bearing and both were measured, not
+argued. The constant message bounds what the provider is told. Discarding the
+type's own stack bounds what the serialized failure carries, because the wrapper
+keeps the application error reachable as `cause` and a stack there renders this
+repository's source paths into every consumer of the chunk.
 
 ## Review outcomes
 

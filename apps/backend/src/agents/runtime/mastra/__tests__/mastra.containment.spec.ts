@@ -756,15 +756,18 @@ describe('provider-facing tool-error serialization', () => {
   });
 
   /**
-   * No stack of any origin, which is the correction this suite exists for.
+   * No stack frame of any origin reaches the transcript.
    *
-   * The original error's stack was never read, but the replacement is an
-   * `Error` and every `Error` owns a stack — so `serializeToolError` would have
-   * copied `ToolExecutionFailure`'s own frames, naming this repository's
-   * directory layout, its source files, and its `node_modules` contents. The
-   * assertions are structural rather than canary-based on purpose: a canary
-   * proves a known string is absent, and a stack is a class of string nobody
-   * enumerates in advance.
+   * Deliberately not the stack regression, and it would be wrong to read it as
+   * one: `"text"` mode sends the provider `error.message` alone, so no stack
+   * reaches a transcript under any configuration and an uncontained tool
+   * satisfies every assertion below. What it does prove is that the *message*
+   * is a constant with nothing frame-shaped in it, which is what keeps the
+   * transcript clean. The stack itself is protected one layer down, in the
+   * `cause` assertions of the stage-1 test above.
+   *
+   * The assertions are structural rather than canary-based because a stack is a
+   * class of string nobody enumerates in advance.
    */
   it('transmits no stack frame from any source', async () => {
     const transcript = await transcriptAfterToolFailure(
@@ -806,21 +809,32 @@ describe('provider-facing tool-error serialization', () => {
 
     const error = reifiedToolError(chunks);
 
-    expect(error.message).toBe('Tool "knowledge.search@1" failed');
-
     /**
-     * A reified error always has *some* stack, so the claim is about whose
-     * frames they are. `deserializeToolError` calls `new Error(message)` when
-     * the serialized stack is absent, which roots the frames inside
-     * `@mastra/core`. Not one of them may name this application's source.
+     * `error` here is the SDK's `MastraError` wrapper, not the thrown
+     * `ToolExecutionFailure`: `Tool.execute`'s catch wraps first and
+     * `serializeToolError` runs on the wrapper. So `error.stack` is always
+     * `@mastra/core`'s own frames and asserting on it proves little — but the
+     * wrapper keeps the application error as `cause`, which is where a
+     * restored stack would surface.
      */
+    expect(error.message).toContain('Tool "knowledge.search@1" failed');
     expect(error.stack ?? '').not.toContain('apps/backend');
-    expect(error.stack ?? '').not.toContain('tool.gateway');
-    expect(error.stack ?? '').not.toContain('mastra.containment');
+
+    const serialized = dump(error);
 
     for (const secret of IMPLEMENTATION_SECRETS) {
-      expect(dump(error)).not.toContain(secret);
+      expect(serialized).not.toContain(secret);
     }
+
+    /**
+     * The detector for the stack containment, and the only one in this suite
+     * that reads the path a leak would actually take. `dump` recurses into
+     * `cause`; restoring `ToolExecutionFailure`'s stack puts this repository's
+     * source paths here and fails exactly these three lines.
+     */
+    expect(serialized).not.toContain('apps/backend');
+    expect(serialized).not.toContain('tool.gateway');
+    expect(serialized).not.toContain(process.cwd());
   });
 
   /**

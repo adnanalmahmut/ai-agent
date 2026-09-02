@@ -26,40 +26,38 @@ import {
  * `AgentExecutionHandler` — it is a value this application is about to send to
  * a provider.
  *
- * The installed `@mastra/core@1.61.0` handles it in two stages, and both are
- * why this class is shaped the way it is:
+ * What the installed `@mastra/core@1.61.0` does with it, measured rather than
+ * assumed, because the obvious reading is wrong in a way that matters:
  *
- * 1. The tool-call step catches the throw and calls `serializeToolError`,
- *    which builds `{ name, message, stack, ...own enumerable properties }`.
- *    That object — stack included — is the failure representation that travels
- *    through the workflow result, the `tool-error` chunk, `onChunk`, and
- *    anything that persists a message list.
- * 2. Rendering that to the model goes through `createToolModelOutput`. For an
+ * 1. `Tool.execute`'s catch wraps whatever was thrown in a `MastraError`
+ *    (`dist/utils-C1S1DsNX.js`), keeping the original as `cause` and copying
+ *    `String(err)` and the tool's arguments into `details`.
+ * 2. `serializeToolError` then runs on *that wrapper*, not on this class,
+ *    building `{ name, message, stack, ...own enumerable properties }`.
+ * 3. `createToolModelOutput` renders the result to the model. For an
  *    application-executed tool the mode is `"text"`, so the provider receives
  *    `{ type: 'error-text', value: error.message }` — the message and nothing
- *    else. The sibling `"json"` mode, which emits `toJSONValue(error)`, is
- *    reached only by `providerExecuted` tools, which this build never
- *    registers.
+ *    else. The `"json"` mode that emits the object is reached only by
+ *    `providerExecuted` tools, which this build never registers.
  *
- * So a constant message would already bound stage 2 today. It would not bound
- * stage 1, and it would depend on the SDK continuing to pick `"text"` — a
- * choice made by a runtime literal this repository does not own. Rather than
- * assert that the replacement stack is harmless, the object is made to have
- * nothing to leak:
+ * The consequence of step 1 is that this class controls less than it appears
+ * to. The serialized `name` is the wrapper's `'Error'`, and the spread picks up
+ * the wrapper's `cause`, `id`, `domain`, `category` and `details` whatever this
+ * instance looks like. So the constant message is what bounds step 3, and it is
+ * the reason `message` is a sentence naming only the tool: anything a driver or
+ * an implementation threw — a query, a payload, a connection string — would
+ * otherwise be transmitted verbatim, and Pino's redaction is nowhere near this
+ * path.
  *
- * - `message` is a constant naming only the tool. Anything a driver or an
- *   implementation threw — a query, a payload, a connection string — would
- *   otherwise be transmitted verbatim, and Pino's redaction is nowhere near
- *   this path.
- * - `name` is pinned to a bounded application constant. Left alone it would
- *   inherit `'Error'`, which is harmless but is also the field `"json"` mode
- *   actually emits.
- * - `stack` is discarded, so stage 1 has no file paths, no `node_modules`
- *   frames, and no repository layout to copy, and stage 2 cannot start
- *   reporting one if a future SDK switches modes.
- *
- * No own enumerable property is ever set on an instance, so the spread in
- * `serializeToolError` contributes nothing.
+ * `delete this.stack` is what bounds step 2, and by a route worth stating
+ * exactly. The wrapper keeps this error as `cause`, so this object is still
+ * reachable on the `tool-error` chunk and on anything that persists it. With
+ * its stack intact, inspecting that chunk renders this repository's source
+ * paths and directory layout through the `cause`; with the stack gone, the
+ * cause renders as a bare `[ToolExecutionFailure: <sentence>]`. Both were
+ * measured against the real SDK. The `name` is pinned for the same reason — so
+ * that bare rendering says something true — and not, as it first appears,
+ * because the serializer reads it.
  *
  * Losing the stack costs no diagnosis. This value is caught by the SDK one
  * frame above where it is thrown and never reaches application error handling,
@@ -73,13 +71,8 @@ export class ToolExecutionFailure extends Error {
 
     /**
      * Set rather than left to the prototype: `class X extends Error` does not
-     * set `name`, so an instance reports `'Error'`.
-     *
-     * `defineProperty` rather than assignment, because assignment would create
-     * an own *enumerable* `name` and the whole point of this constructor is
-     * that the instance has no own enumerable property at all. `Error.prototype`
-     * declares `name` non-enumerable and this matches it, which also keeps
-     * `JSON.stringify` of the value at `{}`.
+     * set `name`, so an instance reports `'Error'`. Non-enumerable to match
+     * `Error.prototype`, so the instance has no own enumerable property at all.
      */
     Object.defineProperty(this, 'name', {
       value: 'ToolExecutionFailure',
@@ -92,11 +85,8 @@ export class ToolExecutionFailure extends Error {
      * Removes the frames `Error` captured in `super()`.
      *
      * `delete` rather than assigning `undefined`, so the own property V8
-     * installs is gone rather than present and empty. `serializeToolError`
-     * reads `error.stack` and would see `undefined` either way; the difference
-     * is that anything enumerating or copying own properties — a structured
-     * clone, a spread, a serializer that walks `Object.getOwnPropertyNames` —
-     * finds no `stack` to carry at all.
+     * installs is gone rather than present and empty — anything enumerating or
+     * copying own properties finds no `stack` to carry at all.
      */
     delete this.stack;
   }
@@ -115,8 +105,15 @@ export const TOOL_IMPLEMENTATIONS = Symbol('TOOL_IMPLEMENTATIONS');
  * writes.
  *
  * The input schema stops the model choosing how much one call retrieves. This
- * stops it choosing how many calls there are — the same decision, reached by
- * repetition instead of by a parameter.
+ * stops it choosing how many calls *reach an implementation* — the same
+ * decision, reached by repetition instead of by a parameter.
+ *
+ * Not how many it can attempt. `Tool.execute` validates the model's arguments
+ * against the same schema and, on failure, returns an error result without
+ * calling this closure at all, so a malformed call never reaches the budget and
+ * never decrements it. That path costs an embedding nothing — no retrieval, no
+ * writes, no `ToolExecution` row — and what bounds it is `maxOutputTokens` and
+ * the step ceiling, not this number.
  *
  * Twelve: generous for an agent that searches, reads, refines and answers,
  * while bounding the worst case to something an operator would not notice on a
@@ -366,11 +363,13 @@ export class ToolGateway {
      * Parsed again, even though Mastra validates tool arguments itself.
      *
      * The SDK's validation is the SDK's, and it sits on the far side of a
-     * boundary this application does not own. If a future adapter, a different
-     * runtime, or a provider streaming a partial tool call ever produced
-     * arguments the SDK did not check, this is the parse that still refuses
-     * them. An unparsed input never reaches an implementation and never
-     * reaches the database.
+     * boundary this application does not own. Under the installed Mastra this
+     * cannot fire — `Tool.execute` validates first and returns rather than
+     * calling this closure, so what arrives here is already parsed — which is
+     * exactly why it is cheap. If a future adapter, a different runtime, or a
+     * provider streaming a partial tool call ever produced arguments the SDK
+     * did not check, this is the parse that still refuses them. An unparsed
+     * input never reaches an implementation and never reaches the database.
      */
     const parsedInput = definition.input.safeParse(rawInput);
 
