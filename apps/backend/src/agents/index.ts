@@ -13,6 +13,7 @@ export type {
   AgentOutputContractViolationCode,
   AgentRun,
   AgentRunStatus,
+  AgentRunDriver,
   AgentRuntimeName,
   AgentRuntimeRequest,
   AgentRuntimeResult,
@@ -21,10 +22,15 @@ export type {
 } from './agent.types';
 export {
   AGENT_OUTPUT_CONTRACT_VIOLATIONS,
+  AGENT_RUN_DRIVERS,
   AGENT_RUN_STATUSES,
   AGENT_RUNTIME_NAMES,
+  MCP_SESSION_RUNTIME,
+  MCP_SESSION_TTL_MS,
+  isMcpSessionExpired,
 } from './agent.types';
 export { AgentsModule } from './agents.module';
+export { McpModule } from './mcp/mcp.module';
 export { AgentActionApprovalModule } from './approvals/agent-action-approval.module';
 export {
   AGENT_ACTION_APPROVAL_STATUSES,

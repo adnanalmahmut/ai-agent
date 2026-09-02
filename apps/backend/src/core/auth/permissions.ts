@@ -261,6 +261,22 @@ export const ORGANIZATION_PERMISSION_STATEMENTS = {
    * the organization rather than to whoever belongs to it.
    */
   agentActionApproval: ['read', 'decide'],
+  /**
+   * Opening an MCP session, which hands an external client the tools this
+   * organization has granted an installed agent.
+   *
+   * One verb, and not membership. A session's tool calls spend the platform's
+   * provider credential and can propose an action in the organization's name,
+   * so opening one is administration. There is no `read`: a session is not a
+   * resource anyone browses, and what it did is recorded as `ToolExecution`
+   * rows and approvals that `agentActionApproval:read` already governs.
+   *
+   * The permission is necessary but not sufficient. Every session route also
+   * requires the caller to be the member who opened that session, because a
+   * permission answers "may this person open sessions here", not "is this
+   * person's session".
+   */
+  mcpSession: ['create'],
 } as const;
 
 const organizationAc = createAccessControl(ORGANIZATION_PERMISSION_STATEMENTS);
@@ -276,6 +292,7 @@ const organizationMember = organizationAc.newRole({
   contentIdea: ['read'],
   contentProject: ['read'],
   agentActionApproval: ['read'],
+  mcpSession: [],
 });
 
 /** Runs the organization day to day, but cannot end its life. */
@@ -287,6 +304,7 @@ const organizationAdmin = organizationAc.newRole({
   contentIdea: ['create', 'read'],
   contentProject: ['create', 'read'],
   agentActionApproval: ['read', 'decide'],
+  mcpSession: ['create'],
 });
 
 /**
@@ -304,6 +322,7 @@ const organizationOwner = organizationAc.newRole({
   contentIdea: ['create', 'read'],
   contentProject: ['create', 'read'],
   agentActionApproval: ['read', 'decide'],
+  mcpSession: ['create'],
 });
 
 export const organizationAccessControl = organizationAc;

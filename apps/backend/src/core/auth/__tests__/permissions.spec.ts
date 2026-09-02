@@ -207,6 +207,7 @@ const OWN_ORGANIZATION_RESOURCES: readonly string[] = [
   'contentIdea',
   'contentProject',
   'agentActionApproval',
+  'mcpSession',
 ];
 
 /** What an ordinary member may do. Everything else must be refused. */

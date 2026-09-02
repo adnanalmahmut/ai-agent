@@ -108,14 +108,77 @@ export type CreateAgentRun = {
    * ceiling, which is what internal callers with no cost exposure want.
    */
   maxInFlight?: number;
+  /**
+   * Who will drive the accepted run. Defaults to `worker`.
+   *
+   * `mcpClient` accepts a session an external MCP client drives: the run is
+   * `RUNNING` from acceptance, its runtime is `MCP_SESSION_RUNTIME`, and no
+   * outbox event is appended because there is no job for a worker to claim.
+   *
+   * A field on the existing acceptance input rather than a second method,
+   * because everything else about accepting a run — the per-organization
+   * advisory lock, the exact in-flight ceiling, durable idempotency,
+   * installation resolution, and definition/version pinning — must have one
+   * implementation. A sibling write path would be a second set of answers to
+   * all of them, and the subtle one is the lock.
+   */
+  driver?: AgentRunDriver;
 };
 
+export const AGENT_RUN_DRIVERS = {
+  worker: 'worker',
+  mcpClient: 'mcp_client',
+} as const;
+
+export type AgentRunDriver =
+  (typeof AGENT_RUN_DRIVERS)[keyof typeof AGENT_RUN_DRIVERS];
+
+/**
+ * Every runtime that can *execute* an `AgentDefinition`.
+ *
+ * `MCP_SESSION_RUNTIME` is deliberately absent. This constant types
+ * `AgentDefinition.runtime`, and adding a member here would let a definition
+ * declare a runtime nothing can execute.
+ */
 export const AGENT_RUNTIME_NAMES = {
   mastra: 'mastra',
 } as const;
 
 export type AgentRuntimeName =
   (typeof AGENT_RUNTIME_NAMES)[keyof typeof AGENT_RUNTIME_NAMES];
+
+/**
+ * What `AgentRun.runtime` carries for a session an external MCP client drives.
+ *
+ * Not a member of `AGENT_RUNTIME_NAMES`, and that is the point:
+ * `AgentRuntimeRegistry.resolve` knows only the executable runtimes, so it
+ * throws for this value. Acceptance appends no outbox event, so no job exists
+ * — and if one somehow did, the worker still could not execute it. The
+ * fail-closed property is a consequence of the value being unknown to the
+ * registry rather than of a check someone has to remember to write.
+ */
+export const MCP_SESSION_RUNTIME = 'mcp';
+
+/**
+ * How long an MCP session may live, measured from acceptance.
+ *
+ * Absolute rather than sliding, which is the whole reason it is a bound: a
+ * window that renewed on activity would make the worst-case lifetime of a
+ * session — and of the in-flight run slot and pinned grants it holds — a
+ * function of how long a client kept talking, which is to say unbounded.
+ *
+ * Sixty minutes: long enough that a person working through a client does not
+ * lose a session mid-task, short enough that an abandoned one is reclaimed
+ * within the hour. Shared with the reconciler, which is what finalizes a
+ * session nobody comes back to, so the two cannot disagree about when a
+ * session ended.
+ */
+export const MCP_SESSION_TTL_MS = 60 * 60 * 1000;
+
+/** Whether a session accepted at `createdAt` may still be used at `now`. */
+export function isMcpSessionExpired(createdAt: Date, now: Date): boolean {
+  return now.getTime() - createdAt.getTime() >= MCP_SESSION_TTL_MS;
+}
 
 /**
  * The code-owned configuration required to construct one runtime agent.

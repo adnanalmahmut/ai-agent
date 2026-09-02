@@ -13,6 +13,7 @@ import type { agentsConfig } from '../../config';
 import type { QueueJobTransportState, QueueProducer } from '../../core/queue';
 import { AgentRunReconciler } from '../agent-run-reconciler.service';
 import type { AgentRunService, StaleRunCursor } from '../agent-run.service';
+import { MCP_SESSION_TTL_MS } from '../agent.types';
 import type { AgentRunStatus } from '../agent.types';
 
 /**
@@ -36,6 +37,9 @@ type Candidate = {
   status: AgentRunStatus;
   attemptCount: number;
   updatedAt: Date;
+  runtime: string;
+  createdAt: Date;
+  organizationId: string;
 };
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,6 +56,14 @@ const candidate = (overrides: Partial<Candidate> = {}): Candidate => ({
   status: 'RUNNING',
   attemptCount: 1,
   updatedAt: new Date(EPOCH),
+  /**
+   * A worker run by default. Every existing assertion in this file is about
+   * the transport path, and a session is reconciled without touching the
+   * transport at all — so the default has to be the one that asks.
+   */
+  runtime: 'mastra',
+  createdAt: new Date(EPOCH),
+  organizationId: 'org-1',
   ...overrides,
 });
 
@@ -93,9 +105,19 @@ describe('AgentRunReconciler', () => {
       ) => Promise<{ jobId: string }>
     >();
 
+  const closeMcpSession =
+    jest.fn<
+      (input: {
+        id: string;
+        organizationId: string;
+        closedBy: 'client' | 'expiry';
+      }) => Promise<boolean>
+    >();
+
   const runs = {
     findStaleNonTerminal,
     reconcileTerminalFailure,
+    closeMcpSession,
   } as unknown as AgentRunService;
 
   const producer = { jobTransportState, publish } as unknown as QueueProducer;
@@ -133,6 +155,7 @@ describe('AgentRunReconciler', () => {
 
   beforeEach(() => {
     findStaleNonTerminal.mockReset().mockResolvedValue([]);
+    closeMcpSession.mockReset().mockResolvedValue(true);
     reconcileTerminalFailure.mockReset().mockResolvedValue(true);
     jobTransportState.mockReset().mockResolvedValue('pending');
     publish.mockReset().mockResolvedValue({ jobId: 'unused' });
@@ -157,6 +180,8 @@ describe('AgentRunReconciler', () => {
       expect(reconcileTerminalFailure).toHaveBeenCalledWith('run-a');
       expect(pass).toEqual({
         abandoned: 0,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 1,
         failed: 1,
         missing: 0,
@@ -179,6 +204,8 @@ describe('AgentRunReconciler', () => {
       expect(reconcileTerminalFailure).not.toHaveBeenCalled();
       expect(pass).toEqual({
         abandoned: 0,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 1,
         failed: 0,
         missing: 0,
@@ -206,6 +233,8 @@ describe('AgentRunReconciler', () => {
       expect(reconcileTerminalFailure).not.toHaveBeenCalled();
       expect(pass).toEqual({
         abandoned: 0,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 1,
         failed: 0,
         missing: 1,
@@ -239,6 +268,8 @@ describe('AgentRunReconciler', () => {
 
       expect(pass).toEqual({
         abandoned: 0,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 1,
         failed: 1,
         missing: 0,
@@ -291,6 +322,8 @@ describe('AgentRunReconciler', () => {
 
       expect(pass).toEqual({
         abandoned: 0,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 4,
         failed: 2,
         missing: 1,
@@ -329,6 +362,8 @@ describe('AgentRunReconciler', () => {
 
       expect(pass).toEqual({
         abandoned: 2,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 3,
         failed: 0,
         missing: 0,
@@ -349,6 +384,8 @@ describe('AgentRunReconciler', () => {
 
       expect(pass).toEqual({
         abandoned: 0,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 0,
         failed: 0,
         missing: 0,
@@ -447,7 +484,9 @@ describe('AgentRunReconciler', () => {
         'attemptCount',
         'count',
         'examined',
+        'expiredSessions',
         'failed',
+        'liveSessions',
         'missing',
         'pending',
         'previousStatus',
@@ -546,6 +585,134 @@ describe('AgentRunReconciler', () => {
      * silently lost one. Every transport verdict is covered here because the
      * temptation to "just retry it" lives on the missing branch.
      */
+    /**
+     * An abandoned MCP session is finalized here, and nowhere else.
+     *
+     * A session has no queue job by design — acceptance appends no outbox
+     * event — so the transport answers `missing` for every session on every
+     * pass, and `missing` is deliberately not terminal. Left to that path the
+     * row would say `RUNNING` forever while being logged as stranded
+     * indefinitely: a durable lie plus an unbounded stream of lines about it.
+     */
+    it('closes an expired MCP session without asking the transport', async () => {
+      findStaleNonTerminal.mockResolvedValue([
+        candidate({
+          id: 'session-a',
+          runtime: 'mcp',
+          organizationId: 'org-7',
+          createdAt: new Date(EPOCH - MCP_SESSION_TTL_MS - 1_000),
+        }),
+      ]);
+      closeMcpSession.mockResolvedValue(true);
+
+      const pass = await reconciler.reconcileOnce();
+
+      expect(closeMcpSession).toHaveBeenCalledWith({
+        id: 'session-a',
+        organizationId: 'org-7',
+        closedBy: 'expiry',
+      });
+      // Never asked: there is nothing in the transport to ask about.
+      expect(jobTransportState).not.toHaveBeenCalled();
+      expect(reconcileTerminalFailure).not.toHaveBeenCalled();
+
+      expect(pass).toEqual({
+        abandoned: 0,
+        examined: 1,
+        expiredSessions: 1,
+        failed: 0,
+        liveSessions: 0,
+        missing: 0,
+        pending: 0,
+        reconciled: 0,
+      });
+    });
+
+    /**
+     * A session inside its lifetime is left strictly alone.
+     *
+     * It is stale by `updatedAt` — nothing touches the run row on a tool call
+     * — so it appears in every sweep. Being a candidate must not be enough to
+     * end it.
+     */
+    it('leaves a live MCP session untouched', async () => {
+      findStaleNonTerminal.mockResolvedValue([
+        candidate({
+          id: 'session-b',
+          runtime: 'mcp',
+          createdAt: new Date(Date.now()),
+        }),
+      ]);
+
+      const pass = await reconciler.reconcileOnce();
+
+      expect(closeMcpSession).not.toHaveBeenCalled();
+      expect(jobTransportState).not.toHaveBeenCalled();
+
+      expect(pass).toMatchObject({
+        examined: 1,
+        expiredSessions: 0,
+        liveSessions: 1,
+      });
+    });
+
+    /**
+     * The client closed it first, between this pass's read and its write.
+     *
+     * Its own outcome stands and there is nothing to correct, so the pass must
+     * not claim an expiry it did not perform — the two disagree about
+     * `closedBy`, and a row whose history contradicts itself is worse than an
+     * uncounted sweep.
+     */
+    it('does not count a session the client closed first', async () => {
+      findStaleNonTerminal.mockResolvedValue([
+        candidate({
+          id: 'session-c',
+          runtime: 'mcp',
+          createdAt: new Date(EPOCH - MCP_SESSION_TTL_MS - 1_000),
+        }),
+      ]);
+      closeMcpSession.mockResolvedValue(false);
+
+      const pass = await reconciler.reconcileOnce();
+
+      expect(closeMcpSession).toHaveBeenCalledTimes(1);
+      expect(pass).toMatchObject({ examined: 1, expiredSessions: 0 });
+    });
+
+    /**
+     * A mixed batch, so neither branch can be reached by the other's rows.
+     */
+    it('reconciles worker runs and sessions in one pass', async () => {
+      findStaleNonTerminal.mockResolvedValue([
+        candidate({ id: 'run-a' }),
+        candidate({
+          id: 'session-a',
+          runtime: 'mcp',
+          createdAt: new Date(EPOCH - MCP_SESSION_TTL_MS - 1_000),
+        }),
+        candidate({
+          id: 'session-b',
+          runtime: 'mcp',
+          createdAt: new Date(Date.now()),
+        }),
+      ]);
+      jobTransportState.mockResolvedValue('failed');
+      closeMcpSession.mockResolvedValue(true);
+
+      const pass = await reconciler.reconcileOnce();
+
+      // Asked about exactly one run: the only one with a job.
+      expect(jobTransportState).toHaveBeenCalledTimes(1);
+      expect(pass).toMatchObject({
+        examined: 3,
+        failed: 1,
+        reconciled: 1,
+        expiredSessions: 1,
+        liveSessions: 1,
+      });
+    });
+
     it('never publishes a job on any path', async () => {
       findStaleNonTerminal.mockResolvedValue([
         candidate({ id: 'failed-written' }),
@@ -570,6 +737,8 @@ describe('AgentRunReconciler', () => {
 
       expect(pass).toEqual({
         abandoned: 0,
+        expiredSessions: 0,
+        liveSessions: 0,
         examined: 4,
         failed: 2,
         missing: 1,

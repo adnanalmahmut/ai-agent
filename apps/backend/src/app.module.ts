@@ -6,6 +6,7 @@ import { appConfig, configurations, observabilityConfig } from './config';
 import {
   AgentActionApprovalModule,
   AgentsModule,
+  McpModule,
   OrganizationAgentInstallationsModule,
 } from './agents';
 import { AppAuthModule } from './core/auth';
@@ -39,6 +40,7 @@ import { DatabaseModule } from './database';
     AgentsModule,
     OrganizationAgentInstallationsModule,
     AgentActionApprovalModule,
+    McpModule,
     ControlPlaneModule,
     KnowledgeModule,
     ContentIdeaModule,

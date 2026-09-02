@@ -61,6 +61,22 @@ import type { AnyToolImplementation } from './tool.types';
     ToolGateway,
     SideEffectExecutionHandler,
   ],
-  exports: [ToolGateway, AgentContextAssembler, SideEffectExecutionHandler],
+  /**
+   * `ToolExecutionService` is exported for one read, not for its writers.
+   *
+   * The MCP adapter needs a session's durable tool-call count to enforce a
+   * ceiling the gateway's per-`authorize` budget cannot reach across HTTP
+   * requests. That query belongs to this service rather than being restated
+   * against Prisma somewhere else. The lifecycle writers — `start`, `succeed`,
+   * `fail`, `propose`, `claimEffectAttempt`, `settleEffect` — stay callable
+   * only from the gateway and the side-effect handler, which is asserted by a
+   * boundary test rather than left to convention.
+   */
+  exports: [
+    ToolGateway,
+    ToolExecutionService,
+    AgentContextAssembler,
+    SideEffectExecutionHandler,
+  ],
 })
 export class AgentToolsModule {}

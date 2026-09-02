@@ -24,6 +24,8 @@ import { AgentDefinitionRegistry } from '../agent-definition.registry';
 import { AgentRunner } from '../agent-runner.service';
 import { AgentRuntimeRegistry } from '../agent-runtime.registry';
 import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
+import { SideEffectExecutionHandler } from '../tools/side-effect-execution.handler';
+import { ToolGateway } from '../tools/tool.gateway';
 import {
   KNOWLEDGE_SPACE_SLUGS,
   isKnowledgeSpaceSlug,
@@ -309,6 +311,35 @@ describe('AppModule agent composition', () => {
     return wrapper?.module ?? entry;
   };
 
+  /** Every provider token in a module's transitive import closure. */
+  const providersOf = (root: unknown): Set<unknown> => {
+    const seen = new Set<unknown>();
+    const providers = new Set<unknown>();
+    const queue: unknown[] = [root];
+
+    while (queue.length > 0) {
+      const entry = queue.pop();
+      const resolved = unwrap(entry);
+
+      if (resolved === undefined || resolved === null) continue;
+      if (seen.has(resolved)) continue;
+      seen.add(resolved);
+
+      for (const provider of (Reflect.getMetadata('providers', resolved) ??
+        []) as unknown[]) {
+        providers.add((provider as { provide?: unknown })?.provide ?? provider);
+      }
+
+      for (const imported of importsOf(resolved)) queue.push(imported);
+      for (const imported of (entry as { imports?: unknown[] })?.imports ??
+        []) {
+        queue.push(imported);
+      }
+    }
+
+    return providers;
+  };
+
   it('imports no queue transport and no worker execution module', () => {
     const imports = importsOf(AppModule);
 
@@ -387,7 +418,6 @@ describe('AppModule agent composition', () => {
 
     for (const provider of [
       AgentRunner,
-      AgentContextAssembler,
       AgentRuntimeRegistry,
       MastraRuntime,
       QueueProducer,
@@ -402,6 +432,56 @@ describe('AppModule agent composition', () => {
     // still owns no execution runtime, queue producer, runner, or handler.
     expect(providers).toContain(AgentRunService);
     expect(providers).toContain(AgentDefinitionRegistry);
+  });
+
+  /**
+   * The API now executes governed tools, and that is a deliberate change.
+   *
+   * Under Mastra a tool call happens inside the worker, because the runtime
+   * runs there. Under MCP the caller *is* the runtime: an external client
+   * sends `tools/call` over HTTP and the answer has to be produced before the
+   * response is written. There is no version of that in which the work happens
+   * elsewhere — routing it to the worker would mean a synchronous
+   * request/response over a queue, which is a worse system than the one this
+   * replaces.
+   *
+   * So `ToolGateway` and the context assembler it needs are legitimately in
+   * the API root, and this asserts it rather than leaving it to look like
+   * drift. What has *not* changed is who decides: the same gateway, the same
+   * registry, the same durable `ToolExecution` rows.
+   */
+  it('executes governed tools in the API, through the same gateway', () => {
+    const providers = providersOf(AppModule);
+
+    expect(providers).toContain(ToolGateway);
+    expect(providers).toContain(AgentContextAssembler);
+  });
+
+  /**
+   * And the reason the worker's side-effect consumer being reachable here is
+   * inert rather than a second delivery path.
+   *
+   * `AgentToolsModule` is shared, so the API root does construct
+   * `SideEffectExecutionHandler` — its dependencies, the tool implementations
+   * and the registry, are exactly the ones that must not be exported to
+   * anybody, so moving it out would mean widening the module's surface to the
+   * raw implementations that *can* perform an effect directly. Keeping it and
+   * proving it unreachable is the stronger arrangement.
+   *
+   * Unreachable in both directions, which is what this asserts. Nothing can
+   * deliver a job to it, because the API imports no queue transport and so
+   * registers no consumer. Nothing can publish one either, because the API has
+   * no `QueueProducer`. The only thing that ever enqueues an approved action
+   * is the outbox dispatcher, and that runs in the worker.
+   */
+  it('cannot deliver or publish a side-effect job from the API', () => {
+    const providers = providersOf(AppModule);
+
+    expect(providers).not.toContain(QueueProducer);
+    expect(importsOf(AppModule)).not.toContain(QueueModule);
+
+    // The handler is present but has no transport on either side of it.
+    expect(providers).toContain(SideEffectExecutionHandler);
   });
 
   /**
