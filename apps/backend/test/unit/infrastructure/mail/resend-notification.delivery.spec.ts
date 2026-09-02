@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
 import { ResendNotificationDelivery } from '../../../../src/infrastructure/mail/resend-notification.delivery';
-import type { NotificationMessage } from '../../../../src/infrastructure/mail/notification-delivery';
+import type { NotificationMessage } from '../../../../src/infrastructure/mail/notification-delivery.port';
 
 const message: NotificationMessage = {
   to: 'sara@example.com',

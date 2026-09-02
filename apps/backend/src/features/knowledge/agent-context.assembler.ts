@@ -11,6 +11,7 @@ import type {
   AgentContextPassage,
   ContextPolicy,
 } from '../../ai/agents/agent.types';
+import { isKnowledgeSpaceSlug } from './knowledge-space.registry';
 
 /**
  * Choosing what an agent is allowed to see, in the application.
@@ -59,7 +60,7 @@ export class AgentContextAssembler implements AgentContextPort {
      */
     const spaces = await this.spaces.resolveSlugs({
       organizationId: input.organizationId,
-      slugs: policy.spaceSlugs,
+      slugs: policy.spaceSlugs.filter(isKnowledgeSpaceSlug),
     });
 
     if (spaces.length === 0) return [];

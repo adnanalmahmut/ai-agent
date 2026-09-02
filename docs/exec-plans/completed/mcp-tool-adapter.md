@@ -329,11 +329,12 @@ schema file is read by the generated client.
 - [x] Docs synchronized across owning documents
 - [x] PR #62 open on open stack against `feat/approval-side-effect`
 
-### Current Delivery State (IMPLEMENTED ON OPEN STACK)
+### Completion
 
-- **IMPLEMENTED ON OPEN STACK**: PR #62 is open against frozen base `feat/approval-side-effect` (#61).
-- **NOT MERGED TO MAIN**: Merging PR #61 and PR #62 requires human review and is outside the agent's authority.
-- **NOT DELIVERED TO STAGING**: Post-merge CD occurs only after human merge of PR #61 and subsequent merge of PR #62.
+- PR #62 merged to `main` on 2026-09-02 as `49165d73b43f27cebc69a7a2ee218419399a9b00`.
+- The implementation and its aggregate validation are complete; current
+  environment state remains owned by `docs/deployment-state.md` rather than
+  this historical plan.
 
 ## Blockers
 

@@ -10,10 +10,8 @@ import {
 
 import { Client } from 'pg';
 
-import {
-  AGENT_RUN_CAPACITY_LOCK,
-  CONTENT_IDEA_AGENT_ID,
-} from '../../../src/features/agent-management';
+import { AGENT_RUN_CAPACITY_LOCK } from '../../../src/ai/execution/agent-run.service';
+import { CONTENT_IDEA_AGENT_ID } from '../../../src/features/content/ideas/agent-definitions';
 import { OrganizationAgentInstallationService } from '../../../src/features/agent-management/organization-agent-installation.service';
 import {
   FeatureFlagService,

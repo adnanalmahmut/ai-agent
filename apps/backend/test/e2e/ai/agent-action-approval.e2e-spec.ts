@@ -25,7 +25,7 @@ import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
-} from '../../../src/infrastructure/mail/notification-delivery';
+} from '../../../src/infrastructure/mail/notification-delivery.port';
 import { MODEL_IDS } from '../../../src/ai/models/model-catalog';
 import {
   as,

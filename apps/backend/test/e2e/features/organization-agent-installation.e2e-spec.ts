@@ -9,7 +9,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
-import type { AgentDefinition } from '../../../src/features/agent-management';
+import type { AgentDefinition } from '../../../src/ai/agents/agent.types';
 import { AgentDefinitionRegistry } from '../../../src/ai/agents/agent-definition.registry';
 import {
   CONTENT_IDEA_AGENT_ID,

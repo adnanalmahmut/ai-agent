@@ -2,6 +2,7 @@ import type { ZodType } from 'zod';
 
 import type { ExternalEffectOutcome } from '../../core/external-effect';
 import type { AgentDefinition, AgentValue } from '../agents/agent.types';
+import type { ToolRef } from './tool-ref';
 
 /**
  * Every tool this build can execute, named exactly once.
@@ -16,21 +17,8 @@ import type { AgentDefinition, AgentValue } from '../agents/agent.types';
  * `OrganizationAgentVersion.toolGrants`, so a stored grant is readable in a
  * database row without a join.
  */
-export const TOOL_REFS = ['knowledge.search@1', 'notification.send@1'] as const;
-
-export type ToolRef = (typeof TOOL_REFS)[number];
-
-export function isToolRef(value: unknown): value is ToolRef {
-  return (
-    typeof value === 'string' &&
-    (TOOL_REFS as readonly string[]).includes(value)
-  );
-}
-
-/** Composes the durable identity. The only place the `@` form is built. */
-export function toolRef(id: string, version: number): string {
-  return `${id}@${version}`;
-}
+export { TOOL_REFS, isToolRef, toolRef } from './tool-ref';
+export type { ToolRef } from './tool-ref';
 
 /**
  * What a tool may do, decided in code and never by a caller.

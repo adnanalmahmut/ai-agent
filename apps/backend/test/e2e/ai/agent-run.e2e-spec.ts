@@ -8,10 +8,8 @@ import {
   jest,
 } from '@jest/globals';
 
-import {
-  AgentRunService,
-  type CreateAgentRun,
-} from '../../../src/features/agent-management';
+import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
+import type { CreateAgentRun } from '../../../src/ai/agents/agent.types';
 import { AgentConfigurationError } from '../../../src/ai/agents/agent-configuration.error';
 import type { AgentRuntime } from '../../../src/ai/execution/agent-runtime';
 import { AgentRunner } from '../../../src/ai/execution/agent-runner.service';

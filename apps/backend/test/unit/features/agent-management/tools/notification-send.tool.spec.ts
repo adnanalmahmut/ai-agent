@@ -6,7 +6,7 @@ import { MODEL_IDS } from '../../../../../src/ai/models/model-catalog';
 import type {
   ExternalEffectOutcome,
   NotificationMessage,
-} from '../../../../../src/infrastructure/mail/notification-delivery';
+} from '../../../../../src/infrastructure/mail/notification-delivery.port';
 import {
   NotificationSendTool,
   renderNotification,

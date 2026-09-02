@@ -19,7 +19,6 @@ import { AgentDefinitionsModule } from '../agent-definitions.module';
 import { KnowledgeSearchTool } from '../../knowledge/tools/knowledge-search.tool';
 import { NotificationSendTool } from './notification-send.tool';
 import { APPLICATION_TOOL_DEFINITIONS } from './definitions';
-import { SideEffectExecutionHandler } from '../../../workers/handlers/side-effect-execution.handler';
 
 /**
  * The governed tool boundary, composed once.
@@ -67,7 +66,6 @@ import { SideEffectExecutionHandler } from '../../../workers/handlers/side-effec
       inject: [KnowledgeSearchTool, NotificationSendTool],
     },
     ToolGateway,
-    SideEffectExecutionHandler,
   ],
   /**
    * `ToolExecutionService` is exported for one read, not for its writers.
@@ -85,7 +83,8 @@ import { SideEffectExecutionHandler } from '../../../workers/handlers/side-effec
     ToolExecutionService,
     AgentContextAssembler,
     AGENT_CONTEXT,
-    SideEffectExecutionHandler,
+    ToolRegistry,
+    TOOL_IMPLEMENTATIONS,
   ],
 })
 export class AgentToolsModule {}

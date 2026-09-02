@@ -469,21 +469,9 @@ describe('AppModule agent composition', () => {
   });
 
   /**
-   * And the reason the worker's side-effect consumer being reachable here is
-   * inert rather than a second delivery path.
-   *
-   * `AgentToolsModule` is shared, so the API root does construct
-   * `SideEffectExecutionHandler` — its dependencies, the tool implementations
-   * and the registry, are exactly the ones that must not be exported to
-   * anybody, so moving it out would mean widening the module's surface to the
-   * raw implementations that *can* perform an effect directly. Keeping it and
-   * proving it unreachable is the stronger arrangement.
-   *
-   * Unreachable in both directions, which is what this asserts. Nothing can
-   * deliver a job to it, because the API imports no queue transport and so
-   * registers no consumer. Nothing can publish one either, because the API has
-   * no `QueueProducer`. The only thing that ever enqueues an approved action
-   * is the outbox dispatcher, and that runs in the worker.
+   * Side effects are a worker responsibility. The API may propose one through
+   * the gateway, but it neither constructs the execution handler nor has queue
+   * transport capable of delivering or publishing its job.
    */
   it('cannot deliver or publish a side-effect job from the API', () => {
     const providers = providersOf(AppModule);
@@ -491,8 +479,7 @@ describe('AppModule agent composition', () => {
     expect(providers).not.toContain(QueueProducer);
     expect(importsOf(AppModule)).not.toContain(QueueModule);
 
-    // The handler is present but has no transport on either side of it.
-    expect(providers).toContain(SideEffectExecutionHandler);
+    expect(providers).not.toContain(SideEffectExecutionHandler);
   });
 
   /**

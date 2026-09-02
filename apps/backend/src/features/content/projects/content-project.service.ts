@@ -2,14 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 
+import { AgentRunService } from '../../../ai/execution/agent-run.service';
 import {
-  AgentRunService,
   CONTENT_IDEA_AGENT_ID,
   contentIdeaInput,
   contentIdeaOutput,
   type ContentIdeaFormat,
   type ContentIdeaLanguage,
-} from '../../agent-management';
+} from '../ideas/agent-definitions';
 import { PrismaService } from '../../../infrastructure/database';
 import { OrganizationAuditService } from '../../organizations/audit';
 import {

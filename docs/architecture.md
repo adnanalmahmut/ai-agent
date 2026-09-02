@@ -118,6 +118,10 @@ This is a responsibility guide, not permission for cycles. In particular,
 not import feature internals. A feature may own a product-specific agent
 definition while depending on generic contracts from `ai`.
 
+These source-level directions are enforced by scoped `no-restricted-imports`
+rules in `apps/backend/eslint.config.mjs`. Composition roots remain free to wire
+the layers together; lower layers cannot import those roots.
+
 Backend tests mirror the boundary they exercise rather than where they happen
 to be authored:
 

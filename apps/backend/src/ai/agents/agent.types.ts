@@ -1,16 +1,7 @@
 import type { ZodType } from 'zod';
 
-/**
- * Imported from the leaf registry module rather than the Knowledge barrel.
- *
- * The barrel exports services and Nest modules, and this file is the agents'
- * type vocabulary — pulling the barrel in would make every consumer of an agent
- * type depend transitively on the storage adapters. The registry is a plain
- * table with no imports of its own.
- */
-import type { KnowledgeSpaceSlug } from '../../features/knowledge/knowledge-space.registry';
 import type { AgentModelId } from '../models/model-catalog';
-import type { ToolRef } from '../tools/tool.types';
+import type { ToolRef } from '../tools/tool-ref';
 
 export const AGENT_RUN_STATUSES = [
   'QUEUED',
@@ -198,7 +189,7 @@ export function isMcpSessionExpired(createdAt: Date, now: Date): boolean {
  * behavior means registering a new version, never editing a published one,
  * because a durable AgentRun may already be pinned to the old pair.
  */
-export type AgentDefinition = {
+export type AgentDefinition<TContextSpace extends string = string> = {
   id: string;
   version: number;
   runtime: AgentRuntimeName;
@@ -254,7 +245,7 @@ export type AgentDefinition = {
    * whole point of versioning is that a run's behavior is knowable from the
    * pair it was accepted against.
    */
-  contextPolicy?: ContextPolicy;
+  contextPolicy?: ContextPolicy<TContextSpace>;
   /**
    * The most this agent may ever call, by exact tool version. Absent is none.
    *
@@ -353,21 +344,18 @@ export type AgentOutputContract = (
  * space here grants nothing across a tenant boundary — a slug that does not
  * exist for that organization simply contributes no passages.
  *
- * The slug type is the *registry's*, not `string`. That is the difference
- * between a policy that is wrong and a policy that does not compile: a typo, or
- * a space removed from the taxonomy, used to produce a policy that resolved to
- * nothing and reported nothing, because "no such space" and "an empty space"
- * are the same observation at retrieval time. Now it is a type error, and a
- * composition test asserts the same thing at runtime for anything that reaches
- * this shape without passing through the compiler.
+ * The generic space vocabulary lets an owning feature provide its closed slug
+ * union without making this generic AI contract import that feature. Product
+ * definitions bind it to their registry, and composition also checks the
+ * registered values at runtime.
  *
  * Both budgets are required, and they are separate because they bound
  * different costs. `maxChunks` bounds the retrieval; `maxCharacters` bounds
  * what is actually sent, which is what the provider bills for and what
  * displaces the instructions if it grows.
  */
-export type ContextPolicy = {
-  spaceSlugs: readonly KnowledgeSpaceSlug[];
+export type ContextPolicy<TSpace extends string = string> = {
+  spaceSlugs: readonly TSpace[];
   maxChunks: number;
   maxCharacters: number;
 };

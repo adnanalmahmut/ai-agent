@@ -6,6 +6,7 @@ import {
   type AgentOutputContract,
 } from '../../../../ai/agents/agent.types';
 import { MODEL_IDS } from '../../../../ai/models/model-catalog';
+import type { KnowledgeSpaceSlug } from '../../../knowledge/knowledge-space.registry';
 
 export const CONTENT_IDEA_AGENT_ID = 'content-idea';
 export const CONTENT_IDEA_AGENT_VERSION = 1;
@@ -174,7 +175,7 @@ export const contentIdeaOutputContract: AgentOutputContract = (
  * runs already accepted against this pair must keep executing these
  * instructions or the pinned version means nothing.
  */
-export const contentIdeaAgent: AgentDefinition = {
+export const contentIdeaAgent: AgentDefinition<KnowledgeSpaceSlug> = {
   id: CONTENT_IDEA_AGENT_ID,
   version: CONTENT_IDEA_AGENT_VERSION,
   runtime: AGENT_RUNTIME_NAMES.mastra,
