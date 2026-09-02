@@ -1,6 +1,10 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { forwardedHeaders } from '../mcp-session.service';
+import {
+  forwardedHeaders,
+  refusedMethod,
+  withoutConsoleWarnings,
+} from '../mcp-session.service';
 
 /**
  * What the protocol SDK is allowed to see of an incoming request.
@@ -77,5 +81,83 @@ describe('the headers handed to the protocol SDK', () => {
     expect(
       forwardedHeaders({ accept: undefined, 'mcp-method': undefined }),
     ).toEqual({});
+  });
+});
+
+describe('refused protocol methods', () => {
+  it('detects subscriptions/listen in a single message', () => {
+    expect(
+      refusedMethod({ jsonrpc: '2.0', id: 1, method: 'subscriptions/listen' }),
+    ).toBe('subscriptions/listen');
+  });
+
+  it('detects subscriptions/listen inside a batch array', () => {
+    expect(
+      refusedMethod([
+        { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+        { jsonrpc: '2.0', id: 2, method: 'subscriptions/listen' },
+      ]),
+    ).toBe('subscriptions/listen');
+  });
+
+  it('returns undefined for permitted methods', () => {
+    expect(
+      refusedMethod({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    ).toBeUndefined();
+    expect(
+      refusedMethod({ jsonrpc: '2.0', id: 1, method: 'tools/call' }),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined for malformed or empty payloads', () => {
+    expect(refusedMethod(null)).toBeUndefined();
+    expect(refusedMethod(undefined)).toBeUndefined();
+    expect(refusedMethod('string')).toBeUndefined();
+    expect(refusedMethod(42)).toBeUndefined();
+    expect(refusedMethod({})).toBeUndefined();
+    expect(refusedMethod([])).toBeUndefined();
+    expect(refusedMethod([{ method: 123 }])).toBeUndefined();
+  });
+});
+
+describe('withoutConsoleWarnings', () => {
+  it('suppresses console.warn during synchronous execution and restores it', () => {
+    const originalWarn = console.warn;
+    let warnCalls = 0;
+    const testWarn = () => {
+      warnCalls += 1;
+    };
+    console.warn = testWarn;
+
+    try {
+      const result = withoutConsoleWarnings(() => {
+        console.warn('this should be suppressed');
+        return 'success';
+      });
+
+      expect(result).toBe('success');
+      expect(warnCalls).toBe(0);
+      expect(console.warn).toBe(testWarn);
+    } finally {
+      console.warn = originalWarn;
+    }
+  });
+
+  it('restores console.warn even if the callback throws', () => {
+    const originalWarn = console.warn;
+    const testWarn = () => undefined;
+    console.warn = testWarn;
+
+    try {
+      expect(() =>
+        withoutConsoleWarnings(() => {
+          throw new Error('boom');
+        }),
+      ).toThrow('boom');
+
+      expect(console.warn).toBe(testWarn);
+    } finally {
+      console.warn = originalWarn;
+    }
   });
 });

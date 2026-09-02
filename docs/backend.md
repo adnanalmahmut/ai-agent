@@ -396,14 +396,21 @@ drift.
 **A session is an `AgentRun`.** `ToolExecution` requires a run in the same
 organization and that composite foreign key is the tenant boundary, so the
 alternative was making tenant authority nullable to suit an adapter. A session
-therefore needs no new table and no new column. Its `runtime` is `mcp`, which is
-deliberately *not* a member of `AGENT_RUNTIME_NAMES`: that constant types the
-runtimes which can execute a definition, so `AgentRuntimeRegistry.resolve('mcp')`
-throws and the worker can never execute a session. Acceptance appends no outbox
-event either, so no job exists in the first place. Acceptance is otherwise the
+therefore needs no new table and no new column. Acceptance is otherwise the
 ordinary path — the same per-organization advisory lock, exact in-flight
 ceiling, durable idempotency and definition/organization-version pinning — with
 one `driver` field distinguishing it.
+
+The worker cannot execute a session, for three reasons that hold independently.
+No job exists, because acceptance appends no outbox event for a session. If one
+somehow did, `AgentRunner` refuses before any runtime is resolved: it compares
+the definition's runtime against the row's and throws when they disagree, which
+they always do, because the definition says `mastra` and the row says `mcp` —
+that is the check which would actually fire, and the runtime registry is never
+asked about `AgentRun.runtime` at all. And `mcp` is deliberately not a member of
+`AGENT_RUNTIME_NAMES`, the constant that types `AgentDefinition.runtime`, so no
+definition can ever declare it — which is what makes that disagreement
+unconditional rather than a coincidence of the definitions that exist today.
 
 **Lifetime is bounded and terminal.** The lifetime is absolute from acceptance
 (60 minutes), not sliding, which is what makes the worst case a number. `DELETE`
@@ -442,8 +449,15 @@ the design does not have. The gateway's `MAX_TOOL_INVOCATIONS_PER_ATTEMPT` is
 captured inside one `authorize()` call, so a session authorizing once per
 request would receive a fresh budget every request and could make an unbounded
 number of paid embedding calls; the ceiling is therefore counted durably from
-the session's own `ToolExecution` rows, and can be exceeded only by the number
-of calls in flight together. And `mcp.enabled` — default off, like every other
+the session's own `ToolExecution` rows. It is a cost ceiling rather than a
+fence, and the difference is stated rather than blurred: counting and calling
+are not one atomic step, so concurrent calls can each read the same count and
+overshoot by the number in flight together. What keeps that number small is that
+a modern exchange carries exactly one tool call, leaving the per-user rate limit
+as the real ceiling on concurrency. Making it exact would mean fencing it in the
+transaction that writes the row, or in Redis; that is a deliberate non-goal,
+because the purpose is to stop a session quietly spending all month, not to
+meter it to the call. And `mcp.enabled` — default off, like every other
 acceptance boundary that spends money — is checked on *every* exchange rather
 than only at acceptance, because a session outlives the request that opened it
 and a gate on acceptance alone would leave open sessions spending after an
@@ -454,17 +468,60 @@ declines them. `Origin` is validated against `BETTER_AUTH_TRUSTED_ORIGINS`: the
 specification requires a streamable-HTTP server to validate it and
 `createMcpHandler` performs no header validation, and it earns its place here
 because this endpoint is authenticated by a session cookie. Absence passes, since
-a non-browser MCP client sends none. For the same reason only content
-negotiation and `mcp-`-prefixed protocol headers are forwarded to the SDK —
-passing headers wholesale would hand a credential to a third-party library with
-no use for one. A tool failure crosses as the gateway's constant sentence and
-nothing else; an unknown tool name fails closed as a protocol error.
+a non-browser MCP client sends none. The comparison is the SDK's own convention —
+hostname only — which discards scheme and port, so a trusted `https://` entry
+also admits any port on that hostname; that is inside the trust boundary the
+list already draws, and is recorded rather than smoothed over. For the same
+reason only content negotiation and `mcp-`-prefixed protocol headers are
+forwarded to the SDK — passing headers wholesale would hand a credential to a
+third-party library with no use for one. A tool failure crosses as the gateway's
+constant sentence and nothing else; an unknown tool name fails closed as a
+protocol error.
 
-The honest limitation: authentication is the application's existing session, and
-authorization is `OPTIONAL` in the current MCP specification, so no credential
-product was built. A desktop MCP client that cannot present this application's
-session cookie cannot use this endpoint. Building an authorization server would
-be a second authentication system, and is a separate decision.
+The endpoint serves one protocol revision, and that is a security decision as
+much as a compatibility one. `legacy: 'reject'` turns off the SDK's older leg,
+which accepts a JSON-RPC array and dispatches every element without awaiting any
+of them: one HTTP request — one rate-limit point, one authorization, one durable
+tool-call count — would otherwise fan out into as many concurrent tool calls as
+the gateway's per-attempt budget allowed, each having read the same count. It
+also makes `responseMode: 'json'` describe the whole endpoint rather than half
+of it, because the legacy leg answers request-bearing POSTs as
+`text/event-stream` regardless. The cost is real and worth naming: the v2 client
+negotiates the legacy era by default, so a client must ask for 2026-07-28
+explicitly.
+
+`subscriptions/listen` is refused rather than served. The protocol entry serves
+it itself, as an event stream that ends only when its consumer cancels or the
+handler closes — so reading it to completion, which answering one HTTP request
+with one protocol response requires, never returns, and the socket, the
+keepalive timer and the per-request server instance would be held until the
+process ended. Refusing is also the honest answer: this server registers no
+resources or prompts and declares `tools.listChanged: false`, so it has nothing
+to notify anybody about. The refusal is stated twice — once as a method check
+before the SDK is reached, once as a zero subscription ceiling the router
+enforces — and a deadline on the response read bounds anything neither
+anticipated. GET and DELETE on the protocol path answer `405` with a JSON-RPC
+body, as the specification asks, so a client probing for the deprecated
+transport is not pushed down it by this application's error envelope.
+
+An operator's switches reach an open session. `mcp.enabled` is re-checked on
+every exchange, and so is the installation's own `enabled` flag: a session lives
+up to an hour under a client's control, so checking either only at acceptance
+would leave an agent that had been switched off still answering calls and
+proposing actions for the rest of that hour. The grant set still comes from the
+version the run pinned — what an operator may change is whether this agent runs
+at all, not what an accepted run may call.
+
+Two honest limitations. Authentication is the application's existing session,
+and authorization is `OPTIONAL` in the current MCP specification, so no
+credential product was built: a desktop MCP client that cannot present this
+application's session cookie cannot use this endpoint, and building an
+authorization server would be a second authentication system and a separate
+decision. And a repeated `Idempotency-Key` answers with the stored session
+whatever became of it, because that is what the shared acceptance path means by
+idempotency — so re-opening with a spent key returns the closed session's id and
+the next exchange refuses it, rather than quietly starting a second session
+behind one key.
 
 The code-owned model catalog is the application's finite provider/model
 vocabulary. It currently contains only the two models real source paths use:

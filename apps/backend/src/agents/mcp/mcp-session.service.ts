@@ -1,9 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
-import type { ConfigType } from '@nestjs/config';
 import {
   createMcpHandler,
   validateOriginHeader,
 } from '@modelcontextprotocol/server';
+import { Inject, Injectable } from '@nestjs/common';
+import type { ConfigType } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 
 import { authConfig } from '../../config';
@@ -21,16 +21,18 @@ import {
 } from '../agent.types';
 import { ToolExecutionService } from '../tools/tool-execution.service';
 import { ToolExecutionFailure, ToolGateway } from '../tools/tool.gateway';
-import { createGovernedMcpServer } from './mcp-tool-server';
 import {
+  MCP_EXCHANGE_DEADLINE_MS,
   MCP_FORWARDED_HEADERS,
   MCP_HEADER_PREFIX,
+  MCP_REFUSED_METHODS,
   MCP_SESSION_TOOL_CALL_BUDGET,
   type McpExchange,
   type McpSessionAccepted,
   type McpSessionClosed,
   type OpenMcpSessionInput,
 } from './mcp-session.types';
+import { createGovernedMcpServer } from './mcp-tool-server';
 
 /**
  * A session has exactly one attempt.
@@ -74,17 +76,24 @@ export class McpSessionService {
     private readonly runs: AgentRunService,
     private readonly definitions: AgentDefinitionRegistry,
     private readonly gateway: ToolGateway,
-    private readonly executions: ToolExecutionService,
+    @Inject(ToolExecutionService)
+    private readonly executions: Pick<ToolExecutionService, 'countForRun'>,
     private readonly runtimeConfig: RuntimeConfigResolver,
     @Inject(authConfig.KEY) auth: ConfigType<typeof authConfig>,
   ) {
     /**
      * Hostnames, because that is what the SDK's validator compares.
      *
-     * `BETTER_AUTH_TRUSTED_ORIGINS` holds URLs, and origin validation here is
-     * port-agnostic by the SDK's convention. Reusing that list rather than
-     * adding a setting keeps one answer to "which browser origins belong to
-     * this deployment"; an entry that is not a parseable URL is dropped rather
+     * `BETTER_AUTH_TRUSTED_ORIGINS` holds URLs, and the SDK's validator compares
+     * hostnames only. That is its documented convention, and it is worth naming
+     * precisely because it is a widening rather than a restatement: comparing
+     * hostnames discards both the scheme and the port, so a trusted entry of
+     * `https://app.example.test` also admits `http://app.example.test:31337`.
+     * The exposure is bounded — an attacker able to serve a page on any port of
+     * a hostname the deployment already trusts is inside the trust boundary
+     * this list draws — and reusing the list keeps one answer to "which browser
+     * origins belong to this deployment" instead of adding a second setting to
+     * disagree with it. An entry that is not a parseable URL is dropped rather
      * than allowed, because a malformed allowlist entry must not widen an
      * allowlist.
      */
@@ -163,7 +172,22 @@ export class McpSessionService {
     runId: string;
     actorUserId: string;
   }): Promise<McpSessionClosed> {
-    const session = await this.requireSession(input);
+    /**
+     * Closing is the one session operation the creator does not own alone.
+     *
+     * A session holds one of the organization's in-flight run slots for up to
+     * its whole lifetime, so a member who opens sessions and then disconnects
+     * can exhaust the organization's agent capacity — and if only they could
+     * release it, nobody could recover before the absolute TTL ran out. That
+     * would make an ordinary disconnection an hour-long outage for every agent
+     * in the organization, with no operator route to end it.
+     *
+     * Widening this grants nothing: ending a session can only remove
+     * capability, never add it, and it is `mcpSession:create` — `admin` and
+     * `owner` — that is being trusted, not membership. Every other session
+     * route keeps the creator check, because those *do* confer authority.
+     */
+    const session = await this.requireSession({ ...input, anyMember: true });
 
     if (session.status !== 'RUNNING') {
       return { runId: session.id, closedBy: 'already_closed' };
@@ -269,6 +293,25 @@ export class McpSessionService {
       });
     }
 
+    /**
+     * A streaming method is refused before the SDK is reached.
+     *
+     * Not defence in depth: the protocol entry serves `subscriptions/listen`
+     * itself, as an `text/event-stream` body that ends only when its consumer
+     * cancels or the handler closes. Reading such a body to completion — which
+     * is what answering one HTTP request with one protocol response requires —
+     * never returns. Refusing before delegating is the only place the answer
+     * can be given cheaply and in-band.
+     */
+    const refused = refusedMethod(input.body);
+
+    if (refused !== undefined) {
+      throw new AppException('BAD_REQUEST', {
+        context: { resource: 'mcpSession', reason: refused },
+        publicDetails: { reason: 'method_not_supported' },
+      });
+    }
+
     const tools = await this.authorize(session);
 
     /**
@@ -280,13 +323,59 @@ export class McpSessionService {
      * factory cannot consult anything: the authorized closures are already
      * decided above, and it has no access to the gateway.
      *
-     * `responseMode: 'json'` because nothing here streams: a tool call is one
-     * request and one result. `onerror` is given a sink that reads nothing, so
-     * a transport fault cannot carry request material into the logs.
+     * `legacy: 'reject'` makes this a single-revision endpoint, and it is the
+     * option that turns the ceiling below into a bound. The legacy leg accepts
+     * a JSON-RPC array and dispatches every element without awaiting any of
+     * them, so one HTTP request — one rate-limit point, one authorization, one
+     * durable count — would fan out into as many concurrent tool calls as the
+     * gateway's per-attempt budget allowed, each having read the same count of
+     * zero. Rejecting it refuses a batch outright with `-32600`. It also makes
+     * the endpoint honest in a second way: the legacy leg answers
+     * request-bearing POSTs as `text/event-stream` regardless of
+     * `responseMode`, so without this the claim below would describe half the
+     * endpoint.
+     *
+     * The cost is interoperability, and it is real: the v2 client negotiates
+     * the legacy era by default, so a client must ask for 2026-07-28
+     * explicitly. That is an acceptable price here because this endpoint is
+     * already reachable only by a caller holding an application session, which
+     * is not a client anybody adopts by accident.
+     *
+     * `responseMode: 'json'` then describes every response: a tool call is one
+     * request and one result, and nothing streams. `onerror` is given a sink
+     * that reads nothing, so a transport fault cannot carry request material
+     * into the logs.
+     *
+     * Constructed under a suppressed `console.warn` because this SDK writes an
+     * unconditional advisory to the console when `responseMode` is `'json'`,
+     * and a per-request handler would write it once per request. It is a static
+     * sentence carrying no request material, so this is log discipline rather
+     * than containment: the application logs through Pino, and one library line
+     * per MCP call on stdout is noise an operator did not ask for. The
+     * advisory's subject — dropped mid-call notifications — cannot arise here,
+     * because the only method that emits them is refused above.
      */
-    const handler = createMcpHandler(
-      () => createGovernedMcpServer({ tools, version: MCP_ADAPTER_VERSION }),
-      { responseMode: 'json', onerror: () => undefined },
+    const handler = withoutConsoleWarnings(() =>
+      createMcpHandler(
+        () => createGovernedMcpServer({ tools, version: MCP_ADAPTER_VERSION }),
+        {
+          responseMode: 'json',
+          legacy: 'reject',
+          onerror: () => undefined,
+          /**
+           * No subscription may open, stated to the library as well.
+           *
+           * The refusal above is the honest answer and this is the guarantee
+           * behind it: the router compares the open count against this ceiling
+           * before it opens a stream, so at zero it answers a complete in-band
+           * JSON-RPC error instead. Two mechanisms because they fail
+           * differently — the refusal reads a method name out of a body whose
+           * shape a future revision may change, while this bounds the router
+           * whatever reaches it.
+           */
+          maxSubscriptions: 0,
+        },
+      ),
     );
 
     try {
@@ -307,15 +396,64 @@ export class McpSessionService {
         { parsedBody: input.body },
       );
 
+      /**
+       * The body is read under a deadline, and the deadline closes the handler.
+       *
+       * An `AbortSignal` on the request does not release a stream the entry is
+       * already serving; closing the handler does, because that is what ends
+       * its open streams and lets the pending read settle. So the timer's job
+       * is to call `close()` — the read then finishes on its own and the
+       * `finally` below closes an already-closed handler harmlessly.
+       *
+       * This exists so that a streaming response nobody anticipated degrades
+       * to a slow refusal rather than to a socket, a timer and a server
+       * instance held for the life of the process.
+       */
+      const body = await this.readWithinDeadline(response, handler);
+
       return {
         status: response.status,
         headers: Object.fromEntries(response.headers.entries()),
-        body: await response.text(),
+        body,
       };
     } finally {
       // Per-request instance, so it is closed with the exchange rather than
-      // left to a listener that has nothing to listen to.
+      // left to a listener that has nothing to listen to. This closes the
+      // modern leg; the legacy fallback is per-request by construction and
+      // tears itself down with its own response.
       await handler.close();
+    }
+  }
+
+  /**
+   * One response body, or a refusal that does not outlive the deadline.
+   *
+   * The timer is always cleared, including when the read rejects, so a normal
+   * exchange leaves nothing pending on the event loop.
+   */
+  private async readWithinDeadline(
+    response: Response,
+    handler: { close: () => Promise<void> },
+  ): Promise<string> {
+    let expired = false;
+    const deadline = setTimeout(() => {
+      expired = true;
+      void handler.close().catch(() => undefined);
+    }, MCP_EXCHANGE_DEADLINE_MS);
+
+    try {
+      const body = await response.text();
+
+      if (expired) {
+        throw new AppException('SERVICE_UNAVAILABLE', {
+          context: { resource: 'mcpSession', reason: 'exchange_deadline' },
+          publicDetails: { reason: 'exchange_timeout' },
+        });
+      }
+
+      return body;
+    } finally {
+      clearTimeout(deadline);
     }
   }
 
@@ -330,19 +468,31 @@ export class McpSessionService {
    * The creator check is the one the organization permission cannot make.
    * `mcpSession:create` answers "may this person open sessions here"; it does
    * not make every admin the owner of every session, and a reconnecting client
-   * must not gain authority by knowing an id.
+   * must not gain authority by knowing an id. It is therefore applied to every
+   * route that *uses* a session, and deliberately not to the one that ends
+   * one — see `close`.
    */
   private async requireSession(input: {
     organizationId: string;
     runId: string;
     actorUserId: string;
+    /**
+     * Set only by `close`, where the caller's permission is the whole
+     * authority and ownership would only stand between an organization and
+     * its own capacity.
+     */
+    anyMember?: boolean;
   }) {
     const session = await this.runs.findMcpSession({
       id: input.runId,
       organizationId: input.organizationId,
     });
 
-    if (!session || session.createdByUserId !== input.actorUserId) {
+    const owned =
+      input.anyMember === true ||
+      session?.createdByUserId === input.actorUserId;
+
+    if (!session || !owned) {
       throw new AppException('NOT_FOUND', {
         context: { resource: 'mcpSession' },
         publicDetails: { reason: 'session_not_found' },
@@ -373,6 +523,42 @@ export class McpSessionService {
         session.agentId,
         session.agentVersion,
       );
+
+      /**
+       * An operator's disable switch has to reach an open session.
+       *
+       * `enabled` is checked at acceptance, which is sufficient for a Mastra
+       * run because the run is over in seconds. A session lives up to an hour
+       * and is driven by a client the whole time, so acceptance-only would mean
+       * an agent an operator had explicitly turned off kept answering calls and
+       * proposing actions for the rest of that hour, with nothing short of the
+       * organization-wide `mcp.enabled` to stop it.
+       *
+       * This reads the installation's *current* state and refuses; the grants
+       * below still come from the version the run pinned. The two are not in
+       * tension — what an operator may change is whether this agent runs at
+       * all, not what an accepted run is allowed to call.
+       */
+      const unavailable = await this.runs.installationAvailability({
+        organizationId: session.organizationId,
+        agentId: session.agentId,
+      });
+
+      if (unavailable !== null) {
+        /**
+         * The same public reason an unresolvable definition gives.
+         *
+         * Whether the agent was uninstalled or merely switched off is this
+         * organization's business; an external client learns that the session
+         * cannot be served and no more. The distinction is kept in `context`,
+         * which stays server-side.
+         */
+        throw new AppException('CONFLICT', {
+          context: { resource: 'mcpSession', reason: unavailable },
+          publicDetails: { reason: 'session_agent_unavailable' },
+        });
+      }
+
       const pinned = await this.runs.pinnedVersionFor(session);
 
       tools = this.gateway.authorize({
@@ -417,11 +603,19 @@ export class McpSessionService {
    * would make the authority owner know about its callers.
    *
    * The count is read per call, so the bound holds across requests, across
-   * process restarts, and across two API instances serving one session. Under
-   * concurrency it can be exceeded by at most the number of calls in flight
-   * together, because counting and calling are not one atomic step. That is
-   * stated rather than hidden: the ceiling is a cost bound, and the same
-   * property is true of the gateway's in-memory budget within a request.
+   * process restarts, and across two API instances serving one session.
+   *
+   * It is a cost ceiling, not a fence, and the difference is worth stating
+   * exactly. Counting and calling are not one atomic step, so concurrent calls
+   * can each read the same count and the total can overshoot by the number in
+   * flight together. What bounds "in flight together" is that a modern
+   * exchange carries exactly one tool call — which is why `legacy: 'reject'`
+   * above is load-bearing rather than tidy, since a batch would have made one
+   * request into many — leaving the per-user rate limit on the exchange route
+   * as the real ceiling on concurrency. Making this exact would mean fencing it
+   * atomically, in the transaction that writes the `ToolExecution` row or in
+   * Redis; that is a deliberate non-goal, because the purpose is to stop a
+   * session quietly spending all month, not to meter it to the call.
    */
   private budgeted(
     tool: AgentRuntimeTool,
@@ -470,9 +664,13 @@ function sessionKey(callerKey: string, payload: OpenMcpSessionInput): string {
  *
  * An allowlist because the request carries this application's session cookie:
  * forwarding headers wholesale would hand a credential to a third-party SDK
- * that has no use for one. What the 2026-07-28 revision requires — the
- * `mcp-`-prefixed protocol, method and name headers — is forwarded verbatim,
- * because the SDK's classifier reads them to decide how to serve the request.
+ * that has no use for one. Every `mcp-`-prefixed header is forwarded verbatim,
+ * which covers what the 2026-07-28 revision requires — `MCP-Protocol-Version`
+ * on every POST, `Mcp-Method` on every request, `Mcp-Name` on the three that
+ * name a subject — as well as the `Mcp-Param-*` headers a server is asked to
+ * cross-check. Withholding them would turn a valid request into a
+ * header-mismatch refusal; they do not decide how it is served, because the
+ * SDK's era classifier reads the body's `_meta` rather than a header.
  */
 export function forwardedHeaders(
   headers: Record<string, string | string[] | undefined>,
@@ -491,4 +689,54 @@ export function forwardedHeaders(
   }
 
   return forwarded;
+}
+
+/**
+ * The refused protocol method this body carries, if it carries one.
+ *
+ * Reads only a method name, and reads it defensively: the body is whatever the
+ * framework parsed, so it is `unknown` until proven otherwise. An array is
+ * inspected element by element because a batch — which this revision does not
+ * define, but which a client library may still send — must not smuggle a
+ * refused method past a check that only looked at the envelope.
+ */
+export function refusedMethod(body: unknown): string | undefined {
+  const messages = Array.isArray(body) ? body : [body];
+
+  for (const message of messages) {
+    if (typeof message !== 'object' || message === null) continue;
+
+    const method = (message as { method?: unknown }).method;
+
+    if (
+      typeof method === 'string' &&
+      (MCP_REFUSED_METHODS as readonly string[]).includes(method)
+    ) {
+      return method;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Runs a synchronous call with `console.warn` silenced, and always restores it.
+ *
+ * Narrow on purpose. The call it wraps is synchronous, so nothing else can run
+ * between the swap and the restore — this cannot silence a warning belonging to
+ * another request, which is the only thing that would make patching a global
+ * unacceptable here. It exists because the protocol SDK writes a fixed advisory
+ * to the console at handler construction and offers no way to opt out; the
+ * application logs through Pino, and a library line per MCP request is noise an
+ * operator did not choose.
+ */
+export function withoutConsoleWarnings<T>(run: () => T): T {
+  const warn = console.warn;
+  console.warn = () => undefined;
+
+  try {
+    return run();
+  } finally {
+    console.warn = warn;
+  }
 }

@@ -33,17 +33,62 @@ export const MCP_SESSION_TOOL_CALL_BUDGET = 48;
  * third-party SDK, its transports, and anything it logs. Nothing in the
  * protocol needs either.
  *
- * What the protocol does need is here: content negotiation, and the
- * `mcp-`-prefixed headers the 2026-07-28 revision requires on every request
- * (`MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name`), which the SDK's
- * classifier reads to decide whether a request is modern or legacy. Getting
- * this wrong fails closed and loudly — a mismatch is a protocol error — rather
- * than quietly downgrading anything.
+ * What the protocol does need is here: content negotiation, and every
+ * `mcp-`-prefixed header. The 2026-07-28 revision requires
+ * `MCP-Protocol-Version` on every POST to the endpoint and `Mcp-Method` on
+ * every request, while `Mcp-Name` is required only for `tools/call`,
+ * `resources/read` and `prompts/get`; header requirements for notification
+ * POSTs are not defined by that revision. The prefix also covers the
+ * `Mcp-Param-*` headers the specification asks a server to cross-check, which
+ * is why the rule is a prefix rather than a list of three names.
+ *
+ * These headers are a cross-check, not the era signal. The SDK's classifier is
+ * body-primary: the era comes from the reserved protocol-version key inside
+ * `params._meta`, and `MCP-Protocol-Version` never upgrades or downgrades a
+ * body-derived classification — a disagreement is its own protocol error. So
+ * forwarding them matters because withholding them turns a valid request into
+ * a header-mismatch refusal, not because they decide how the request is served.
  */
 export const MCP_FORWARDED_HEADERS = ['accept', 'content-type'] as const;
 
 /** Every `mcp-*` header is forwarded; the prefix is the protocol's own. */
 export const MCP_HEADER_PREFIX = 'mcp-';
+
+/**
+ * Protocol methods this adapter refuses before the SDK is reached.
+ *
+ * `subscriptions/listen` is core 2026-07-28 vocabulary with no client-capability
+ * gate, and the protocol entry serves it itself — always as an open
+ * `text/event-stream`, regardless of `responseMode`. A listen stream is
+ * deliberately unbounded: it writes an acknowledgement, then a keepalive comment
+ * every fifteen seconds, and ends only when the consumer cancels or the handler
+ * is closed.
+ *
+ * This adapter answers one HTTP request with one complete protocol response,
+ * because that is what a Nest controller writing through `@Res` can express. An
+ * endless stream has no place in that shape: the response body would never
+ * finish, so the request would never be written and the socket, the keepalive
+ * timer and the per-request server instance would be held until the process
+ * ended. Refusing is also the honest answer rather than merely the safe one —
+ * this server registers no resources or prompts and declares
+ * `tools.listChanged: false`, so it has nothing to notify anybody about.
+ */
+export const MCP_REFUSED_METHODS = ['subscriptions/listen'] as const;
+
+/**
+ * How long one protocol exchange may take before it is abandoned.
+ *
+ * A structural bound rather than a second guess at the refusal above. The
+ * refusal names the one streaming method this SDK revision has; this deadline
+ * is what keeps an unknown future one — or a defect in the refusal — a bounded
+ * failure instead of a leaked socket. Closing the handler is what releases a
+ * stream the read is waiting on, so the deadline has something to do.
+ *
+ * Thirty seconds: a tool call here can involve an embedding and a vector
+ * search, and the gateway's own generation budget is larger than that, but no
+ * single read-only or proposing tool call should approach it.
+ */
+export const MCP_EXCHANGE_DEADLINE_MS = 30_000;
 
 export const openMcpSessionInput = z
   .object({

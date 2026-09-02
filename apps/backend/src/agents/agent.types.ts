@@ -150,12 +150,23 @@ export type AgentRuntimeName =
 /**
  * What `AgentRun.runtime` carries for a session an external MCP client drives.
  *
- * Not a member of `AGENT_RUNTIME_NAMES`, and that is the point:
- * `AgentRuntimeRegistry.resolve` knows only the executable runtimes, so it
- * throws for this value. Acceptance appends no outbox event, so no job exists
- * — and if one somehow did, the worker still could not execute it. The
- * fail-closed property is a consequence of the value being unknown to the
- * registry rather than of a check someone has to remember to write.
+ * The worker cannot execute a session, for three reasons that hold
+ * independently.
+ *
+ * First, no job exists: acceptance appends no outbox event for a session, so
+ * nothing is ever published and nothing is ever claimed.
+ *
+ * Second, if a job somehow did exist, `AgentRunner.run` refuses before any
+ * runtime is resolved. It compares the definition's runtime against the row's
+ * and throws `AgentConfigurationError` when they disagree — and they always
+ * disagree for a session, because the definition says `mastra` and the row says
+ * this. That is the check which would actually fire; the runtime registry is
+ * never asked about `AgentRun.runtime` at all.
+ *
+ * Third, this value is deliberately not a member of `AGENT_RUNTIME_NAMES`. That
+ * constant types `AgentDefinition.runtime`, so no definition can ever declare
+ * this runtime — which is what makes the disagreement above unconditional
+ * rather than a coincidence of the definitions that happen to exist today.
  */
 export const MCP_SESSION_RUNTIME = 'mcp';
 

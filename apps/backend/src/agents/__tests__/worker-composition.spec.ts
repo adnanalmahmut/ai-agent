@@ -3,7 +3,7 @@ import type { TestingModule } from '@nestjs/testing';
 import { Test } from '@nestjs/testing';
 
 import { AppModule } from '../../app.module';
-import { APPLICATION_MODEL_CATALOG } from '../../model-catalog/model-catalog';
+import { OUTBOX_EVENT_ROUTES, ROUTABLE_EVENT_TYPES } from '../../core/outbox';
 import {
   QUEUE_JOB_HANDLERS,
   QUEUE_NAMES,
@@ -12,30 +12,30 @@ import {
   QueueWorkerRunner,
   type QueueJobHandler,
 } from '../../core/queue';
-import { OUTBOX_EVENT_ROUTES, ROUTABLE_EVENT_TYPES } from '../../core/outbox';
-import { WorkerModule } from '../../worker.module';
-import { AgentExecutionHandler } from '../agent-execution.handler';
-import { AgentExecutionModule } from '../agent-execution.module';
-import { AgentRunReconciler } from '../agent-run-reconciler.service';
-import { AgentRunService } from '../agent-run.service';
-import { AgentsModule } from '../agents.module';
-import { AgentContextAssembler } from '../agent-context.assembler';
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
-import { AgentRunner } from '../agent-runner.service';
-import { AgentRuntimeRegistry } from '../agent-runtime.registry';
-import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
-import { SideEffectExecutionHandler } from '../tools/side-effect-execution.handler';
-import { ToolGateway } from '../tools/tool.gateway';
 import {
   KNOWLEDGE_SPACE_SLUGS,
   isKnowledgeSpaceSlug,
 } from '../../knowledge/knowledge-space.registry';
+import { APPLICATION_MODEL_CATALOG } from '../../model-catalog/model-catalog';
+import { WorkerModule } from '../../worker.module';
+import { AgentContextAssembler } from '../agent-context.assembler';
+import { AgentDefinitionRegistry } from '../agent-definition.registry';
+import { AgentExecutionHandler } from '../agent-execution.handler';
+import { AgentExecutionModule } from '../agent-execution.module';
+import { AgentRunReconciler } from '../agent-run-reconciler.service';
+import { AgentRunService } from '../agent-run.service';
+import { AgentRunner } from '../agent-runner.service';
+import { AgentRuntimeRegistry } from '../agent-runtime.registry';
 import type { AgentDefinition } from '../agent.types';
+import { AgentsModule } from '../agents.module';
 import { PRODUCTION_AGENT_DEFINITIONS } from '../definitions';
 import {
   CONTENT_IDEA_AGENT_ID,
   CONTENT_IDEA_AGENT_VERSION,
 } from '../definitions/content-idea';
+import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
+import { SideEffectExecutionHandler } from '../tools/side-effect-execution.handler';
+import { ToolGateway } from '../tools/tool.gateway';
 
 describe('WorkerModule agent composition', () => {
   let moduleRef: TestingModule;
@@ -358,8 +358,16 @@ describe('AppModule agent composition', () => {
    * run an agent on the request thread passes every static check here and
    * every e2e test, because the e2e harness boots with Redis available. What
    * the request path would actually gain is a queue producer, a reconciliation
-   * loop, and the ability to spend a provider credential inside an HTTP
-   * handler.
+   * loop, and a runner that drives a model generation on the request thread.
+   *
+   * Spending a provider credential inside an HTTP handler is deliberately not
+   * the line any more, and the MCP adapter is why. Under MCP the caller is the
+   * runtime: a tool call arrives as a request and has to be answered before the
+   * response is written, so `knowledge.search@1` — an embedding and a vector
+   * search — now runs in the API by design, and `docs/architecture.md` records
+   * that decision. What must stay out is the machinery for *executing a
+   * definition*: the runner, the runtimes, the queue producer, and the
+   * reconciler.
    */
   it('cannot reach agent execution through any module it imports', () => {
     const seen = new Set<unknown>();
@@ -505,5 +513,90 @@ describe('AppModule agent composition', () => {
         provider,
       );
     }
+  });
+
+  /**
+   * ToolExecutionService writer boundary.
+   *
+   * As declared in AgentToolsModule: ToolExecutionService is exported for one
+   * read (`countForRun`), not for its writers. The lifecycle writers —
+   * `start`, `succeed`, `fail`, `propose`, `claimEffectAttempt`,
+   * `settleEffect`, `transition` — stay callable only from ToolGateway and
+   * SideEffectExecutionHandler.
+   */
+  it('enforces that ToolExecutionService writers are called only by ToolGateway and SideEffectExecutionHandler', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const { fileURLToPath } = await import('node:url');
+
+    const dirName = path.dirname(fileURLToPath(import.meta.url));
+    const srcDir = path.resolve(dirName, '../..');
+    const writerMethods = [
+      'start(',
+      'succeed(',
+      'fail(',
+      'propose(',
+      'claimEffectAttempt(',
+      'settleEffect(',
+      'transition(',
+    ];
+
+    const allowedWriters = new Set([
+      'tool.gateway.ts',
+      'side-effect-execution.handler.ts',
+      'tool-execution.service.ts',
+    ]);
+
+    const findSourceFiles = async (dir: string): Promise<string[]> => {
+      const entries = await fs.readdir(dir, { withFileTypes: true });
+      const files: string[] = [];
+
+      for (const entry of entries) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          if (
+            entry.name !== '__tests__' &&
+            entry.name !== 'node_modules' &&
+            entry.name !== 'dist' &&
+            entry.name !== 'generated'
+          ) {
+            files.push(...(await findSourceFiles(full)));
+          }
+        } else if (
+          entry.name.endsWith('.ts') &&
+          !entry.name.endsWith('.spec.ts')
+        ) {
+          files.push(full);
+        }
+      }
+
+      return files;
+    };
+
+    const files = await findSourceFiles(srcDir);
+    const violatingFiles: string[] = [];
+
+    for (const file of files) {
+      const baseName = path.basename(file);
+      if (allowedWriters.has(baseName)) continue;
+
+      const content = await fs.readFile(file, 'utf-8');
+      if (
+        content.includes('ToolExecutionService') ||
+        content.includes('executions.')
+      ) {
+        for (const method of writerMethods) {
+          if (
+            content.includes(`.${method}`) &&
+            (content.includes('executions') ||
+              content.includes('ToolExecutionService'))
+          ) {
+            violatingFiles.push(`${baseName} calls ${method}`);
+          }
+        }
+      }
+    }
+
+    expect(violatingFiles).toEqual([]);
   });
 });

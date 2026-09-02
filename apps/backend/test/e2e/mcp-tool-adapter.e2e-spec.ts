@@ -14,9 +14,9 @@ import type { Job } from 'bullmq';
 import { z } from 'zod';
 
 import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../src/agents/agent.types';
 import { MCP_SESSION_TTL_MS } from '../../src/agents/agent.types';
 import { MCP_SESSION_TOOL_CALL_BUDGET } from '../../src/agents/mcp/mcp-session.types';
-import type { AgentDefinition } from '../../src/agents/agent.types';
 import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../src/agents/tools/definitions';
 import { NotificationSendTool } from '../../src/agents/tools/notification-send.tool';
@@ -365,7 +365,7 @@ describe('MCP as an adapter over the governed tool gateway', () => {
     user: TestUser,
     runId: string,
     org = organizationId,
-    options: { origin?: string } = {},
+    options: { origin?: string; headers?: Record<string, string> } = {},
   ) => {
     const path = `${base(org)}/${encodeURIComponent(runId)}/mcp`;
     const client = new Client(
@@ -391,6 +391,13 @@ describe('MCP as an adapter over the governed tool gateway', () => {
           });
 
           if (options.origin) call = call.set('origin', options.origin);
+          if (options.headers) {
+            for (const [headerName, headerValue] of Object.entries(
+              options.headers,
+            )) {
+              call = call.set(headerName, headerValue);
+            }
+          }
 
           /**
            * The SDK always sends a JSON string body, so it is parsed back and
@@ -1084,6 +1091,40 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       });
     });
 
+    /** An admin in the same organization can close to recover capacity. */
+    it('allows another admin of the same organization to close the session', async () => {
+      const session = await open(owner);
+
+      const closed = await as(harness, otherAdmin).del(
+        `${base()}/${session.runId}`,
+      );
+
+      expect(closed.status).toBe(200);
+      expect((closed.body as { data: unknown }).data).toMatchObject({
+        closedBy: 'client',
+      });
+    });
+
+    it('refuses an ordinary member without mcpSession:create permission to close the session', async () => {
+      const session = await open(owner);
+
+      const response = await as(harness, member).del(
+        `${base()}/${session.runId}`,
+      );
+
+      expect(response.status).toBe(403);
+    });
+
+    it('refuses to close a session belonging to another organization', async () => {
+      const session = await open(owner);
+
+      const response = await as(harness, outsider).del(
+        `${base(otherOrganizationId)}/${session.runId}`,
+      );
+
+      expect(response.status).toBe(404);
+    });
+
     /**
      * An expired session is closed by the request that discovers it, not
      * merely refused — otherwise the row would say `RUNNING` forever while
@@ -1290,6 +1331,183 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(listed.tools.length).toBeGreaterThan(0);
 
       await close();
+    });
+  });
+
+  describe('protocol transport constraints and edge cases', () => {
+    it('returns 405 Method Not Allowed for GET on the MCP endpoint', async () => {
+      const session = await open(owner);
+
+      const response = await as(harness, owner).get(
+        `${base()}/${session.runId}/mcp`,
+      );
+
+      expect(response.status).toBe(405);
+      expect(response.headers['allow']).toBe('POST');
+      expect(response.body).toEqual({
+        jsonrpc: '2.0',
+        error: {
+          code: -32_000,
+          message: 'Method Not Allowed',
+        },
+        id: null,
+      });
+    });
+
+    it('returns 405 Method Not Allowed for DELETE on the MCP endpoint', async () => {
+      const session = await open(owner);
+
+      const response = await as(harness, owner).del(
+        `${base()}/${session.runId}/mcp`,
+      );
+
+      expect(response.status).toBe(405);
+      expect(response.headers['allow']).toBe('POST');
+      expect(response.body).toEqual({
+        jsonrpc: '2.0',
+        error: {
+          code: -32_000,
+          message: 'Method Not Allowed',
+        },
+        id: null,
+      });
+    });
+
+    it('does not shadow the application close route with the MCP 405 DELETE handler', async () => {
+      const session = await open(owner);
+
+      const response = await as(harness, owner).del(
+        `${base()}/${session.runId}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect((response.body as { data: unknown }).data).toMatchObject({
+        closedBy: 'client',
+      });
+    });
+
+    it('does not crash when the Host header is malformed', async () => {
+      const session = await open(owner);
+
+      const { client, close } = await clientFor(
+        owner,
+        session.runId,
+        organizationId,
+        { headers: { Host: '[bad' } },
+      );
+
+      const tools = await client.listTools();
+      expect(tools.tools.length).toBeGreaterThan(0);
+      await close();
+    });
+
+    it('refuses subscriptions/listen immediately with a 400 bad request', async () => {
+      const session = await open(owner);
+
+      const response = await as(harness, owner)
+        .post(`${base()}/${session.runId}/mcp`)
+        .send({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'subscriptions/listen',
+          params: {},
+        });
+
+      expect(response.status).toBe(400);
+      expect(errorBody(response).error?.details).toMatchObject({
+        reason: 'method_not_supported',
+      });
+    });
+
+    it('fails closed when receiving a legacy JSON-RPC batch', async () => {
+      const session = await open(owner);
+
+      const response = await as(harness, owner)
+        .post(`${base()}/${session.runId}/mcp`)
+        .send([
+          { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+          { jsonrpc: '2.0', id: 2, method: 'tools/list', params: {} },
+        ]);
+
+      expect([400, 200]).toContain(response.status);
+      const body = response.body as
+        { error?: { code: number } } | { error?: { code: number } }[];
+      if (Array.isArray(body)) {
+        expect(body[0]?.error).toBeDefined();
+      } else {
+        expect(body.error).toBeDefined();
+      }
+    });
+
+    it('refuses exchanges if the operator disables the agent after session acceptance', async () => {
+      const { user, runId } = await openSession();
+
+      await harness.prisma.organizationAgentVersion.updateMany({
+        where: { organizationId, installationId },
+        data: { enabled: false },
+      });
+
+      try {
+        const response = await as(harness, user)
+          .post(`${base()}/${runId}/mcp`)
+          .send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
+
+        expect(response.status).toBe(409);
+        expect(errorBody(response).error?.details).toMatchObject({
+          reason: 'session_agent_unavailable',
+        });
+      } finally {
+        await harness.prisma.organizationAgentVersion.updateMany({
+          where: { organizationId, installationId },
+          data: { enabled: true },
+        });
+      }
+    });
+
+    it('preserves pinned version and grants across subsequent installation changes', async () => {
+      const { user, runId } = await openSession();
+
+      const runBefore = await harness.prisma.agentRun.findUniqueOrThrow({
+        where: { id: runId },
+        select: { organizationAgentVersionId: true },
+      });
+
+      const newVersion = await harness.prisma.organizationAgentVersion.create({
+        data: {
+          organizationId,
+          installationId,
+          revision: 99,
+          definitionVersion: 1,
+          enabled: true,
+          toolGrants: [],
+          configuration: {},
+        },
+        select: { id: true },
+      });
+      await harness.prisma.organizationAgentInstallation.update({
+        where: { id: installationId },
+        data: { activeVersionId: newVersion.id },
+      });
+
+      try {
+        const runAfter = await harness.prisma.agentRun.findUniqueOrThrow({
+          where: { id: runId },
+          select: { organizationAgentVersionId: true },
+        });
+        expect(runAfter.organizationAgentVersionId).toBe(
+          runBefore.organizationAgentVersionId,
+        );
+
+        const { client, close } = await clientFor(user, runId);
+        const tools = await client.listTools();
+        expect(tools.tools.map((t) => t.name)).toContain('knowledge_search_v1');
+        await close();
+      } finally {
+        await harness.prisma.organizationAgentInstallation.update({
+          where: { id: installationId },
+          data: { activeVersionId: runBefore.organizationAgentVersionId },
+        });
+      }
     });
   });
 });

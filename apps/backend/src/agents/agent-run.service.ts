@@ -60,6 +60,12 @@ export type StaleAgentRun = {
    * Needed to tell a stranded worker run from an abandoned MCP session, which
    * are reconciled by opposite means: one is asked about over the transport,
    * the other has no transport record by design and is finalized on age.
+   *
+   * `organizationId` is loaded with them, which the selection comment above
+   * anticipates being avoided — it is here because closing a session is a
+   * tenant-scoped compare-and-set and the reconciler has no other way to name
+   * the tenant. It informs a write rather than a log line, and the pass's log
+   * keys are asserted so it cannot quietly become one.
    */
   runtime: string;
   createdAt: Date;
@@ -195,9 +201,9 @@ export class AgentRunService {
          *
          * The run's "runtime" is a client this process does not control, and
          * publishing a job for it would create a delivery the worker must
-         * refuse — `AgentRuntimeRegistry.resolve` cannot resolve
-         * `MCP_SESSION_RUNTIME` — which is a failure recorded against a
-         * healthy session.
+         * refuse — `AgentRunner` throws on the disagreement between the
+         * definition's runtime and the row's — which is a failure recorded
+         * against a healthy session.
          */
         if (!session) {
           await this.outbox.append(tx, {
@@ -466,7 +472,19 @@ export class AgentRunService {
         id: input.id,
         organizationId: input.organizationId,
         runtime: MCP_SESSION_RUNTIME,
-        status: 'RUNNING',
+        /**
+         * Every non-terminal status, not only `RUNNING`.
+         *
+         * Acceptance always writes `RUNNING` for a session, so `QUEUED` is
+         * unreachable from this code — but the reconciler selects its MCP
+         * branch on the runtime alone, so a `QUEUED` session row arriving from
+         * a data repair would be visited on every pass, closed by nothing, and
+         * left non-terminal forever. That is exactly the durable lie the branch
+         * exists to prevent, so the set it can close matches the set it is
+         * asked about. Terminal statuses stay excluded, which is what keeps
+         * client-close and expiry mutually exclusive.
+         */
+        status: { in: ['QUEUED', 'RUNNING'] },
       },
       data: {
         status: 'SUCCEEDED',

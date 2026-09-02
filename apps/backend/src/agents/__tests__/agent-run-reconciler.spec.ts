@@ -13,8 +13,8 @@ import type { agentsConfig } from '../../config';
 import type { QueueJobTransportState, QueueProducer } from '../../core/queue';
 import { AgentRunReconciler } from '../agent-run-reconciler.service';
 import type { AgentRunService, StaleRunCursor } from '../agent-run.service';
-import { MCP_SESSION_TTL_MS } from '../agent.types';
 import type { AgentRunStatus } from '../agent.types';
+import { MCP_SESSION_TTL_MS } from '../agent.types';
 
 /**
  * The recovery decisions, tested without a PostgreSQL, a Redis or a clock that
@@ -181,12 +181,13 @@ describe('AgentRunReconciler', () => {
       expect(pass).toEqual({
         abandoned: 0,
         expiredSessions: 0,
-        liveSessions: 0,
-        examined: 1,
         failed: 1,
+        liveSessions: 0,
         missing: 0,
         pending: 0,
+        racedSessions: 0,
         reconciled: 1,
+        examined: 1,
       });
     });
 
@@ -210,6 +211,7 @@ describe('AgentRunReconciler', () => {
         failed: 0,
         missing: 0,
         pending: 1,
+        racedSessions: 0,
         reconciled: 0,
       });
       expect(warn).not.toHaveBeenCalled();
@@ -239,6 +241,7 @@ describe('AgentRunReconciler', () => {
         failed: 0,
         missing: 1,
         pending: 0,
+        racedSessions: 0,
         reconciled: 0,
       });
       expect(warn).toHaveBeenCalledWith(
@@ -274,6 +277,7 @@ describe('AgentRunReconciler', () => {
         failed: 1,
         missing: 0,
         pending: 0,
+        racedSessions: 0,
         reconciled: 0,
       });
       expect(warn).not.toHaveBeenCalled();
@@ -328,6 +332,7 @@ describe('AgentRunReconciler', () => {
         failed: 2,
         missing: 1,
         pending: 1,
+        racedSessions: 0,
         reconciled: 2,
       });
       expect(reconcileTerminalFailure.mock.calls).toEqual([
@@ -368,12 +373,19 @@ describe('AgentRunReconciler', () => {
         failed: 0,
         missing: 0,
         pending: 1,
+        racedSessions: 0,
         reconciled: 0,
       });
       // The accounting still balances, which is the point of the counter.
-      expect(pass.pending + pass.failed + pass.missing + pass.abandoned).toBe(
-        pass.examined,
-      );
+      expect(
+        pass.pending +
+          pass.failed +
+          pass.missing +
+          pass.expiredSessions +
+          pass.liveSessions +
+          pass.racedSessions +
+          pass.abandoned,
+      ).toBe(pass.examined);
       expect(jobTransportState).toHaveBeenCalledTimes(1);
     });
 
@@ -390,6 +402,7 @@ describe('AgentRunReconciler', () => {
         failed: 0,
         missing: 0,
         pending: 0,
+        racedSessions: 0,
         reconciled: 0,
       });
       expect(jobTransportState).not.toHaveBeenCalled();
@@ -490,6 +503,7 @@ describe('AgentRunReconciler', () => {
         'missing',
         'pending',
         'previousStatus',
+        'racedSessions',
         'reason',
         'reconciled',
         'runId',
@@ -624,6 +638,7 @@ describe('AgentRunReconciler', () => {
         liveSessions: 0,
         missing: 0,
         pending: 0,
+        racedSessions: 0,
         reconciled: 0,
       });
     });
@@ -677,7 +692,26 @@ describe('AgentRunReconciler', () => {
       const pass = await reconciler.reconcileOnce();
 
       expect(closeMcpSession).toHaveBeenCalledTimes(1);
-      expect(pass).toMatchObject({ examined: 1, expiredSessions: 0 });
+      expect(pass).toEqual({
+        abandoned: 0,
+        examined: 1,
+        expiredSessions: 0,
+        failed: 0,
+        liveSessions: 0,
+        missing: 0,
+        pending: 0,
+        racedSessions: 1,
+        reconciled: 0,
+      });
+      expect(
+        pass.pending +
+          pass.failed +
+          pass.missing +
+          pass.expiredSessions +
+          pass.liveSessions +
+          pass.racedSessions +
+          pass.abandoned,
+      ).toBe(pass.examined);
     });
 
     /**
@@ -710,7 +744,17 @@ describe('AgentRunReconciler', () => {
         reconciled: 1,
         expiredSessions: 1,
         liveSessions: 1,
+        racedSessions: 0,
       });
+      expect(
+        pass.pending +
+          pass.failed +
+          pass.missing +
+          pass.expiredSessions +
+          pass.liveSessions +
+          pass.racedSessions +
+          pass.abandoned,
+      ).toBe(pass.examined);
     });
 
     it('never publishes a job on any path', async () => {
@@ -743,6 +787,7 @@ describe('AgentRunReconciler', () => {
         failed: 2,
         missing: 1,
         pending: 1,
+        racedSessions: 0,
         reconciled: 1,
       });
       expect(publish).not.toHaveBeenCalled();

@@ -166,9 +166,12 @@ describe('knowledge retrieval isolation', () => {
       embedding: QUERY,
     });
 
+    // Both spaces are passed so the space predicate alone cannot filter out
+    // the other organization's chunk. The organizationId predicate itself
+    // must be load-bearing.
     const results = await retrieval.search({
       organizationId: mine.organizationId,
-      spaceIds: [mine.spaceId],
+      spaceIds: [mine.spaceId, theirs.spaceId],
       embedding: QUERY,
       embeddingModel: MODEL,
       limit: 10,
@@ -189,7 +192,7 @@ describe('knowledge retrieval isolation', () => {
     // happens to be ordered favourably.
     const other = await retrieval.search({
       organizationId: theirs.organizationId,
-      spaceIds: [theirs.spaceId],
+      spaceIds: [mine.spaceId, theirs.spaceId],
       embedding: QUERY,
       embeddingModel: MODEL,
       limit: 10,

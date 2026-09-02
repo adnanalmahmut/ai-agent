@@ -28,6 +28,15 @@ export type ReconciliationPass = {
   /** Sessions seen while still inside their lifetime, and so left alone. */
   liveSessions: number;
   /**
+   * Expired sessions whose outcome somebody else had already written.
+   *
+   * Counted rather than ignored so that `pending + failed + missing +
+   * expiredSessions + liveSessions + racedSessions + abandoned` still accounts
+   * for every candidate the pass examined. A pass that silently drops a branch
+   * reads as lost work, which is the same reason `abandoned` exists.
+   */
+  racedSessions: number;
+  /**
    * Candidates the pass never reached because shutdown began.
    *
    * Reported rather than left implicit: without it `pending + failed + missing`
@@ -265,6 +274,7 @@ export class AgentRunReconciler {
       reconciled: 0,
       expiredSessions: 0,
       liveSessions: 0,
+      racedSessions: 0,
       abandoned: 0,
     };
 
@@ -316,8 +326,10 @@ export class AgentRunReconciler {
         });
 
         // False means the client closed it first, between the read above and
-        // this write. Its own outcome stands; there is nothing to correct.
+        // this write. Its own outcome stands; there is nothing to correct —
+        // but the candidate is still counted, so the pass adds up.
         if (closed) pass.expiredSessions += 1;
+        else pass.racedSessions += 1;
         this.advancePast(candidate);
         continue;
       }
