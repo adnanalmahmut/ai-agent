@@ -37,6 +37,18 @@ pages; cursors remain scoped to the same organization and space. Write controls
 are hidden from a reader holding only `knowledge:read`, which is UX — the guard
 behind the endpoints decides.
 
+An organization's Approvals tab is the human-approval surface for proposed
+agent actions. It lists proposals by decision state, shows what the agent wrote
+and the member it named — resolved by the server at read time, so a member who
+has since left is shown as gone rather than as a stale name — and offers approve
+and reject to a viewer whose membership role holds `agentActionApproval:decide`.
+That gate is UX; the guard behind the endpoints decides, and a 409 from a
+decision made by somebody else first is shown as exactly that. After approval
+the row keeps reporting the execution's state (queued, sent, not sent, outcome
+unknown) from the same read, so the screen never claims a message left before
+the worker recorded that it did. Nothing on the tab edits a proposal: a person
+decides on it as written.
+
 An organization's Content ideas tab asks the `content-idea@1` agent for ideas
 grounded in that organization's knowledge. Generation is asynchronous, so the
 screen shows the operation it was given — queued, then running, then either the

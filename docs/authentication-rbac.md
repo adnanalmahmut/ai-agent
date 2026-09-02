@@ -11,10 +11,11 @@ There are two deliberately separate access-control domains:
 | Domain | Roles | Authority |
 |---|---|---|
 | Platform | `user`, `admin`, `super_admin` | account/session administration and platform lifecycle |
-| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore, knowledge read/write, content-idea create/read, content-project create/read |
+| Organization | `member`, `admin`, `owner` | membership, invitations, organization update/archive/restore, knowledge read/write, content-idea create/read, content-project create/read, agent-action-approval read/decide |
 
-`knowledge`, `contentIdea`, and `contentProject` are the organization resources
-Better Auth knows nothing about, so they are added rather than narrowed. Reading
+`knowledge`, `contentIdea`, `contentProject`, and `agentActionApproval` are the
+organization resources Better Auth knows nothing about, so they are added rather
+than narrowed. Reading
 is ordinary membership — a member
 who cannot see the material cannot tell why an agent answered as it did — while
 writing belongs to `admin` and `owner`. `contentIdea` splits the same way and for the same
@@ -22,9 +23,12 @@ reason: creating spends the platform's provider credential, and reading does
 not. `contentProject` splits for a different one: creating spends nothing, but
 it commits the organization to a piece of work the whole team will see, and a
 member trusted to brainstorm is not automatically the person who decides what
-the team is doing.
+the team is doing. `agentActionApproval` splits the same way for the sharpest
+reason of the four: `decide` lets a message an agent wrote leave this system in
+the organization's name, so it belongs to `admin` and `owner`, while `read` —
+seeing what is waiting — is membership.
 
-All three are enforced by one shared guard that runs before body validation and
+All four are enforced by one shared guard that runs before body validation and
 authorizes against the organization named in the path, not the session's active
 one. One guard rather than one per feature — a second copy of that reasoning is
 a second place for it to be got subtly wrong.

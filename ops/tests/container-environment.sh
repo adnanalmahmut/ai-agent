@@ -97,6 +97,16 @@ assert_jq 'worker has no BETTER_AUTH_SECRET' '.services.worker.environment.BETTE
 assert_jq 'worker has no GOOGLE_CLIENT_SECRET' '.services.worker.environment.GOOGLE_CLIENT_SECRET == null'
 assert_jq 'worker has no SMTP_PASSWORD' '.services.worker.environment.SMTP_PASSWORD == null'
 assert_jq 'worker has no RATE_LIMIT_ENABLED' '.services.worker.environment.RATE_LIMIT_ENABLED == null'
+# The worker performs approved agent notifications through the mail driver, so
+# it receives the driver, sender and Resend key — and deliberately not the SMTP
+# or SES credentials, since those drivers cannot honour the idempotency
+# contract and the effect fails closed on them. `docs/docker-compose.md` states
+# this allowlist; asserted here so a widening or a removal is not silent.
+assert_jq 'worker gets MAIL_DRIVER' '.services.worker.environment.MAIL_DRIVER == "log"'
+assert_jq 'worker gets MAIL_FROM_ADDRESS' '.services.worker.environment.MAIL_FROM_ADDRESS == "no-reply@staging.invalid"'
+assert_jq 'worker has a RESEND_API_KEY slot' '.services.worker.environment | has("RESEND_API_KEY")'
+assert_jq 'worker has no SMTP_HOST' '.services.worker.environment.SMTP_HOST == null'
+assert_jq 'worker has no AWS_SECRET_ACCESS_KEY' '.services.worker.environment.AWS_SECRET_ACCESS_KEY == null'
 # The control-plane master key decrypts every stored provider credential. The
 # worker legitimately needs it — a background execution resolves the same
 # credentials the API does — but the migration process, web, and platform do

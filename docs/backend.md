@@ -167,12 +167,16 @@ rather than everything.
 An agent may also *call* something, through a code-owned tool registry rather
 than an SDK's. A `ToolDefinition` is identified by an exact `(id, version)`
 pair, carries Zod schemas on both sides, and declares a `read_only` or
-`side_effect` risk. Only `read_only` is executable: `side_effect` exists in the
-vocabulary so the gateway has something to refuse, because nothing in this build
-can yet make an external effect idempotent, revalidate a precondition, or ask a
-human. Composition fails loudly on a duplicate identity, an invalid version, a
-registered tool nothing declares, a declared tool nothing registers, and a
-registered tool with no implementation.
+`side_effect` risk. The risk selects the lifecycle: a read-only tool runs inline
+during the generation and its result goes back to the model; a side-effect tool
+never runs inline — the model may only *propose* it, and the effect happens in
+the worker after a human decision (see
+[Human approval and the idempotent side effect](#human-approval-and-the-idempotent-side-effect)).
+Composition fails loudly on a duplicate identity, an invalid version, a
+registered tool nothing declares, a declared tool nothing registers, a
+registered tool with no implementation, and a tool whose risk class and
+implementation shape disagree — a `side_effect` definition with an inline
+`execute` would be an effect the generation performs.
 
 Capability narrows in two steps. `AgentDefinition.maxToolGrants` is the most an
 immutable definition revision may ever call — a maximum, like `modelPolicy`, so
@@ -279,6 +283,88 @@ keeps it from mattering today is that this milestone's agent has no tools and
 no side effects. The fence is made unbreakable anyway, because an argument
 resting on there being nothing worth stealing stops holding the moment the
 agent gains a tool.
+
+### Human approval and the idempotent side effect
+
+`notification.send@1` (`runtimeName` `notification_send_v1`) is the one
+side-effecting tool, and the shape of everything around it is the point of the
+slice: one email to one member of the caller's own organization, proposed by the
+model and performed by nobody until an authorized person decides.
+
+The model supplies `{ recipientMemberId, subject, body }` and nothing else. The
+recipient is a *membership* id resolved against the run's organization — an
+address field would make the tool an exfiltration channel for anything the
+model has been shown — and the sender, provider, credential, time of sending,
+idempotency key, approver and execution id all come from application state.
+Subject and body are bounded (120 and 2,000 characters) because they become the
+message verbatim.
+
+**Proposal.** When the model calls the tool, `ToolGateway` parses the input,
+lets the implementation refuse a recipient who is not a deliverable member here
+(nothing durable is written for a refused call), and then records, in one
+transaction, a `ToolExecution` in `AWAITING_APPROVAL` and one
+`ToolExecutionApproval` in `PENDING` carrying a digest of the parsed input. The
+model is told `{ status: 'awaiting_approval' }` and no identifier. The run may
+finish; the execution's lifecycle continues without it.
+
+**Decision.** `agentActionApproval:read` is ordinary membership;
+`agentActionApproval:decide` belongs to `admin` and `owner`, enforced by the
+shared organization guard against the organization in the path. Approve and
+reject are compare-and-set transitions on two rows in one transaction — the
+approval leaves `PENDING`, the execution leaves `AWAITING_APPROVAL` — each
+requiring exactly one row to have moved. A second decider, a concurrent
+opposite decision, or a replay matches nothing and is refused with `CONFLICT`
+(`already_decided`); under READ COMMITTED the losing `UPDATE` waits for the
+winner to commit and re-evaluates its predicate. For an approval the
+`tool-execution.approved` outbox event (payload `{ toolExecutionId,
+organizationId }`, dedupe key the execution id) and the
+`agentActionApproval.approved` audit row are written in the same transaction,
+so "approved" and "queued to perform" are one fact. A rejection writes
+`REJECTED`, the audit row, and no event.
+
+**Revalidation, then the effect.** `SideEffectExecutionHandler` runs in the
+worker only and is handed two identifiers. It re-derives every fact from
+PostgreSQL: a terminal execution is a no-op, a non-approved one performs
+nothing, and before any provider call it checks that the organization is still
+operational, that the approval still stands and its digest still equals the
+digest of the stored input, that the run's pinned `OrganizationAgentVersion`
+and definition revision still grant exactly this tool, and — through the tool's
+own `prepareEffect` — that the recipient is still a member of this organization
+with a deliverable account. Any failure settles `FAILED` with a closed code
+(`precondition_organization`, `precondition_authority`,
+`precondition_approval`, `precondition_recipient`, `delivery_unsupported`) and
+sends nothing.
+
+**Idempotency.** The provider call carries the key
+`notification.send@1:<toolExecutionId>` — derived from durable identity, stored
+nowhere, identical on every retry. Resend keeps a key for 24 hours; inside that
+window the same key with the same payload replays the original response and
+email id without sending again, a changed payload is `409
+invalid_idempotent_request`, and a concurrent duplicate is `409
+concurrent_idempotent_requests`. The worker claims each attempt by
+compare-and-set on `effectAttemptCount`, so two deliveries of one action cannot
+both proceed; the first attempt records when it began and a digest of the
+effective payload (address, subject, text), and a later attempt whose payload
+differs or that arrives after the 20-hour safe window is settled
+`OUTCOME_UNKNOWN` without calling the provider. An `accepted` answer settles
+`SUCCEEDED` with the provider's message id; a deterministic refusal settles
+`FAILED` with `provider_rejected`; anything else retries with the same key
+through BullMQ's bounded attempts, and on the last attempt settles
+`OUTCOME_UNKNOWN`. That state exists because the alternative is a lie:
+`FAILED` claims nothing was sent, and a lost response cannot support that
+claim. Exactly-once is not asserted; at-least-once delivery with a provider
+that deduplicates on a stable key is what is asserted, and the guarantee ends
+where the provider's window does.
+
+The delivery port (`NOTIFICATION_DELIVERY`) is separate from `MailService`,
+whose fire-and-forget `dispatch` was designed for auth mail where a duplicate is
+tolerable. The Resend adapter passes the key and reads nothing from an error but
+its stable code and status, which select a classification; the `log` driver is
+trivially idempotent; SES and SMTP have no request-level key and answer
+`delivery_unsupported`, so the effect fails closed on them rather than sending
+once and hoping. Nothing from a provider response — code, prose, headers, the
+key — reaches the execution row, the audit row, a log line, the API, or the
+model transcript.
 
 The code-owned model catalog is the application's finite provider/model
 vocabulary. It currently contains only the two models real source paths use:

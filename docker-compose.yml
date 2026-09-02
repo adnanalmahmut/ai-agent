@@ -240,6 +240,16 @@ services:
       AGENT_RUN_RECONCILE_INTERVAL_MS: ${AGENT_RUN_RECONCILE_INTERVAL_MS:-60000}
       AGENT_RUN_RECONCILE_STALE_AFTER_MS: ${AGENT_RUN_RECONCILE_STALE_AFTER_MS:-120000}
       AGENT_RUN_RECONCILE_BATCH_SIZE: ${AGENT_RUN_RECONCILE_BATCH_SIZE:-50}
+      # The worker performs approved agent notifications through the same mail
+      # driver the API uses for auth mail, so it composes the same variables.
+      # The Resend key is the one credential it needs for that; SES and SMTP
+      # cannot honour the idempotency contract and the effect fails closed on
+      # them, so their variables are deliberately not passed.
+      MAIL_DRIVER: ${MAIL_DRIVER:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-API Service}
+      MAIL_TIMEOUT_MS: ${MAIL_TIMEOUT_MS:-10000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
     networks:
       - edge
       - data

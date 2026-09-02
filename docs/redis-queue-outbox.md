@@ -37,8 +37,9 @@ active organization-agent version and stores its immutable id; configuration
 and the resolved model-policy/model/price identities stay on `agent_run` and
 never enter the outbox or queue. The existing route publishes `execute` to
 `agent-execution`. `WorkerModule` registers the handlers —
-`AgentExecutionHandler` and `KnowledgeEmbeddingHandler`; `QueueModule` contains
-publication only, so the API composition root cannot consume jobs.
+`AgentExecutionHandler`, `KnowledgeEmbeddingHandler` and
+`SideEffectExecutionHandler`; `QueueModule` contains publication only, so the
+API composition root cannot consume jobs.
 
 Knowledge ingestion uses the same boundary. One transaction writes the document
 and its chunks and appends a `knowledge-document.ingested` event carrying only
@@ -50,6 +51,23 @@ it, leaving the new revision's chunks unembedded. Idempotency under redelivery
 is PostgreSQL-backed rather than key-based — the handler embeds only chunks
 that have no vector for the current model, so a duplicate delivery finds
 nothing to do.
+
+An approved side effect uses it a third time. Approving a proposal writes the
+approval decision, moves the `tool_execution` row to `APPROVED`, appends a
+`tool-execution.approved` event carrying only `{ toolExecutionId,
+organizationId }` with the execution id as dedupe key, and writes the audit row
+— one transaction, so "approved" and "queued to perform" cannot disagree. The
+event routes `deliver` to `tool-side-effect`, a queue of its own because a
+delivery is one short provider call with a strict idempotency contract rather
+than a long model call. `SideEffectExecutionHandler` is the consumer, and it is
+built for the redelivery this document promises: a terminal row is a no-op, a
+non-approved row performs nothing, each attempt is claimed by compare-and-set on
+`effectAttemptCount` so concurrent deliveries cannot both call the provider, and
+the provider call carries a key derived from the execution id so a retry inside
+the provider's 24-hour window replays rather than resends. When the transport's
+attempts are exhausted on an ambiguous answer the row is settled
+`OUTCOME_UNKNOWN`, not `FAILED`, and no later delivery sends. See
+[the backend document](backend.md#human-approval-and-the-idempotent-side-effect).
 
 The handler stores BullMQ's `attemptsStarted` active-start ordinal as the durable
 AgentRun `attemptCount` compare-and-set version. Unlike `attemptsMade`, that
@@ -87,12 +105,10 @@ pointer or a newer policy/catalog default. Automated retention of superseded
 versions is not implemented.
 
 A process can call a model and die before recording `SUCCEEDED`; the later
-attempt may call the model again. This is accepted for the current
-model-only/read-only slice, not presented as exactly-once execution. Durable
-tool-side-effect idempotency must be revisited before adding tools. There is
-still no public AgentRun endpoint or production agent definition; the first
-real agent feature will supply the authorized caller, definition, and provider
-configuration.
+attempt may call the model again. This is accepted for model calls and
+read-only tools, not presented as exactly-once execution. The one external side
+effect is different and is handled differently: it is never performed inside a
+run, and its delivery is keyed so a repeat is a replay — see above.
 
 ## Terminal transport reconciliation
 

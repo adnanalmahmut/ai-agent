@@ -103,10 +103,10 @@ The project is **feature complete** when all of the following hold:
 - [x] One real read-only tool
 - [x] Durable `ToolExecution` in PostgreSQL
 - [x] Tenant, grant, and schema enforcement
-- [ ] One safe idempotent side-effecting tool/action
-- [ ] Retry without duplicate external effect
-- [ ] One Human Approval flow
-- [ ] Preconditions revalidated before execution
+- [x] One safe idempotent side-effecting tool/action
+- [x] Retry without duplicate external effect
+- [x] One Human Approval flow
+- [x] Preconditions revalidated before execution
 - [ ] MCP adapter through the same application Tool Gateway
 - [ ] Lightweight execution visibility
 - [ ] One realistic integrated vertical slice
@@ -119,11 +119,13 @@ unless a new explicit human decision changes the goal.
 
 ## Bounded roadmap
 
-Four slices remain; TOOL-01 is delivered. PORT-PLAN-01 — the roadmap reset —
-was governance, not a technical capability, and is not counted among them.
+Three slices remain; TOOL-01 is delivered and ACT-01 is implemented on its
+branch. PORT-PLAN-01 — the roadmap reset — was governance, not a technical
+capability, and is not counted among them.
 
-Gate P1 is **not** met: it requires TOOL-01 and ACT-01 together, and nothing
-here proves a side effect, retry without duplication, or human approval.
+Gate P1 closes when ACT-01 is merged and delivered to Staging; the checked
+criteria above describe the code on the ACT-01 branch, not what `main` proves
+until that merge.
 
 ### TOOL-01 — Governed durable tool execution — **delivered**
 
@@ -132,11 +134,14 @@ organization grants subsetting definition maxima; `knowledge.search@1` as the
 first real read-only tool; durable `ToolExecution` records in PostgreSQL. See
 [the backend's governed tool execution section](backend.md).
 
-### ACT-01 — Human approval and idempotent side effect
+### ACT-01 — Human approval and idempotent side effect — **implemented, pending merge**
 
-One side-effecting action, and only one. Proposal lifecycle with human approval,
-preconditions revalidated immediately before execution, and durable idempotency
-proving retry causes no duplicate external effect.
+One side-effecting action, and only one: `notification.send@1`, proposal-only.
+A separate tenant-safe approval row, compare-and-set decisions committed with
+their audit and outbox rows, every mutable precondition re-read in the worker
+immediately before the provider call, a stable provider idempotency key derived
+from the execution, and an honest `OUTCOME_UNKNOWN` for a lost response. See
+[the backend's human-approval section](backend.md#human-approval-and-the-idempotent-side-effect).
 
 ### MCP-01 — MCP adapter over the Tool Gateway
 
