@@ -3,9 +3,9 @@
 Each child directory containing `SKILL.md` is a portable, on-demand procedure.
 This is the only repository skill source.
 
-Codex and Cursor discover this tree natively. Claude discovers per-skill
-symlinks under `.claude/skills/`; those links must resolve back here. Never copy
-a `SKILL.md` body into `.claude/`, `.codex/`, or `.cursor/`.
+Codex discovers this tree natively. Claude loads skills from here as
+configured in `CLAUDE.md` and referenced via `.claude/skills`. Never copy
+a `SKILL.md` body into `.claude/` or `.codex/`.
 
 Add a skill only for a reusable procedure with clear triggers and boundaries.
 Persistent project facts belong in docs/policies; specialized responsibility

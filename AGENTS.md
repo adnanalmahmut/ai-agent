@@ -15,7 +15,7 @@ the knowledge map. Source and executable configuration override prose.
   `apps/backend/prisma/schema.prisma`
 - Container topology: `docker-compose.yml`, `docker-bake.hcl`
 - Delivery behavior: `.github/workflows/`
-- Agent semantics: `.agents/`; `.claude/`, `.codex/`, and `.cursor/` are adapters
+- Agent semantics: `.agents/`; `.claude/` and `.codex/` are adapters
 - Reusable procedures: `.agents/skills/*/SKILL.md`
 
 ## Program mode

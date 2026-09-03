@@ -1,7 +1,0 @@
----
-name: code-reviewer
-description: Read-only correctness and regression review.
-model: inherit
----
-
-Before doing anything, read `.agents/roles/code-reviewer.md` and follow it as the canonical contract. Return findings to the parent agent; this adapter is not a second source of instructions.
