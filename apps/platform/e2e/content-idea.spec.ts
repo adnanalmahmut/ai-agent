@@ -210,6 +210,24 @@ async function stubApi(page: Page, options: Options = {}) {
  */
 const contentIdeasPath = `${PLATFORM_BASE_PATH}/en/organizations/${ORGANIZATION_ID}/content-ideas`;
 
+/**
+ * Wait for the first client effect as well as the document navigation.
+ *
+ * App Router can stream the form markup before React has attached its event
+ * handlers. Filling that inert markup is a race: hydration then restores the
+ * controlled inputs to their empty state and leaves the submit button disabled.
+ * The availability request is started by a mount effect, so observing its
+ * response is a stable signal that this screen is interactive.
+ */
+const gotoContentIdeas = async (page: Page) => {
+  await Promise.all([
+    page.waitForResponse((response) =>
+      new URL(response.url()).pathname.endsWith('/content-ideas/availability'),
+    ),
+    page.goto(contentIdeasPath),
+  ]);
+};
+
 const fillForm = async (page: Page) => {
   await page.getByLabel(/^topic$/i).fill('Electric kettles');
   await page.getByLabel(/^goal$/i).fill('Sell the autumn range');
@@ -227,7 +245,7 @@ test.describe('content ideas in a browser', () => {
       statuses: ['QUEUED', 'RUNNING', 'SUCCEEDED'],
     });
 
-    await page.goto(contentIdeasPath);
+    await gotoContentIdeas(page);
 
     // The route loads and the form is offered, which together prove the bundle
     // booted and the router's basename resolved.
@@ -276,7 +294,7 @@ test.describe('content ideas in a browser', () => {
   }) => {
     const api = await stubApi(page);
 
-    await page.goto(contentIdeasPath);
+    await gotoContentIdeas(page);
     await fillForm(page);
     await page.getByRole('button', { name: /generate ideas/i }).click();
 
@@ -303,7 +321,7 @@ test.describe('content ideas in a browser', () => {
   }) => {
     const api = await stubApi(page, { submitFailsWith: 1 });
 
-    await page.goto(contentIdeasPath);
+    await gotoContentIdeas(page);
     await fillForm(page);
     await page.getByRole('button', { name: /generate ideas/i }).click();
 
@@ -358,7 +376,7 @@ test.describe('content ideas in a browser', () => {
       availability: { available: false, reason: 'content_ideas_disabled' },
     });
 
-    await page.goto(contentIdeasPath);
+    await gotoContentIdeas(page);
 
     await expect(page.getByText(/switched content ideas off/i)).toBeVisible();
     await expect(
@@ -434,7 +452,7 @@ test.describe('content ideas in a browser', () => {
       },
     );
 
-    await page.goto(contentIdeasPath);
+    await gotoContentIdeas(page);
     await fillForm(page);
     await page.getByRole('button', { name: /generate ideas/i }).click();
 
