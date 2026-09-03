@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { Client } from 'pg';
 
-import { CONTENT_IDEA_AGENT_ID } from '../../src/agents';
-import { OrganizationAuditService } from '../../src/organization-audit';
+import { CONTENT_IDEA_AGENT_ID } from '../../src/features/agent-management';
+import { OrganizationAuditService } from '../../src/features/organizations/audit';
 import {
   as,
   createHarness,

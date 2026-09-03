@@ -66,7 +66,7 @@ as a runtime failure later.
 
 ## Two processes
 
-| | `src/main.ts` (API) | `src/worker.ts` (Worker) |
+| | `src/main.ts` (API) | `src/workers/main.ts` (Worker) |
 |---|---|---|
 | Serves | HTTP, on `APP_PORT` | nothing; no listener |
 | Reads work from | requests | `outbox_event`, then BullMQ |
@@ -207,7 +207,7 @@ that no logger injection can reach. Neither is on a path this adapter exercises
 today, which is why the test asserts on `console.*` rather than on the logger. Application types,
 durable state, retry decisions, and definition ownership remain outside the SDK
 boundary. A future real agent is registered by adding its minimal definition to
-`src/agents/definitions/index.ts`, then adding the authorized API and provider
+`src/features/content/ideas/agent-definitions/index.ts`, then adding the authorized API and provider
 configuration in that feature. The first one starts at version 1.
 
 Definitions are identified by the exact `(id, version)` pair, and a definition
@@ -380,7 +380,7 @@ requests, disconnect Redis and Prisma.
 
 **Worker** — stop the outbox dispatcher → mark not ready → stop claiming jobs
 and drain the active ones → close `QueueEvents` → close the producer →
-disconnect Redis and Prisma. The step list lives in `src/worker.shutdown.ts`, so
+disconnect Redis and Prisma. The step list lives in `src/workers/worker.shutdown.ts`, so
 the test can exercise the real sequence rather than a copy of it.
 
 There is **one** deadline, `APP_SHUTDOWN_TIMEOUT_MS`, and every bounded wait

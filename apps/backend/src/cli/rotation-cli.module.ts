@@ -2,9 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 
 import { rotationConfigurations } from '../infrastructure/config';
-import { ControlPlaneAuditService } from '../control-plane/audit/control-plane-audit.service';
-import { ManagedSecretKeyring } from '../control-plane/managed-secrets/managed-secret-keyring';
-import { ManagedSecretRotationService } from '../control-plane/managed-secrets/managed-secret-rotation.service';
+import { ControlPlaneAuditService } from '../features/control-plane/audit/control-plane-audit.service';
+import { ManagedSecretKeyring } from '../features/control-plane/managed-secrets/managed-secret-keyring';
+import { ManagedSecretRotationService } from '../features/control-plane/managed-secrets/managed-secret-rotation.service';
 import { DatabaseModule } from '../infrastructure/database';
 
 /**

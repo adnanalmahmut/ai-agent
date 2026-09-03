@@ -1,4 +1,4 @@
-import type { ManagedSecretRotationService } from '../control-plane/managed-secrets/managed-secret-rotation.service';
+import type { ManagedSecretRotationService } from '../features/control-plane/managed-secrets/managed-secret-rotation.service';
 import { ROTATE_USAGE, runRotateKey } from './rotate-key.command';
 import type { SuperAdminBootstrap } from './super-admin.bootstrap';
 import type { CommandIo } from './super-admin.command';

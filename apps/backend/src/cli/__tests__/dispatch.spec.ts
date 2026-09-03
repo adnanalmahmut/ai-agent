@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type {
   RotationOptions,
   RotationReport,
-} from '../../control-plane/managed-secrets/managed-secret-rotation.service';
+} from '../../features/control-plane/managed-secrets/managed-secret-rotation.service';
 import { CLI_USAGE, dispatchCliCommand } from '../dispatch';
 import { ROTATE_USAGE } from '../rotate-key.command';
 import type {

@@ -10,11 +10,11 @@ import {
 import { Test } from '@nestjs/testing';
 
 import { RotationCliModule } from '../../src/cli/rotation-cli.module';
-import { ControlPlaneAuditService } from '../../src/control-plane/audit/control-plane-audit.service';
+import { ControlPlaneAuditService } from '../../src/features/control-plane/audit/control-plane-audit.service';
 import encryptionConfig from '../../src/infrastructure/config/encryption.config';
-import { ManagedSecretKeyring } from '../../src/control-plane/managed-secrets/managed-secret-keyring';
-import { ManagedSecretRotationService } from '../../src/control-plane/managed-secrets/managed-secret-rotation.service';
-import { sealSecret } from '../../src/control-plane/managed-secrets/secret-cipher';
+import { ManagedSecretKeyring } from '../../src/features/control-plane/managed-secrets/managed-secret-keyring';
+import { ManagedSecretRotationService } from '../../src/features/control-plane/managed-secrets/managed-secret-rotation.service';
+import { sealSecret } from '../../src/features/control-plane/managed-secrets/secret-cipher';
 import { PrismaService } from '../../src/infrastructure/database';
 
 /**

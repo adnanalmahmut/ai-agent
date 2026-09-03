@@ -37,7 +37,7 @@ mutable row cannot promise that: editing it silently changes the meaning of work
 that was already accepted. Changing behavior publishes a new version.
 
 Between those, a setting qualifies as dynamic only if it is registered in
-`apps/backend/src/control-plane/runtime-settings/runtime-setting.registry.ts`
+`apps/backend/src/features/control-plane/runtime-settings/runtime-setting.registry.ts`
 with a Zod schema, a default, a sensitivity, and — for anything numeric —
 bounds. An unregistered key cannot be written, so the Platform cannot create a
 setting nothing reads, and a value outside its bounds is refused rather than

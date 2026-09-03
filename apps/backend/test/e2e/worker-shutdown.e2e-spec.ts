@@ -27,7 +27,7 @@ import {
 import {
   workerShutdownSteps,
   type WorkerShutdownDeps,
-} from '../../src/worker.shutdown';
+} from '../../src/workers/worker.shutdown';
 
 /**
  * The worker's drain under the two failures that actually compete for the

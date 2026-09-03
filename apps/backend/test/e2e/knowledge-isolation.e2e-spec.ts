@@ -11,7 +11,7 @@ import {
   EMBEDDING_DIMENSIONS,
   KnowledgeRetrievalService,
   KnowledgeWriterService,
-} from '../../src/knowledge';
+} from '../../src/features/knowledge';
 import { createHarness, type Harness } from '../support/auth-harness';
 
 /**

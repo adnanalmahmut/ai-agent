@@ -6,7 +6,7 @@ import { dispatchCliCommand } from './cli/dispatch';
 import { RotationCliModule } from './cli/rotation-cli.module';
 import { SuperAdminBootstrap } from './cli/super-admin.bootstrap';
 import { EXIT } from './cli/super-admin.command';
-import { ManagedSecretRotationService } from './control-plane/managed-secrets/managed-secret-rotation.service';
+import { ManagedSecretRotationService } from './features/control-plane/managed-secrets/managed-secret-rotation.service';
 
 /**
  * The operator CLI.
