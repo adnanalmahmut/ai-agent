@@ -10,7 +10,7 @@ import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
 import { AppException } from '../../../core/errors';
-import type { PrismaService } from '../../../database';
+import type { PrismaService } from '../../../infrastructure/database';
 import { Prisma } from '../../../generated/prisma/client';
 import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
 import type { RuntimeSettingKey } from '../runtime-setting.registry';

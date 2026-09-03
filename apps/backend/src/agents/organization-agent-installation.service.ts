@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { ZodError } from 'zod';
 
 import { AppException } from '../core/errors';
-import { PrismaService } from '../database';
+import { PrismaService } from '../infrastructure/database';
 import { Prisma } from '../generated/prisma/client';
 import { isAgentConfigurationError } from './agent-configuration.error';
 import { AgentDefinitionRegistry } from './agent-definition.registry';

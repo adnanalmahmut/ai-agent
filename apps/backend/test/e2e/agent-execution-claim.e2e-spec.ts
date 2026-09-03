@@ -8,8 +8,8 @@ import {
 } from '@jest/globals';
 
 import { AgentRunService, type CreateAgentRun } from '../../src/agents';
-import { OutboxRepository } from '../../src/core/outbox';
-import { PrismaService } from '../../src/database';
+import { OutboxRepository } from '../../src/infrastructure/outbox';
+import { PrismaService } from '../../src/infrastructure/database';
 import {
   cleanTestAgentInstallations,
   installTestAgent,

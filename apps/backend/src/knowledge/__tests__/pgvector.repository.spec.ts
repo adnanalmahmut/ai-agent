@@ -2,7 +2,7 @@ import { describe, expect, it } from '@jest/globals';
 
 import { PgVectorKnowledgeRepository } from '../adapters/pgvector.repository';
 import { EMBEDDING_DIMENSIONS } from '../knowledge.types';
-import type { PrismaService } from '../../database';
+import type { PrismaService } from '../../infrastructure/database';
 
 /**
  * The guards that run before the database does.

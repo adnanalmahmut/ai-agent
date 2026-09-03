@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { AgentsModule } from '../agents';
-import { OrganizationAccessModule } from '../core/auth';
+import { OrganizationAccessModule } from '../infrastructure/auth';
 import { ControlPlaneCoreModule } from '../control-plane';
 import { ContentIdeaController } from './content-idea.controller';
 import { ContentIdeaService } from './content-idea.service';

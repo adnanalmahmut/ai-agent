@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 
-import { OrganizationAccessModule } from '../core/auth/organization-access.module';
-import { DatabaseModule } from '../database';
+import { OrganizationAccessModule } from '../infrastructure/auth/organization-access.module';
+import { DatabaseModule } from '../infrastructure/database';
 import { AgentDefinitionsModule } from './agent-definitions.module';
 import { OrganizationAgentInstallationController } from './organization-agent-installation.controller';
 import { OrganizationAgentInstallationService } from './organization-agent-installation.service';

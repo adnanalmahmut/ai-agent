@@ -13,9 +13,9 @@ import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
-} from '../../core/auth';
-import { createZodDto } from '../../core/http';
-import { UserRateLimit } from '../../core/rate-limit';
+} from '../../infrastructure/auth';
+import { createZodDto } from '../../infrastructure/http';
+import { UserRateLimit } from '../../infrastructure/rate-limit';
 import { AgentActionApprovalService } from './agent-action-approval.service';
 import {
   agentActionApprovalQuery,

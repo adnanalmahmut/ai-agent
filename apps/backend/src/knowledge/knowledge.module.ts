@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
 
-import { OrganizationAccessModule } from '../core/auth/organization-access.module';
+import { OrganizationAccessModule } from '../infrastructure/auth/organization-access.module';
 import { ControlPlaneCoreModule } from '../control-plane';
-import { OutboxPersistenceModule } from '../core/outbox';
-import { DatabaseModule } from '../database';
+import { OutboxPersistenceModule } from '../infrastructure/outbox';
+import { DatabaseModule } from '../infrastructure/database';
 import { OpenAiEmbeddingAdapter } from './adapters/openai-embedding.adapter';
 import { PgVectorKnowledgeRepository } from './adapters/pgvector.repository';
 import { KnowledgeController } from './knowledge.controller';

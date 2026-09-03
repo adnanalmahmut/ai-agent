@@ -12,13 +12,16 @@ import { AgentRunService, type CreateAgentRun } from '../../src/agents';
 import { AgentConfigurationError } from '../../src/agents/agent-configuration.error';
 import type { AgentRuntime } from '../../src/agents/agent-runtime';
 import { AgentRunner } from '../../src/agents/agent-runner.service';
-import { OUTBOX_EVENT_ROUTES, OutboxRepository } from '../../src/core/outbox';
+import {
+  OUTBOX_EVENT_ROUTES,
+  OutboxRepository,
+} from '../../src/infrastructure/outbox';
 import type {
   NewOutboxEvent,
   OutboxWriter,
-} from '../../src/core/outbox/outbox.repository';
-import { QUEUE_NAMES } from '../../src/core/queue';
-import { PrismaService } from '../../src/database';
+} from '../../src/infrastructure/outbox/outbox.repository';
+import { QUEUE_NAMES } from '../../src/infrastructure/queue';
+import { PrismaService } from '../../src/infrastructure/database';
 import {
   APPLICATION_MODEL_CATALOG,
   MODEL_IDS,

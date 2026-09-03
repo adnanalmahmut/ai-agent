@@ -12,7 +12,7 @@ import { Test } from '@nestjs/testing';
 
 import { Readable, Writable } from 'node:stream';
 
-import { databaseConfig } from '../../src/config';
+import { databaseConfig } from '../../src/infrastructure/config';
 import type {
   AdminUserApi,
   PasswordPolicy,
@@ -23,7 +23,7 @@ import { dispatchCliCommand } from '../../src/cli/dispatch';
 import type { BootstrapOutcome } from '../../src/cli/super-admin.bootstrap';
 import { SuperAdminBootstrap } from '../../src/cli/super-admin.bootstrap';
 import { EXIT, type CommandIo } from '../../src/cli/super-admin.command';
-import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
+import { MAIL_TRANSPORT } from '../../src/infrastructure/mail/mail-transport';
 import {
   as,
   CapturingTransport,

@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import type { AuthService } from '@thallesp/nestjs-better-auth';
 
-import type { AppAuth } from '../../core/auth';
+import type { AppAuth } from '../../infrastructure/auth';
 import { resolveAdminUserApi, resolvePasswordPolicy } from '../admin-user-api';
 
 /**

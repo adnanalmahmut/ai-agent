@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../database';
+import { PrismaService } from '../infrastructure/database';
 import { assertUsableVector } from './adapters/pgvector.repository';
 import type { EmbeddingVector } from './knowledge.types';
 

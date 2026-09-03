@@ -2,8 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { PinoLogger } from 'nestjs-pino';
 
-import { agentsConfig } from '../config';
-import { QUEUE_NAMES, QueueProducer } from '../core/queue';
+import { agentsConfig } from '../infrastructure/config';
+import { QUEUE_NAMES, QueueProducer } from '../infrastructure/queue';
 import { AgentRunService, type StaleRunCursor } from './agent-run.service';
 import { isMcpSessionExpired, MCP_SESSION_RUNTIME } from './agent.types';
 

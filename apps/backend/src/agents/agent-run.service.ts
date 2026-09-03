@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
 import { Prisma } from '../generated/prisma/client';
-import { PrismaService } from '../database';
+import { PrismaService } from '../infrastructure/database';
 import { AppException } from '../core/errors';
-import { OutboxRepository } from '../core/outbox';
+import { OutboxRepository } from '../infrastructure/outbox';
 import {
   APPLICATION_MODEL_CATALOG,
   type AgentModelId,

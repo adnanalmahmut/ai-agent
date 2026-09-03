@@ -9,9 +9,9 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 
-import type { encryptionConfig } from '../../../config';
+import type { encryptionConfig } from '../../../infrastructure/config';
 import { AppException } from '../../../core/errors';
-import type { PrismaService } from '../../../database';
+import type { PrismaService } from '../../../infrastructure/database';
 import { Prisma } from '../../../generated/prisma/client';
 import { ControlPlaneAuditService } from '../../audit/control-plane-audit.service';
 import {

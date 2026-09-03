@@ -35,7 +35,7 @@ import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
-} from '../../src/core/mail/notification-delivery';
+} from '../../src/infrastructure/mail/notification-delivery';
 import {
   EMBEDDING_DIMENSIONS,
   KnowledgeWriterService,

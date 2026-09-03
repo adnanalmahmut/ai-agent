@@ -6,8 +6,8 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 
 import { AppModule } from '../../src/app.module';
-import { setupOpenApi } from '../../src/core/docs';
-import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
+import { setupOpenApi } from '../../src/infrastructure/docs';
+import { MAIL_TRANSPORT } from '../../src/infrastructure/mail/mail-transport';
 import { CapturingTransport } from '../support/auth-harness';
 
 /**

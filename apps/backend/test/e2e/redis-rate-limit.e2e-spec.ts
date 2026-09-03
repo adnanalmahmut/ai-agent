@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
-import { RateLimiterPort } from '../../src/core/rate-limit';
+import { RateLimiterPort } from '../../src/infrastructure/rate-limit';
 import { createHarness, type Harness } from '../support/auth-harness';
 
 describe('Redis exact sliding-window limiter', () => {

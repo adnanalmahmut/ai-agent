@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { AppException } from '../../core/errors';
-import { PrismaService } from '../../database';
+import { PrismaService } from '../../infrastructure/database';
 import {
   ControlPlaneAuditService,
   type ControlPlaneAuditState,

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { AgentDefinitionRegistry } from '../../agent-definition.registry';
 import type { AgentDefinition } from '../../agent.types';
 import { MODEL_IDS } from '../../../model-catalog/model-catalog';
-import type { ExternalEffectOutcome } from '../../../core/mail/notification-delivery';
+import type { ExternalEffectOutcome } from '../../../infrastructure/mail/notification-delivery';
 import { digestValue } from '../digest';
 import {
   EFFECT_RETRY_WINDOW_MS,

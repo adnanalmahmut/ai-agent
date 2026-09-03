@@ -6,19 +6,22 @@ import request, { type Response } from 'supertest';
 import type { App } from 'supertest/types';
 
 import { AppModule } from '../../src/app.module';
-import { httpConfig } from '../../src/config';
-import { GeoIpService, type GeoIpLocation } from '../../src/core/geoip';
-import { configureTrustedProxy } from '../../src/core/http';
+import { httpConfig } from '../../src/infrastructure/config';
+import {
+  GeoIpService,
+  type GeoIpLocation,
+} from '../../src/infrastructure/geoip';
+import { configureTrustedProxy } from '../../src/infrastructure/http';
 import { AGENT_DEFINITIONS } from '../../src/agents/agent-definition.registry';
 import type { AgentDefinition } from '../../src/agents/agent.types';
 import { EMBEDDING_PORT } from '../../src/knowledge';
-import { MAIL_TRANSPORT } from '../../src/core/mail/mail-transport';
-import type { MailTransport } from '../../src/core/mail/mail-transport';
+import { MAIL_TRANSPORT } from '../../src/infrastructure/mail/mail-transport';
+import type { MailTransport } from '../../src/infrastructure/mail/mail-transport';
 import type {
   MailDeliveryResult,
   OutboundMail,
-} from '../../src/core/mail/mail.types';
-import { PrismaService } from '../../src/database';
+} from '../../src/infrastructure/mail/mail.types';
+import { PrismaService } from '../../src/infrastructure/database';
 
 /**
  * Shared boot for the authorization e2e suites.

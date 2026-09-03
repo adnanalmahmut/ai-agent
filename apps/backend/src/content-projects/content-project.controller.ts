@@ -15,10 +15,10 @@ import { z } from 'zod';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
-} from '../core/auth';
+} from '../infrastructure/auth';
 import { AppException } from '../core/errors';
-import { createZodDto } from '../core/http';
-import { UserRateLimit } from '../core/rate-limit';
+import { createZodDto } from '../infrastructure/http';
+import { UserRateLimit } from '../infrastructure/rate-limit';
 import {
   contentProjectFromIdeaInput,
   ContentProjectService,

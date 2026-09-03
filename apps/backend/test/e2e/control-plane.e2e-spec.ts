@@ -8,7 +8,7 @@ import {
 } from '@jest/globals';
 import request from 'supertest';
 
-import encryptionConfig from '../../src/config/encryption.config';
+import encryptionConfig from '../../src/infrastructure/config/encryption.config';
 import { FEATURE_FLAG_KEYS } from '../../src/control-plane';
 import { ControlPlaneController } from '../../src/control-plane/control-plane.controller';
 import { ManagedSecretKeyring } from '../../src/control-plane/managed-secrets/managed-secret-keyring';

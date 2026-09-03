@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 
-import { authConfig } from '../../config';
+import { authConfig } from '../../infrastructure/config';
 import { RuntimeConfigResolver } from '../../control-plane';
 import { AppException } from '../../core/errors';
 import { AgentConfigurationError } from '../agent-configuration.error';

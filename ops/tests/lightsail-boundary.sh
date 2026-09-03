@@ -146,7 +146,7 @@ if grep -Eq 'ghcr\.io/.+:\$sha' ops/lightsail/ai-agent-deploy; then
   echo 'deployment must not resolve a mutable SHA tag' >&2
   exit 1
 fi
-grep -Fq 'storage: '\''database'\''' apps/backend/src/core/auth/auth.factory.ts
+grep -Fq 'storage: '\''database'\''' apps/backend/src/infrastructure/auth/auth.factory.ts
 
 for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune.*--volumes' 'eval .*SSH_ORIGINAL_COMMAND'; do
   if grep -ER "$forbidden" ops/lightsail >/dev/null; then

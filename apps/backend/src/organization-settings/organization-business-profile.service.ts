@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
-import { PrismaService } from '../database';
+import { PrismaService } from '../infrastructure/database';
 import { Prisma } from '../generated/prisma/client';
 import { AppException } from '../core/errors';
 import { OrganizationAuditService } from '../organization-audit';

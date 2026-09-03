@@ -18,10 +18,10 @@ import { z } from 'zod';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
-} from '../../core/auth';
+} from '../../infrastructure/auth';
 import { AppException } from '../../core/errors';
-import { createZodDto, RawResponse } from '../../core/http';
-import { UserRateLimit } from '../../core/rate-limit';
+import { createZodDto, RawResponse } from '../../infrastructure/http';
+import { UserRateLimit } from '../../infrastructure/rate-limit';
 import { McpSessionService } from './mcp-session.service';
 import { openMcpSessionInput } from './mcp-session.types';
 

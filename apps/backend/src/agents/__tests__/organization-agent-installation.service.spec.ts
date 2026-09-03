@@ -1,7 +1,7 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { z } from 'zod';
 
-import type { PrismaService } from '../../database';
+import type { PrismaService } from '../../infrastructure/database';
 import { Prisma } from '../../generated/prisma/client';
 import { MODEL_IDS } from '../../model-catalog/model-catalog';
 import { AgentDefinitionRegistry } from '../agent-definition.registry';

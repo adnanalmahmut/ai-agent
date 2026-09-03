@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 
 import { AgentsModule } from '../agents';
-import { OrganizationAccessModule } from '../core/auth';
-import { DatabaseModule } from '../database';
+import { OrganizationAccessModule } from '../infrastructure/auth';
+import { DatabaseModule } from '../infrastructure/database';
 import { OrganizationAuditModule } from '../organization-audit';
 import { ContentProjectController } from './content-project.controller';
 import { ContentProjectService } from './content-project.service';

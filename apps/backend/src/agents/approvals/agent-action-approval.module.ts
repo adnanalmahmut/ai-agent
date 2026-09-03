@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 
-import { OrganizationAccessModule } from '../../core/auth/organization-access.module';
-import { OutboxPersistenceModule } from '../../core/outbox';
-import { DatabaseModule } from '../../database';
+import { OrganizationAccessModule } from '../../infrastructure/auth/organization-access.module';
+import { OutboxPersistenceModule } from '../../infrastructure/outbox';
+import { DatabaseModule } from '../../infrastructure/database';
 import { OrganizationAuditModule } from '../../organization-audit';
 import { AgentActionApprovalController } from './agent-action-approval.controller';
 import { AgentActionApprovalService } from './agent-action-approval.service';

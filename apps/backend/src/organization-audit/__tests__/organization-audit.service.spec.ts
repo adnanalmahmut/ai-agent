@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 
-import type { PrismaService } from '../../database';
+import type { PrismaService } from '../../infrastructure/database';
 import { Prisma } from '../../generated/prisma/client';
 import type { OrganizationBusinessProfile } from '../../organization-settings';
 import {

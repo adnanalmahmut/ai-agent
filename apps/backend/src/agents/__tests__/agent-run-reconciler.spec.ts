@@ -9,8 +9,11 @@ import {
 import type { ConfigType } from '@nestjs/config';
 import type { PinoLogger } from 'nestjs-pino';
 
-import type { agentsConfig } from '../../config';
-import type { QueueJobTransportState, QueueProducer } from '../../core/queue';
+import type { agentsConfig } from '../../infrastructure/config';
+import type {
+  QueueJobTransportState,
+  QueueProducer,
+} from '../../infrastructure/queue';
 import { AgentRunReconciler } from '../agent-run-reconciler.service';
 import type { AgentRunService, StaleRunCursor } from '../agent-run.service';
 import type { AgentRunStatus } from '../agent.types';

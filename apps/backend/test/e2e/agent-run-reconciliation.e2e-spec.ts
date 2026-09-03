@@ -18,9 +18,9 @@ import {
 } from '../../src/agents/agent-execution.handler';
 import { AgentRunReconciler } from '../../src/agents/agent-run-reconciler.service';
 import type { AgentRunner } from '../../src/agents/agent-runner.service';
-import { OutboxRepository } from '../../src/core/outbox';
-import { QueueProducer, QUEUE_NAMES } from '../../src/core/queue';
-import { PrismaService } from '../../src/database';
+import { OutboxRepository } from '../../src/infrastructure/outbox';
+import { QueueProducer, QUEUE_NAMES } from '../../src/infrastructure/queue';
+import { PrismaService } from '../../src/infrastructure/database';
 import {
   cleanTestAgentInstallations,
   installTestAgent,

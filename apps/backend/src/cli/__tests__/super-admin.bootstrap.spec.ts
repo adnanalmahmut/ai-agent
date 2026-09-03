@@ -8,8 +8,8 @@ import {
 } from '@jest/globals';
 import type { ConfigType } from '@nestjs/config';
 
-import type { databaseConfig } from '../../config';
-import type { PrismaService } from '../../database';
+import type { databaseConfig } from '../../infrastructure/config';
+import type { PrismaService } from '../../infrastructure/database';
 import type { AdminUserApi, PasswordPolicy } from '../admin-user-api';
 import type { BootstrapLock } from '../bootstrap-lock';
 

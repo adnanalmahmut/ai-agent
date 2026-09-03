@@ -11,14 +11,14 @@ import {
 import { Queue } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 
-import { PrismaService } from '../../src/database';
+import { PrismaService } from '../../src/infrastructure/database';
 import {
   OutboxDispatcher,
   OutboxRepository,
   ROUTABLE_EVENT_TYPES,
   type ClaimedOutboxEvent,
-} from '../../src/core/outbox';
-import { QueueProducer, QUEUE_NAMES } from '../../src/core/queue';
+} from '../../src/infrastructure/outbox';
+import { QueueProducer, QUEUE_NAMES } from '../../src/infrastructure/queue';
 
 /**
  * The outbox against a real PostgreSQL and a real Redis.

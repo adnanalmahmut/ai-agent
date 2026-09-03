@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 
-import { encryptionConfig } from '../../config';
+import { encryptionConfig } from '../../infrastructure/config';
 import type { ManagedSecretKey } from './managed-secret.registry';
 import {
   SECRET_ALGORITHM,

@@ -2,9 +2,9 @@ import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
 import { RuntimeConfigResolver } from '../control-plane';
-import { OutboxRepository } from '../core/outbox';
+import { OutboxRepository } from '../infrastructure/outbox';
 import { AppException } from '../core/errors';
-import { PrismaService } from '../database';
+import { PrismaService } from '../infrastructure/database';
 import { chunkDocument } from './chunking';
 import { isUniqueConstraintViolation } from './prisma-errors';
 import { KNOWLEDGE_DOCUMENT_INGESTED } from './knowledge.events';

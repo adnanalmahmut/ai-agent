@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import { AppException } from '../../core/errors';
-import { OutboxRepository } from '../../core/outbox';
-import { PrismaService } from '../../database';
+import { OutboxRepository } from '../../infrastructure/outbox';
+import { PrismaService } from '../../infrastructure/database';
 import type { Prisma } from '../../generated/prisma/client';
 import { OrganizationAuditService } from '../../organization-audit';
 import { notificationSendInput } from '../tools/definitions/notification-send';
