@@ -2,16 +2,6 @@ import { Button } from '@repo/ui';
 import { Loader2 } from 'lucide-react';
 import { useTranslations } from 'use-intl';
 
-/**
- * Google's "G".
- *
- * The only hard-coded colours in this feature, and deliberately so: these are
- * a trademark, not a theme. Replacing them with design tokens would produce a
- * mark Google's brand terms do not permit and that users would no longer
- * recognise at a glance. It is `aria-hidden` because the button already has a
- * translated accessible name — announcing "Google logo, Continue with Google"
- * is noise.
- */
 function GoogleIcon() {
   return (
     <svg viewBox="0 0 18 18" className="size-4" aria-hidden focusable="false">
@@ -35,17 +25,6 @@ function GoogleIcon() {
   );
 }
 
-/**
- * Starts the Google flow.
- *
- * A `<button>`, not a link: the destination is an authorization URL the
- * backend mints per attempt — with `state` and a PKCE challenge — so there is
- * nothing to put in an `href` ahead of time.
- *
- * It stays disabled after a successful click. The page is on its way to
- * Google, and re-enabling it would invite a second click that starts a second
- * flow and discards the first one's `state`.
- */
 export function GoogleAuthButton({
   onStart,
   isPending,

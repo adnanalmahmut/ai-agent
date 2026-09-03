@@ -17,25 +17,6 @@ import type {
 } from '../../../../../src/features/control-plane/feature-flags/feature-flag.registry';
 import type { FeatureFlagSource } from '../../../../../src/features/control-plane/feature-flags/feature-flag.service';
 
-/**
- * The precedence rule, stated once in the service and checked exhaustively
- * here.
- *
- * ## Why the registry is replaced
- *
- * Every flag the application actually ships defaults to `false` and is
- * organization-overridable, so the real registry cannot express two of the
- * behaviours this service is responsible for: resolving to a default of
- * `true`, and refusing an organization override on a flag that is not scoped
- * that way. A spec bound to the shipped registry would pass with
- * `enabled: false` hardcoded into the default branch and with the scope guard
- * deleted. A synthetic registry makes both observable.
- *
- * What is deliberately not asserted here is the content of the real registry —
- * which flags exist and what they default to is a product decision, and pinning
- * it in this file would make every future flag a test edit.
- */
-
 type SpecFlag = 'spec.default_on' | 'spec.default_off' | 'spec.platform_only';
 
 const SPEC_FLAGS: Record<SpecFlag, FeatureFlagDefinition> = {
@@ -75,7 +56,6 @@ beforeAll(async () => {
     await import('../../../../../src/features/control-plane/feature-flags/feature-flag.service'));
 });
 
-/** The synthetic keys are not members of the shipped union; say so once. */
 const flag = (key: SpecFlag) => key as unknown as FeatureFlagKey;
 
 const ORGANIZATION_ID = 'org-spec-1';
@@ -95,17 +75,9 @@ describe('FeatureFlagService', () => {
   const organizationDeleteMany =
     jest.fn<(args: unknown) => Promise<{ count: number }>>();
 
-  /** Present so an organization-addressed call can be refused when it is absent. */
   const organizationRecordFindUnique =
     jest.fn<(args: unknown) => Promise<{ id: string } | null>>();
 
-  /**
-   * The audit write, captured rather than stubbed away.
-   *
-   * The real `ControlPlaneAuditService` is constructed over this fake, so what
-   * these tests observe is the projection the service actually builds — not a
-   * double's idea of it.
-   */
   const auditCreate = jest.fn<(args: unknown) => Promise<unknown>>();
 
   const prisma = {
@@ -121,14 +93,6 @@ describe('FeatureFlagService', () => {
     },
     organization: { findUnique: organizationRecordFindUnique },
     controlPlaneAuditEvent: { create: auditCreate },
-    /**
-     * The same client, handed back as the transaction client.
-     *
-     * These are unit tests over a fake, so there is no real transaction to
-     * open; what matters for them is that the service performs its
-     * read-before-write and its audit write against one client. That the two
-     * genuinely commit together is an e2e assertion, against PostgreSQL.
-     */
     $transaction: (work: (tx: unknown) => Promise<unknown>) => work(prisma),
   } as unknown as PrismaService;
 
@@ -155,15 +119,6 @@ describe('FeatureFlagService', () => {
     );
   });
 
-  /**
-   * Every combination of the three tiers, written out rather than computed.
-   *
-   * A table whose expectation was derived with `org ?? platform ?? default`
-   * would restate the implementation and agree with it however it changed.
-   * These 18 rows are the rule as a human would describe it, and the four that
-   * matter most — an organization override that disagrees with the platform in
-   * either direction — are the ones an inverted precedence gets wrong.
-   */
   describe('precedence', () => {
     const cases: {
       key: SpecFlag;
@@ -172,7 +127,6 @@ describe('FeatureFlagService', () => {
       enabled: boolean;
       source: FeatureFlagSource;
     }[] = [
-      // Default true.
       {
         key: 'spec.default_on',
         org: null,
@@ -236,7 +190,6 @@ describe('FeatureFlagService', () => {
         enabled: false,
         source: 'organization',
       },
-      // Default false.
       {
         key: 'spec.default_off',
         org: null,
@@ -343,12 +296,6 @@ describe('FeatureFlagService', () => {
     });
   });
 
-  /**
-   * A platform-scoped caller is not the same as an organization with no
-   * override. The distinction is invisible in the resolved value today and
-   * stops being invisible the moment an organization override exists, so the
-   * assertion is that the tier is not consulted at all.
-   */
   describe('scope', () => {
     it('does not consult the organization tier when no organization is given', async () => {
       platformFindUnique.mockResolvedValue({ enabled: true });
@@ -405,7 +352,6 @@ describe('FeatureFlagService', () => {
         featureFlag: 'spec.default_on',
         organizationId: ORGANIZATION_ID,
       });
-      // The key is internal context, never a public detail.
       expect((error as AppException).publicDetails).toBeUndefined();
     });
 
@@ -452,11 +398,6 @@ describe('FeatureFlagService', () => {
       expect(state.source).toBe('platform');
     });
 
-    /**
-     * A platform write must not resolve through an organization, or the value
-     * an operator is shown after a platform change would be one tenant's view
-     * of it.
-     */
     it('resolves the returned state without an organization scope', async () => {
       await service.setPlatformOverride({
         key: flag('spec.default_off'),
@@ -468,11 +409,6 @@ describe('FeatureFlagService', () => {
     });
   });
 
-  /**
-   * Clearing and pinning look identical while the code default agrees with the
-   * pinned value, and stop being identical the moment the default changes. The
-   * service has to offer both, and the observable difference is `source`.
-   */
   describe('clearing versus pinning to the default value', () => {
     it('pins the current default as a platform override that survives a default change', async () => {
       platformFindUnique.mockResolvedValue({ enabled: false });
@@ -526,22 +462,7 @@ describe('FeatureFlagService', () => {
     });
   });
 
-  /**
-   * The scope guard, refused on write.
-   *
-   * Ignoring the row on read instead would show one value in the Platform and
-   * behave as another — the worst outcome for a mechanism whose only job is to
-   * be believed. So the assertion is not merely that it throws, but that
-   * nothing was written.
-   */
   describe('setOrganizationOverride', () => {
-    /**
-     * A flag can be narrowed in code after organization overrides were already
-     * stored — `setOrganizationOverride` refuses new ones, but it cannot
-     * un-write the rows that were legal when they were made. Evaluation has to
-     * agree with the registry as it stands now, or the registry's declaration
-     * is simply false for any organization that got in first.
-     */
     it('ignores a stored override once the registry stops scoping the flag', async () => {
       organizationFindUnique.mockResolvedValue({ enabled: true });
       platformFindUnique.mockResolvedValue(null);
@@ -556,13 +477,6 @@ describe('FeatureFlagService', () => {
       expect(state.organizationOverride).toBeUndefined();
     });
 
-    /**
-     * An organization-addressed route cannot check its organization against a
-     * registry the way it checks a flag key, so the service checks the table.
-     * Without it the write reaches PostgreSQL and returns a foreign-key
-     * violation — which nothing maps, so it surfaces as a 500 with a stack
-     * trace, for what is an ordinary "no such organization".
-     */
     it('refuses an organization that does not exist, and writes nothing', async () => {
       organizationRecordFindUnique.mockResolvedValue(null);
 
@@ -634,11 +548,6 @@ describe('FeatureFlagService', () => {
     });
   });
 
-  /**
-   * Clearing an override is the case a `updatedByUserId` column structurally
-   * cannot record: the row carrying the attribution is the row being deleted.
-   * That is the whole reason this log exists, so it is what these assert.
-   */
   describe('audit', () => {
     it('records what a platform override was before it changed', async () => {
       platformFindUnique.mockResolvedValue({ enabled: false });
@@ -668,8 +577,6 @@ describe('FeatureFlagService', () => {
         actorUserId: ACTOR_ID,
       });
 
-      // SQL NULL rather than the JSON value `null`: there was no override, as
-      // distinct from an override whose value was null.
       expect(auditRow()?.before).toBe(Prisma.DbNull);
     });
 
@@ -721,12 +628,6 @@ describe('FeatureFlagService', () => {
       });
     });
 
-    /**
-     * A refused mutation must leave no trace saying it happened. Both refusals
-     * are covered because they fail at different points — one before any
-     * database work, one after an organization lookup — and a log written in
-     * the wrong place would catch only one.
-     */
     it('writes nothing when an organization override is refused as out of scope', async () => {
       await expect(
         service.setOrganizationOverride({

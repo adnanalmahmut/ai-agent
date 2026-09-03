@@ -1,61 +1,70 @@
 # AI Agent
 
-Production-oriented monorepo for a public Next.js web application, a Vite
-operations platform, and a NestJS API/worker pair backed by PostgreSQL, Redis,
-Better Auth, BullMQ, and a transactional outbox.
+This pnpm monorepo runs a public website, an authenticated operations platform,
+and a multi-tenant agent service. The service stores organization knowledge,
+runs versioned agents, records content ideas and projects, and gates external
+side effects behind human approval.
 
-```mermaid
-flowchart LR
-  U[Browser] --> N[Host Nginx + TLS]
-  N --> W[Web :3000]
-  N --> P[Platform :3001]
-  N --> A[API :3002]
-  A --> DB[(PostgreSQL)]
-  A --> R[(Redis rate limits)]
-  DB --> O[Outbox]
-  O --> K[Worker]
-  K --> R
-```
+| Workspace            | Purpose                                            | Runtime                   |
+| -------------------- | -------------------------------------------------- | ------------------------- |
+| `apps/web`           | Public site                                        | Next.js 16                |
+| `apps/platform`      | Authenticated organization and platform operations | Next.js 16                |
+| `apps/backend`       | HTTP API, background worker, and operator CLI      | NestJS 11                 |
+| `packages/ui`        | Shared React components and styles                 | React 19 / Tailwind CSS 4 |
+| `packages/i18n-core` | Shared locale contracts                            | TypeScript                |
 
-Only Nginx is public. Container ports bind to loopback, PostgreSQL/Redis stay on
-Docker networks, and the worker has no HTTP listener. Staging is the only
-currently provisioned environment. Production topology and promotion tooling
-exist in the repository as a future target, but Production is not provisioned
-and must not be operated.
+PostgreSQL is the durable store. Redis provides BullMQ transport and rate-limit
+coordination. Better Auth handles authentication and organization membership;
+Prisma owns application persistence; Mastra is isolated behind the internal
+agent runtime contract.
 
 ## Local development
 
-Requirements: Node 24, pnpm 10.29.3, Docker Compose, and values for the required
-names in `apps/backend/.env.example`.
+Requirements: Node.js 24, pnpm 10.29.3, Docker Compose, and the required values
+from `apps/backend/.env.example`.
 
 ```sh
 pnpm install
 pnpm db:up
 pnpm db:deploy
-pnpm dev:backend       # API
-pnpm dev:worker        # second terminal
-pnpm dev:web           # public site
-pnpm dev:platform      # operations UI
+pnpm dev:backend       # API on 3002
+pnpm dev:worker        # run in a second terminal
+pnpm dev:web           # public site on 3000
+pnpm dev:platform      # operations platform on 3001
 ```
 
-Run `pnpm typecheck`, `pnpm lint`, and `pnpm test` before pushing. Backend E2E
-uses the isolated Compose test profile and real PostgreSQL/Redis.
+Use `pnpm db:migrate` when developing a new Prisma migration. `pnpm db:deploy`
+only applies committed migrations.
+
+## Validation
+
+```sh
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm --filter backend test:e2e
+pnpm build
+ops/tests/documentation.sh
+```
+
+Backend E2E tests use isolated PostgreSQL and Redis services from the Compose
+`test` profile.
+
+## Deployment
+
+Merges to `main` run CI, publish one immutable image set, and deploy that exact
+set to Staging. Staging is the only provisioned environment. Production
+workflows and host tooling exist but Production is not provisioned or operated.
+Read [deployment state](docs/deployment-state.md) before delivery or operations
+work.
 
 ## Documentation
 
-- [Knowledge-base index](docs/README.md) and [current deployment state](docs/deployment-state.md)
-- [Feature inventory](docs/feature-inventory.md) and [runtime configuration](docs/configuration.md)
+- [Documentation index](docs/README.md)
 - [Architecture](docs/architecture.md)
-- [Backend](docs/backend.md) and [frontend](docs/frontend.md)
+- [Backend](docs/backend.md), [frontends](docs/frontend.md), and
+  [implemented features](docs/feature-inventory.md)
 - [Authentication and RBAC](docs/authentication-rbac.md)
-- [Database](docs/database.md) and [Redis/queue/outbox](docs/redis-queue-outbox.md)
-- [Networking and real IP](docs/networking-real-ip.md), [rate limiting](docs/rate-limiting.md), and [GeoIP](docs/geoip-session-location.md)
-- [Docker Compose](docs/docker-compose.md), [Lightsail](docs/lightsail.md), and [Nginx/TLS](docs/nginx-tls.md)
-- [CI](docs/ci.md), [CD](docs/cd.md), [deployment](docs/deployment.md), and [rollback](docs/rollback.md)
-- [Backup/restore](docs/backup-restore.md), [security](docs/security.md), [operations](docs/operations-runbook.md), and [troubleshooting](docs/troubleshooting.md)
-- [Project history](docs/project-history.md)
-
-Merging to `main` triggers immutable publishing and automatic Staging
-deployment. Production provisioning and operation are operator-owned and are
-not authorized agent actions. See the deployment-state record before changing
-delivery or operations documentation.
+- [Database](docs/database.md) and [queue/outbox](docs/redis-queue-outbox.md)
+- [Configuration](docs/configuration.md) and [security](docs/security.md)
+- [CI](docs/ci.md), [CD](docs/cd.md), and [operations](docs/operations-runbook.md)

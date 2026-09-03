@@ -3,18 +3,6 @@ import { useTranslations } from 'use-intl';
 import type { ComponentProps, ReactNode } from 'react';
 import { useId } from 'react';
 
-/**
- * A labelled input with its error and hint wired up.
- *
- * Exists so accessibility is not a per-form decision. Every field it renders
- * has a real `<label for>` — never a placeholder standing in for one — and,
- * when something is wrong, `aria-invalid` plus an `aria-describedby` pointing
- * at the message, so a screen reader announces the reason on focus rather
- * than leaving the user to guess which of five inputs is red.
- *
- * `issue` is a **translation key**, not a sentence: validation lives in a
- * schema that must not contain English.
- */
 export function FormField({
   label,
   issue,
@@ -24,10 +12,8 @@ export function FormField({
   ...inputProps
 }: Omit<ComponentProps<typeof Input>, 'id'> & {
   label: string;
-  /** Key under the `Auth.validation` namespace. */
   issue?: string;
   hint?: ReactNode;
-  /** Rendered inside the field box, e.g. a reveal button. */
   trailing?: ReactNode;
 }) {
   const t = useTranslations('Auth');

@@ -7,14 +7,6 @@ import type {
   SuperAdminBootstrap,
 } from './super-admin.bootstrap';
 
-/**
- * Exit codes, fixed and documented.
- *
- * An operator command is scripted eventually, and a script can only branch on
- * the number. They are distinct per failure so a bootstrap that has already
- * happened is distinguishable from one that collided with another operator,
- * which is distinguishable from a bad argument.
- */
 export const EXIT = {
   ok: 0,
   usage: 1,
@@ -24,23 +16,8 @@ export const EXIT = {
   failed: 5,
 } as const;
 
-/**
- * The identity half of the request, validated at the boundary like any other
- * input. The password is deliberately absent: it never arrives as an argument,
- * so it is never parsed here, and its length is checked later against the
- * deployment's configured policy — read from Better Auth rather than restated,
- * because the endpoint that creates the account does not enforce it. See
- * `resolvePasswordPolicy`.
- */
 const identitySchema = z.object({
   email: z.email('A valid --email is required'),
-  /**
-   * The missing case is normalized to an empty string so one rule answers both
-   * of them. Without it a bare `min(1, ...)` reports its custom message for
-   * `--name ''` and Zod's own "expected string, received undefined" for an
-   * omitted flag — two different explanations of the same operator mistake, one
-   * of them about the validator rather than the command.
-   */
   name: z.preprocess(
     (value) => value ?? '',
     z.string().trim().min(1, 'A non-empty --name is required'),
@@ -50,18 +27,6 @@ const identitySchema = z.object({
 export type ParsedArgs =
   { ok: true; email: string; name: string } | { ok: false; message: string };
 
-/**
- * Parses `--email` and `--name`.
- *
- * Hand-rolled rather than pulling in a CLI framework: two flags do not justify
- * a dependency, and the repository has no CLI framework to be consistent with.
- * If a third command arrives with real subcommand structure, that is the moment
- * to reconsider — not before.
- *
- * `--password` is rejected rather than ignored. Silently dropping it would let
- * an operator believe a password had been supplied while the command waited on
- * stdin, and the flag they typed would already be in their shell history.
- */
 export function parseArgs(argv: readonly string[]): ParsedArgs {
   const values = new Map<string, string>();
 
@@ -69,13 +34,6 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     const token = argv[index];
 
     if (!token.startsWith('--')) {
-      /**
-       * The position, never the value. Every other refusal here is careful not
-       * to repeat what it was given, because the operator's scrollback and any
-       * CI log are two of the three places this module exists to keep a
-       * password out of — and a stray positional is exactly how a password
-       * arrives unquoted.
-       */
       return {
         ok: false,
         message: `Unexpected argument at position ${index + 1}`,
@@ -126,13 +84,6 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
     return { ok: false, message: `Unknown option: --${unknown[0]}` };
   }
 
-  /**
-   * Lowercased because Better Auth lowercases before its own lookup. Without
-   * this, `--email OPS@Example.com` against an existing `ops@example.com` slips
-   * past the pre-check and is refused by the library instead, which surfaces as
-   * the generic failure code rather than the documented "email already taken"
-   * one — a script branching on the exit code would get the wrong answer.
-   */
   return {
     ok: true,
     email: parsed.data.email.toLowerCase(),
@@ -155,21 +106,6 @@ from a literal or an environment variable, both of which persist.
 
 export type CommandIo = SecretIo & { error: NodeJS.WritableStream };
 
-/**
- * Runs the command and returns an exit code.
- *
- * Separated from the process entrypoint so a test can drive it with fake
- * streams and a fake bootstrap, and assert both the code and — the part that
- * matters most here — everything that was written to the two output streams.
- *
- * The bootstrap arrives as a thunk rather than a value because resolving it
- * boots a Nest context and opens a database connection. A mistyped flag or a
- * mismatched password confirmation should cost neither: those are answerable
- * from the arguments alone, and an operator repairing a broken deployment
- * should be able to run `--help` and see a usage error without a reachable
- * database. It also means a test can assert that a usage error never touched
- * the database at all.
- */
 export async function runSuperAdminCreate(
   argv: readonly string[],
   io: CommandIo,
@@ -216,16 +152,6 @@ export async function runSuperAdminCreate(
       password: password.password,
     });
   } catch (error) {
-    /**
-     * Only the message, never the error object — and then the password removed
-     * from that message.
-     *
-     * Dropping the stack and the cause is not sufficient, which is the whole
-     * lesson of this block. A rejected Better Auth call quotes the offending
-     * request body, and that body holds the plaintext password, so the message
-     * this handler deliberately preserves for diagnosability is itself the
-     * leak. A canary test proved it; reading the code had not.
-     */
     const message = error instanceof Error ? error.message : 'unknown error';
 
     io.error.write(

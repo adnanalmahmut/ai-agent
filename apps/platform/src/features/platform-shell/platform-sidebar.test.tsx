@@ -51,14 +51,14 @@ describe('the primary navigation', () => {
   it('is translated', () => {
     renderSidebar('ar');
 
-    expect(screen.getByRole('link', { name: 'لوحة التحكم' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'لوحة التحكم' }),
+    ).toBeInTheDocument();
   });
 });
 
 describe('the organization section', () => {
   it('is absent when there is no organization in context', () => {
-    // A reader who belongs to none would otherwise be offered four links that
-    // all lead to a page explaining that they belong to none.
     renderSidebar();
 
     expect(screen.queryByRole('link', { name: 'Members' })).toBeNull();
@@ -66,9 +66,6 @@ describe('the organization section', () => {
   });
 
   it('appears for the organization the reader is looking at', () => {
-    // The route's organization wins over the active one: showing the active
-    // organization's sections while reading another would be navigation that
-    // lies about where its links go.
     renderSidebar(
       'en',
       context({
@@ -106,9 +103,6 @@ describe('the organization section', () => {
 
 describe('what the sidebar is not', () => {
   it('grants nothing — an organization in context is not permission', () => {
-    // The sections appear because there is something to look at, not because
-    // the reader may act on it. Each page asks its own permission, and the
-    // server asks again.
     renderSidebar(
       'en',
       context({ organization: organization({ id: 'org_1', name: 'Acme' }) }),

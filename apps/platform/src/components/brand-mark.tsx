@@ -1,15 +1,5 @@
 import { cn } from '@repo/ui';
 
-/**
- * The application's mark.
- *
- * One component so the authentication pages and the platform shell cannot
- * drift apart — a sign-in screen that looks like a different product is the
- * classic tell of an auth flow bolted on afterwards.
- *
- * Deliberately geometric and token-driven: no image asset to load before the
- * first paint of a page whose whole job is to be fast.
- */
 export function BrandMark({
   className,
   size = 'default',

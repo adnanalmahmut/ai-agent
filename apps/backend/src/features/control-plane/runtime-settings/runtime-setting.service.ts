@@ -19,16 +19,6 @@ export type RuntimeSettingState = {
   description: string;
   value: unknown;
   isDefault: boolean;
-  /**
-   * True when a row exists but no longer satisfies its schema, so the default
-   * is in force despite the operator having configured something.
-   *
-   * Distinct from `isDefault`, which is also true when nothing was ever set.
-   * Collapsing the two hides the case that actually needs attention: a bound
-   * tightened in code after a value was stored means the Platform would show
-   * the default beside the date the operator set something else, with nothing
-   * to say the two disagree — and pressing reset would appear to do nothing.
-   */
   storedValueRejected: boolean;
   defaultValue: unknown;
   sensitivity: string;
@@ -36,19 +26,6 @@ export type RuntimeSettingState = {
   updatedAt: Date | undefined;
 };
 
-/**
- * Typed operational settings, read through the registry that defines them.
- *
- * The registry is what makes this safe. A stored value is parsed with the
- * declared schema on every read, so the type a caller receives has been
- * proved rather than asserted, and a row that predates a tightened bound is
- * caught instead of used.
- *
- * Reads are uncached for the same reason feature flags are: an operator who
- * changes a limit expects the next request to respect it. These are consulted
- * far less often than flags — once per accepted operation, not once per
- * request — so the cost is smaller and the argument is stronger.
- */
 @Injectable()
 export class RuntimeSettingService {
   constructor(
@@ -57,15 +34,6 @@ export class RuntimeSettingService {
     private readonly logger: PinoLogger,
   ) {}
 
-  /**
-   * Reads one setting, falling back to its declared default.
-   *
-   * A stored value that fails its schema does not throw. It is logged and the
-   * default is used, because the alternative is that one bad row takes down
-   * every request that touches the setting — turning a misconfiguration into
-   * an outage. The log names the key and the reason, never the value, since a
-   * setting marked `internal` may carry something not meant for ordinary logs.
-   */
   async get<K extends RuntimeSettingKey>(
     key: K,
   ): Promise<RuntimeSettingValue<K>> {
@@ -141,12 +109,6 @@ export class RuntimeSettingService {
     const parsed = definition.schema.safeParse(input.value);
 
     if (!parsed.success) {
-      /**
-       * The rejection reasons are returned to the operator, because a bounded
-       * numeric setting is useless if the Platform cannot say *why* 5000 was
-       * refused. They are Zod's own messages about the schema, never the
-       * submitted value.
-       */
       throw new AppException('VALIDATION_ERROR', {
         context: { settingKey: input.key },
         publicDetails: {
@@ -188,7 +150,6 @@ export class RuntimeSettingService {
     return state.find((entry) => entry.key === input.key)!;
   }
 
-  /** Restores the code default by removing the row, not by writing it. */
   async reset(input: {
     key: RuntimeSettingKey;
     actorUserId: string;
@@ -203,12 +164,6 @@ export class RuntimeSettingService {
 
       await tx.runtimeSetting.deleteMany({ where: { key: input.key } });
 
-      /**
-       * A key with no stored row was already at its code default, so this reset
-       * changed nothing and there is nothing to append. Recording it would put
-       * a "reset runtime setting" event in the history of a setting nobody had
-       * ever set — and the audit log is the artefact an incident review trusts.
-       */
       if (before === null) return;
 
       await this.audit.record(tx, {
@@ -226,17 +181,6 @@ export class RuntimeSettingService {
   }
 }
 
-/**
- * A setting's value as the audit log may record it.
- *
- * The registry's `sensitivity` decides, not the caller. Every setting is
- * `public` today and recording their values is the point of the log — an
- * operator asking "what was the limit before" wants the number. But `internal`
- * exists in the registry, and the day something is marked that way the audit
- * log must not be the surface that publishes it to everyone holding
- * `controlPlane:read`. Deciding here rather than at each call site means that
- * change is one word in the registry rather than an audit of every writer.
- */
 function settingState(
   definition: { sensitivity: string },
   value: unknown,

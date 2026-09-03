@@ -2,57 +2,41 @@
 
 ```mermaid
 flowchart LR
-  M[main CI green] --> B[Buildx Bake once]
-  B --> G[GHCR images + publish-run digest manifest]
-  G -->|artifact from exact publisher run ID| S[Automatic staging]
-  S -->|staging-success SHA evidence| P[Future manual production approval]
-  P -->|after provisioning: exact staged digests| R[Target Production]
+  C[Push-to-main CI succeeds] --> P[Publish immutable image set]
+  P --> S[Automatic Staging deployment]
+  S --> E[staging-success-<SHA> evidence]
+  E -. inactive until Production exists .-> R[Manual Production promotion]
 ```
 
-Staging is live; Production is not provisioned. The publisher runs only after
-a successful push-to-main CI run. Its trusted
-source SHA comes from that CI event, and it emits backend, migration, web, and
-platform SHA tags with provenance/SBOM. Deployment identity is the four
-resolved OCI digests recorded with repository, CI run ID, and publisher run ID;
-neither `latest` nor a mutable SHA tag is accepted by the host.
+Staging is live; Production is not provisioned. The publisher runs only from a
+successful push-to-`main` CI result and builds backend, migration, web, and
+platform images once. It records their OCI digests, source SHA, originating CI
+run, publisher run, and minimum host-bundle version in
+`image-digests.json`. Images include provenance and SBOM attestations.
 
-Staging downloads artifacts from exactly its triggering publisher run ID,
-validates the embedded lineage and fixed GHCR repositories, deploys the four
-digests, and emits `staging-success-<SHA>` evidence containing its own run ID.
-It does not trust a nested `workflow_run.head_sha`. Production is
-workflow-dispatch only from `main`; it locates successful staging-run evidence
-for the requested SHA, verifies that artifact's embedded run ID, and promotes
-the exact four staged digests. Neither workflow rebuilds source or receives
-runtime application secrets. The Production workflow and evidence validation
-are prepared but dormant future capability; agents must not dispatch it.
+Staging downloads the manifest from its exact triggering publisher run,
+validates lineage and fixed GHCR repositories, deploys the four digests, then
+uploads `staging-success-<SHA>` with its own run ID. It does not rebuild or
+accept mutable application tags.
 
-Every release also declares which host it needs. The publisher exports
-`ops/host-bundle/MIN_VERSION` into Bake, which labels each image with the
-release SHA and that minimum, and records the same minimum in the digest
-manifest as `hostBundleMinVersion`; both deploy workflows refuse a manifest
-without it. The host reads the labels after pulling and before migrating and
-refuses a release its recorded bundle cannot satisfy — see
-[the host bundle document](host-bundle.md).
+The inactive Production workflow accepts a requested SHA only, finds successful
+Staging evidence for it, verifies the embedded run ID, and would promote the
+same digests without rebuilding. It must not be dispatched while Production is
+unprovisioned.
 
-After a deployment is healthy and its `CURRENT`/`PREVIOUS` state has rotated, the
-wrapper reclaims the superseded release's images on its own deployment lock. That
-step never fails a deployment that has already succeeded, and it reports its
-outcome either way; the hard disk gate remains the next deployment's preflight.
-See [release image retention](release-retention.md).
+Artifacts use `actions/upload-artifact@v7` and
+`actions/download-artifact@v8`. Uploads retain archive packaging so the
+explicit artifact name is preserved; downloads retain digest verification.
+`ops/tests/artifact-contract.sh` verifies this cross-workflow handoff
+statically.
 
-The digest manifest and the staging evidence both travel as GitHub Actions
-artifacts, uploaded with `actions/upload-artifact@v7` and read back with
-`actions/download-artifact@v8` — the current majors, both on the Node 24
-runtime. Two packaging defaults are part of the contract rather than incidental.
-Uploads stay archived: an unzipped direct upload ignores the artifact name and
-derives it from the filename, which would rename both artifacts and leave the
-production promotion gate unable to find its evidence. Downloads keep
-`digest-mismatch` at its fail-closed default, so a manifest whose hash does not
-match the server stops the deployment instead of configuring one.
-`ops/tests/artifact-contract.sh` asserts the whole handoff statically, because
-the cross-run download cannot be exercised from a pull request.
+Every image carries `io.ai-agent.release.sha` and
+`io.ai-agent.host-bundle.min-version`. The host checks the release set,
+installed bundle, disk, runtime configuration, Compose resolution, and database
+capabilities before migrations. See [host bundle](host-bundle.md).
 
-Both workflows use non-cancelling environment concurrency, pinned SSH host keys,
-the `deploy` identity, migration-first rollout, internal health, and external
-HTTPS smoke tests. Configure production Environment reviewers and main-only
-deployment policy.
+Both deployment workflows use non-cancelling environment concurrency, pinned
+SSH host keys, the restricted `deploy` identity, migration-first rollout,
+internal health checks, and public HTTPS smoke tests. After a successful deploy
+and release-state rotation, image retention runs on the deployment lock and
+never fails the deployment; see [release retention](release-retention.md).

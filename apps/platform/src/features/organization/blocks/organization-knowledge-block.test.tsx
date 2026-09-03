@@ -16,12 +16,6 @@ vi.mock('@/features/auth/auth-client', async () => {
   return { authClient: authClientStub };
 });
 
-/**
- * The API module is mocked, not `fetch`. `organization-api` reaches the
- * network through `application-api`, which is asserted elsewhere to be the
- * only `fetch` call site, so stubbing it is stubbing the boundary. What these
- * tests are about is the operator's screen.
- */
 const listKnowledgeSpaces = vi.fn();
 const clearKnowledgeSpace = vi.fn();
 const listKnowledgeDocuments = vi.fn();
@@ -50,13 +44,6 @@ const { OrganizationKnowledgeBlock } =
   await import('./organization-knowledge-block');
 const { ApiError, ApiUnavailableError } = await import('@/lib/application-api');
 
-/**
- * A registry entry, not a row somebody created.
- *
- * The taxonomy is the application's: the same eight spaces exist for every
- * organization, `configured` says whether this one has stored anything in it,
- * and there is no id on the surface at all.
- */
 const space = (overrides: Record<string, unknown> = {}) => ({
   slug: 'brand.voice',
   name: 'Brand voice',
@@ -68,7 +55,6 @@ const space = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-/** One page of documents, which is what the listing now answers with. */
 const page = (items: unknown[], nextCursor: string | null = null) => ({
   items,
   nextCursor,
@@ -110,14 +96,6 @@ describe('the knowledge screen', () => {
     expect(await screen.findByText('Policies')).toBeInTheDocument();
   });
 
-  /**
-   * The name comes from this application's dictionary, keyed on the slug — not
-   * from the `name` column the server happens to return.
-   *
-   * An operator reading Arabic should not be shown an English taxonomy, and
-   * the server has only one name per space. The canary is a name no dictionary
-   * contains: if it reaches the screen, the translation was bypassed.
-   */
   it('names a space from the reader dictionary, not from the server', async () => {
     allow('knowledge:read');
     listKnowledgeSpaces.mockResolvedValue([
@@ -127,16 +105,9 @@ describe('the knowledge screen', () => {
     render();
 
     expect(await screen.findByText('Brand voice')).toBeInTheDocument();
-    expect(
-      screen.queryByText('SERVER-SUPPLIED-NAME'),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('SERVER-SUPPLIED-NAME')).not.toBeInTheDocument();
   });
 
-  /**
-   * The failure this guards is only visible when the two differ, so the stub
-   * is given a *different* active organization. With no active organization
-   * at all the assertion passes whichever id the block reads.
-   */
   it('asks for the organization in hand, not the active one', async () => {
     allow('knowledge:read');
     authClientStub.useActiveOrganization.mockReturnValue({
@@ -158,11 +129,6 @@ describe('the knowledge screen', () => {
     );
   });
 
-  /**
-   * A disabled feature and a missing permission are both 403. Telling an owner
-   * who holds every grant that they lack permission sends them to change roles
-   * over something no role can fix.
-   */
   it('says the feature is off rather than blaming permissions', async () => {
     allow('knowledge:read', 'knowledge:write');
     ingestKnowledgeDocument.mockRejectedValue(
@@ -201,10 +167,6 @@ describe('the knowledge screen', () => {
     expect(screen.queryByText(/switched off/i)).not.toBeInTheDocument();
   });
 
-  /**
-   * A reader without write is not shown controls that would answer 403. The
-   * gate is UX; the backend decides.
-   */
   it('offers a reader nothing to change', async () => {
     allow('knowledge:read');
 
@@ -234,12 +196,6 @@ describe('the knowledge screen', () => {
     ).toBeInTheDocument();
   });
 
-  /**
-   * The taxonomy is code-owned, so there is nothing to create and no field to
-   * type a slug into. This is the property the redesign rests on: a customer
-   * cannot invent a space, which is what stops an agent's context policy from
-   * silently naming one nobody uses.
-   */
   it('offers no way to invent a space', async () => {
     allow('knowledge:read', 'knowledge:write');
 
@@ -253,11 +209,6 @@ describe('the knowledge screen', () => {
     expect(screen.queryByLabelText(/slug/i)).not.toBeInTheDocument();
   });
 
-  /**
-   * Every registry entry is offered, including the ones this organization has
-   * never written to — the listing is the taxonomy, and what varies is the
-   * count beside each.
-   */
   it('shows every space, including the empty ones', async () => {
     allow('knowledge:read');
     listKnowledgeSpaces.mockResolvedValue([
@@ -303,11 +254,6 @@ describe('the knowledge screen', () => {
     );
   });
 
-  /**
-   * A refused document is usually refused for something the operator can fix.
-   * Emptying a textarea they have just pasted into is the worst possible
-   * answer to a correctable error.
-   */
   it('keeps a refused document in the field so it can be corrected', async () => {
     allow('knowledge:read', 'knowledge:write');
     ingestKnowledgeDocument.mockRejectedValue(
@@ -379,7 +325,9 @@ describe('the knowledge screen', () => {
     render();
 
     await userEvent.click(
-      await screen.findByRole('button', { name: /delete everything in brand voice/i }),
+      await screen.findByRole('button', {
+        name: /delete everything in brand voice/i,
+      }),
     );
 
     await waitFor(() =>
@@ -390,10 +338,6 @@ describe('the knowledge screen', () => {
     );
   });
 
-  /**
-   * Emptying a space that holds nothing is not an operation, so the control is
-   * absent rather than present and answering 404.
-   */
   it('offers no way to empty a space that holds nothing', async () => {
     allow('knowledge:read', 'knowledge:write');
     listKnowledgeSpaces.mockResolvedValue([
@@ -431,12 +375,6 @@ describe('the knowledge screen', () => {
     );
   });
 
-  /**
-   * The rows and the chosen space arrive independently, so a list that is not
-   * tied to a space renders whichever landed last. Showing the previous
-   * space's documents under the new space's heading tells an operator that
-   * content lives somewhere it does not.
-   */
   it('shows no documents for a space whose own rows have not arrived', async () => {
     allow('knowledge:read');
     listKnowledgeSpaces.mockResolvedValue([
@@ -500,11 +438,6 @@ describe('the knowledge screen', () => {
     await screen.findByText(/could not be stored/i);
   });
 
-  /**
-   * Paging, which replaced a silent two-hundred-row ceiling. The old listing
-   * stopped without saying so, and a client had no way to tell a space with
-   * exactly two hundred documents from one with a thousand.
-   */
   describe('paging through documents', () => {
     it('offers no control when the page is the whole collection', async () => {
       allow('knowledge:read');
@@ -533,7 +466,6 @@ describe('the knowledge screen', () => {
       );
 
       expect(await screen.findByText('Returns')).toBeInTheDocument();
-      // The first page is still there; this is a longer list, not a new one.
       expect(screen.getByText('Policies')).toBeInTheDocument();
 
       expect(listKnowledgeDocuments).toHaveBeenLastCalledWith(
@@ -565,11 +497,6 @@ describe('the knowledge screen', () => {
       );
     });
 
-    /**
-     * A cursor is a position in one space's ordering and means nothing in
-     * another's. Switching spaces has to discard it, or the next page pages
-     * the wrong collection.
-     */
     it('does not carry a cursor across to another space', async () => {
       allow('knowledge:read');
       listKnowledgeSpaces.mockResolvedValue([

@@ -8,19 +8,6 @@ import { KnowledgeWriterService } from './knowledge-writer.service';
 import type { KnowledgeDocumentIngestedJob } from './knowledge.events';
 import { EMBEDDING_PORT, type EmbeddingPort } from './ports/embedding.port';
 
-/**
- * Embedding a document's chunks, after the text is already durable.
- *
- * The work is here rather than in the request because it is a provider call:
- * slow, rate-limited, billed, and able to fail for reasons the person who
- * pasted the text cannot act on. Ingestion commits the chunks and an outbox
- * event; this finishes the job whenever the provider is willing.
- *
- * Idempotent by construction, which the queue requires: it embeds only the
- * chunks that currently lack a vector for the current model, so a redelivered
- * job after a partial success embeds the remainder and a redelivered job after
- * a complete one does nothing at all.
- */
 @Injectable()
 export class KnowledgeEmbeddingHandler implements QueueJobHandler<KnowledgeDocumentIngestedJob> {
   readonly queue = QUEUE_NAMES.knowledgeEmbedding;
@@ -44,30 +31,6 @@ export class KnowledgeEmbeddingHandler implements QueueJobHandler<KnowledgeDocum
       throw new Error('Knowledge embedding job requires an organizationId');
     }
 
-    /**
-     * Scoped to the organization from the payload as well as the document id.
-     * The payload is written by this application and the id is a uuid, so this
-     * is not defending against a forged job — it is keeping the tenant
-     * predicate present on every path that touches a chunk, so no future
-     * caller has to remember to add it.
-     */
-    /**
-     * A page at a time, written before the next is requested.
-     *
-     * Reading the whole document and embedding it in one call made the job
-     * all-or-nothing: a provider failure on the last batch of a long document
-     * threw away every vector the earlier batches had already been billed for,
-     * and the retry bought them again. Paging makes progress durable, so a
-     * redelivery resumes where the failure happened — which is what the
-     * idempotence above was always supposed to mean. It also caps resident
-     * memory at one batch of vectors rather than one document's worth, on each
-     * of the worker's concurrent slots.
-     *
-     * The cursor is the ordinal rather than the pending predicate. Paging on
-     * "still unembedded" relies on each write clearing the row it just read,
-     * which is true today and is not a property worth depending on for loop
-     * termination.
-     */
     let after = -1;
     let requested = 0;
     let written = 0;
@@ -107,12 +70,6 @@ export class KnowledgeEmbeddingHandler implements QueueJobHandler<KnowledgeDocum
         const vector = vectors[index];
         if (vector === undefined) continue;
 
-        /**
-         * One statement per chunk rather than one for the page. Each is a
-         * different vector, so there is no batch form of this write — and a
-         * chunk deleted by a re-ingestion that overtook this job simply
-         * matches nothing, which is the correct outcome rather than an error.
-         */
         const stored = await this.writer.setEmbedding({
           chunkId: chunk.id,
           organizationId,

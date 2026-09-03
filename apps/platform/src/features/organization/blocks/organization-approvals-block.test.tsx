@@ -3,10 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/application-api';
-import {
-  authClientStub,
-  resetAuthClientStub,
-} from '@/test/auth-client-stub';
+import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
 import { context, member, organization } from '@/test/organization-fixtures';
 import { renderInOrganization } from '@/test/render';
 
@@ -34,9 +31,8 @@ vi.mock('../organization-api', async () => {
   };
 });
 
-const { OrganizationApprovalsBlock } = await import(
-  './organization-approvals-block'
-);
+const { OrganizationApprovalsBlock } =
+  await import('./organization-approvals-block');
 
 const proposal = (overrides: Record<string, unknown> = {}) => ({
   toolExecutionId: 'exec_1',
@@ -56,7 +52,11 @@ const proposal = (overrides: Record<string, unknown> = {}) => ({
   },
   proposal: {
     kind: 'notification.send@1',
-    recipient: { memberId: 'm_1', name: 'Sara Haddad', email: 'sara@example.com' },
+    recipient: {
+      memberId: 'm_1',
+      name: 'Sara Haddad',
+      email: 'sara@example.com',
+    },
     subject: 'Kettle teardown is ready',
     body: 'The draft is waiting for you.',
   },
@@ -72,7 +72,10 @@ const proposal = (overrides: Record<string, unknown> = {}) => ({
 const render = (role: 'owner' | 'admin' | 'member' = 'owner') =>
   renderInOrganization(
     <OrganizationApprovalsBlock />,
-    context({ organization: organization(), viewer: { userId: 'user_owner', member: member({ role }) } }),
+    context({
+      organization: organization(),
+      viewer: { userId: 'user_owner', member: member({ role }) },
+    }),
   );
 
 describe('organization approvals block', () => {
@@ -92,7 +95,9 @@ describe('organization approvals block', () => {
 
     render();
 
-    expect(await screen.findByText('Kettle teardown is ready')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Kettle teardown is ready'),
+    ).toBeInTheDocument();
     expect(screen.getByText(/sara@example.com/)).toBeInTheDocument();
     expect(listAgentActionApprovals.mock.calls[0]?.[1]).toMatchObject({
       status: 'PENDING',
@@ -108,11 +113,6 @@ describe('organization approvals block', () => {
     expect(await screen.findByText(/nothing waiting/i)).toBeInTheDocument();
   });
 
-  /**
-   * The decide buttons are a courtesy gate, evaluated from the viewer's role
-   * in this organization. A member sees the proposal and no buttons; the
-   * server would refuse the click anyway.
-   */
   it('offers no decision to a role that may not decide', async () => {
     authClientStub.organization.checkRolePermission.mockReturnValue(false);
     listAgentActionApprovals.mockResolvedValue({
@@ -123,10 +123,15 @@ describe('organization approvals block', () => {
     render('member');
 
     await screen.findByText('Kettle teardown is ready');
-    expect(screen.queryByRole('button', { name: /approve and send/i })).toBeNull();
-    expect(screen.getByText(/only an organization admin or owner/i)).toBeInTheDocument();
-    // The gate asks the decide permission, not read: a member holds read.
-    expect(authClientStub.organization.checkRolePermission).toHaveBeenCalledWith(
+    expect(
+      screen.queryByRole('button', { name: /approve and send/i }),
+    ).toBeNull();
+    expect(
+      screen.getByText(/only an organization admin or owner/i),
+    ).toBeInTheDocument();
+    expect(
+      authClientStub.organization.checkRolePermission,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         role: 'member',
         permissions: { agentActionApproval: ['decide'] },
@@ -157,14 +162,21 @@ describe('organization approvals block', () => {
 
     await screen.findByText('Kettle teardown is ready');
     await userEvent.type(screen.getByLabelText(/optional note/i), 'Looks good');
-    await userEvent.click(screen.getByRole('button', { name: /approve and send/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /approve and send/i }),
+    );
 
     await waitFor(() =>
-      expect(approveAgentAction).toHaveBeenCalledWith('org_1', 'exec_1', 'Looks good'),
+      expect(approveAgentAction).toHaveBeenCalledWith(
+        'org_1',
+        'exec_1',
+        'Looks good',
+      ),
     );
     expect(await screen.findByText('Queued to send')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /approve and send/i })).toBeNull();
-    // Decided in place: no refetch of the list.
+    expect(
+      screen.queryByRole('button', { name: /approve and send/i }),
+    ).toBeNull();
     expect(listAgentActionApprovals).toHaveBeenCalledTimes(1);
   });
 
@@ -193,18 +205,17 @@ describe('organization approvals block', () => {
     await userEvent.click(screen.getByRole('button', { name: /^reject$/i }));
 
     await waitFor(() =>
-      expect(rejectAgentAction).toHaveBeenCalledWith('org_1', 'exec_1', undefined),
+      expect(rejectAgentAction).toHaveBeenCalledWith(
+        'org_1',
+        'exec_1',
+        undefined,
+      ),
     );
-    // The decided badge, as distinct from the "Rejected" filter button.
     expect(
       await screen.findByText('Rejected', { selector: '[data-slot="badge"]' }),
     ).toBeInTheDocument();
   });
 
-  /**
-   * A 409 is not the reader's failure. Somebody else decided first, and the
-   * copy says exactly that rather than "could not be recorded".
-   */
   it('names a lost race for what it is', async () => {
     authClientStub.organization.checkRolePermission.mockReturnValue(true);
     listAgentActionApprovals.mockResolvedValue({
@@ -216,9 +227,13 @@ describe('organization approvals block', () => {
     render();
 
     await screen.findByText('Kettle teardown is ready');
-    await userEvent.click(screen.getByRole('button', { name: /approve and send/i }));
+    await userEvent.click(
+      screen.getByRole('button', { name: /approve and send/i }),
+    );
 
-    expect(await screen.findByText(/decided this one first/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/decided this one first/i),
+    ).toBeInTheDocument();
   });
 
   it('shows the effect outcome once the worker has settled it', async () => {
@@ -261,14 +276,14 @@ describe('organization approvals block', () => {
     await screen.findByText(/nothing waiting/i);
     await userEvent.click(screen.getByRole('button', { name: 'All' }));
 
-    await waitFor(() => expect(listAgentActionApprovals).toHaveBeenCalledTimes(2));
-    expect(listAgentActionApprovals.mock.calls[1]?.[1]).not.toHaveProperty('status');
+    await waitFor(() =>
+      expect(listAgentActionApprovals).toHaveBeenCalledTimes(2),
+    );
+    expect(listAgentActionApprovals.mock.calls[1]?.[1]).not.toHaveProperty(
+      'status',
+    );
   });
 
-  /**
-   * A page requested under one filter must not land on another filter's list.
-   * The append resolves after the switch; its rows are dropped.
-   */
   it('drops a page that arrives after the filter changed', async () => {
     authClientStub.organization.checkRolePermission.mockReturnValue(true);
     let resolveAppend: (page: unknown) => void = () => undefined;
@@ -306,8 +321,6 @@ describe('organization approvals block', () => {
       nextCursor: null,
     });
 
-    // The append has settled and the ALL list is what is on screen: empty,
-    // and without the late page.
     expect(await screen.findByText(/nothing waiting/i)).toBeInTheDocument();
     expect(screen.queryByText('Late page')).toBeNull();
     expect(screen.queryByText('Kettle teardown is ready')).toBeNull();

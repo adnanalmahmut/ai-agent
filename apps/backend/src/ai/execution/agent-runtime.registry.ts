@@ -4,7 +4,6 @@ import { AgentConfigurationError } from '../agents/agent-configuration.error';
 import { MastraRuntime } from '../infrastructure/runtimes/mastra/mastra.runtime';
 import type { AgentRuntime } from './agent-runtime';
 
-/** Deliberately explicit runtime mapping; adding a runtime is a code change. */
 @Injectable()
 export class AgentRuntimeRegistry {
   constructor(private readonly mastra: MastraRuntime) {}

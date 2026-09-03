@@ -1,13 +1,9 @@
 # Execution plans
 
-Use an execution plan for substantial, multi-phase work whose state must
-survive handoffs. Small changes should use the normal task brief and checklist.
+Execution plans are temporary working documents for substantial active changes.
+Create one only when the work needs durable coordination across sessions or
+pull requests. Keep active plans directly in this directory and remove them
+after completion once any lasting decision or operator procedure has been
+placed in its owning documentation.
 
-An active plan records goal, context, scope/non-goals, constraints, acceptance
-criteria, validation, required evidence, decision log, progress, and blockers.
-Store it under `active/`. When the work lands, summarize outcomes and move the
-plan to `completed/` in the same change; do not retain a false active state.
-
-Plans coordinate work but do not override `AGENTS.md`, security boundaries, or
-the repository's source of truth. Do not put credentials or live operational
-data in a plan.
+Git history is the archive for completed plans.

@@ -11,20 +11,10 @@ import {
 } from '../organization-validation';
 import { useOrganizationAction } from './use-organization-action';
 
-/** How long the reader has to stop typing before the slug is checked. */
 const SLUG_CHECK_DELAY_MS = 400;
 
 export type SlugAvailability = 'unknown' | 'checking' | 'available' | 'taken';
 
-/**
- * Creating an organization.
- *
- * Three things happen on success and the order matters. The backend makes the
- * creator an owner and, because `organization.create` sets it, the new
- * organization becomes the session's active one — both server-side, neither
- * visible to data already loaded. So the App Router data is refreshed, and
- * then the reader is taken into the organization they just made.
- */
 export function useCreateOrganization() {
   const navigate = useAppNavigate();
   const revalidate = useRevalidate();
@@ -63,23 +53,10 @@ export function useCreateOrganization() {
   return { submit, issues, error, isPending, reset };
 }
 
-/**
- * Tells the reader whether a slug is free, before they submit.
- *
- * A courtesy, not a check. The server enforces uniqueness on write and a slug
- * can be taken between this answer and that write, so `available` means "was
- * free a moment ago" and the form does not use it to decide anything. What it
- * buys is not having to fill in a form twice.
- *
- * Debounced, aborted on change, and ordered: a stale response that arrives
- * after a newer request is discarded rather than overwriting it, which is the
- * bug this shape exists to avoid.
- */
 export function useSlugAvailability(
   slug: string,
   enabled: boolean,
 ): SlugAvailability {
-  /** The last answer, and which slug it was about. */
   const [answer, setAnswer] = useState<{
     slug: string;
     status: 'available' | 'taken';

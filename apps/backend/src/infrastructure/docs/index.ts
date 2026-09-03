@@ -10,15 +10,6 @@ import { appConfig, openapiConfig } from '../config';
 const SESSION_COOKIE_SCHEME = 'sessionCookie';
 const SESSION_COOKIE_NAME = '__Host-session';
 
-/**
- * Mounts one Scalar UI backed by separate Application and Better Auth
- * OpenAPI documents.
- *
- * The schemas intentionally remain separate to avoid component/security
- * collisions and brittle $ref rewriting.
- *
- * Returns false when documentation is disabled.
- */
 export function setupOpenApi(app: INestApplication): boolean {
   const openapi = app.get<ConfigType<typeof openapiConfig>>(openapiConfig.KEY);
 

@@ -59,9 +59,10 @@ describe('with a usable token', () => {
     await submit();
 
     expect(await screen.findByText('Password updated')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Go to sign in' }),
-    ).toHaveAttribute('href', '/en/sign-in');
+    expect(screen.getByRole('link', { name: 'Go to sign in' })).toHaveAttribute(
+      'href',
+      '/en/sign-in',
+    );
   });
 
   it('refuses a mismatched confirmation without calling the server', async () => {
@@ -87,11 +88,11 @@ describe('with a usable token', () => {
   });
 
   it('never puts the token on the screen', async () => {
-    // It is a credential. It arrives in the URL because that is where Better
-    // Auth's redirect puts it, and it goes exactly one place from there.
     authClientStub.resetPassword.mockResolvedValue(fail('INVALID_TOKEN', 400));
 
-    const { container } = renderWithProviders(<ResetPasswordBlock token={TOKEN} />);
+    const { container } = renderWithProviders(
+      <ResetPasswordBlock token={TOKEN} />,
+    );
     await submit();
 
     await screen.findByRole('alert');
@@ -111,7 +112,6 @@ describe('without a usable token', () => {
   });
 
   it('distinguishes an expired link from an invalid one', async () => {
-    // Better Auth appends its own code when it turns the emailed link away.
     renderWithProviders(<ResetPasswordBlock callbackError="TOKEN_EXPIRED" />);
 
     expect(

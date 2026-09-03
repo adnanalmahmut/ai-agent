@@ -11,15 +11,6 @@ import { ResendMailTransport } from './resend-mail.transport';
 import { SesMailTransport } from './ses-mail.transport';
 import { SmtpMailTransport } from './smtp-mail.transport';
 
-/**
- * The one place a driver name becomes a class.
- *
- * `MailService` deliberately contains no branch on the provider; if it did,
- * every new driver would edit the file every feature depends on. Here the
- * branch is a composition detail, and the `switch` is exhaustive over
- * `MailDriver`, so forgetting a case is a compile error rather than an
- * `undefined` at the first send.
- */
 function createMailTransport(
   config: ConfigType<typeof mailConfig>,
   logger: PinoLogger,
@@ -39,15 +30,6 @@ function createMailTransport(
   }
 }
 
-/**
- * Localized, delivered mail.
- *
- * The public surface is `MailService` and the renderer. `MAIL_TRANSPORT` is
- * *not* exported: a consumer able to inject the transport could send a message
- * that skipped rendering, locale resolution, and the failure handling that
- * `MailService` exists to provide, which would make the abstraction advisory
- * rather than real.
- */
 @Module({
   providers: [
     MailRendererService,

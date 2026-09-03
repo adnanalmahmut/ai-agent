@@ -19,8 +19,6 @@ describe('digestValue', () => {
   });
 
   it('does not treat array order as irrelevant', () => {
-    // Arrays are ordered data; a digest that sorted them would call two
-    // different payloads the same.
     expect(digestValue([1, 2])).not.toBe(digestValue([2, 1]));
   });
 
@@ -29,8 +27,6 @@ describe('digestValue', () => {
   });
 
   it('digests a string list as the list, not as a concatenation', () => {
-    // `["ab","c"]` and `["a","bc"]` concatenate identically; the payload
-    // digest must not.
     expect(digestStrings(['ab', 'c'])).not.toBe(digestStrings(['a', 'bc']));
   });
 });

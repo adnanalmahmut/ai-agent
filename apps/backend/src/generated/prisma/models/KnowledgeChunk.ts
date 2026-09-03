@@ -14,23 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model KnowledgeChunk
- * One passage and its embedding.
  * 
- * `embedding` is `Unsupported` because Prisma has no vector type, and it is
- * *nullable* because a required `Unsupported` field removes `create`,
- * `createMany` and `upsert` from the generated delegate entirely — verified
- * against the installed 7.9.1. A row is therefore written first and its
- * vector set by a raw `UPDATE`, and a chunk whose embedding is still null is
- * simply not retrievable yet.
- * 
- * There is deliberately no vector index. An approximate index changes which
- * rows come back, and the tenant predicate is applied *after* the index scan
- * — so a scoped query under HNSW returns whichever of the requested rows
- * happen to survive the filter, silently short. Prisma also cannot represent
- * such an index and emits `DROP INDEX` for it on every subsequent migration,
- * so it would not survive a forward-only pipeline in any case. Exact search
- * needs no index; the btree below is what pgvector's own guidance recommends
- * for a filter this selective.
  */
 export type KnowledgeChunkModel = runtime.Types.Result.DefaultSelection<Prisma.$KnowledgeChunkPayload>
 
@@ -925,36 +909,10 @@ export type $KnowledgeChunkPayload<ExtArgs extends runtime.Types.Extensions.Inte
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     organizationId: string
-    /**
-     * Both parents are referenced as a pair with `organizationId`.
-     * 
-     * `organizationId` on this row is the entire scoping predicate — retrieval
-     * filters on it and on `spaceId`, in the same statement that ranks. Left as
-     * three independent foreign keys, nothing but the correctness of whatever
-     * writes the row would keep the three tenant answers in agreement, and the
-     * isolation guarantee would be a convention rather than a constraint. As a
-     * pair, a chunk that claimed one organization while sitting in another's
-     * space is rejected by PostgreSQL.
-     */
     spaceId: string
     documentId: string
-    /**
-     * Position within the document, so a retrieved passage can be placed.
-     */
     ordinal: number
     content: string
-    /**
-     * Which model produced the vector.
-     * 
-     * Two models' embeddings are not comparable — the numbers occupy different
-     * spaces and the distance between them is arithmetic rather than meaning.
-     * 1536 dimensions was chosen so `text-embedding-3-large` can replace
-     * `text-embedding-3-small` without a column change, which means the swap
-     * will not be forced through a migration that stops traffic: during
-     * re-embedding the table holds both. Retrieval therefore *filters* on this
-     * column rather than merely recording it, so a query ranks within one model
-     * or returns nothing, never across two.
-     */
     embeddingModel: string | null
     createdAt: Date
   }, ExtArgs["result"]["knowledgeChunk"]>

@@ -614,9 +614,6 @@ export type $MemberPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs
     id: string
     organizationId: string
     userId: string
-    /**
-     * Comma-separated organization role names.
-     */
     role: string
     createdAt: Date
   }, ExtArgs["result"]["member"]>

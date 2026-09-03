@@ -14,13 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model RuntimeSetting
- * One operator-editable setting, whose key must exist in the code-owned
- * registry and whose value must satisfy that entry's Zod schema.
  * 
- * The value is JSON because the registry — not the column — decides each
- * setting's type. Storing text and parsing on read would make every consumer
- * re-derive the type, and a typed column per setting would make adding one a
- * migration.
  */
 export type RuntimeSettingModel = runtime.Types.Result.DefaultSelection<Prisma.$RuntimeSettingPayload>
 

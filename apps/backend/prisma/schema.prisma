@@ -1,55 +1,6 @@
-// Better Auth schema (core + admin + organization) plus this application's
-// own lifecycle state.
-//
-// The Better Auth half is not hand-designed: it was taken from
-// `getAuthTables()` in the installed better-auth@1.6.27, called with this
-// project's actual auth configuration, and compared field by field. That
-// matters because the adapter addresses models as `prisma[modelName]` and
-// fails at runtime — not at build time — when a column is missing.
-//
-// Relation field names follow the adapter's `getJoinKeyName` rule: singular on
-// the side holding the foreign key (`Session.user`), pluralised on the other
-// (`User.sessions`).
-//
-// ---------------------------------------------------------------------------
-// Referential-action policy
-// ---------------------------------------------------------------------------
-// Identity roots are never physically deleted by this application: users are
-// soft-deleted (`User.deletedAt`) and organizations are archived
-// (`Organization.archivedAt`). Cascades therefore exist only where the child
-// is genuinely worthless without its parent, and every one is justified here.
-//
-//   session.userId  -> Cascade   A session is ephemeral authentication state
-//                                with no historical value, and Better Auth
-//                                already deletes sessions wholesale via
-//                                `deleteUserSessions`. Cascade matches the
-//                                semantics that are already in force.
-//   account.userId  -> Cascade   A provider linkage is meaningless without the
-//                                identity it links to, and it is re-creatable
-//                                by signing in again.
-//
-//   member.userId          -> Restrict
-//   member.organizationId  -> Restrict
-//   invitation.inviterId   -> Restrict
-//   invitation.organizationId -> Restrict
-//   agent_run.organizationId  -> Restrict
-//   agent_run.createdByUserId -> Restrict (nullable; only when a creator exists)
-//   content_project.organizationId  -> Restrict
-//   content_project.sourceRunId     -> Restrict (the snapshot's provenance)
-//   content_project.createdByUserId -> Restrict (nullable, as above)
-//   content_draft.organizationId    -> Restrict
-//   content_draft.createdByUserId   -> Restrict (nullable, as above)
-//
-// These Restricts are deliberate. Membership, invitation, agent-run, and
-// content-project rows carry history, and hard deletion of a user or an
-// organization is not an operation this application offers. If a physical delete is ever attempted — by hand, by
-// a future migration, or by a Better Auth route we failed to disable — it must
-// fail loudly rather than quietly shredding organizational history.
-//
-// Deliberately absent: `UserPermissionOverride`, `team`, `teamMember`,
-// `organizationRole`. Teams and dynamic access control are disabled, so their
-// tables would be dead weight the schema promises to keep.
-
+// Better Auth model/field names must match its generated schema; adapter
+// mismatches fail at runtime. Business-history relations restrict deletion,
+// while sessions and provider accounts cascade with their user.
 generator client {
   provider     = "prisma-client"
   output       = "../src/generated/prisma"
@@ -69,30 +20,17 @@ model User {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  /// Outbound-message language for this account: 'ar' | 'en'.
-  /// Nullable because an account may never have expressed a preference, and
-  /// always re-validated through `parseAppLocale` on read — the column is a
-  /// hint, never a trusted locale.
+  // Revalidated on read; stored preference is not a trusted locale.
   preferredLanguage String?
 
-  // --- Better Auth admin plugin ---------------------------------------------
-  /// Comma-separated global role names; null means the plugin's `defaultRole`.
   role       String?
   banned     Boolean?  @default(false)
   banReason  String?
   banExpires DateTime?
 
-  // --- Application account lifecycle ----------------------------------------
-  /// Set when the account is deactivated. A soft delete: every row below stays
-  /// intact and the account can be restored by a `super_admin`.
-  ///
-  /// Independent of `banned`. A ban is a moderation decision; a deactivation is
-  /// a lifecycle state. Restoring one must never clear the other, which is why
-  /// this is a separate column rather than an overload of `banned`.
+  // Separate from moderation bans so either lifecycle can be reversed alone.
   deletedAt       DateTime?
-  /// Who performed the deactivation. Not a relation: the actor is an audit
-  /// fact, and a foreign key here would make the actor's own lifecycle depend
-  /// on the records they touched.
+  // Audit attribution is intentionally not a relation.
   deletedByUserId String?
   deletionReason  String?
 
@@ -105,8 +43,6 @@ model User {
   contentProjectsCreated ContentProject[] @relation("ContentProjectCreator")
   contentDraftsCreated   ContentDraft[]   @relation("ContentDraftCreator")
 
-  /// Control-plane edit attribution. `SetNull` on delete, because who changed
-  /// a setting is useful history but must never block removing an account.
   featureFlagPlatformOverridesEdited     FeatureFlagPlatformOverride[]     @relation("FeatureFlagPlatformOverrideEditor")
   featureFlagOrganizationOverridesEdited FeatureFlagOrganizationOverride[] @relation("FeatureFlagOrganizationOverrideEditor")
   runtimeSettingsEdited                  RuntimeSetting[]                  @relation("RuntimeSettingEditor")
@@ -125,19 +61,14 @@ model Session {
   updatedAt DateTime @updatedAt
   ipAddress String?
   userAgent String?
-  /// Server-derived from ipAddress through the local GeoLite2 City database.
   country   String?
-  /// Server-derived city label; never accepted from an auth request body.
   city      String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // --- Better Auth admin plugin ---------------------------------------------
   impersonatedBy String?
 
-  // --- Better Auth organization plugin --------------------------------------
-  /// Request context, never authorization. Proves only which organization the
-  /// session has selected — membership and permission are read from `member`.
+  // Request context only; membership and permissions are loaded separately.
   activeOrganizationId String?
 
   @@unique([token])
@@ -178,8 +109,7 @@ model Verification {
   @@map("verification")
 }
 
-/// Concurrency-safe storage required by Better Auth 1.6.x's native limiter.
-/// Fields are derived from getAuthTables() for the installed version.
+// Better Auth's native limiter requires database-backed atomic state.
 model RateLimit {
   id          String @id
   key         String @unique
@@ -197,9 +127,6 @@ model Organization {
   createdAt DateTime @default(now())
   metadata  String?
 
-  // --- Application-owned business settings -------------------------------
-  /// Product defaults and a deliberately small typed business profile.
-  /// Better Auth ignores these extra columns; application routes own them.
   locale              String  @default("ar")
   timezone            String  @default("UTC")
   currency            String  @default("USD")
@@ -208,21 +135,10 @@ model Organization {
   websiteUrl          String?
   businessDescription String?
 
-  /// Optimistic compare-and-swap token for the business settings surface.
-  /// Kept separate from Better Auth's name/slug writes so unrelated profile
-  /// changes cannot manufacture a settings conflict.
+  // Separate CAS token so Better Auth name/slug writes cannot cause conflicts.
   businessProfileVersion   Int      @default(1)
   businessProfileUpdatedAt DateTime @default(now())
 
-  // --- Application organization lifecycle -----------------------------------
-  /// Set when the organization is archived. Every member, invitation and
-  /// business resource survives; the organization simply becomes operationally
-  /// inert (see `auth-hooks.ts`) until an owner or a `super_admin` restores it.
-  ///
-  /// Not declared to Better Auth. The organization plugin has no notion of a
-  /// soft-deleted organization, so enforcement is ours and the column is read
-  /// through `PrismaService`. Extra nullable columns are invisible to the
-  /// adapter's create/update payloads.
   archivedAt       DateTime?
   archivedByUserId String?
   archiveReason    String?
@@ -231,9 +147,9 @@ model Organization {
   invitations Invitation[]
   agentRuns   AgentRun[]
 
-  agentInstallations OrganizationAgentInstallation[]
-  auditEvents        OrganizationAuditEvent[]
-  toolExecutions     ToolExecution[]
+  agentInstallations     OrganizationAgentInstallation[]
+  auditEvents            OrganizationAuditEvent[]
+  toolExecutions         ToolExecution[]
   toolExecutionApprovals ToolExecutionApproval[]
 
   featureFlagOverrides FeatureFlagOrganizationOverride[]
@@ -257,7 +173,6 @@ model Member {
 
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
-  /// Comma-separated organization role names.
   role      String   @default("member")
   createdAt DateTime @default(now())
 
@@ -272,7 +187,6 @@ model Invitation {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   email          String
   role           String?
-  /// 'pending' | 'accepted' | 'rejected' | 'canceled'
   status         String       @default("pending")
   expiresAt      DateTime
   createdAt      DateTime     @default(now())
@@ -285,13 +199,7 @@ model Invitation {
   @@map("invitation")
 }
 
-// ---------------------------------------------------------------------------
-// Agent execution
-// ---------------------------------------------------------------------------
-
-/// Durable business lifecycle for one accepted agent run.
-/// Separate from both `OutboxEventStatus` (whether the queue publish happened)
-/// and BullMQ's transport state (whether Redis currently holds a job).
+// Independent of outbox delivery and BullMQ transport state.
 enum AgentRunStatus {
   QUEUED
   RUNNING
@@ -301,19 +209,11 @@ enum AgentRunStatus {
   @@map("agent_run_status")
 }
 
-/// Durable authority for one background agent execution.
-/// The runtime stays a string so adding a second application-supported runtime
-/// is a code change, not inherently a database migration. `agentId` names an
-/// application-owned definition; definitions are code, so it is deliberately
-/// not a foreign key.
 model AgentRun {
   id      String @id @default(uuid())
   agentId String
 
-  /// The exact definition revision this run is pinned to. Asynchronous work
-  /// must execute the definition that was current when it was accepted, so
-  /// `(agentId, agentVersion)` — not `agentId` alone — identifies the code the
-  /// worker resolves, including across a rolling deployment.
+  // A queued run must resolve the definition accepted before a rollout.
   agentVersion Int
 
   runtime String
@@ -322,38 +222,25 @@ model AgentRun {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  /// The immutable organization-owned effective state selected at acceptance.
-  /// Nullable only for runs accepted before this relation existed and for
-  /// rolling/rollback compatibility with the preceding image.
+  // Nullable only for rows written before version pinning was introduced.
   organizationAgentVersionId String?
   organizationAgentVersion   OrganizationAgentVersion? @relation(fields: [organizationAgentVersionId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
-  /// Stable application model-policy identities resolved when the run is
-  /// accepted. All three are non-null for new application writes. They remain
-  /// nullable together for pre-MOD-01B and rolling-rollback runs, whose pinned
-  /// definition revision supplies the only model behavior that existed then.
+  // Nullable together for rows written before model pinning was introduced.
   modelPolicyId          String?
   modelId                String?
   modelPricingRevisionId String?
 
-  /// Null means no authenticated application User initiated this run — for
-  /// example scheduled or system-initiated work. It is not an actor
-  /// abstraction and carries no other meaning.
   createdByUserId String?
   createdByUser   User?   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
 
-  /// Application-owned input and result values. They are JSON so the database
-  /// does not make a runtime SDK's request/result types canonical.
   input  Json
   output Json?
 
-  /// Bounded diagnostic prose from the latest failed attempt. Never a stack,
-  /// serialized provider response, or raw error cause.
+  // Contains only bounded application diagnostics, never provider or stack text.
   lastError    String?
   attemptCount Int     @default(0)
 
-  /// Caller-supplied durable request identity, scoped to the organization.
-  /// BullMQ's job id is a secondary optimization and cannot replace this.
   idempotencyKey String
 
   startedAt       DateTime?
@@ -364,26 +251,15 @@ model AgentRun {
   toolExecutions  ToolExecution[]
 
   @@unique([organizationId, idempotencyKey])
-  /// Target for tenant-safe child references. A child that points at a run
-  /// carries `(sourceRunId, organizationId)` as a pair, so the database — not
-  /// a service-layer predicate — refuses a selection across organizations.
+  // Composite target lets child relations enforce tenant agreement.
   @@unique([id, organizationId])
   @@index([createdByUserId])
   @@index([organizationAgentVersionId])
-  /// Serves the reconciliation sweep, which repeatedly asks for the oldest
-  /// non-terminal runs. Without it that bounded query degrades into a full
-  /// scan of a table whose terminal rows are never deleted, so its cost would
-  /// grow with total history rather than with the backlog it is meant to find.
+  // Supports bounded oldest-first reconciliation of non-terminal runs.
   @@index([status, updatedAt])
   @@map("agent_run")
 }
 
-/// One code-owned agent installed inside one organization.
-///
-/// The mutable facts are only `revision` and the pointer to the current
-/// immutable version. `activeVersionId` is nullable so the installation and its
-/// first version can be created in one transaction; application-created
-/// committed rows always point at a version.
 model OrganizationAgentInstallation {
   id String @id @default(uuid())
 
@@ -394,8 +270,7 @@ model OrganizationAgentInstallation {
   revision Int    @default(0)
 
   activeVersionId String?
-  /// The owning migration defers this foreign key to transaction commit so a
-  /// replacement can win pointer CAS before inserting its immutable version.
+  // The migration makes this FK commit-deferred so pointer CAS can precede insert.
   activeVersion   OrganizationAgentVersion?  @relation("ActiveOrganizationAgentVersion", fields: [activeVersionId, id], references: [id, installationId], onDelete: Restrict)
   versions        OrganizationAgentVersion[] @relation("OrganizationAgentVersions")
 
@@ -403,17 +278,11 @@ model OrganizationAgentInstallation {
   updatedAt DateTime @updatedAt
 
   @@unique([organizationId, agentId])
-  /// Target for version ownership; the database keeps tenant identity aligned.
   @@unique([id, organizationId])
   @@index([organizationId])
   @@map("organization_agent_installation")
 }
 
-/// One immutable effective state of an organization's installed agent.
-///
-/// Definition behavior remains code-owned. This row pins the exact code
-/// definition revision plus the organization-owned, definition-validated
-/// configuration and whether that effective state is enabled.
 model OrganizationAgentVersion {
   id String @id @default(uuid())
 
@@ -426,75 +295,34 @@ model OrganizationAgentVersion {
   enabled           Boolean
   configuration     Json
 
-  /// The exact tool versions this immutable version selected, as `id@version`.
-  ///
-  /// A subset of the pinned definition's maximum, validated in the application
-  /// before the row is written. Stored on the version rather than on the
-  /// installation because it is part of what a version *is*: an accepted run
-  /// pins a version id, so this column is already the durable, immutable
-  /// authority for that run's grants and needs no second copy on `AgentRun`.
-  ///
-  /// Defaulted so the column is additive. Every row written before this
-  /// existed, and every row an older image writes during a rollback, means
-  /// exactly what the empty list means: no tools.
+  // Empty default preserves no-tool authority for older writers.
   toolGrants String[] @default([])
 
-  /// The definition-owned policy revision and its organization-selected model.
-  /// New application versions always write both. Nullable together only for
-  /// rows created before MOD-01B or by the preceding image during rollback.
   modelPolicyId String?
   modelId       String?
 
-  /// Attribution without a foreign key so history cannot block or lose its
-  /// actor during a future user lifecycle change.
   createdByUserId String?
   createdAt       DateTime @default(now())
 
   activeFor OrganizationAgentInstallation[] @relation("ActiveOrganizationAgentVersion")
   runs      AgentRun[]
 
-  /// Target for the installation's active pointer; including installation id
-  /// makes a cross-installation pointer a database constraint violation.
   @@unique([id, installationId])
-  /// Target for AgentRun's tenant-bound immutable version reference.
   @@unique([id, organizationId])
-  /// No installation may commit two immutable versions with one revision.
   @@unique([installationId, revision], map: "organization_agent_version_installationId_revision_key")
   @@index([organizationId])
   @@index([installationId, createdAt, id])
   @@map("organization_agent_version")
 }
 
-/// What happened when an agent used a governed tool.
-///
-/// The durable half of tool execution. A run's answer says what the model
-/// concluded; this says what it actually did to get there, and it is the only
-/// record that survives the process.
-///
-/// `toolId` and `toolVersion` are columns rather than a reference to a table,
-/// because the registry is code: there is no `ToolDefinition` row to point at,
-/// and the pair is exactly what a grant names. They are also not the SDK's tool
-/// name — an adapter that renamed a tool would change what the model sees, and
-/// must not change what history says was run.
 enum ToolExecutionStatus {
-  /// Authorized, input validated, and handed to the implementation.
   STARTED
-  /// The implementation returned a value its own output schema accepted, or
-  /// the approved external effect was confirmed by the provider.
   SUCCEEDED
-  /// The implementation threw, returned something its schema refused, or a
-  /// side effect was refused before or by the provider. Never used when the
-  /// provider may have accepted the request.
   FAILED
-  /// A side-effect proposal: recorded durably, no external effect performed,
-  /// waiting for an authorized human decision.
   AWAITING_APPROVAL
-  /// A human approved the proposal; the effect is queued or in progress.
   APPROVED
-  /// A human rejected the proposal. Terminal; nothing was performed.
   REJECTED
-  /// The provider may have accepted the request but the outcome was lost and
-  /// the safe retry window is over. Terminal; needs a person to reconcile.
+  // Provider may have acted, so retrying would be unsafe.
   OUTCOME_UNKNOWN
 
   @@map("tool_execution_status")
@@ -514,18 +342,9 @@ model ToolExecution {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  /// The run this was performed for, referenced as a tenant-safe pair.
-  ///
-  /// `(agentRunId, organizationId)` against `agent_run(id, organizationId)`, so
-  /// a row claiming one organization's execution against another's run is
-  /// refused by PostgreSQL. A service predicate would be the only guard if this
-  /// were a plain `agentRunId`, and a service predicate is one forgotten
-  /// `where` clause away from absent.
   agentRunId String
   agentRun   AgentRun @relation(fields: [agentRunId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
-  /// Which attempt of that run. A retried run performs its tools again, and
-  /// two executions of one tool for one run are only distinguishable by this.
   agentRunAttempt Int
 
   toolId      String
@@ -533,34 +352,16 @@ model ToolExecution {
 
   status ToolExecutionStatus @default(STARTED)
 
-  /// The input as the application parsed it, never as the model sent it.
+  // Parsed application values; raw provider data is never stored here.
   input Json
 
-  /// The result as the tool's own output schema parsed it. Null until the
-  /// execution reaches `SUCCEEDED`, and null forever if it never does.
   output Json?
 
-  /// A closed application-owned code, never provider or SDK text.
-  ///
-  /// The failure vocabulary is a union of literals in `ToolFailureCode`, so
-  /// this column cannot receive `error.message` without someone widening that
-  /// type first.
   failureCode String?
 
-  /// Side-effect bookkeeping. Null or zero for a read-only execution.
-  ///
-  /// `effectAttemptCount` is the concurrency fence for effect delivery: a
-  /// worker claims an attempt by matching the count it read and bumping it, so
-  /// two deliveries of one approved action cannot both hold the same attempt.
-  /// `effectFirstAttemptedAt` bounds retries to the provider's idempotency
-  /// window. `effectPayloadDigest` is the digest of the effective payload the
-  /// first attempt sent; a later attempt whose payload differs cannot know
-  /// whether the first reached the provider, so it resolves to
-  /// `OUTCOME_UNKNOWN` rather than sending something else under the same key.
-  /// `providerMessageId` is the provider's own identifier for the accepted
-  /// effect — the durable fact success is reconstructed from.
   effectAttemptCount     Int       @default(0)
   effectFirstAttemptedAt DateTime?
+  // Binds an approval to the exact stored side-effect proposal.
   effectPayloadDigest    String?
   providerMessageId      String?
 
@@ -572,22 +373,12 @@ model ToolExecution {
 
   approval ToolExecutionApproval?
 
-  /// Target for tenant-safe child references, so an approval carries
-  /// `(toolExecutionId, organizationId)` as a pair.
   @@unique([id, organizationId])
   @@index([organizationId, agentRunId, startedAt])
   @@index([organizationId, startedAt, id])
   @@map("tool_execution")
 }
 
-/// The human decision on one side-effect proposal.
-///
-/// Exactly one per side-effect `ToolExecution`, enforced by the unique on
-/// `toolExecutionId`. A separate row rather than columns on the execution
-/// because the decision is a different fact: it has its own actor, its own
-/// time, and its own digest of what was decided. The composite foreign key is
-/// what lets PostgreSQL — not a service predicate — refuse an approval that
-/// names another organization's execution.
 model ToolExecutionApproval {
   id String @id @default(uuid())
 
@@ -599,70 +390,30 @@ model ToolExecutionApproval {
 
   status ToolExecutionApprovalStatus @default(PENDING)
 
-  /// Digest of the parsed proposal the approver saw. Revalidated immediately
-  /// before the effect, so an input rewritten after approval never sends.
+  // A changed proposal invalidates the approval.
   inputDigest String
 
   requestedAt DateTime  @default(now())
   decidedAt   DateTime?
 
-  /// Who decided. Not a relation, for the same reason audit attribution is
-  /// not one: the decision must survive a later actor-lifecycle change.
   decidedByUserId String?
-  /// Bounded, human-entered, and the only free text on the row.
   decisionNote    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /// Required by Prisma for a one-to-one over a composite pair; implied by the
-  /// unique on `toolExecutionId` alone, and harmless as a second index.
   @@unique([toolExecutionId, organizationId])
   @@index([organizationId, status, requestedAt, id])
   @@map("tool_execution_approval")
 }
 
-// ---------------------------------------------------------------------------
-// Transactional outbox
-// ---------------------------------------------------------------------------
-// The seam between "the request succeeded" and "the work was queued".
-//
-// Without it those two are one distributed write with no way to make them
-// atomic: enqueue before committing and a rolled-back transaction leaves a job
-// referencing a row that never existed; commit before enqueuing and a crash in
-// between accepts work that nothing will ever perform. Both are silent.
-//
-// So the API writes the business row and a row here in one transaction, and a
-// dispatcher in the worker process turns rows here into queue jobs. The result
-// is at-least-once delivery — never at-most-once — which is why every consumer
-// has to be safe to run twice.
-//
-// Deliberately generic. `type` and `payload` carry the event, so a new kind of
-// asynchronous work needs no migration; the mapping from `type` to a queue and
-// a job name lives in code, where it can be exhaustively checked.
-
-/// Delivery lifecycle, entirely separate from any business lifecycle.
-///
-/// `DELIVERED` says a job reached the queue. It says nothing about whether the
-/// work succeeded — that belongs to the business row the event refers to.
-/// Conflating the two is how a failed agent run comes to look like an
-/// undelivered event and gets published a second time.
 enum OutboxEventStatus {
-  /// Committed and waiting to be claimed.
   PENDING
 
-  /// Claimed by a dispatcher, under a lease. Reclaimable once the lease expires
-  /// — which is exactly what recovers an event whose dispatcher died mid-publish.
   PROCESSING
 
-  /// Handed to the queue.
   DELIVERED
 
-  /// Deterministically undeliverable: a payload that cannot be serialised, a
-  /// job over the size limit. Never reached because the queue transport was
-  /// down — an outage is retried for as long as it lasts, since the API already
-  /// promised the caller this work was accepted. Parked rather than deleted:
-  /// the row is the only record that accepted work was not performed.
   FAILED
 
   @@map("outbox_event_status")
@@ -671,89 +422,34 @@ enum OutboxEventStatus {
 model OutboxEvent {
   id String @id @default(uuid())
 
-  /// Event type. Resolved to a queue and a job name in code, never here.
   type String
 
-  /// The job payload, verbatim.
   payload Json
 
-  /// Passed to BullMQ as the job id, when present.
-  ///
-  /// Collapses the duplicates that at-least-once delivery produces, and only
-  /// those: BullMQ rejects a repeated id while the job still exists in Redis, so
-  /// the guarantee expires with retention. Durable idempotency is a PostgreSQL
-  /// UNIQUE constraint on the business row, not this column.
+  // Fast transport dedupe only; consumers still enforce durable idempotency.
   dedupeKey String?
 
   status   OutboxEventStatus @default(PENDING)
   attempts Int               @default(0)
 
-  /// Earliest time this event may be claimed. Moved forward on each failed
-  /// publish, so a queue that is refusing writes is retried with backoff rather
-  /// than hammered every poll.
   availableAt DateTime @default(now())
 
-  /// When the current claim lapses. The crash-recovery window: a dispatcher that
-  /// dies between `queue.add()` and the `DELIVERED` write leaves the row claimed,
-  /// and nothing re-delivers it until this passes.
+  // Lease and claimant form the fencing claim used by conditional settlement.
   leaseExpiresAt DateTime?
 
-  /// Which dispatcher holds the claim.
-  ///
-  /// Read as half of the claim version, not merely for audit. `reschedule` and
-  /// `markFailed` match on `(claimedBy, attempts)`, so a dispatcher whose lease
-  /// lapsed while a newer one reclaimed and delivered the row updates zero rows
-  /// instead of dragging `DELIVERED` back to `PENDING` or down to `FAILED`.
-  ///
-  /// `markDelivered` is deliberately exempt: a successful publish is a fact, and
-  /// leaving a delivered row `PROCESSING` would schedule a pointless re-delivery.
   claimedBy String?
 
-  /// Last publish failure, for diagnosis. Truncated by the dispatcher: a
-  /// provider error can carry an entire request, and this column is read by
-  /// people rather than by code.
   lastError String?
 
   deliveredAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  /// The claim query's indexes. `type` leads both, because every claim filters
-  /// on the types this worker build can route before it looks at anything else —
-  /// that filter is what stops an old worker destroying an event written by a
-  /// newer API during a rollout.
   @@index([type, status, availableAt])
-  /// The reclaim half of the same query: `PROCESSING` rows whose lease lapsed.
   @@index([type, status, leaseExpiresAt])
   @@map("outbox_event")
 }
 
-// ---------------------------------------------------------------------------
-// Control plane
-// ---------------------------------------------------------------------------
-// Operational state an operator may change without a deployment, kept
-// deliberately separate from two things it is often confused with.
-//
-// It is not bootstrap configuration. `DATABASE_URL`, `REDIS_URL`,
-// `BETTER_AUTH_SECRET` and the secret-encryption master key cannot live here,
-// because they are what the application needs in order to reach the database
-// these rows are in.
-//
-// It is also not agent behaviour. Prompts, context policy and input/output
-// schemas belong to a versioned definition in code: a durable AgentRun accepted
-// against version 1 must still execute version 1 tomorrow, and a mutable row
-// cannot promise that. Changing behaviour publishes a new version.
-//
-// What is left is genuinely operational: whether a feature accepts new work,
-// bounded numeric and enumerated tuning values, and provider credentials.
-
-/// A platform-wide feature-flag override.
-///
-/// Separate from the organization-scoped table rather than one table with a
-/// nullable `organizationId`, because PostgreSQL treats NULLs as distinct in a
-/// unique index — so the single most important constraint here, "at most one
-/// platform override per key", would silently not hold. Two tables state the
-/// precedence in the schema instead of in a comment.
 model FeatureFlagPlatformOverride {
   key     String  @id
   enabled Boolean
@@ -766,8 +462,6 @@ model FeatureFlagPlatformOverride {
   @@map("feature_flag_platform_override")
 }
 
-/// A feature-flag override for one organization, which wins over the platform
-/// override and the code default.
 model FeatureFlagOrganizationOverride {
   id      String  @id @default(uuid())
   key     String
@@ -785,13 +479,6 @@ model FeatureFlagOrganizationOverride {
   @@map("feature_flag_organization_override")
 }
 
-/// One operator-editable setting, whose key must exist in the code-owned
-/// registry and whose value must satisfy that entry's Zod schema.
-///
-/// The value is JSON because the registry — not the column — decides each
-/// setting's type. Storing text and parsing on read would make every consumer
-/// re-derive the type, and a typed column per setting would make adding one a
-/// migration.
 model RuntimeSetting {
   key   String @id
   value Json
@@ -804,32 +491,19 @@ model RuntimeSetting {
   @@map("runtime_setting")
 }
 
-/// A provider credential, encrypted at rest with the application master key.
-///
-/// The plaintext is never returned by any read surface and never enters
-/// `process.env`; it is decrypted only when an adapter is about to use it. What
-/// the control plane can show is everything in this model except `ciphertext`.
-///
-/// `keyVersion` records the exact configured encryption key. It remains nullable
-/// only for rows written by the preceding image; those use `keyFingerprint` for
-/// an explicit compatibility lookup. Key material never enters this table.
 model ManagedSecret {
   key String @id
 
+  // AES-256-GCM parts are separate so tampering fails authentication.
   ciphertext Bytes
-  /// The GCM nonce. Unique per encryption, stored beside the ciphertext
-  /// because decryption needs it and it is not secret.
   iv         Bytes
-  /// The GCM authentication tag, which is what makes a tampered ciphertext a
-  /// loud failure rather than silent garbage.
   authTag    Bytes
 
   algorithm      String
   keyFingerprint String
+  // Null supports ciphertext written before the versioned keyring.
   keyVersion     String?
 
-  /// A non-secret hint — never the value, never a prefix of it — so an
-  /// operator can tell two credentials apart in a list.
   label String?
 
   lastRotatedAt   DateTime @default(now())
@@ -842,149 +516,59 @@ model ManagedSecret {
   @@map("managed_secret")
 }
 
-/// An append-only record of one control-plane mutation.
-///
-/// The control-plane rows themselves carry `updatedByUserId` and `updatedAt`,
-/// which answers "who touched this last" and nothing else. Every question an
-/// operator actually asks after an incident is a question about history: when
-/// was this switched on, who switched it, what was it before, and was it ever
-/// set at all. A last-writer column cannot answer any of them, and clearing an
-/// override deletes the row and the only attribution with it — so the moment
-/// the evidence matters most is the moment it stops existing.
-///
-/// Append-only is a property of the code, not of a grant: nothing in the
-/// application updates or deletes a row here, and the read surface is a
-/// paginated listing with no mutations beside it. Deliberately scoped to the
-/// control plane rather than generalized — a business-wide audit framework is a
-/// different feature with different retention, different authorization, and a
-/// much larger surface to get wrong.
-///
-/// ## What must never be in it
-///
-/// No secret plaintext, no ciphertext, no IV, no auth tag, and no value from a
-/// runtime setting the registry marks as anything other than public. A managed
-/// secret's events carry only whether a slot became configured, was rotated, or
-/// was removed, plus the operator's own non-secret label. That is enforced in
-/// `control-plane-audit.service.ts`, where the safe projection for each
-/// resource is built, and asserted by tests that push a canary credential
-/// through every mutation and search the row, the API response and the log for
-/// it.
+// Append-only by application contract; projections exclude credential material.
 model ControlPlaneAuditEvent {
   id String @id @default(uuid())
 
-  /// When the mutation committed. The listing pages on `(occurredAt, id)` so
-  /// two events in the same millisecond still have a total order.
   occurredAt DateTime @default(now())
 
-  /// Who did it. Nullable because an event can outlive its actor's row, and
-  /// deliberately not a relation: an audit fact must not become a reason a
-  /// user row cannot be removed, and `SetNull` on a relation would erase the
-  /// attribution this table exists to keep.
   actorUserId String?
 
-  /// Which control-plane resource: `featureFlag`, `runtimeSetting`, or
-  /// `managedSecret`. A string rather than an enum because adding a resource
-  /// should not be a migration on a log table.
   resource    String
-  /// What was done to it, as `resource.verb` — `featureFlag.setOrganizationOverride`.
   action      String
-  /// The registry key the action addressed.
   resourceKey String
 
-  /// Present only for organization-scoped feature-flag overrides.
   organizationId String?
 
-  /// The safe projection of the resource before and after the mutation.
-  ///
-  /// JSON because each resource's safe shape is different and none of them is
-  /// worth a column. A null `before` means the resource had no stored state —
-  /// which is itself the fact worth recording, since "first configured" and
-  /// "changed" are different events.
   before Json?
   after  Json?
 
-  /// Newest first, and the pair the cursor pages on.
   @@index([occurredAt, id])
-  /// The other question this table is asked: the history of one key.
   @@index([resource, resourceKey, occurredAt])
   @@index([organizationId, occurredAt])
   @@map("control_plane_audit_event")
 }
 
-/// An append-only record of one organization-owned product mutation.
-///
-/// This is deliberately separate from `ControlPlaneAuditEvent`: product
-/// history belongs to a tenant and is authorized through organization
-/// membership, while control-plane history belongs to platform operators.
-/// Application code only creates and lists these rows; it exposes no update or
-/// delete operation. The owning migration also installs a PostgreSQL trigger
-/// that rejects UPDATE and DELETE issued through any database client.
+// The owning migration rejects UPDATE/DELETE for the application database role.
 model OrganizationAuditEvent {
   id String @id @default(uuid())
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  /// When the mutation committed. The listing pages on `(occurredAt, id)` so
-  /// events sharing a timestamp still have a stable total order.
   occurredAt DateTime @default(now())
 
-  /// Who performed the mutation. Deliberately not a relation: attribution must
-  /// survive a future actor-lifecycle change rather than blocking it or being
-  /// nulled by a foreign-key action.
   actorUserId String?
 
-  /// Closed by application types, stored as strings so widening the product
-  /// vocabulary does not require a database enum migration.
   action      String
   subjectType String
   subjectId   String
 
-  /// Closed safe projections owned by each product action. Never request
-  /// bodies or general-purpose metadata.
   before Json?
   after  Json?
 
   @@index([organizationId, occurredAt, id])
-  /// The name is mapped explicitly because the owning migration asked for a
-  /// 76-byte identifier and PostgreSQL stores only the first 63. Prisma
-  /// truncates to 63 too, but by a different rule that keeps the `_idx`
-  /// suffix, so its generated name and the physical one disagree and
-  /// `migrate diff` reports a permanent phantom rename. Mapping the real
-  /// name is what makes the drift zero; the index itself was always correct.
+  // Explicit map matches PostgreSQL's truncated physical name and avoids drift.
   @@index([organizationId, subjectType, subjectId, occurredAt], map: "organization_audit_event_organizationId_subjectType_subjectId_o")
   @@map("organization_audit_event")
 }
 
-// ---------------------------------------------------------------------------
-// Knowledge
-// ---------------------------------------------------------------------------
-// Organization-owned reference material, chunked and embedded so an agent can
-// be given the parts of it that bear on a request.
-//
-// Every one of these three tables carries `organizationId`, including the two
-// that could derive it through a parent. That is denormalization on purpose:
-// the tenant predicate has to sit in the same row as the vector, so the
-// ranking query can be scoped without a join. A join is a thing a future query
-// can forget, and forgetting it here returns another organization's material.
-//
-// All three restrict organization deletion, like every other business table.
-
-/// A named collection of documents inside one organization.
-///
-/// Spaces exist so an agent can be pointed at *some* of an organization's
-/// material rather than all of it: `content-idea@1` reads brand and product
-/// notes and has no business reading a support archive. The set an agent may
-/// see is declared in its code-owned context policy, not chosen at call time.
 model KnowledgeSpace {
   id String @id @default(uuid())
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  /// Stable, human-written, and unique within the organization. A context
-  /// policy names spaces by slug, so a policy stays readable in code review
-  /// and does not embed a uuid that differs per deployment.
   slug String
   name String
 
@@ -995,19 +579,11 @@ model KnowledgeSpace {
   chunks    KnowledgeChunk[]
 
   @@unique([organizationId, slug])
-  /// The target of the composite foreign keys below. Its only job is to let a
-  /// child reference `(id, organizationId)` as a pair, so the database — not a
-  /// convention — guarantees the two agree.
   @@unique([id, organizationId])
   @@index([organizationId])
   @@map("knowledge_space")
 }
 
-/// One source text, before it was split.
-///
-/// Kept as a row of its own rather than folded into the chunks so a retrieved
-/// passage can say where it came from, and so re-ingesting a changed source
-/// replaces a known set of chunks instead of accumulating duplicates.
 model KnowledgeDocument {
   id String @id @default(uuid())
 
@@ -1015,29 +591,14 @@ model KnowledgeDocument {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   spaceId String
-  /// Referenced as a pair with `organizationId`, so a document cannot be filed
-  /// into a space belonging to a different organization.
   space   KnowledgeSpace @relation(fields: [spaceId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
   title String
 
-  /// Where the text came from, when it came from somewhere addressable. Free
-  /// text and never dereferenced by this application.
   sourceUri String?
 
-  /// A digest of the source text, so ingestion can tell an unchanged document
-  /// from one that has to be re-split and re-embedded — which costs a provider
-  /// call per chunk.
   checksum String
 
-  /// How many times the body has been replaced, starting at one.
-  ///
-  /// There is deliberately no revision *history*. Keeping superseded chunks
-  /// would mean either retrieving stale passages or carrying an is-current
-  /// predicate through the one query whose predicates are the isolation
-  /// guarantee. This counter exists so a caller can see that a re-ingestion
-  /// changed something, and so the outbox event for one edit is distinct from
-  /// the event for the next.
   revision Int @default(1)
 
   createdAt DateTime @default(now())
@@ -1045,8 +606,6 @@ model KnowledgeDocument {
 
   chunks KnowledgeChunk[]
 
-  /// A document is addressed by title within its space, which is what makes
-  /// re-submitting a source an update rather than a duplicate.
   @@unique([organizationId, spaceId, title])
   @@unique([id, organizationId])
   @@index([organizationId])
@@ -1054,64 +613,25 @@ model KnowledgeDocument {
   @@map("knowledge_document")
 }
 
-/// One passage and its embedding.
-///
-/// `embedding` is `Unsupported` because Prisma has no vector type, and it is
-/// *nullable* because a required `Unsupported` field removes `create`,
-/// `createMany` and `upsert` from the generated delegate entirely — verified
-/// against the installed 7.9.1. A row is therefore written first and its
-/// vector set by a raw `UPDATE`, and a chunk whose embedding is still null is
-/// simply not retrievable yet.
-///
-/// There is deliberately no vector index. An approximate index changes which
-/// rows come back, and the tenant predicate is applied *after* the index scan
-/// — so a scoped query under HNSW returns whichever of the requested rows
-/// happen to survive the filter, silently short. Prisma also cannot represent
-/// such an index and emits `DROP INDEX` for it on every subsequent migration,
-/// so it would not survive a forward-only pipeline in any case. Exact search
-/// needs no index; the btree below is what pgvector's own guidance recommends
-/// for a filter this selective.
+// Tenant identity is repeated so vector ranking is filtered before selection.
 model KnowledgeChunk {
   id String @id @default(uuid())
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  /// Both parents are referenced as a pair with `organizationId`.
-  ///
-  /// `organizationId` on this row is the entire scoping predicate — retrieval
-  /// filters on it and on `spaceId`, in the same statement that ranks. Left as
-  /// three independent foreign keys, nothing but the correctness of whatever
-  /// writes the row would keep the three tenant answers in agreement, and the
-  /// isolation guarantee would be a convention rather than a constraint. As a
-  /// pair, a chunk that claimed one organization while sitting in another's
-  /// space is rejected by PostgreSQL.
   spaceId String
   space   KnowledgeSpace @relation(fields: [spaceId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
   documentId String
   document   KnowledgeDocument @relation(fields: [documentId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
-  /// Position within the document, so a retrieved passage can be placed.
   ordinal Int
   content String
 
-  /// 1536 dimensions: `text-embedding-3-small` native, and reachable by
-  /// `text-embedding-3-large` through its `dimensions` parameter — so two
-  /// further models remain available without a table rewrite and a full
-  /// re-embedding.
+  // Prisma cannot write vector directly; ingestion attaches it with raw SQL.
   embedding Unsupported("vector(1536)")?
 
-  /// Which model produced the vector.
-  ///
-  /// Two models' embeddings are not comparable — the numbers occupy different
-  /// spaces and the distance between them is arithmetic rather than meaning.
-  /// 1536 dimensions was chosen so `text-embedding-3-large` can replace
-  /// `text-embedding-3-small` without a column change, which means the swap
-  /// will not be forced through a migration that stops traffic: during
-  /// re-embedding the table holds both. Retrieval therefore *filters* on this
-  /// column rather than merely recording it, so a query ranks within one model
-  /// or returns nothing, never across two.
   embeddingModel String?
 
   createdAt DateTime @default(now())
@@ -1122,83 +642,35 @@ model KnowledgeChunk {
   @@map("knowledge_chunk")
 }
 
-/// One content idea an organization decided to act on.
-///
-/// The prose fields are a snapshot the *server* derived from
-/// `AgentRun.output` at `sourceIdeaIndex`, not text the caller submitted. A
-/// caller who could send the prose could persist words the agent never wrote
-/// while they still read as agent-authored, and nothing afterwards could tell
-/// the difference — the run reference would claim a provenance the row did not
-/// have.
-///
-/// The snapshot is copied rather than referenced because it must not move.
-/// `AgentRun.output` is one JSON document holding every idea from that request;
-/// reading the chosen one back through an index would make the project's
-/// identity depend on the position of an element in a blob, and would leave a
-/// project unreadable if the output shape ever changed. What was chosen is
-/// settled at selection and stays settled.
-///
-/// `suggestedFormat` and `language` are strings rather than database enums, for
-/// the same reason `AgentRun.runtime` is: the vocabularies are code-owned and
-/// validated there, so extending either is a code change rather than
-/// inherently a migration.
+// Idea and brief are server-derived snapshots of the referenced run.
 model ContentProject {
   id String @id @default(uuid())
 
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
-  /// The run this idea came from, referenced as a pair with `organizationId`
-  /// so a project cannot be built from another organization's run. `Restrict`
-  /// because the run is the project's provenance: deleting it would leave a
-  /// snapshot claiming to have come from somewhere that no longer exists.
+  // Composite reference makes cross-organization provenance impossible.
   sourceRunId String
   sourceRun   AgentRun @relation(fields: [sourceRunId, organizationId], references: [id, organizationId], onDelete: Restrict)
 
-  /// Which idea in that run's output was selected. Kept for provenance — so a
-  /// reader can find the original alongside its siblings — and never read to
-  /// reconstruct the snapshot.
   sourceIdeaIndex Int
 
-  /// The brief the ideas were generated from, snapshotted with the idea.
-  ///
-  /// Copied from `AgentRun.input` by the server for the same reason the idea is
-  /// copied from `AgentRun.output`: the project has to be a complete statement
-  /// of the work on its own. A writer — the agent that will eventually fill
-  /// revision 1, or a person — needs to know what the piece is *for*, and
-  /// reaching back into the run's input to find out would make every future
-  /// consumer depend on a JSON column belonging to another aggregate, one whose
-  /// shape is pinned to a definition revision that may no longer be current.
-  ///
-  /// `topic` and `goal` are required here because they are required of the
-  /// request that produced the ideas. `audience` and `guidance` are optional
-  /// there and nullable here; null means the request did not say, which is
-  /// different from an empty string and is worth being able to tell apart.
   topic    String
   goal     String
   audience String?
   guidance String?
 
-  /// The selected idea, exactly as the agent produced it.
   title           String
   hook            String
   angle           String
   summary         String
   suggestedFormat String
 
-  /// The content language, taken from the run's input rather than the
-  /// selecting member's UI locale. An Arabic-speaking marketer planning English
-  /// copy is the ordinary case.
   language String
 
-  /// Null means no authenticated application User selected this idea. It is not
-  /// an actor abstraction and carries no other meaning.
   createdByUserId String?
   createdByUser   User?   @relation("ContentProjectCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
-  /// Caller-supplied durable request identity, scoped to the organization.
-  /// Selecting the same idea twice from a retried request must not produce two
-  /// projects.
   idempotencyKey String
 
   drafts ContentDraft[]
@@ -1207,28 +679,14 @@ model ContentProject {
   updatedAt DateTime @updatedAt
 
   @@unique([organizationId, idempotencyKey])
-  /// Target for tenant-safe child references.
   @@unique([id, organizationId])
-  /// Serves the organization-scoped list, which is ordered newest first and
-  /// paginated by a stable `(createdAt, id)` cursor.
   @@index([organizationId, createdAt, id])
   @@index([sourceRunId])
   @@index([createdByUserId])
   @@map("content_project")
 }
 
-/// One revision of the thing a content project is trying to produce.
-///
-/// Revision 1 is created in the same transaction as its project and is a
-/// *target*, not content: it names the format, language, and working title the
-/// eventual piece should have, and its body is null because nothing has written
-/// it. Seeding the body from the idea summary would put words in the draft that
-/// no writer chose and no reviewer approved, and would make an unwritten draft
-/// indistinguishable from a written one.
-///
-/// The revision column exists now, at a fixed value of one, because the Writer
-/// Agent that will add revision 2 must not have to migrate a single-draft table
-/// into a versioned one while projects already exist.
+// Revision 1 is a target; a null body means no content has been written.
 model ContentDraft {
   id String @id @default(uuid())
 
@@ -1236,19 +694,14 @@ model ContentDraft {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
 
   projectId String
-  /// Referenced as a pair with `organizationId`, so a draft cannot be filed
-  /// under a project belonging to a different organization. `Cascade` because
-  /// a draft has no meaning apart from its project.
   project   ContentProject @relation(fields: [projectId, organizationId], references: [id, organizationId], onDelete: Cascade)
 
-  /// Starts at one and is unique within the project.
   revision Int
 
   title    String
   format   String
   language String
 
-  /// Null until something writes it. No Writer Agent exists in this slice.
   body String?
 
   createdByUserId String?
@@ -1258,9 +711,6 @@ model ContentDraft {
   updatedAt DateTime @updatedAt
 
   @@unique([projectId, revision])
-  /// Nothing references a draft yet. This exists for the revision-2 work that
-  /// will, so that reference can be tenant-safe from its first migration
-  /// rather than requiring a unique index added to a populated table.
   @@unique([id, organizationId])
   @@index([organizationId])
   @@index([projectId])

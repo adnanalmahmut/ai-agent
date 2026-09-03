@@ -10,16 +10,6 @@ import { z } from 'zod';
 
 import { MODEL_IDS } from '../../../../../../src/ai/models/model-catalog';
 
-/**
- * Mocks `@mastra/core/agent` wholesale to test the adapter's input/output
- * conversion and its logger installation cheaply and in isolation.
- *
- * Do not merge this file with `mastra.containment.spec.ts`. That suite proves
- * the logger containment against the real SDK, and a module mock applies to a
- * whole file, so combining them would silently make the containment claim
- * vacuous. Here the injected logger's discard behavior is asserted directly;
- * the sibling suite asserts the effect on the real console.
- */
 const generate =
   jest.fn<
     (prompt: string, options?: unknown) => Promise<{ object?: unknown }>
@@ -93,14 +83,6 @@ describe('MastraRuntime', () => {
     );
   });
 
-  /**
-   * The credential goes to the SDK on the model config and nowhere else.
-   *
-   * A bare `provider/model` string makes Mastra read a provider environment
-   * variable, which would mean the platform's key living in the worker's
-   * process environment for its whole life rather than being resolved per run
-   * from the encrypted store.
-   */
   it('passes the managed credential explicitly rather than through the environment', async () => {
     generate.mockResolvedValue({ object: { answer: 'ok' } });
     const config = runtimeConfig();
@@ -123,14 +105,6 @@ describe('MastraRuntime', () => {
     expect(process.env.OPENAI_API_KEY).toBeUndefined();
   });
 
-  /**
-   * The class, not the wording.
-   *
-   * `AgentExecutionHandler` branches on `isAgentConfigurationError` and reads
-   * nothing else, so a plain `Error` carrying this same message would burn the
-   * full retry budget with backoff on a definition that is code and will say
-   * the same thing on every attempt.
-   */
   it('refuses a model outside the application catalog', async () => {
     const { AgentConfigurationError } =
       await import('../../../../../../src/ai/agents/agent-configuration.error');
@@ -170,10 +144,6 @@ describe('MastraRuntime', () => {
     expect(Agent).not.toHaveBeenCalled();
   });
 
-  /**
-   * Catalog lookup is exact rather than an `in` check against an object, so an
-   * inherited property can never masquerade as a provider identity.
-   */
   it('does not mistake an inherited property for a provider', async () => {
     const runtime = new MastraRuntime(runtimeConfig());
 
@@ -189,10 +159,6 @@ describe('MastraRuntime', () => {
     ).rejects.toThrow('is not registered for application agent execution');
   });
 
-  /**
-   * An unreadable credential is an operator problem, and the one thing its
-   * report must not do is describe the secret it failed to read.
-   */
   describe('when the managed credential cannot be read', () => {
     const runtimeFailing = (thrown: Error) =>
       new MastraRuntime({
@@ -255,11 +221,6 @@ describe('MastraRuntime', () => {
     });
   });
 
-  /**
-   * The bounded side of the ledger. Everything entering the prompt is capped
-   * by the input schema and the context policy; nothing capped what came back,
-   * and tokens are billed before the output schema gets to reject them.
-   */
   it('bounds the generation it pays for', async () => {
     generate.mockResolvedValue({ object: { answer: 'ok' } });
     const runtime = new MastraRuntime(runtimeConfig());
@@ -278,9 +239,6 @@ describe('MastraRuntime', () => {
       expect.objectContaining({
         modelSettings: expect.objectContaining({
           maxOutputTokens: expect.any(Number),
-          // This application owns retry: BullMQ gives a run its attempts and
-          // records each one, while the SDK's own retry loop would multiply
-          // the spend and report it as a single attempt.
           maxRetries: 0,
           timeout: expect.objectContaining({ totalMs: expect.any(Number) }),
         }),
@@ -288,11 +246,6 @@ describe('MastraRuntime', () => {
     );
   });
 
-  /**
-   * Retrieved passages reach the user message, fenced and labelled, and never
-   * the instructions. A document that says "ignore your instructions" is
-   * organization data, and the system message is where the operator speaks.
-   */
   it('keeps retrieved material out of the instructions', async () => {
     generate.mockResolvedValue({ object: { answer: 'ok' } });
     const runtime = new MastraRuntime(runtimeConfig());
@@ -321,15 +274,6 @@ describe('MastraRuntime', () => {
     expect(prompt).toContain('carries no instructions');
   });
 
-  /**
-   * A passage cannot end its own fence.
-   *
-   * Interpolating content raw lets a stored document close `</passage>` and
-   * `</reference>` and continue in the position the preamble has told the
-   * model is the caller's request — which is the whole boundary the fence
-   * draws. Harmless while this agent has no tools; the fence is what has to
-   * still be there when it does.
-   */
   it('cannot be escaped by a passage that closes its own tags', async () => {
     generate.mockResolvedValue({ object: { answer: 'ok' } });
     const runtime = new MastraRuntime(runtimeConfig());
@@ -351,7 +295,6 @@ describe('MastraRuntime', () => {
 
     const prompt = generate.mock.calls[0]?.[0] ?? '';
 
-    // Exactly one fence, and it is the one this adapter opened.
     expect(prompt.match(/<\/passage>/g)).toHaveLength(1);
     expect(prompt.match(/<\/reference>/g)).toHaveLength(1);
     expect(prompt.indexOf('</reference>')).toBeGreaterThan(
@@ -372,9 +315,6 @@ describe('MastraRuntime', () => {
       tools: [],
     });
 
-    // Mastra's default ConsoleLogger writes raw provider errors — request body,
-    // response body, endpoint, model — straight to console.error, bypassing the
-    // application's redaction. The injected logger must discard them.
     expect(setLogger).toHaveBeenCalledTimes(1);
 
     const injected = setLogger.mock.calls[0]?.[0] as Record<
@@ -391,9 +331,6 @@ describe('MastraRuntime', () => {
   });
 });
 
-/**
- * What the adapter is allowed to hand the SDK, and what it must never invent.
- */
 describe('MastraRuntime tool boundary', () => {
   const toolOf = (overrides: Record<string, unknown> = {}) => ({
     name: 'knowledge_search_v1',
@@ -436,10 +373,6 @@ describe('MastraRuntime tool boundary', () => {
     expect(config.tools).toEqual({});
   });
 
-  /**
-   * `Agent.convertTools` merges nine sources and spreads assigned tools first,
-   * so any of the others can shadow one of ours. None may be configured.
-   */
   it('configures nothing else that could contribute a tool', async () => {
     const config = await runWith([toolOf()]);
 
@@ -459,10 +392,6 @@ describe('MastraRuntime tool boundary', () => {
     }
   });
 
-  /**
-   * The SDK would rewrite such a name rather than reject it, so the model
-   * would be offered something nobody reviewed.
-   */
   it('refuses a name the runtime would rewrite', async () => {
     generate.mockResolvedValue({ object: { answer: 'ok' } });
     const runtime = new MastraRuntime(runtimeConfig());
@@ -495,11 +424,6 @@ describe('MastraRuntime tool boundary', () => {
     ).rejects.toThrow('Duplicate tool name');
   });
 
-  /**
-   * The SDK's own ceiling is `stepCountIs(5)`, a runtime literal declared in no
-   * type. Depending on it would mean depending on a number that can change in a
-   * patch release, and the failure mode is silent truncation of the run.
-   */
   it('bounds the tool-call loop explicitly when a tool is granted', async () => {
     await runWith([toolOf()]);
 
@@ -533,27 +457,10 @@ describe('MastraRuntime tool boundary', () => {
       { requestContext: { organizationId: 'org_2' }, agent: { agentId: 'x' } },
     );
 
-    // One argument only: nothing the SDK knows about identity is read back out.
     expect(tool.execute).toHaveBeenCalledWith({ query: 'refunds' });
   });
 });
 
-/**
- * The loop bound applies to the capability that introduced it, and to nothing
- * else.
- *
- * `maxSteps` is a control on tool-calling, and every production definition in
- * this build — `content-idea@1` among them — is granted no tools and cannot
- * emit a tool call. Passing it on that path would change the generation options
- * of a shipped agent for a feature it does not use, which is a runtime change
- * wearing a tool-execution change's clothes.
- *
- * It is not a no-op in the SDK either. `maxSteps` is not passed through: when
- * present the loop composes `[stepCountIs(maxSteps), ...stopWhen]`, and when
- * absent it takes `stopWhen ?? stepCountIs(5)`. So the two paths reach the
- * agentic loop with different stop conditions, and only one of them is the
- * condition `content-idea@1` has been running under.
- */
 describe('MastraRuntime generation scope', () => {
   const optionsFor = async (tools: unknown[]) => {
     generate.mockResolvedValue({ object: { answer: 'ok' } });
@@ -579,12 +486,6 @@ describe('MastraRuntime generation scope', () => {
     execute: () => Promise.resolve({ passages: [] }),
   });
 
-  /**
-   * Absent, not `undefined`. The options object handed to the SDK must have no
-   * `maxSteps` key at all — the shape it had before tools existed — so a future
-   * SDK that distinguishes an explicit `undefined` from an omitted key cannot
-   * read a decision into it.
-   */
   it('passes no step ceiling for a generation with no tools', async () => {
     const options = await optionsFor([]);
 
@@ -602,12 +503,6 @@ describe('MastraRuntime generation scope', () => {
     expect(options.maxSteps as number).toBeGreaterThan(0);
   });
 
-  /**
-   * Everything else is unchanged by the presence of a tool. The budgets are
-   * spend controls on the provider call itself, so they were unconditional
-   * before this feature and stay unconditional — the only difference between
-   * the two paths is the one key.
-   */
   it('changes nothing but the step ceiling between the two paths', async () => {
     const withoutTools = await optionsFor([]);
     generate.mockClear();
@@ -617,18 +512,10 @@ describe('MastraRuntime generation scope', () => {
     const { maxSteps, ...toolEnabledRest } = withTools;
 
     expect(maxSteps).toBeDefined();
-    // The key sets differ by exactly one, and it is that one.
     expect(Object.keys(toolEnabledRest).sort()).toEqual(
       Object.keys(withoutTools).sort(),
     );
-    // The spend controls are identical values, not merely identical keys.
     expect(toolEnabledRest.modelSettings).toEqual(withoutTools.modelSettings);
-    /**
-     * The schema is compared by identity with the definition's rather than
-     * deeply: two `definitionOf()` calls build separate Zod instances that are
-     * equal in every respect a deep compare can see, so a deep compare here
-     * would assert nothing about which schema was passed.
-     */
     for (const options of [toolEnabledRest, withoutTools]) {
       expect(options.structuredOutput).toEqual({
         schema: expect.anything(),

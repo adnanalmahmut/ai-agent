@@ -2,45 +2,8 @@ import { z } from 'zod';
 
 import type { Prisma } from '../../../generated/prisma/client';
 
-/**
- * Operator-editable settings, declared in code with the schema that validates
- * them.
- *
- * The registry is the whole boundary. An arbitrary key/value table would let a
- * typo create a setting nothing reads, let a string reach a consumer expecting
- * a number, and let an operator set a batch size of two million because nothing
- * said otherwise. Here a key that is not declared cannot be written, and a
- * value that does not satisfy the declared schema cannot be written either — so
- * a consumer that asks for a setting gets something the schema already proved.
- *
- * What must NOT be added here is agent behaviour. Prompts, context policy and
- * output schemas belong to a versioned definition, because a durable run
- * accepted against version 1 has to still execute version 1 after someone edits
- * a row. A setting that changes what an agent *says* is a versioning bug wearing
- * a settings hat; a setting that changes how often a sweep runs is not.
- */
+export type SettingSensitivity = 'public' | 'internal';
 
-export type SettingSensitivity =
-  /** Safe to display and to log. */
-  | 'public'
-  /**
-   * Not a credential, but not for general display either — an internal URL, an
-   * account identifier. Shown in the control plane, never in ordinary logs.
-   */
-  | 'internal';
-
-/**
- * A setting has to survive a round trip through a `Json` column.
- *
- * Constrained to Prisma's own input type rather than left as `unknown`, so a
- * registry entry whose schema cannot be persisted is a compile error here
- * instead of a runtime surprise at the write. The case worth naming is a
- * schema that can yield `undefined` — any `.optional()` — because Prisma reads
- * `undefined` on an update as "leave this column alone", so `set()` would
- * answer 200 with a re-read state and change nothing at all. A transform
- * producing something unserialisable, such as a `Map`, is rejected here too.
- * (`Date` is allowed, and is Prisma's own behaviour: it serialises.)
- */
 export type PersistableSettingValue = Prisma.InputJsonValue;
 
 export type RuntimeSettingDefinition<
@@ -49,30 +12,11 @@ export type RuntimeSettingDefinition<
 > = {
   description: string;
   schema: T;
-  /**
-   * The value used when no row exists. Deliberately a value and not
-   * `undefined`: a consumer should never have to handle "unset", because the
-   * difference between unset and default is not one any caller can act on.
-   */
   defaultValue: z.infer<T>;
   sensitivity: SettingSensitivity;
-  /**
-   * `false` for a setting that is readable through the control plane but only
-   * changeable by deployment. Nothing uses it yet; it exists so that adding the
-   * first such setting is a registry entry rather than a new mechanism.
-   */
   editable: boolean;
 };
 
-/**
- * Bounds are mandatory in spirit even where the type does not force them.
- *
- * An unbounded integer setting is an outage an operator can cause by holding a
- * key down. Every numeric entry below states a range that the application is
- * known to behave sensibly across, and the range is enforced by the same schema
- * that parses the stored value, so a row written before a bound was tightened
- * fails on read rather than being used.
- */
 export const RUNTIME_SETTINGS = {
   'agents.max_concurrent_runs_per_organization': {
     description:
@@ -92,15 +36,6 @@ export const RUNTIME_SETTINGS = {
   },
   'knowledge.ingestion_max_document_bytes': {
     description: 'Largest document accepted for ingestion, in bytes.',
-    /**
-     * Bounded well below the 1 MiB JSON body limit the application parses
-     * with, not at some notional maximum. A ceiling the transport refuses
-     * first is not a setting: raising it would change nothing an operator
-     * could observe, and the request would fail with a bare 413 that says
-     * nothing about the limit they had just edited. The headroom covers the
-     * rest of the envelope and JSON escaping, which can inflate the encoded
-     * form of the text well past its byte length.
-     */
     schema: z
       .number()
       .int()

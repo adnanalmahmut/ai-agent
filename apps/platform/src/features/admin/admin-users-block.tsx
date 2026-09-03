@@ -12,7 +12,10 @@ import {
   isAssignableGlobalRoleName,
 } from '@/features/authorization/permissions';
 import { useGlobalPermission } from '@/features/authorization/use-permissions';
-import { deactivateUserAccount, restoreUserAccount } from '@/lib/application-api';
+import {
+  deactivateUserAccount,
+  restoreUserAccount,
+} from '@/lib/application-api';
 
 import { BanUserDialog } from './admin-users-dialogs';
 import { AdminUsersTable, type AdminUserInfo } from './admin-users-table';
@@ -43,57 +46,64 @@ export function AdminUsersBlock() {
     searchQueryRef.current = searchQuery;
   }, [searchQuery]);
 
-  const loadUsers = useCallback(async (queryOverride?: string) => {
-    // 1. Cancel any active in-flight request
-    if (activeControllerRef.current) {
-      activeControllerRef.current.abort();
-    }
-
-    // 2. Spawn new AbortController and track request generation
-    const controller = new AbortController();
-    activeControllerRef.current = controller;
-    const currentGen = ++requestGenRef.current;
-
-    const targetQuery = queryOverride !== undefined ? queryOverride : searchQueryRef.current;
-
-    setIsLoading(true);
-    setLoadError(null);
-
-    try {
-      const res = await authClient.admin.listUsers({
-        query: {
-          limit: 100,
-          searchValue: targetQuery || undefined,
-        },
-        fetchOptions: { signal: controller.signal },
-      });
-
-      // Stale or superseded requests MUST NOT mutate state
-      if (controller.signal.aborted || currentGen !== requestGenRef.current) {
-        return;
+  const loadUsers = useCallback(
+    async (queryOverride?: string) => {
+      // 1. Cancel any active in-flight request
+      if (activeControllerRef.current) {
+        activeControllerRef.current.abort();
       }
 
-      if (res.data?.users) {
-        setUsers(res.data.users as unknown as AdminUserInfo[]);
-      } else if (res.error) {
-        setLoadError(res.error.message || t('errors.load'));
+      // 2. Spawn new AbortController and track request generation
+      const controller = new AbortController();
+      activeControllerRef.current = controller;
+      const currentGen = ++requestGenRef.current;
+
+      const targetQuery =
+        queryOverride !== undefined ? queryOverride : searchQueryRef.current;
+
+      setIsLoading(true);
+      setLoadError(null);
+
+      try {
+        const res = await authClient.admin.listUsers({
+          query: {
+            limit: 100,
+            searchValue: targetQuery || undefined,
+          },
+          fetchOptions: { signal: controller.signal },
+        });
+
+        // Stale or superseded requests MUST NOT mutate state
+        if (controller.signal.aborted || currentGen !== requestGenRef.current) {
+          return;
+        }
+
+        if (res.data?.users) {
+          setUsers(res.data.users as unknown as AdminUserInfo[]);
+        } else if (res.error) {
+          setLoadError(res.error.message || t('errors.load'));
+        }
+      } catch (err) {
+        // Stale or superseded requests MUST NOT mutate error state
+        if (controller.signal.aborted || currentGen !== requestGenRef.current) {
+          return;
+        }
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return;
+        }
+        setLoadError(t('errors.load'));
+      } finally {
+        // Stale or superseded requests MUST NOT clear the loading indicator for newer requests
+        if (
+          !controller.signal.aborted &&
+          currentGen === requestGenRef.current
+        ) {
+          setIsLoading(false);
+        }
       }
-    } catch (err) {
-      // Stale or superseded requests MUST NOT mutate error state
-      if (controller.signal.aborted || currentGen !== requestGenRef.current) {
-        return;
-      }
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        return;
-      }
-      setLoadError(t('errors.load'));
-    } finally {
-      // Stale or superseded requests MUST NOT clear the loading indicator for newer requests
-      if (!controller.signal.aborted && currentGen === requestGenRef.current) {
-        setIsLoading(false);
-      }
-    }
-  }, [t]);
+    },
+    [t],
+  );
 
   useEffect(() => {
     if (!canListUsers) return;
@@ -113,7 +123,10 @@ export function AdminUsersBlock() {
     };
   }, []);
 
-  const handleRoleChange = async (userId: string, newRole: AssignableGlobalRoleName) => {
+  const handleRoleChange = async (
+    userId: string,
+    newRole: AssignableGlobalRoleName,
+  ) => {
     if (!isAssignableGlobalRoleName(newRole)) return;
 
     setActionUserId(userId);
@@ -244,7 +257,6 @@ export function AdminUsersBlock() {
         </div>
       ) : null}
 
-      {/* Search & Filter Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 min-w-60 max-w-md">
           <Search className="absolute start-2.5 top-2.5 size-4 text-muted-foreground" />
@@ -264,11 +276,12 @@ export function AdminUsersBlock() {
           disabled={isLoading}
           className="h-9 text-xs border-border/50 gap-1.5"
         >
-          <RefreshCw className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`size-3.5 ${isLoading ? 'animate-spin' : ''}`}
+          />
         </Button>
       </div>
 
-      {/* User Table / States */}
       {isLoading ? (
         <div className="flex items-center justify-center p-12 text-xs text-muted-foreground border border-border/60 rounded-lg bg-card">
           <Loader2 className="size-4 animate-spin me-2" /> {t('loading')}
@@ -304,7 +317,6 @@ export function AdminUsersBlock() {
         />
       )}
 
-      {/* Ban Reason Dialog */}
       <BanUserDialog
         user={banUser}
         banReason={banReason}

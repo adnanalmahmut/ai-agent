@@ -22,28 +22,10 @@ import {
 import { PanelState } from './panel-state';
 import { useControlPlaneResource } from './use-control-plane-resource';
 
-/**
- * Feature flags, with the three states an operator can actually be in.
- *
- * A flag is not a checkbox, and rendering it as one would lose the distinction
- * the backend is careful to keep: pinned on, pinned off, or following the code
- * default. Clearing an override is offered as its own action for that reason —
- * it looks identical to setting the current default today, and stops being
- * identical the moment the default changes in a release.
- *
- * The source column is not decoration. When a flag is on, the operator's next
- * question is always *why*, and the answer is either "someone set it" or "that
- * is what the code says".
- */
 export function FeatureFlagsPanel() {
   const t = useTranslations('ControlPlane');
   const canWrite = useGlobalPermission({ controlPlane: ['write'] });
 
-  /**
-   * The module function is passed directly. It is already stable, so wrapping
-   * it in `useCallback` would add a dependency array to keep correct for no
-   * gain — and the hook reloads on identity change.
-   */
   const resource = useControlPlaneResource<FeatureFlagState>(listFeatureFlags);
 
   return (

@@ -34,13 +34,6 @@ const INVITATION_EXPIRES_IN_SECONDS = 48 * 60 * 60;
 
 export type AppAuth = Auth;
 
-/**
- * Keep the explicit BetterAuthOptions annotation.
- *
- * Inferring the full Better Auth options type under pnpm can produce TS2742
- * during declaration emit because the inferred type references non-portable
- * @better-auth/core paths.
- */
 export function createAuth(dependencies: {
   prisma: PrismaService;
   mail: MailService;

@@ -4,75 +4,44 @@ import { AppException } from '../../core/errors';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../infrastructure/database';
 import { OutboxRepository } from '../../infrastructure/outbox';
-import {
-  APPLICATION_MODEL_CATALOG,
-  type AgentModelId,
-} from '../models/model-catalog';
 import { AgentConfigurationError } from '../agents/agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agents/agent-definition.registry';
 import {
   AGENT_RUN_DRIVERS,
   MCP_SESSION_RUNTIME,
   TERMINAL_TRANSPORT_FAILURE,
-  type AgentFailureDiagnostic,
   type AgentConfiguration,
+  type AgentFailureDiagnostic,
   type AgentRun,
   type AgentRunStatus,
   type AgentValue,
   type CreateAgentRun,
 } from '../agents/agent.types';
+import {
+  APPLICATION_MODEL_CATALOG,
+  type AgentModelId,
+} from '../models/model-catalog';
 
 const AGENT_RUN_QUEUED = 'agent-run.queued';
 
-/**
- * The advisory-lock namespace for agent-run acceptance.
- *
- * PostgreSQL's advisory locks share one global space, so an unrelated feature
- * taking `pg_advisory_xact_lock(hashtext(someId))` could block acceptance for
- * an organization whose id happened to hash to the same number. The two-integer
- * form partitions that space, and this constant is agent-run acceptance's
- * partition. Any other advisory lock in this application must pick a different
- * one; the value itself is arbitrary and only has to be distinct.
- */
 export const AGENT_RUN_CAPACITY_LOCK = 4_310_001;
 
 type PersistedAgentRun = Awaited<
   ReturnType<PrismaService['agentRun']['findUniqueOrThrow']>
 >;
 
-/** Where a reconciliation pass got to, so the next one resumes rather than restarts. */
 export type StaleRunCursor = { updatedAt: Date; id: string };
 
-/**
- * Only what a reconciliation decision needs.
- *
- * Deliberately not the whole row: `input` and `output` hold prompts and model
- * results, and `organizationId` and `createdByUserId` identify a tenant. None
- * of it informs the decision, so none of it is loaded into a process whose job
- * is to write log lines about these rows.
- */
 export type StaleAgentRun = {
   id: string;
   status: AgentRunStatus;
   attemptCount: number;
   updatedAt: Date;
-  /**
-   * Needed to tell a stranded worker run from an abandoned MCP session, which
-   * are reconciled by opposite means: one is asked about over the transport,
-   * the other has no transport record by design and is finalized on age.
-   *
-   * `organizationId` is loaded with them, which the selection comment above
-   * anticipates being avoided — it is here because closing a session is a
-   * tenant-scoped compare-and-set and the reconciler has no other way to name
-   * the tenant. It informs a write rather than a log line, and the pass's log
-   * keys are asserted so it cannot quietly become one.
-   */
   runtime: string;
   createdAt: Date;
   organizationId: string;
 };
 
-/** Internal acceptance boundary for durable background agent work. */
 @Injectable()
 export class AgentRunService {
   constructor(
@@ -81,70 +50,16 @@ export class AgentRunService {
     private readonly definitions: AgentDefinitionRegistry,
   ) {}
 
-  /**
-   * Commits the run and its queue intent together.
-   *
-   * Authorization is intentionally not performed here: this slice has no HTTP
-   * operation. A future real-agent feature must authorize before calling this
-   * internal service and must supply a registered definition/runtime pair.
-   */
   async create(input: CreateAgentRun): Promise<AgentRun> {
-    /**
-     * An obvious retry is answered without taking a lock.
-     *
-     * Not the authoritative check — the same lookup is repeated inside the
-     * transaction below, where it is serialized against concurrent accepts.
-     * This one exists so the overwhelmingly common case, a client re-sending a
-     * request whose response it never saw, does not queue behind every other
-     * acceptance in the organization.
-     */
     const existing = await this.findByIdempotencyKey(input);
     if (existing) return toAgentRun(existing);
 
     try {
       const run = await this.prisma.$transaction(async (tx) => {
-        /**
-         * The ceiling is exact, and this is what makes it exact.
-         *
-         * Counting in-flight runs and then inserting one is a
-         * read-modify-write, and PostgreSQL's default isolation does not stop
-         * two of them from interleaving: both transactions read the same count,
-         * both see room, both commit, and an organization limited to one run
-         * has two. Nothing about that is visible afterwards — the runs look
-         * ordinary and the bill is simply larger than the operator set.
-         *
-         * The lock is a transaction-scoped advisory lock keyed on the
-         * organization, so the count and the insert happen as one indivisible
-         * decision per tenant. Transaction-scoped rather than session-scoped
-         * because it is released by commit or rollback rather than by a call
-         * this code has to remember to make — a lock leaked on an error path
-         * would wedge every subsequent acceptance for that organization until
-         * the connection was recycled.
-         *
-         * Two integers rather than one bigint: the first is a namespace
-         * constant so this lock cannot collide with an unrelated one taken
-         * elsewhere in the application, and the second is `hashtext` of the
-         * organization id. Two organizations whose ids happen to hash alike
-         * serialize against each other, which costs them a little latency and
-         * costs correctness nothing — the invariant is per-organization and a
-         * shared lock is stricter, never looser.
-         *
-         * Deliberately not a Redis semaphore. Redis is disposable coordination
-         * in this system: a semaphore there would grant capacity that no longer
-         * matched the durable rows the moment it was flushed, and reconciling
-         * the two would be a second source of truth for how many runs exist.
-         */
+        // Serialize concurrent run requests per tenant to enforce organization
+        // concurrency limits atomically without coarse table-level locks.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${AGENT_RUN_CAPACITY_LOCK}, hashtext(${input.organizationId}))`;
 
-        /**
-         * Repeated under the lock, and repeated *before* the capacity check.
-         *
-         * A caller retrying a request that timed out has already been accepted
-         * and has already been paid for. Refusing their retry at a ceiling they
-         * are themselves part of would strand a run they can no longer reach —
-         * so an accepted key is answered with its run even when the
-         * organization is at capacity.
-         */
         const accepted = await tx.agentRun.findUnique({
           where: {
             organizationId_idempotencyKey: {
@@ -164,12 +79,6 @@ export class AgentRunService {
           acceptedAt,
         );
 
-        /**
-         * A session is accepted already running, and running is the truth:
-         * the external MCP client can call a tool on its very next request,
-         * so there is no queued interval to represent. `attemptCount` is 1
-         * because a session has exactly one attempt — nothing retries it.
-         */
         const session = input.driver === AGENT_RUN_DRIVERS.mcpClient;
 
         const created = await tx.agentRun.create({
@@ -196,15 +105,6 @@ export class AgentRunService {
           },
         });
 
-        /**
-         * No event for a session, because there is no work to deliver.
-         *
-         * The run's "runtime" is a client this process does not control, and
-         * publishing a job for it would create a delivery the worker must
-         * refuse — `AgentRunner` throws on the disagreement between the
-         * definition's runtime and the row's — which is a failure recorded
-         * against a healthy session.
-         */
         if (!session) {
           await this.outbox.append(tx, {
             type: AGENT_RUN_QUEUED,
@@ -222,23 +122,13 @@ export class AgentRunService {
 
       const winner = await this.findByIdempotencyKey(input);
 
-      // A P2002 on this insert can only be the durable idempotency constraint.
-      // Still fail loudly if the winning row cannot be observed instead of
-      // manufacturing a success response with no durable authority behind it.
+      // The unique request key makes the first committed run authoritative.
       if (!winner) throw error;
 
       return toAgentRun(winner);
     }
   }
 
-  /**
-   * Atomically claims exactly the BullMQ attempt currently being delivered.
-   *
-   * The attempt counter stores BullMQ's active-start ordinal as the claim
-   * version. A duplicate delivery can observe the same/newer version but cannot
-   * claim it or execute the runtime again. Unlike attemptsMade, that ordinal
-   * also advances when BullMQ recovers a stalled job after worker death.
-   */
   async claimExecutionAttempt(
     runId: string,
     attemptsStarted: number,
@@ -249,9 +139,7 @@ export class AgentRunService {
       );
     }
 
-    // A worker may stall before it reaches this transaction. Any active
-    // delivery can therefore be the first durable claim, and its BullMQ start
-    // ordinal becomes the CAS version without inventing a lease system here.
+    // The BullMQ active-start ordinal is the durable claim's fencing token.
     const queuedClaim = await this.prisma.agentRun.updateManyAndReturn({
       where: {
         id: runId,
@@ -268,18 +156,7 @@ export class AgentRunService {
 
     if (queuedClaim[0]) return toAgentRun(queuedClaim[0]);
 
-    // Monotonic, not exact-predecessor. BullMQ increments `attemptsStarted`
-    // inside Redis at move-to-active, before any of this process runs, so a
-    // worker that is killed between activation and this statement consumes an
-    // ordinal PostgreSQL never observes. The durable sequence is therefore
-    // strictly increasing but may have gaps: after a claim at 1, the next
-    // delivery to arrive here can legitimately be 3. Requiring
-    // `attemptCount === attemptsStarted - 1` wedges exactly that run.
-    //
-    // `attemptsStarted` is unique per delivery and never decreases, which is
-    // what makes it usable as a fencing token: a greater ordinal is a newer
-    // delivery and may take ownership, an equal or lesser one is stale or
-    // duplicate and must do nothing.
+    // Ordinals may skip if a worker dies after activation but before this write.
     const runningClaim = await this.prisma.agentRun.updateManyAndReturn({
       where: {
         id: runId,
@@ -300,9 +177,7 @@ export class AgentRunService {
 
     if (!current) throw new Error(`AgentRun "${runId}" does not exist`);
 
-    // Terminal runs are finished business truth; a late delivery cannot
-    // reopen them. A stale or duplicate active start for a run already at or
-    // beyond this ordinal is a safe no-op: the newer delivery owns the work.
+    // Terminal, stale, and duplicate deliveries cannot reclaim work.
     return null;
   }
 
@@ -315,9 +190,7 @@ export class AgentRunService {
       where: { id: runId, status: 'RUNNING', attemptCount },
       data: {
         status: 'SUCCEEDED',
-        // `== null` on purpose: Prisma treats an `undefined` field as "do not
-        // update", so an SDK returning no output would record SUCCEEDED with a
-        // silently missing result instead of an explicit JSON null.
+        // Prisma omits undefined fields, so require an explicit result value.
         output:
           output == null ? Prisma.JsonNull : (output as Prisma.InputJsonValue),
         lastError: null,
@@ -348,29 +221,6 @@ export class AgentRunService {
     return count === 1;
   }
 
-  /**
-   * A bounded page of runs that are not finished and have gone quiet.
-   *
-   * Ordered oldest-first so a backlog is examined in the order it accumulated,
-   * and limited so one pass returns a fixed number of rows however large the
-   * backlog is. (The number of rows is bounded; the cost of finding them is
-   * not strictly — see the index note in `docs/database.md`.) `updatedAt`
-   * rather than `startedAt`, because a run that never left `QUEUED` has no
-   * `startedAt` and is precisely one of the cases that can be stranded.
-   *
-   * `after` is a keyset cursor, and it is what makes the sweep make progress
-   * rather than merely make queries. A candidate the caller cannot act on is
-   * left unwritten, so its `updatedAt` never moves and oldest-first would hand
-   * back the same rows forever; once enough of them exist, no newer run is ever
-   * examined again and the recovery mechanism silently stops recovering.
-   * Paging past what has already been seen bounds each row's influence to one
-   * visit per cycle.
-   *
-   * The staleness bound is a cost control and nothing more. Every candidate is
-   * still checked against the transport before anything is written, so
-   * including a run that turns out to be healthy is wasted work rather than a
-   * wrong outcome.
-   */
   findStaleNonTerminal(
     staleBefore: Date,
     limit: number,
@@ -380,9 +230,7 @@ export class AgentRunService {
       where: {
         status: { in: ['QUEUED', 'RUNNING'] },
         updatedAt: { lt: staleBefore },
-        // `updatedAt` is not unique, so the cursor is the pair. Comparing on
-        // the timestamp alone would skip every row sharing the last one's
-        // millisecond.
+        // ID breaks timestamp ties so reconciliation cannot skip rows.
         ...(after
           ? {
               OR: [
@@ -406,17 +254,6 @@ export class AgentRunService {
     });
   }
 
-  /**
-   * The one row an MCP request is allowed to act on.
-   *
-   * Predicated on the runtime as well as the tenant, so a worker run's id
-   * cannot be presented as a session: an `AgentRun` that Mastra is executing
-   * has grants pinned for *its* attempt, and driving it from outside would
-   * write tool executions against a run whose transcript nobody is keeping.
-   * Returns null rather than throwing, so the caller decides what a miss means
-   * — and a miss is deliberately indistinguishable from another
-   * organization's session.
-   */
   findMcpSession(input: { id: string; organizationId: string }): Promise<{
     id: string;
     agentId: string;
@@ -446,20 +283,6 @@ export class AgentRunService {
     });
   }
 
-  /**
-   * Ends a session, once.
-   *
-   * Compare-and-set on the tenant, the runtime and `RUNNING`, so an explicit
-   * close by the client and an expiry observed elsewhere cannot both write an
-   * outcome — the loser matches no row and reports false. That matters because
-   * the two disagree about `closedBy`, and a session that recorded both would
-   * be a row whose own history contradicts itself.
-   *
-   * `SUCCEEDED` rather than a new terminal status: a session that ran and
-   * ended did not fail, whatever its tools did. What each tool call did is the
-   * `ToolExecution` rows' business, and a session whose every call failed is
-   * still a session that completed.
-   */
   async closeMcpSession(input: {
     id: string;
     organizationId: string;
@@ -472,18 +295,6 @@ export class AgentRunService {
         id: input.id,
         organizationId: input.organizationId,
         runtime: MCP_SESSION_RUNTIME,
-        /**
-         * Every non-terminal status, not only `RUNNING`.
-         *
-         * Acceptance always writes `RUNNING` for a session, so `QUEUED` is
-         * unreachable from this code — but the reconciler selects its MCP
-         * branch on the runtime alone, so a `QUEUED` session row arriving from
-         * a data repair would be visited on every pass, closed by nothing, and
-         * left non-terminal forever. That is exactly the durable lie the branch
-         * exists to prevent, so the set it can close matches the set it is
-         * asked about. Terminal statuses stay excluded, which is what keeps
-         * client-close and expiry mutually exclusive.
-         */
         status: { in: ['QUEUED', 'RUNNING'] },
       },
       data: {
@@ -496,23 +307,6 @@ export class AgentRunService {
     return count === 1;
   }
 
-  /**
-   * Finalizes a run whose transport job has terminally failed.
-   *
-   * Deliberately not gated on `attemptCount`. The attempt fence exists so one
-   * delivery cannot overwrite another delivery's outcome, and this caller is not
-   * a delivery — it is the observation that the transport has stopped producing
-   * deliveries at all. Gating it on an ordinal would mean guessing which
-   * abandoned attempt to impersonate, and the guess would be wrong exactly in
-   * the skipped-ordinal case the fence was introduced for.
-   *
-   * The status filter is what keeps it safe. `SUCCEEDED` and `FAILED` are
-   * finished business truth and match nothing, so a duplicate, delayed, or
-   * reordered observation is a no-op, and a run that a late worker managed to
-   * complete is never dragged back to failed. A run that does not exist matches
-   * nothing either, which is the correct answer rather than an error: the
-   * transport can outlive the row it referred to.
-   */
   async reconcileTerminalFailure(runId: string): Promise<boolean> {
     const { count } = await this.prisma.agentRun.updateMany({
       where: { id: runId, status: { in: ['QUEUED', 'RUNNING'] } },
@@ -526,14 +320,6 @@ export class AgentRunService {
     return count === 1;
   }
 
-  /**
-   * Reads one run, scoped to the organization that owns it.
-   *
-   * The organization is a predicate rather than a check on the result: a run
-   * id from another tenant must be indistinguishable from one that does not
-   * exist, and comparing after the read is how that distinction leaks back
-   * out through a different error.
-   */
   async findForOrganization(input: {
     runId: string;
     organizationId: string;
@@ -545,7 +331,6 @@ export class AgentRunService {
     return run === null ? null : toAgentRun(run);
   }
 
-  /** Bounded product availability without exposing installation metadata. */
   async installationAvailability(input: {
     organizationId: string;
     agentId: string;
@@ -565,25 +350,6 @@ export class AgentRunService {
     return installation.activeVersion.enabled ? null : 'agent_disabled';
   }
 
-  /**
-   * Reloads the immutable organization configuration named by the run.
-   *
-   * The queue carries only `runId`; every attempt asks PostgreSQL again. A null
-   * result is the explicit legacy case and tells the runner to use the pinned
-   * code definition's owned default, never today's installation pointer.
-   */
-  /**
-   * The immutable organization version this run was accepted against.
-   *
-   * One verified read answering both questions a run needs of its pin: the
-   * configuration it must execute with, and the tools it may call. They are
-   * facts of the same row and the same tenant check, so reading them
-   * separately would mean two places that could disagree about which version
-   * is authoritative.
-   *
-   * Null for a legacy run created before organization-agent pinning existed.
-   * Those have no configuration and, necessarily, no tools.
-   */
   async pinnedVersionFor(
     run: Pick<
       AgentRun,
@@ -623,7 +389,6 @@ export class AgentRunService {
     };
   }
 
-  /** The effective installation snapshot selected inside run acceptance. */
   private async resolveEffectiveVersion(
     tx: Prisma.TransactionClient,
     input: CreateAgentRun,
@@ -718,19 +483,6 @@ export class AgentRunService {
   }
 }
 
-/**
- * Refuses a new run when the organization is already at its ceiling.
- *
- * A free function taking the transaction client rather than a method, because
- * it is only ever correct inside the advisory lock above — a method on the
- * service reachable from `this.prisma` would be a version of this check with no
- * serialization behind it, sitting one autocomplete away from the version that
- * has some.
- *
- * `maxInFlight` absent means no ceiling, which is what internal callers with no
- * cost exposure want; the lock is still taken, which costs one round trip and
- * keeps the acceptance path uniform.
- */
 async function assertCapacity(
   tx: Pick<PrismaService, 'agentRun'>,
   input: CreateAgentRun,
@@ -766,11 +518,6 @@ function isUniqueConstraintViolation(
   );
 }
 
-/**
- * Mapped field by field rather than spread. A spread is not excess-property
- * checked, so every column the Prisma model gains would silently become part
- * of the application-owned contract this module exists to keep separate.
- */
 function toAgentRun(run: PersistedAgentRun): AgentRun {
   return {
     id: run.id,

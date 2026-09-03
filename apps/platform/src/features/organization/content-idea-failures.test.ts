@@ -8,21 +8,19 @@ import {
   isDecided,
 } from './content-idea-failures';
 
-/**
- * The whole mapping, in one place.
- *
- * The screen's own tests drive the branches an operator can actually produce
- * by clicking; these cover the mapping itself, including the two nobody can
- * reach from a test that goes through the form — an expired session and a
- * server that failed rather than refused.
- */
 describe('classifying a content-idea refusal', () => {
   it.each([
     ['a request that never arrived', new ApiUnavailableError(), 'unavailable'],
-    ['an expired session', new ApiError(401, 'UNAUTHORIZED'), 'unauthenticated'],
-    // Both 403. Telling an owner who holds every grant that they lack
-    // permission sends them to change roles over something no role can fix.
-    ['a switched-off feature', new ApiError(403, 'FEATURE_DISABLED'), 'disabled'],
+    [
+      'an expired session',
+      new ApiError(401, 'UNAUTHORIZED'),
+      'unauthenticated',
+    ],
+    [
+      'a switched-off feature',
+      new ApiError(403, 'FEATURE_DISABLED'),
+      'disabled',
+    ],
     ['a permission not held', new ApiError(403, 'FORBIDDEN'), 'forbidden'],
     ['a refused body', new ApiError(400, 'VALIDATION_ERROR'), 'invalid'],
     ['too many requests', new ApiError(429, 'TOO_MANY_REQUESTS'), 'busy'],
@@ -46,7 +44,6 @@ describe('classifying a content-idea refusal', () => {
     expect(classify(new TypeError('x')).details).toEqual({});
   });
 
-  /** Nothing unreachable, and nothing reachable that is missing. */
   it('produces only kinds the copy covers', () => {
     const produced = new Set(
       [
@@ -65,15 +62,6 @@ describe('classifying a content-idea refusal', () => {
   });
 });
 
-/**
- * Whether a retry may keep its idempotency key.
- *
- * Generation is billed. A key kept when the server had already refused asks
- * for a run that was never created; a key discarded when acceptance is unknown
- * buys the same ideas twice. The 5xx row is the one that matters: acceptance
- * commits the run and its outbox event in one transaction, so a proxy timing
- * out after that commit reports failure for work that will be paid for.
- */
 describe('whether the server decided', () => {
   it.each([
     ['a validation refusal', new ApiError(400, 'VALIDATION_ERROR'), true],

@@ -1,12 +1,11 @@
 # Architecture decision records
 
-Use an ADR when a change establishes a durable cross-cutting constraint, chooses
-between materially different designs, or changes a security/operational
-boundary. Do not create ADRs for routine implementation detail.
+ADRs retain decisions whose reasoning and constraints are not evident from the
+current code or subsystem documentation. They are not implementation diaries or
+status trackers.
 
-Name records `NNNN-short-title.md` and include status, context, decision,
-consequences, and links to enforcing source/tests. Amend or supersede records;
-do not silently rewrite accepted historical context.
+- [ADR 0001: Separate deployed state from target architecture](0001-environment-state-model.md)
 
-The focused architecture documents remain the current system description. ADRs
-explain why a durable choice was made.
+Record a new ADR only for a durable decision with a meaningful rejected
+alternative. Update current subsystem documentation when the decision changes
+how the repository works.

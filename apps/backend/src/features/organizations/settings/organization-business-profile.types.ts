@@ -40,7 +40,6 @@ const websiteUrlSchema = z
   .nullable()
   .refine((value) => value === null || isHttpUrl(value));
 
-/** Strict replacement contract owned by the application, never Better Auth. */
 export const replaceOrganizationBusinessProfileSchema = z
   .object({
     version: z.number().int().positive(),

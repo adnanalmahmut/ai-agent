@@ -26,24 +26,7 @@ import {
   sealSecret,
 } from '../../../../../src/features/control-plane/managed-secrets/secret-cipher';
 
-/**
- * The credential store, tested for what it must never do.
- *
- * The happy path here is one row and one AES call, and it is not what makes
- * this class worth testing. What makes it worth testing is that a plaintext
- * must not reach a read surface, an error message, a public detail, or any
- * log — including on the failure paths, which is exactly where a value tends
- * to get attached to an error "for debugging". So every failure path below is
- * driven with the same canary string and the result is searched for it.
- *
- * The registry is the real one, because its `validate` is part of the
- * behaviour under test and there is nothing about it that a synthetic entry
- * would express better.
- */
-
-/** An obviously fake 32-byte fill pattern, never generated and never real. */
 const MASTER_KEY = Buffer.alloc(32, 0x5a);
-/** A second, equally fake key, standing in for "the deployment key changed". */
 const ROTATED_AWAY_KEY = Buffer.alloc(32, 0x6b);
 
 const encryption: ConfigType<typeof encryptionConfig> = {
@@ -53,11 +36,6 @@ const encryption: ConfigType<typeof encryptionConfig> = {
 };
 const keyring = new ManagedSecretKeyring(encryption);
 
-/**
- * Valid enough for the registry to accept and unmistakable in any output. If
- * this string ever appears in a response, an error, or a log line, that is the
- * defect this file exists to catch.
- */
 const CANARY = 'sk-CANARY-do-not-log-0000000000';
 
 const KEY = 'openai.api_key' as const;
@@ -67,7 +45,6 @@ const ACTOR_ID = 'user-operator-1';
 const UPDATED_AT = new Date('2026-02-01T00:00:00.000Z');
 const ROTATED_AT = new Date('2026-02-02T00:00:00.000Z');
 
-/** The metadata columns `describeAll` is allowed to read. */
 type MetadataRow = {
   key: string;
   label: string | null;
@@ -105,8 +82,6 @@ const cipherRow = (plaintext = CANARY, key: Buffer = MASTER_KEY): CipherRow => {
     authTag,
     algorithm,
     keyFingerprint,
-    // A pre-version row: exactly how a key rotated out of configuration
-    // entirely (not even decrypt-only) shows up once versioning exists.
     keyVersion: null,
   };
 };
@@ -118,7 +93,6 @@ const flipByte = (bytes: StoredBytes): StoredBytes => {
   return copy;
 };
 
-/** Everything a caller could observe about a thrown error, as one string. */
 const surfaceOf = (error: unknown): string =>
   JSON.stringify({
     message: error instanceof Error ? error.message : String(error),
@@ -141,22 +115,14 @@ describe('ManagedSecretService', () => {
   const upsert = jest.fn<(args: unknown) => Promise<unknown>>();
   const deleteMany = jest.fn<(args: unknown) => Promise<{ count: number }>>();
 
-  /**
-   * The audit write, captured rather than stubbed away.
-   *
-   * The real `ControlPlaneAuditService` is constructed over this fake, so the
-   * canary assertions below search the payload the service actually builds.
-   */
   const auditCreate = jest.fn<(args: unknown) => Promise<unknown>>();
 
   const prisma = {
     managedSecret: { findMany, findUnique, upsert, deleteMany },
     controlPlaneAuditEvent: { create: auditCreate },
-    /** One client for both writes; that they commit together is an e2e claim. */
     $transaction: (work: (tx: unknown) => Promise<unknown>) => work(prisma),
   } as unknown as PrismaService;
 
-  /** Everything the audit log was handed, as one searchable string. */
   const auditedText = () => JSON.stringify(auditCreate.mock.calls);
 
   const auditRow = () =>
@@ -165,20 +131,13 @@ describe('ManagedSecretService', () => {
   const warn = jest.fn<(...args: unknown[]) => void>();
   const logger = { warn } as unknown as PinoLogger;
 
-  /**
-   * The injected logger is spied on above; these catch the other way a value
-   * reaches a log — a stray `console` call on a failure path — and are
-   * asserted to have stayed silent.
-   */
   const consoleSpies = ['log', 'info', 'warn', 'error', 'debug'] as const;
   let consoleCalls: unknown[][];
 
-  /** Everything handed to the logger, as one searchable string. */
   const loggedText = () => JSON.stringify(warn.mock.calls);
 
   let service: ManagedSecretService;
 
-  /** The data object handed to `upsert.create` on the last write. */
   const createdRow = () =>
     (
       upsert.mock.calls[0]?.[0] as {
@@ -213,11 +172,6 @@ describe('ManagedSecretService', () => {
     jest.restoreAllMocks();
   });
 
-  /**
-   * The read surface has no field a plaintext or a ciphertext could occupy,
-   * and that is asserted as a property of the returned shape rather than as
-   * "the value we happened to check is absent".
-   */
   describe('describeAll', () => {
     it('describes an unconfigured slot without inventing one', async () => {
       const [entry] = await service.describeAll();
@@ -264,12 +218,6 @@ describe('ManagedSecretService', () => {
       }
     });
 
-    /**
-     * The query itself, not just its result. A `findMany` that pulled the
-     * encrypted material into memory for a listing endpoint would be a leak
-     * waiting for the first `console.log` of a row, even if this method never
-     * returned it.
-     */
     it('never selects the encrypted material for a listing', async () => {
       await service.describeAll();
 
@@ -299,11 +247,6 @@ describe('ManagedSecretService', () => {
       });
     });
 
-    /**
-     * The whole reason the fingerprint is stored. Without this an operator
-     * discovers a changed `APP_ENCRYPTION_KEY` as an unexplained provider
-     * outage rather than as a row the control plane says to re-enter.
-     */
     it('reports a slot sealed with a different master key as configured but unusable', async () => {
       findMany.mockResolvedValue([
         metadataRow({ keyFingerprint: fingerprintKey(ROTATED_AWAY_KEY) }),
@@ -344,7 +287,6 @@ describe('ManagedSecretService', () => {
         CANARY,
       );
       expect(JSON.stringify(upsert.mock.calls)).not.toContain('CANARY');
-      // The stored material is the value, recoverable only with the key.
       expect(keyring.open(KEY, created)).toBe(CANARY);
     });
 
@@ -395,12 +337,6 @@ describe('ManagedSecretService', () => {
       expect(surfaceOf(error)).not.toContain('CANARY');
     });
 
-    /**
-     * Rotation is `set` with a new value, and the operator pasting a new key
-     * has no reason to retype the note that says which account it belongs to.
-     * Writing `null` for an omitted label would erase it on every rotation,
-     * from the only surface that shows it, without saying so.
-     */
     it('leaves an existing label alone when a rotation omits it', async () => {
       await service.set({ key: KEY, value: CANARY, actorUserId: 'user-1' });
 
@@ -471,17 +407,6 @@ describe('ManagedSecretService', () => {
       });
     });
 
-    /**
-     * The operator-facing diagnosis has to survive the re-wrap. "Re-enter the
-     * credential" and "the row was altered" call for different actions, and
-     * the application error carries the cipher's own message precisely so the
-     * distinction is not lost at the boundary.
-     *
-     * This is the legacy (pre-version) shape: a row written before key-version
-     * metadata existed, sealed under a key that has since been rotated out of
-     * configuration entirely (not even decrypt-only). Its stored fingerprint
-     * therefore matches nothing configured.
-     */
     it('carries the legacy-row diagnosis through as internal context when its key was rotated out of configuration', async () => {
       findUnique.mockResolvedValue(cipherRow(CANARY, ROTATED_AWAY_KEY));
 
@@ -495,14 +420,6 @@ describe('ManagedSecretService', () => {
       });
     });
 
-    /**
-     * The realistic operational counterpart to the legacy case above: a
-     * versioned row whose recorded key version is configured, but whose
-     * fingerprint does not match that version's key material — e.g. the
-     * environment was reconfigured without bumping the version, or the row
-     * was corrupted. The keyring must refuse this exactly like any other
-     * unreadable row, never by falling back to the active key.
-     */
     it('reports SECRET_UNREADABLE when a versioned row disagrees with its recorded key fingerprint', async () => {
       findUnique.mockResolvedValue({
         ...cipherRow(),
@@ -554,15 +471,6 @@ describe('ManagedSecretService', () => {
     });
   });
 
-  /**
-   * The canary sweep.
-   *
-   * Every path that can fail while a credential is in scope, driven with the
-   * same recognisable value, and one assertion applied to all of them: the
-   * value appears in nothing a caller, an operator, or a log aggregator will
-   * ever see. Individually these are covered above; together they are the
-   * property, and the property is what must not regress.
-   */
   describe('the canary appears nowhere', () => {
     const failures: {
       label: string;
@@ -645,14 +553,6 @@ describe('ManagedSecretService', () => {
       },
     );
 
-    /**
-     * The diagnosis has to be logged, not merely attached to an exception.
-     *
-     * A key fingerprint is stored precisely so "the deployment key changed"
-     * and "this row was altered" stay distinguishable, and the caller renders
-     * both as the same unavailable-credential error. If the reason never
-     * reaches an operator-visible log, the column earns nothing.
-     */
     it.each([
       {
         label: 'a legacy row whose key was rotated out of configuration',
@@ -722,13 +622,6 @@ describe('ManagedSecretService', () => {
     });
   });
 
-  /**
-   * The audit log is a new place a credential could end up, and unlike the
-   * process log it has a read surface — every `controlPlane:read` holder can
-   * page through it. The canary is pushed through every mutation and the whole
-   * payload is searched, rather than asserting on the fields the projection
-   * happens to build today.
-   */
   describe('audit', () => {
     it('records a first configuration without any credential material', async () => {
       findUnique.mockResolvedValue(null);
@@ -741,9 +634,6 @@ describe('ManagedSecretService', () => {
       });
 
       expect(auditedText()).not.toContain(CANARY);
-      // Every fragment of the sealed row, by name. A projection that spread the
-      // row instead of naming three columns would fail here rather than in
-      // production.
       for (const field of ['ciphertext', 'iv', 'authTag', 'keyFingerprint']) {
         expect(auditRow()).not.toHaveProperty(`after.${field}`);
       }
@@ -758,11 +648,6 @@ describe('ManagedSecretService', () => {
       expect(auditRow()?.before).toBe(Prisma.DbNull);
     });
 
-    /**
-     * Rotation is a distinct action from first configuration even though it is
-     * the same call. "This slot has never held a credential" is the fact an
-     * incident asks about, and collapsing the two would lose it.
-     */
     it('records a rotation as a rotation', async () => {
       findUnique.mockResolvedValue(
         metadataRow({ label: 'primary account' }) as never,
@@ -790,11 +675,6 @@ describe('ManagedSecretService', () => {
       });
     });
 
-    /**
-     * A refused credential must leave no trace saying it was configured. The
-     * value is refused before anything is sealed, so an audit row here would
-     * report a configuration that never happened.
-     */
     it('writes nothing when the credential is refused', async () => {
       await expect(
         service.set({ key: KEY, value: 'not-a-key', actorUserId: ACTOR_ID }),

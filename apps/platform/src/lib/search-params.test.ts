@@ -8,9 +8,6 @@ describe('firstParam', () => {
   });
 
   it('takes the first of a repeated parameter', () => {
-    // `?returnTo=/safe&returnTo=https://evil.example` is a real parameter-
-    // pollution shape; the value the rest of the stack sees should be the one
-    // a reader of the URL would expect.
     const params = new URLSearchParams(
       'returnTo=%2Fsafe&returnTo=https%3A%2F%2Fevil.example',
     );
@@ -23,8 +20,6 @@ describe('firstParam', () => {
   });
 
   it('treats a present-but-blank parameter as absent', () => {
-    // `?token=` is what an empty form field or a truncated link produces, and
-    // an empty string is not a token.
     expect(firstParam(new URLSearchParams('token='), 'token')).toBeUndefined();
     expect(
       firstParam(new URLSearchParams('token=%20%20'), 'token'),

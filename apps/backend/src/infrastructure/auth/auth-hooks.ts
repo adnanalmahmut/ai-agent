@@ -14,17 +14,6 @@ import {
 } from './super-admin-floor';
 import { SUPER_ADMIN_ROLE } from './permissions';
 
-/**
- * The two lifecycle invariants Better Auth cannot enforce on its own.
- *
- * Both live here, and only here. The alternative — `if (user.deletedAt)` and
- * `if (organization.archivedAt)` sprinkled through controllers — would leave
- * Better Auth's own routes (`/organization/invite-member`,
- * `/sign-in/social`, …) unguarded, because those never pass through a Nest
- * controller at all.
- */
-
-/** Machine-readable codes on the native Better Auth error body. */
 export const ACCOUNT_DEACTIVATED_CODE = 'ACCOUNT_DEACTIVATED';
 export const ORGANIZATION_ARCHIVED_CODE = 'ORGANIZATION_ARCHIVED';
 
@@ -33,20 +22,6 @@ const ACCOUNT_DEACTIVATED_MESSAGE =
 const ORGANIZATION_ARCHIVED_MESSAGE =
   'This organization is archived and cannot be used until it is restored.';
 
-/**
- * Refuses to create a session for a deactivated account.
- *
- * `databaseHooks.session.create.before` is the right seam because *every*
- * sign-in path ends there: email/password, Google, and any provider added
- * later. Guarding the sign-in routes individually would leave the next
- * provider unguarded by default; guarding session creation cannot.
- *
- * Runs alongside — not instead of — the admin plugin's own ban check. Better
- * Auth collects plugin `databaseHooks` and root `databaseHooks` into one list
- * rather than letting the latter overwrite the former, so a banned *and*
- * deactivated user is refused by whichever fires first, and neither state
- * masks the other.
- */
 export function createSessionDatabaseHooks(
   prisma: PrismaService,
   geoIp: Pick<GeoIpService, 'lookup'>,
@@ -85,14 +60,6 @@ export function createSessionDatabaseHooks(
   };
 }
 
-/**
- * Validates that preferredLanguage contains a supported locale on every
- * client-writable path (sign-up, update-user, etc.).
- *
- * Path-agnostic by design: `input: true` on the field schema makes it
- * writable on any endpoint Better Auth exposes, so validation must not
- * depend on which path the request hit.
- */
 export function createPreferredLanguageValidationHook() {
   return createAuthMiddleware(async (ctx) => {
     await Promise.resolve();
@@ -118,20 +85,6 @@ export function createPreferredLanguageValidationHook() {
   });
 }
 
-/**
- * Organization endpoints guarded against an archived organization, and the
- * request field naming their target where there is one.
- *
- * An allow-list of *guarded* paths rather than a deny-list of exempt ones:
- * `/organization/create` cannot target an archived organization, and
- * `/organization/list` is filtered by the after-hook instead. A test asserts
- * this table against the plugin's live endpoint list, so a Better Auth
- * upgrade that adds an organization route fails the build rather than
- * silently escaping the guard.
- *
- * An empty array means "no explicit target; use the session's active
- * organization".
- */
 export const GUARDED_ORGANIZATION_PATHS: Record<string, readonly string[]> = {
   '/organization/set-active': ['organizationId'],
   '/organization/update': ['organizationId'],
@@ -161,25 +114,11 @@ function readStringField(source: unknown, field: string): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-/**
- * Makes an archived organization operationally inert across every Better Auth
- * organization endpoint.
- *
- * This is `hooks.before`, whose matcher Better Auth hard-codes to `() => true`
- * — so it also runs for `auth.api.*` calls made from inside this process.
- * That is what closes the loop on *application* resources: the guard's
- * `@MemberHasPermission` reaches the database through `auth.api.hasPermission`
- * — i.e. `/organization/has-permission`, which is in the table above. One hook
- * therefore covers Better Auth's own routes and every application route that
- * authorizes against an organization, with no per-controller check anywhere.
- */
 export function createArchivedOrganizationHook(prisma: PrismaService) {
   return createAuthMiddleware(async (ctx) => {
     const hook = ctx as unknown as HookContext;
 
     const fields = GUARDED_ORGANIZATION_PATHS[hook.path];
-    // Not an organization endpoint. Costs one property lookup on every other
-    // request, including the `getSession` the guard performs per request.
     if (!fields) return;
 
     const organizationId = await resolveTargetOrganizationId(
@@ -210,9 +149,7 @@ async function resolveTargetOrganizationId(
   fields: readonly string[],
   ctx: Parameters<Parameters<typeof createAuthMiddleware>[0]>[0],
 ): Promise<string | undefined> {
-  // Accepting an invitation names the invitation, not the organization. The
-  // organization has to be read from it, or an invitation issued *before* the
-  // archive would still let someone join an archived organization.
+  // Invitation acceptance must recheck the invitation's current organization.
   if (hook.path === '/organization/accept-invitation') {
     const invitationId = readStringField(hook.body, 'invitationId');
     if (!invitationId) return undefined;
@@ -242,14 +179,7 @@ async function resolveTargetOrganizationId(
     if (explicit) return explicit;
   }
 
-  // No explicit target: the endpoint operates on the session's selected
-  // organization. That is the case that matters most — it is how a member who
-  // is already signed in would otherwise keep working inside an organization
-  // that was archived underneath them.
-  //
-  // `getSessionFromCtx` memoises onto `ctx.context.session`, which the
-  // endpoint's own `sessionMiddleware` then reuses, so this does not add a
-  // second session read to the request.
+  // Session-selected operations still recheck archive state.
   const session = (await getSessionFromCtx(ctx).catch(() => null)) as {
     session?: { activeOrganizationId?: string | null };
   } | null;
@@ -257,14 +187,6 @@ async function resolveTargetOrganizationId(
   return session?.session?.activeOrganizationId ?? undefined;
 }
 
-/**
- * Hides archived organizations from `/organization/list`.
- *
- * Filtering the response rather than the query because the plugin builds that
- * query itself and exposes no `where` seam. The list is the only endpoint that
- * enumerates organizations without naming one, so it is the only place the
- * before-hook cannot reach.
- */
 export function createArchivedOrganizationListFilter(prisma: PrismaService) {
   return createAuthMiddleware(async (ctx) => {
     const hook = ctx as unknown as HookContext;
@@ -309,50 +231,14 @@ async function readListResponse(
   return Array.isArray(body) ? (body as { id: string }[]) : undefined;
 }
 
-/**
- * The admin-plugin routes that can make a super administrator unusable.
- *
- * An allow-list of *guarded* paths, checked against the plugin's live endpoint
- * list by a test — so a Better Auth upgrade that adds a route capable of this
- * fails the build rather than quietly escaping the guard. That is the same
- * shape as `GUARDED_ORGANIZATION_PATHS` above and for the same reason: the
- * failure mode of a deny-list is that the next route added is unguarded by
- * default.
- *
- * `/admin/set-user-password` and `/admin/impersonate-user` are deliberately
- * absent. Neither makes an account unusable — a changed password is still a
- * password, and impersonation does not touch the target's own ability to sign
- * in — so guarding them would refuse operations the invariant has no interest
- * in.
- */
 export const SUPER_ADMIN_GUARDED_PATHS: Record<string, SuperAdminFloorEffect> =
   {
     '/admin/set-role': 'roleChange',
     '/admin/ban-user': 'ban',
     '/admin/remove-user': 'delete',
-    /**
-     * The one that is easy to miss. `update-user` writes arbitrary fields of
-     * the user schema, `role` and `banned` among them, so it is a second route
-     * to both of the operations above wearing a different name.
-     */
     '/admin/update-user': 'roleChange',
   };
 
-/**
- * Refuses any request that would leave the platform with no usable super
- * administrator.
- *
- * `hooks.before`, so it also covers `auth.api.*` calls made from inside this
- * process — the matcher Better Auth hard-codes there is `() => true`.
- *
- * This is the courteous half of the invariant, not the authoritative one. Two
- * administrators demoting each other simultaneously both pass this check,
- * because it runs in its own transaction and neither can see the other's
- * uncommitted write; the database trigger installed by
- * `20260824010000_super_admin_floor` takes an advisory lock and is what makes
- * the outcome exact. What this adds is a clean 409 with an explanation for the
- * overwhelmingly common case where nobody is racing.
- */
 export function createSuperAdminFloorHook(prisma: PrismaService) {
   return createAuthMiddleware(async (ctx) => {
     const hook = ctx as unknown as HookContext;
@@ -366,10 +252,7 @@ export function createSuperAdminFloorHook(prisma: PrismaService) {
 
     if (!userId) return;
 
-    // A request that leaves the account usable is not this hook's business.
-    // Promoting somebody to super_admin arrives on the same route as demoting
-    // them, and refusing it would make appointing a second administrator
-    // impossible whenever there is exactly one.
+    // Promotions must remain possible when only one super administrator exists.
     if (!leavesAccountUnusable(hook, effect)) return;
 
     if (await wouldEmptySuperAdmins(prisma, userId)) {
@@ -378,15 +261,6 @@ export function createSuperAdminFloorHook(prisma: PrismaService) {
   });
 }
 
-/**
- * Whether this particular request would actually take the account out of the
- * usable set.
- *
- * The route alone does not say: `/admin/set-role` is how a super administrator
- * is appointed as well as how one is removed, and `/admin/update-user` usually
- * carries neither field. Reading the payload is what keeps the guard from
- * refusing the very operation that would make the refusal unnecessary.
- */
 function leavesAccountUnusable(
   hook: HookContext,
   effect: SuperAdminFloorEffect,
@@ -403,7 +277,6 @@ function leavesAccountUnusable(
   if (role === undefined || role === null) return false;
   if (typeof role !== 'string' && !Array.isArray(role)) return false;
 
-  // Better Auth accepts a role as a string or an array of them.
   const names = (Array.isArray(role) ? role : role.split(',')).map((name) =>
     typeof name === 'string' ? name.trim() : '',
   );

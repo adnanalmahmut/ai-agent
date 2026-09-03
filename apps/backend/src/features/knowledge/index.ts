@@ -1,11 +1,3 @@
-/**
- * Public surface of the Knowledge domain.
- *
- * The pgvector repository and the OpenAI adapter are absent on purpose. Both
- * are bound to ports inside the module, and a feature importing either
- * directly would be depending on the storage engine or the provider rather
- * than on the question — which is the one thing the ports exist to prevent.
- */
 export { KnowledgeCoreModule, KnowledgeModule } from './knowledge.module';
 export { KnowledgeRetrievalService } from './knowledge-retrieval.service';
 export { KnowledgeWriterService } from './knowledge-writer.service';

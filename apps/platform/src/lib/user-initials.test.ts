@@ -20,15 +20,11 @@ describe('userInitials', () => {
   });
 
   it('falls back to the local part of the email', () => {
-    // Never to a hard-coded letter, which would make every unnamed user look
-    // like the same person.
     expect(userInitials(null, 'ada.lovelace@example.com')).toBe('A');
     expect(userInitials('   ', 'ada@example.com')).toBe('A');
   });
 
   it('does not slice a grapheme in half', () => {
-    // A single code unit of an emoji or a combining sequence renders as a
-    // replacement character.
     expect(userInitials('🌍 Team', 'team@example.com')).toBe('🌍T');
   });
 

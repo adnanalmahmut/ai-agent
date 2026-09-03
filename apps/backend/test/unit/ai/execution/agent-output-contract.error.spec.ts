@@ -10,41 +10,17 @@ import {
   type AgentOutputContractViolationCode,
 } from '../../../../src/ai/agents/agent.types';
 
-/**
- * The violation vocabulary, and the one property that makes listing it worth
- * anything.
- *
- * `AGENT_OUTPUT_CONTRACT_VIOLATIONS` is a tuple beside a discriminated union,
- * and a tuple nothing reads is decoration: adding a member to the union without
- * adding it to the tuple, or the reverse, would be invisible. So the agreement
- * is asserted in both directions — at the type level, and by building an error
- * for every declared code and requiring it to be named.
- */
-
-/** `true` only when the two types are mutually assignable. */
 type AssertEqual<A, B> = [A] extends [B]
   ? [B] extends [A]
     ? true
     : never
   : never;
 
-/**
- * A compile error here means the union and the tuple have drifted. It is the
- * whole reason the tuple exists, and it costs one unused binding.
- */
 const CODES_AGREE: AssertEqual<
   AgentOutputContractViolation['code'],
   AgentOutputContractViolationCode
 > = true;
 
-/**
- * One violation per declared code, built through a `switch` with no default.
- *
- * The exhaustiveness is the point: a code added to the vocabulary without a
- * case here fails to compile, so the loop below cannot silently stop covering
- * it. Every value is an integer or a literal — the same containment rule the
- * violation type enforces.
- */
 function violationFor(
   code: AgentOutputContractViolationCode,
 ): AgentOutputContractViolation {
@@ -65,11 +41,6 @@ describe('AgentOutputContractError', () => {
     ]);
   });
 
-  /**
-   * Every code produces a message that names it. A code the message builder had
-   * never heard of would otherwise fall through to something generic, and the
-   * log line an operator reads is the only place this failure is visible.
-   */
   it.each([...AGENT_OUTPUT_CONTRACT_VIOLATIONS])(
     'names %s in its message',
     (code) => {
@@ -84,24 +55,14 @@ describe('AgentOutputContractError', () => {
     },
   );
 
-  /**
-   * Identity, not the name, is what the worker branches on — so the name has to
-   * survive being carried out of the process, and a forged one must not be
-   * recognised.
-   */
   it('is recognised by class and not by name', () => {
     const real = new AgentOutputContractError({ code: 'unverifiable' });
 
     expect(isAgentOutputContractError(real)).toBe(true);
     expect(real.name).toBe('AgentOutputContractError');
 
-    /**
-     * BullMQ serializes an error with `Object.getOwnPropertyNames`, so a `name`
-     * left on the prototype disappears across a process boundary.
-     */
     expect(Object.getOwnPropertyNames(real)).toContain('name');
 
-    // A provider that chose this name is still not one of ours.
     const forged = new Error('anything');
     forged.name = 'AgentOutputContractError';
 

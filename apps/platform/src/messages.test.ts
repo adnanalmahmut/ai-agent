@@ -27,14 +27,6 @@ import {
   TOOL_FAILURE_CODES,
 } from './features/organization/organization-api';
 
-/**
- * Translation coverage.
- *
- * A missing key is not a compile error and often not a runtime one either —
- * next-intl renders the key path and moves on — so the failure mode is a
- * user reading `Auth.errors.RATE_LIMITED` in production. These tests are the
- * only thing standing between that and a shipped release.
- */
 const DICTIONARIES = { ar: arabic, en: english } as const;
 
 type Tree = { [key: string]: string | Tree };
@@ -43,9 +35,7 @@ function leafPaths(tree: Tree, prefix = ''): string[] {
   return Object.entries(tree).flatMap(([key, value]) => {
     const path = prefix ? `${prefix}.${key}` : key;
 
-    return typeof value === 'string'
-      ? [path]
-      : leafPaths(value as Tree, path);
+    return typeof value === 'string' ? [path] : leafPaths(value as Tree, path);
   });
 }
 
@@ -63,7 +53,6 @@ function valueAt(tree: Tree, path: string): string | undefined {
   return typeof found === 'string' ? found : undefined;
 }
 
-/** `{name}` and `<tag>` — the parts a translator must not drop or rename. */
 function placeholdersOf(message: string): string[] {
   return [...message.matchAll(/\{(\w+)[^}]*\}|<\/?(\w+)>/g)]
     .map((match) => match[1] ?? match[2] ?? '')
@@ -72,9 +61,9 @@ function placeholdersOf(message: string): string[] {
 
 describe('every supported locale is covered', () => {
   it('has a dictionary for each locale the monorepo declares', () => {
-    // The shared list is the source of truth. Adding a third locale must
-    // fail here rather than silently rendering key paths.
-    expect(Object.keys(DICTIONARIES).sort()).toEqual([...SUPPORTED_LOCALES].sort());
+    expect(Object.keys(DICTIONARIES).sort()).toEqual(
+      [...SUPPORTED_LOCALES].sort(),
+    );
   });
 
   it('defines exactly the same keys in every locale', () => {
@@ -90,17 +79,12 @@ describe('every supported locale is covered', () => {
   it('leaves no message empty', () => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       for (const path of leafPaths(tree as Tree)) {
-        expect(
-          valueAt(tree as Tree, path),
-          `${locale}: ${path}`,
-        ).not.toBe('');
+        expect(valueAt(tree as Tree, path), `${locale}: ${path}`).not.toBe('');
       }
     }
   });
 
   it('keeps the same placeholders across locales', () => {
-    // A translation that drops `{name}` renders a sentence with a hole in it,
-    // and one that renames a tag throws at render time.
     const reference = english as Tree;
 
     for (const path of leafPaths(reference)) {
@@ -117,11 +101,6 @@ describe('every supported locale is covered', () => {
 });
 
 describe('every state the code can reach has copy', () => {
-  /**
-   * The approval vocabularies: the decision states, the execution states the
-   * effect passes through, and the closed failure codes the worker writes. A
-   * status with no copy renders its own key path where a badge should be.
-   */
   it.each(AGENT_ACTION_APPROVAL_STATUSES)('Approvals.status.%s', (status) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       expect(
@@ -183,14 +162,6 @@ describe('every state the code can reach has copy', () => {
     }
   });
 
-  /**
-   * The audit vocabularies, both halves.
-   *
-   * `use-intl` falls back to the key *path* for a missing message, so an action
-   * or state with no copy renders `ControlPlane.audit.action.<whatever>` in the
-   * table where a phrase should be — a server-supplied string printed verbatim,
-   * which is exactly what the panel's closed projection exists to prevent.
-   */
   it.each([...CONTROL_PLANE_AUDIT_ACTIONS, 'unknown'])(
     'ControlPlane.audit.action.%s',
     (action) => {
@@ -221,11 +192,6 @@ describe('every state the code can reach has copy', () => {
     }
   });
 
-  /**
-   * The statuses come from the backend's own `AgentRunStatus`, plus the one
-   * this screen adds for a run it stopped watching. A status arriving with no
-   * copy renders its own key path where a word should be.
-   */
   it.each([...CONTENT_IDEA_STATUSES, 'ABANDONED'])(
     'ContentIdeas.status.%s',
     (status) => {
@@ -238,11 +204,6 @@ describe('every state the code can reach has copy', () => {
     },
   );
 
-  /**
-   * The formats and languages the contract admits, rendered as translated
-   * badges and options rather than as the enum members themselves. One
-   * arriving with no copy shows its own key path where a word should be.
-   */
   it.each(CONTENT_IDEA_FORMATS)('ContentIdeas.format.%s', (format) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       expect(
@@ -252,14 +213,6 @@ describe('every state the code can reach has copy', () => {
     }
   });
 
-  /**
-   * The same two vocabularies again, in the namespace the Projects screens
-   * read from.
-   *
-   * Key parity between locales cannot catch this: both dictionaries agree a
-   * forgotten format is absent, and the badge renders its own key path in
-   * both languages. Only enumerating the contract does.
-   */
   it.each(CONTENT_IDEA_FORMATS)('ContentProjects.format.%s', (format) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       expect(
@@ -287,11 +240,6 @@ describe('every state the code can reach has copy', () => {
     }
   });
 
-  /**
-   * Why generation is off, which is the whole point of the availability read —
-   * a reason with no sentence would tell an operator that something is wrong
-   * and nothing about what.
-   */
   it.each(CONTENT_IDEA_UNAVAILABLE_REASONS)(
     'ContentIdeas.unavailable.%s',
     (reason) => {
@@ -304,17 +252,6 @@ describe('every state the code can reach has copy', () => {
     },
   );
 
-  /**
-   * Every space in the code-owned taxonomy has a name in both dictionaries.
-   *
-   * The screen renders the translation rather than the `name` the server
-   * returns, with no fallback — an operator reading Arabic should not be shown
-   * an English taxonomy. A ninth space mirrored from the backend without its
-   * two entries fails here rather than rendering a key path.
-   *
-   * The slug's dots are `use-intl`'s path separator, so `brand.voice` already
-   * addresses the nested message without any transformation.
-   */
   it.each(KNOWLEDGE_SPACE_SLUGS)('Knowledge.spaces.name.%s', (slug) => {
     for (const [locale, tree] of Object.entries(DICTIONARIES)) {
       expect(
@@ -334,12 +271,10 @@ describe('every state the code can reach has copy', () => {
   });
 
   it('covers every validation key the schemas can produce', () => {
-    // Scraped from the schemas rather than listed by hand, so a new rule
-    // cannot be added without its message.
     const source = new Set(
-      [
-        ...io_validation().matchAll(/message: '([a-zA-Z]+)'/g),
-      ].map((match) => match[1] as string),
+      [...io_validation().matchAll(/message: '([a-zA-Z]+)'/g)].map(
+        (match) => match[1] as string,
+      ),
     );
 
     expect(source.size).toBeGreaterThan(5);
@@ -355,14 +290,6 @@ describe('every state the code can reach has copy', () => {
   });
 });
 
-/**
- * Reads the validation modules as text; keeps the scrape honest.
- *
- * Both of them: the organization forms report their issues through the same
- * `FormField`, and therefore into the same `Auth.validation` namespace, so a
- * scrape that only looked at the authentication schemas would miss half the
- * messages it is supposed to be guarding.
- */
 function io_validation(): string {
   return [
     'src/features/auth/validation.ts',

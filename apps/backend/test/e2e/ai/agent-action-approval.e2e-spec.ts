@@ -40,11 +40,6 @@ const AGENT_ID = 'approval-only-agent';
 const KNOWLEDGE_REF = 'knowledge.search@1' as const;
 const REF = 'notification.send@1';
 
-/**
- * A test-only definition that may propose the side effect. Not registered in
- * the production catalog: ACT-01 proves approval without inventing a product
- * agent whose only purpose is to have a side effect — that is DEMO-01's.
- */
 const approvalAgent = (maxToolGrants: readonly string[]): AgentDefinition => ({
   id: AGENT_ID,
   version: 1,
@@ -66,20 +61,9 @@ const approvalAgent = (maxToolGrants: readonly string[]): AgentDefinition => ({
 
 const DEFINITIONS = [approvalAgent([KNOWLEDGE_REF, REF])] as const;
 
-/**
- * What a real provider would answer: an identifier that is a function of the
- * key without *containing* it, so a row holding the id proves nothing about the
- * key having leaked. The log driver derives its id the same way.
- */
 const providerIdFor = (key: string) =>
   `msg_${createHash('sha256').update(key).digest('hex').slice(0, 24)}`;
 
-/**
- * A provider double that records every call and answers as instructed.
- *
- * Its default answer is `accepted` with an id derived from the key, exactly
- * as a real idempotent provider replays: the same key yields the same id.
- */
 class RecordingDelivery implements NotificationDelivery {
   readonly idempotent = true;
   readonly sender = 'Acme <no-reply@example.test>';
@@ -187,7 +171,6 @@ describe('human approval and the idempotent side effect', () => {
       })
     ).id;
 
-  /** A terminal run pinned to the installed version, written directly. */
   const acceptedRun = async (
     org = organizationId,
     pinnedVersionId = versionId,
@@ -207,10 +190,6 @@ describe('human approval and the idempotent side effect', () => {
       select: { id: true },
     });
 
-  /**
-   * The model proposes, through the gateway, exactly as a run would.
-   * Returns the execution id the proposal was recorded under.
-   */
   const propose = async (
     input: { recipientMemberId?: string; subject?: string; body?: string } = {},
     org = organizationId,
@@ -302,12 +281,6 @@ describe('human approval and the idempotent side effect', () => {
   });
 
   afterAll(async () => {
-    /**
-     * This suite's executions, approvals, outbox events and runs. Audit rows
-     * are deliberately left: the table is append-only by trigger, and they
-     * reference nothing that is removed. Cleanup runs inside `try` so a
-     * failure here cannot leave the application open and the process hanging.
-     */
     try {
       for (const id of ownedOrganizationIds) {
         await harness.prisma.toolExecutionApproval.deleteMany({
@@ -503,12 +476,6 @@ describe('human approval and the idempotent side effect', () => {
       },
     );
 
-    /**
-     * The service predicate, not the guard. An outsider is a member of the
-     * *other* organization, so the guard admits them to its own path; the
-     * proposal must still be invisible there because every read carries the
-     * path's organization as a predicate.
-     */
     it('does not show another organization the proposal through its own path', async () => {
       const detail = await as(harness, outsider).get(
         `${base(otherOrganizationId)}/${executionId}`,
@@ -656,7 +623,6 @@ describe('human approval and the idempotent side effect', () => {
           decision: 'approved',
         },
       });
-      // Identifiers and closed words only: no prose, no recipient.
       expect(JSON.stringify(audit.after)).not.toContain('Handoff ready');
       expect(JSON.stringify(audit.after)).not.toContain(recipient.email);
     });
@@ -713,11 +679,6 @@ describe('human approval and the idempotent side effect', () => {
       ).toBe(0);
     });
 
-    /**
-     * Two deciders at once, against the real database. Exactly one wins; the
-     * other is told so. The predicate is a `WHERE status = 'PENDING'` on the
-     * row both are updating, which is why this cannot be proven with a mock.
-     */
     it('lets exactly one of two concurrent approvals through', async () => {
       const { executionId } = await propose();
 
@@ -839,12 +800,9 @@ describe('human approval and the idempotent side effect', () => {
       expect(row.effectFirstAttemptedAt).not.toBeNull();
       expect(row.effectPayloadDigest).toMatch(/^[0-9a-f]{64}$/);
       expect(row.completedAt).not.toBeNull();
-      // The key and the address are derived, not stored: neither appears
-      // anywhere in the row.
       expect(JSON.stringify(row)).not.toContain(key);
       expect(JSON.stringify(row)).not.toContain(recipient.email);
 
-      // Nor does the API view carry the digest or the provider id.
       const view = await as(harness, owner).get(`${base()}/${executionId}`);
       expect(view.status).toBe(200);
       expect(JSON.stringify(view.body)).not.toContain(key);
@@ -852,12 +810,6 @@ describe('human approval and the idempotent side effect', () => {
       expect(JSON.stringify(view.body)).not.toContain(providerIdFor(key));
     });
 
-    /**
-     * The only exit from `APPROVED`, proven against the database rather than
-     * against a mock of itself: a settlement for a row that already left
-     * `APPROVED`, or for a row in another organization, matches nothing and
-     * changes nothing.
-     */
     it('settles an approved effect exactly once, and only in its own organization', async () => {
       delivery.reset();
       const { executionId } = await approved();
@@ -883,7 +835,6 @@ describe('human approval and the idempotent side effect', () => {
       expect(after.failureCode).toBeNull();
       expect(after.completedAt).toEqual(settled.completedAt);
 
-      // And a row still APPROVED cannot be settled from another organization.
       const other = await approved();
       await expect(
         executions.settleEffect(other.executionId, otherOrganizationId, {
@@ -932,10 +883,6 @@ describe('human approval and the idempotent side effect', () => {
       expect((await execution(executionId)).effectAttemptCount).toBe(1);
     });
 
-    /**
-     * Two deliveries in flight at once. The attempt fence lets one through;
-     * the other rejects for the queue to retry, and by then the row is settled.
-     */
     it('lets concurrent deliveries produce one provider effect', async () => {
       delivery.reset();
       const { executionId } = await approved();
@@ -957,14 +904,10 @@ describe('human approval and the idempotent side effect', () => {
       ]);
 
       const statuses = results.map((result) => result.status).sort();
-      // At least one completed; the other either lost the claim (rejected, for
-      // the queue to retry) or arrived after settlement (fulfilled as a
-      // no-op). Sorted, so a fulfilled result is always first. Never two sends.
       expect(statuses[0]).toBe('fulfilled');
       expect(delivery.calls).toHaveLength(1);
       expect((await execution(executionId)).status).toBe('SUCCEEDED');
 
-      // And the loser, retried later, finds nothing to do.
       await handler.handle(
         job(executionId, organizationId, { attemptsMade: 1 }),
       );
@@ -1114,11 +1057,6 @@ describe('human approval and the idempotent side effect', () => {
       });
     });
 
-    /**
-     * The honesty rule under the real database: a recipient removed *after*
-     * an attempt may have reached the provider is an unknown outcome, because
-     * "must not send again" does not mean "was never sent".
-     */
     it('records OUTCOME_UNKNOWN for a recipient removed after an ambiguous attempt', async () => {
       delivery.reset();
       const leaver = await createUser(harness);
@@ -1153,7 +1091,6 @@ describe('human approval and the idempotent side effect', () => {
         recipientMemberId: moverMemberId,
       });
 
-      // The membership row now belongs to the other tenant.
       await harness.prisma.member.update({
         where: { id: moverMemberId },
         data: { organizationId: otherOrganizationId },
@@ -1226,7 +1163,6 @@ describe('human approval and the idempotent side effect', () => {
       delivery.reset();
       const { executionId } = await approved();
 
-      // Immutable by design; changed by hand to prove the check exists.
       await harness.prisma.organizationAgentVersion.update({
         where: { id: versionId },
         data: { toolGrants: [] },
@@ -1306,8 +1242,6 @@ describe('human approval and the idempotent side effect', () => {
         handler.handle(job(executionId, organizationId, { attemptsMade: 0 })),
       ).rejects.toThrow();
 
-      // The recipient's address changed between attempts: the first request
-      // may have reached the provider with the old one.
       await harness.prisma.user.update({
         where: { id: changer.id },
         data: { email: `changed-${changer.email}` },
@@ -1347,7 +1281,6 @@ describe('human approval and the idempotent side effect', () => {
             'tool_execution_approval_toolExecutionId_organizationId_fkey',
         });
 
-        // Positive control: the same insert for the owning organization.
         await expect(
           client.query(
             `INSERT INTO "tool_execution_approval"
@@ -1362,11 +1295,6 @@ describe('human approval and the idempotent side effect', () => {
       }
     });
 
-    /**
-     * Rollback compatibility, executed rather than argued: the preceding
-     * image's `INSERT` names none of the four new columns, and the migrated
-     * schema must accept it with the defaults that mean "no effect attempted".
-     */
     it('accepts a tool_execution row written by the preceding image', async () => {
       const run = await acceptedRun();
       const client = new Client({ connectionString: process.env.DATABASE_URL });

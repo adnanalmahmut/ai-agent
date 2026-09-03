@@ -14,14 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model ToolExecutionApproval
- * The human decision on one side-effect proposal.
  * 
- * Exactly one per side-effect `ToolExecution`, enforced by the unique on
- * `toolExecutionId`. A separate row rather than columns on the execution
- * because the decision is a different fact: it has its own actor, its own
- * time, and its own digest of what was decided. The composite foreign key is
- * what lets PostgreSQL — not a service predicate — refuse an approval that
- * names another organization's execution.
  */
 export type ToolExecutionApprovalModel = runtime.Types.Result.DefaultSelection<Prisma.$ToolExecutionApprovalPayload>
 
@@ -823,21 +816,10 @@ export type $ToolExecutionApprovalPayload<ExtArgs extends runtime.Types.Extensio
     organizationId: string
     toolExecutionId: string
     status: $Enums.ToolExecutionApprovalStatus
-    /**
-     * Digest of the parsed proposal the approver saw. Revalidated immediately
-     * before the effect, so an input rewritten after approval never sends.
-     */
     inputDigest: string
     requestedAt: Date
     decidedAt: Date | null
-    /**
-     * Who decided. Not a relation, for the same reason audit attribution is
-     * not one: the decision must survive a later actor-lifecycle change.
-     */
     decidedByUserId: string | null
-    /**
-     * Bounded, human-entered, and the only free text on the row.
-     */
     decisionNote: string | null
     createdAt: Date
     updatedAt: Date

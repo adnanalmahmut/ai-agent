@@ -31,11 +31,6 @@ export default registerAs('http', () => {
     env.NODE_ENV === 'staging' || env.NODE_ENV === 'production';
 
   return {
-    /**
-     * Numeric by design. `true` trusts an attacker-controlled chain of
-     * arbitrary length; one trusts only the socket peer and uses the single
-     * value that host Nginx overwrote immediately before forwarding.
-     */
     trustProxyHops: reverseProxyEnvironment ? 1 : 0,
     overwriteDirectIpHeaders: !reverseProxyEnvironment,
     rateLimit: {

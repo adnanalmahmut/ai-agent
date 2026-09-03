@@ -19,26 +19,6 @@ import {
   type ToolRef,
 } from '../../../ai/tools/tool.types';
 
-/**
- * `notification.send@1`: one email to one member of the caller's own
- * organization, proposed by the model and performed by nobody until a human
- * says so.
- *
- * The recipient is resolved from a membership id against the organization the
- * run belongs to, twice. Once here at proposal time, so a model naming a
- * member who does not exist is refused before anything durable is written.
- * And once more in `prepareEffect`, from scratch, immediately before the
- * message leaves — because approval is a decision about a state of the world,
- * and the world keeps moving after a person clicks. A member removed between
- * approval and delivery is not sent to.
- *
- * Deliverable means: still a member of *this* organization, and an account
- * that is neither deactivated nor banned. The address is the account's own,
- * read at the last moment and never stored on the execution; what is stored
- * is a digest of the payload — sender, address, subject, text and HTML — so a
- * retry can prove it is sending the same thing without the row holding the
- * address.
- */
 @Injectable()
 export class NotificationSendTool implements SideEffectToolImplementation {
   readonly ref: ToolRef = 'notification.send@1';
@@ -66,11 +46,6 @@ export class NotificationSendTool implements SideEffectToolImplementation {
     input: AgentValue,
     context: ToolInvocationContext,
   ): Promise<PreparedEffect> {
-    /**
-     * Checked first, before any lookup. A deployment whose mail driver cannot
-     * honour the retry contract must not perform this effect at all, and the
-     * refusal should not depend on whether the recipient happened to resolve.
-     */
     if (!this.delivery.idempotent) {
       throw new SideEffectPreconditionError('delivery_unsupported');
     }
@@ -82,12 +57,6 @@ export class NotificationSendTool implements SideEffectToolImplementation {
     );
     const rendered = renderNotification(parsed);
 
-    /**
-     * Everything the provider deduplicates on: sender, recipient, subject and
-     * both bodies. A change to any of them between two attempts is a changed
-     * request under the same key, and the digest has to say so before the
-     * provider does.
-     */
     return {
       payloadDigest: digestStrings([
         this.delivery.sender,
@@ -107,14 +76,6 @@ export class NotificationSendTool implements SideEffectToolImplementation {
     };
   }
 
-  /**
-   * The member, if they are one here and can be written to.
-   *
-   * `organizationId` is a predicate on the membership row, not a check on the
-   * result: a membership id from another tenant must be indistinguishable
-   * from one that does not exist. Every refusal is the same closed code for
-   * the same reason.
-   */
   private async resolveRecipient(
     memberId: string,
     organizationId: string,
@@ -141,14 +102,6 @@ export class NotificationSendTool implements SideEffectToolImplementation {
   }
 }
 
-/**
- * The message, as text and as the smallest HTML that says the same thing.
- *
- * No template engine and no i18n lookup: the subject and body *are* the
- * content, approved verbatim, and the language is whatever the model wrote in.
- * The HTML exists because most clients render it in preference to text, and it
- * is built by escaping rather than by trusting — the body is model output.
- */
 export function renderNotification(input: NotificationSendInput): {
   subject: string;
   text: string;

@@ -14,18 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model ContentDraft
- * One revision of the thing a content project is trying to produce.
  * 
- * Revision 1 is created in the same transaction as its project and is a
- * *target*, not content: it names the format, language, and working title the
- * eventual piece should have, and its body is null because nothing has written
- * it. Seeding the body from the idea summary would put words in the draft that
- * no writer chose and no reviewer approved, and would make an unwritten draft
- * indistinguishable from a written one.
- * 
- * The revision column exists now, at a fixed value of one, because the Writer
- * Agent that will add revision 2 must not have to migrate a single-draft table
- * into a versioned one while projects already exist.
  */
 export type ContentDraftModel = runtime.Types.Result.DefaultSelection<Prisma.$ContentDraftPayload>
 
@@ -1059,11 +1048,6 @@ export type $ContentDraftPayload<ExtArgs extends runtime.Types.Extensions.Intern
   name: "ContentDraft"
   objects: {
     organization: Prisma.$OrganizationPayload<ExtArgs>
-    /**
-     * Referenced as a pair with `organizationId`, so a draft cannot be filed
-     * under a project belonging to a different organization. `Cascade` because
-     * a draft has no meaning apart from its project.
-     */
     project: Prisma.$ContentProjectPayload<ExtArgs>
     createdByUser: Prisma.$UserPayload<ExtArgs> | null
   }
@@ -1071,16 +1055,10 @@ export type $ContentDraftPayload<ExtArgs extends runtime.Types.Extensions.Intern
     id: string
     organizationId: string
     projectId: string
-    /**
-     * Starts at one and is unique within the project.
-     */
     revision: number
     title: string
     format: string
     language: string
-    /**
-     * Null until something writes it. No Writer Agent exists in this slice.
-     */
     body: string | null
     createdByUserId: string | null
     createdAt: Date

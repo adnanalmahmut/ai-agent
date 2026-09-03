@@ -133,8 +133,6 @@ describe('NotificationSendTool', () => {
       expect(message.subject).toBe('Handoff ready');
       expect(message.text).toBe(input.body);
       expect(message.idempotencyKey).toBe('notification.send@1:exec_1');
-      // The digest covers the address, so a changed recipient is a changed
-      // payload — while the address itself is never returned.
       expect(prepared.payloadDigest).toMatch(/^[0-9a-f]{64}$/);
       expect(JSON.stringify(prepared)).not.toContain('sara@example.com');
     });

@@ -14,8 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model RateLimit
- * Concurrency-safe storage required by Better Auth 1.6.x's native limiter.
- * Fields are derived from getAuthTables() for the installed version.
+ * 
  */
 export type RateLimitModel = runtime.Types.Result.DefaultSelection<Prisma.$RateLimitPayload>
 

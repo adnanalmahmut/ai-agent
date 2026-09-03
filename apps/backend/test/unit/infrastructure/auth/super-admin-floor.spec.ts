@@ -9,16 +9,6 @@ import {
   wouldEmptySuperAdmins,
 } from '../../../../src/infrastructure/auth/super-admin-floor';
 
-/**
- * The definition of "usable", and the paths that have to consult it.
- *
- * The concurrency guarantee is not here and cannot be: it is a property of the
- * database trigger, and asserting it needs two real transactions racing against
- * a real PostgreSQL — which `test/e2e/super-admin-floor.e2e-spec.ts` does. What
- * this file covers is the single-actor decision and the shape of the guard
- * table, both of which are pure functions of a row.
- */
-
 type Row = {
   id: string;
   role: string | null;
@@ -54,14 +44,6 @@ describe('isUsableSuperAdmin', () => {
     expect(isUsableSuperAdmin(admin())).toBe(true);
   });
 
-  /**
-   * The three ways a row can hold the role and still be nobody.
-   *
-   * This is the whole reason the invariant is not `count(role = 'super_admin')`:
-   * a banned account cannot authenticate and a deactivated one is refused a
-   * session, so either satisfies a naive count while leaving the platform with
-   * nobody able to appoint a replacement.
-   */
   it.each([
     ['banned', admin({ banned: true })],
     ['deactivated', admin({ deletedAt: new Date() })],
@@ -71,12 +53,6 @@ describe('isUsableSuperAdmin', () => {
     expect(isUsableSuperAdmin(row)).toBe(false);
   });
 
-  /**
-   * Roles are comma-separated, so membership is a split rather than a substring
-   * test. `role.includes('super_admin')` would accept a role literally named
-   * `not_super_admin`, which is a made-up example — but `deputy_super_admin` is
-   * not, and either would silently count toward the floor.
-   */
   it('reads a comma-separated role list rather than searching the string', () => {
     expect(isUsableSuperAdmin(admin({ role: 'user,super_admin' }))).toBe(true);
     expect(isUsableSuperAdmin(admin({ role: ' super_admin , user ' }))).toBe(
@@ -104,13 +80,6 @@ describe('wouldEmptySuperAdmins', () => {
     ).resolves.toBe(false);
   });
 
-  /**
-   * A second row holding the role is not a second administrator.
-   *
-   * This is the case a row count gets wrong, and the one that produces the
-   * lockout in practice: an operator demotes themselves believing a colleague
-   * still holds the role, when that colleague's account was banned months ago.
-   */
   it.each([
     ['banned', admin({ id: 'second', banned: true })],
     ['deactivated', admin({ id: 'second', deletedAt: new Date() })],
@@ -123,7 +92,6 @@ describe('wouldEmptySuperAdmins', () => {
     ).resolves.toBe(true);
   });
 
-  /** Nothing to protect: the account is not counted toward the floor. */
   it.each([
     ['an ordinary user', admin({ id: 'target', role: 'user' })],
     ['an already-banned administrator', admin({ id: 'target', banned: true })],
@@ -164,14 +132,6 @@ describe('isSuperAdminFloorViolation', () => {
 });
 
 describe('SUPER_ADMIN_GUARDED_PATHS', () => {
-  /**
-   * The two routes that are the same operation under different names.
-   *
-   * `/admin/update-user` writes arbitrary user-schema fields, `role` and
-   * `banned` among them, so guarding only `/admin/set-role` and
-   * `/admin/ban-user` would leave a third door to both. Named individually so
-   * the failure says which one went missing.
-   */
   it.each([
     '/admin/set-role',
     '/admin/ban-user',
@@ -181,11 +141,6 @@ describe('SUPER_ADMIN_GUARDED_PATHS', () => {
     expect(SUPER_ADMIN_GUARDED_PATHS[path]).toBeDefined();
   });
 
-  /**
-   * And the routes it deliberately leaves alone. A guard that refused these
-   * would be refusing operations the invariant has no interest in — a changed
-   * password is still a password.
-   */
   it.each([
     '/admin/set-user-password',
     '/admin/impersonate-user',

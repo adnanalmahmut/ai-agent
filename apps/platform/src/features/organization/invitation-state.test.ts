@@ -10,13 +10,6 @@ import {
   invitationFailureKey,
 } from './invitation-state';
 
-/**
- * Invitation failure interpretation.
- *
- * As with the auth errors, the left-hand side is read from the installed
- * organization plugin so a rename fails here rather than degrading every
- * invitation problem to "something went wrong".
- */
 describe('invitationFailureFrom', () => {
   it.each<[string, InvitationFailure]>([
     [ORGANIZATION_ERROR_CODES.INVITATION_NOT_FOUND.code, 'UNAVAILABLE'],
@@ -34,7 +27,10 @@ describe('invitationFailureFrom', () => {
         .code,
       'EMAIL_VERIFICATION_REQUIRED',
     ],
-    [ORGANIZATION_ERROR_CODES.ORGANIZATION_NOT_FOUND.code, 'ORGANIZATION_UNAVAILABLE'],
+    [
+      ORGANIZATION_ERROR_CODES.ORGANIZATION_NOT_FOUND.code,
+      'ORGANIZATION_UNAVAILABLE',
+    ],
     [
       ORGANIZATION_ERROR_CODES.INVITER_IS_NO_LONGER_A_MEMBER_OF_THE_ORGANIZATION
         .code,
@@ -51,9 +47,6 @@ describe('invitationFailureFrom', () => {
   });
 
   it('recognises the archived-organization refusal from this backend', () => {
-    // Emitted by the backend's own request hook, not by Better Auth: an
-    // archived organization cannot be joined until it is restored, and that
-    // is a different remedy from an expired invitation.
     expect(
       invitationFailureFrom({
         error: {
@@ -65,17 +58,12 @@ describe('invitationFailureFrom', () => {
   });
 
   it('treats a bare 400 as an unusable invitation', () => {
-    // `/organization/get-invitation` rejects expired, cancelled and
-    // already-accepted invitations with a 400 and no code at all — the most
-    // common failure here, and the reason this fallback exists.
     expect(invitationFailureFrom({ error: { status: 400 } })).toBe(
       'UNAVAILABLE',
     );
   });
 
   it('does not pretend to tell expired from cancelled from accepted', () => {
-    // The backend deliberately does not distinguish them, so neither may the
-    // UI. One state, whose copy names all three possibilities.
     const failures = new Set(
       [400, 400, 400].map((status) =>
         invitationFailureFrom({ error: { status } }),

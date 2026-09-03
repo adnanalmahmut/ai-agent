@@ -16,18 +16,12 @@ import { OrganizationRoleLabel } from '../components/organization-role-label';
 import { OrganizationTabs } from '../components/organization-tabs';
 import { useRestoreOrganization } from '../hooks/use-organization-settings';
 import type { OrganizationData } from '../route-data';
-import { OrganizationProvider, type OrganizationContext } from '../organization-context';
+import {
+  OrganizationProvider,
+  type OrganizationContext,
+} from '../organization-context';
 import type { ArchivedOrganization } from '../organization-types';
 
-/**
- * The frame around one organization, and the place its three possible states
- * are resolved.
- *
- * Doing the narrowing here rather than in each tab is what lets the tabs be
- * simple: by the time one renders, the organization exists, the reader is a
- * member of it, and both facts are in the outlet context. No tab carries a
- * branch for "archived" or "could not load".
- */
 export function OrganizationShellBlock({
   children,
   data,
@@ -91,19 +85,6 @@ export function OrganizationShellBlock({
   );
 }
 
-/**
- * An organization that has been taken offline.
- *
- * Reached by being refused: the backend makes every organization endpoint
- * inert for an archived organization, so this page exists precisely because
- * the normal one cannot load. The copy is careful about what archived means —
- * nothing was deleted — because the reader arriving here is often the person
- * who archived it and is now wondering whether they lost something.
- *
- * Restore appears only when the server listed this organization as restorable
- * for this caller. There is no role comparison here and there could not be
- * one: the answer came from the endpoint that will also enforce it.
- */
 function ArchivedOrganizationView({
   organizationId,
   restorable,
@@ -164,14 +145,6 @@ function ArchivedOrganizationView({
   );
 }
 
-/**
- * The organization could not be opened, and not because it is archived.
- *
- * One screen for every remaining reason — it does not exist, the reader is not
- * a member, the request failed — because from here they have the same remedy
- * and telling a non-member that an organization exists would answer a question
- * the backend declined to answer.
- */
 function UnavailableOrganizationView() {
   const t = useTranslations('Organization');
 

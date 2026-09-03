@@ -10,13 +10,6 @@ import {
   MAX_CONTENT_PROJECT_PAGE_SIZE,
 } from '../../../../../src/features/content/projects/content-project-pagination';
 
-/**
- * The refusal branches an end-to-end test cannot reach.
- *
- * A cursor arrives as one opaque string, so the six ways it can be malformed
- * are all the same request over HTTP. They are six different bugs here.
- */
-
 const encoded = (value: unknown) =>
   Buffer.from(JSON.stringify(value), 'utf8').toString('base64url');
 
@@ -66,8 +59,6 @@ describe('content-project pagination', () => {
 
       const decoded = decodeCursor(encodeCursor(cursor));
 
-      // Millisecond precision matters: the column is TIMESTAMP(3) and the
-      // tiebreak only works if the boundary compares exactly.
       expect(decoded.createdAt.toISOString()).toBe(
         cursor.createdAt.toISOString(),
       );
@@ -96,13 +87,6 @@ describe('content-project pagination', () => {
       expect(error.code).toBe('VALIDATION_ERROR');
     });
 
-    /**
-     * The one that would not throw on its own.
-     *
-     * `new Date('garbage')` is a Date, so without the explicit NaN check this
-     * decodes cleanly and produces `WHERE createdAt < Invalid Date` — a query
-     * that returns nothing and looks like an empty page rather than a refusal.
-     */
     it('an invalid date rather than passing it to the query', () => {
       expect(() =>
         decodeCursor(encoded({ at: 'garbage', id: 'proj_1' })),
@@ -111,13 +95,6 @@ describe('content-project pagination', () => {
   });
 
   describe('beforePosition', () => {
-    /**
-     * The tiebreak is the half that is easy to lose.
-     *
-     * Without the second disjunct, every project sharing the boundary's
-     * timestamp is skipped — and because pages stay disjoint, a test that only
-     * checks for duplicates still passes while rows go missing.
-     */
     it('takes strictly older rows, and same-instant rows by id', () => {
       const at = new Date('2026-02-01T00:00:00.000Z');
 

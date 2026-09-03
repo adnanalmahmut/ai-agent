@@ -9,25 +9,6 @@ import type { RuntimeSettingKey } from '../../../../src/features/control-plane/r
 import type { RuntimeSettingService } from '../../../../src/features/control-plane/runtime-settings/runtime-setting.service';
 import { RuntimeConfigResolver } from '../../../../src/features/control-plane/runtime-config.resolver';
 
-/**
- * Three delegating methods, and the reason they are worth a spec.
- *
- * Every rule this class touches is enforced somewhere else, so there is a
- * temptation to treat it as too thin to test. That is exactly backwards: it is
- * the single dependency a feature injects in order to gate work, which makes it
- * the one place where a gate can be lost *silently*. An `assertFeature` that
- * returned a resolved promise without consulting anything satisfies the
- * signature, compiles, and turns every feature flag in the application off as a
- * safety mechanism while leaving all of them reading as on. Nothing downstream
- * would notice, because a gate that never refuses looks identical to a gate
- * whose flag is enabled.
- *
- * So what is asserted here is not "does it forward" but the two consequences of
- * forwarding: a refusal reaches the caller, and the scope it was given is the
- * scope that was evaluated.
- */
-
-/** Real registry members, because the resolver forwards keys rather than judging them. */
 const FLAG: FeatureFlagKey = 'agents.enabled';
 const SETTING: RuntimeSettingKey =
   'agents.max_concurrent_runs_per_organization';
@@ -35,7 +16,6 @@ const SECRET: ManagedSecretKey = 'openai.api_key';
 
 const ORGANIZATION_ID = 'org-resolver-1';
 
-/** Obviously fake, and never a real credential. */
 const CANARY = 'sk-CANARY-do-not-log-0000000000';
 
 describe('RuntimeConfigResolver', () => {
@@ -62,11 +42,6 @@ describe('RuntimeConfigResolver', () => {
   });
 
   describe('assertFeature', () => {
-    /**
-     * The assertion that a no-op gate cannot pass. A resolver that skipped the
-     * flag service entirely would resolve here, and every caller that trusted
-     * this method to refuse would accept work the platform had switched off.
-     */
     it('refuses when the flag service refuses', async () => {
       const refusal = new AppException('FEATURE_DISABLED', {
         context: { featureFlag: FLAG },
@@ -81,11 +56,6 @@ describe('RuntimeConfigResolver', () => {
       expect(assertEnabled).toHaveBeenCalledTimes(1);
     });
 
-    /**
-     * A gate that dropped the scope would evaluate the platform value for an
-     * organization that had opted out — the flag would read as enabled and the
-     * tenant's refusal would never be applied.
-     */
     it('evaluates the scope it was given rather than the platform value', async () => {
       await resolver.assertFeature(FLAG, { organizationId: ORGANIZATION_ID });
 
@@ -134,15 +104,6 @@ describe('RuntimeConfigResolver', () => {
     });
   });
 
-  /**
-   * The resolver holds nothing, and that is a behaviour rather than a
-   * description.
-   *
-   * A cache added here would be invisible to every other spec in the control
-   * plane and would undo the two properties those specs exist to protect: a
-   * disabled flag stops accepting work immediately, and a rotated credential is
-   * used on the very next call rather than after a TTL.
-   */
   it('resolves afresh on every call rather than caching an answer', async () => {
     await resolver.isFeatureEnabled(FLAG);
     await resolver.isFeatureEnabled(FLAG);
@@ -156,12 +117,6 @@ describe('RuntimeConfigResolver', () => {
     expect(reveal).toHaveBeenCalledTimes(2);
   });
 
-  /**
-   * A credential must not become ambient. Copying one into the environment is
-   * the mistake that turns a scoped secret into something every child process
-   * and every crash dump inherits, and the resolver is the last place it passes
-   * through before an adapter uses it.
-   */
   it('does not copy a revealed credential into the environment', async () => {
     await resolver.secret(SECRET);
 

@@ -14,14 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model OrganizationAuditEvent
- * An append-only record of one organization-owned product mutation.
  * 
- * This is deliberately separate from `ControlPlaneAuditEvent`: product
- * history belongs to a tenant and is authorized through organization
- * membership, while control-plane history belongs to platform operators.
- * Application code only creates and lists these rows; it exposes no update or
- * delete operation. The owning migration also installs a PostgreSQL trigger
- * that rejects UPDATE and DELETE issued through any database client.
  */
 export type OrganizationAuditEventModel = runtime.Types.Result.DefaultSelection<Prisma.$OrganizationAuditEventPayload>
 
@@ -621,28 +614,11 @@ export type $OrganizationAuditEventPayload<ExtArgs extends runtime.Types.Extensi
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     organizationId: string
-    /**
-     * When the mutation committed. The listing pages on `(occurredAt, id)` so
-     * events sharing a timestamp still have a stable total order.
-     */
     occurredAt: Date
-    /**
-     * Who performed the mutation. Deliberately not a relation: attribution must
-     * survive a future actor-lifecycle change rather than blocking it or being
-     * nulled by a foreign-key action.
-     */
     actorUserId: string | null
-    /**
-     * Closed by application types, stored as strings so widening the product
-     * vocabulary does not require a database enum migration.
-     */
     action: string
     subjectType: string
     subjectId: string
-    /**
-     * Closed safe projections owned by each product action. Never request
-     * bodies or general-purpose metadata.
-     */
     before: runtime.JsonValue | null
     after: runtime.JsonValue | null
   }, ExtArgs["result"]["organizationAuditEvent"]>

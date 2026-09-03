@@ -9,14 +9,6 @@ import {
   organizationErrorKey,
 } from './organization-errors';
 
-/**
- * Failure normalisation.
- *
- * The codes on the left of the mapping are read from the **installed** Better
- * Auth rather than typed out, so a rename upstream fails the build here
- * instead of quietly degrading every message in the organization feature to
- * "something went wrong".
- */
 const codes = ORGANIZATION_ERROR_CODES;
 
 describe('Better Auth failures', () => {
@@ -29,7 +21,10 @@ describe('Better Auth failures', () => {
     [codes.INVITATION_LIMIT_REACHED, 'INVITATION_LIMIT_REACHED'],
     [codes.MEMBER_NOT_FOUND, 'MEMBER_NOT_FOUND'],
     [codes.INVITATION_NOT_FOUND, 'INVITATION_NOT_FOUND'],
-    [codes.YOU_ARE_NOT_ALLOWED_TO_INVITE_USER_WITH_THIS_ROLE, 'ROLE_NOT_ALLOWED'],
+    [
+      codes.YOU_ARE_NOT_ALLOWED_TO_INVITE_USER_WITH_THIS_ROLE,
+      'ROLE_NOT_ALLOWED',
+    ],
     [codes.YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER, 'LAST_OWNER'],
     [codes.USER_IS_NOT_A_MEMBER_OF_THE_ORGANIZATION, 'NOT_A_MEMBER'],
     [codes.ORGANIZATION_NOT_FOUND, 'ORGANIZATION_NOT_FOUND'],
@@ -38,11 +33,12 @@ describe('Better Auth failures', () => {
       'ORGANIZATION_LIMIT_REACHED',
     ],
   ])('%s → %s', (code, expected) => {
-    expect(organizationErrorFrom({ error: { code: code.code } })).toBe(expected);
+    expect(organizationErrorFrom({ error: { code: code.code } })).toBe(
+      expected,
+    );
   });
 
   it('collapses every flavour of "not allowed" into one state', () => {
-    // The reader does not care which verb was refused, only that it was.
     const refusals = [
       codes.YOU_ARE_NOT_ALLOWED_TO_UPDATE_THIS_ORGANIZATION,
       codes.YOU_ARE_NOT_ALLOWED_TO_DELETE_THIS_MEMBER,
@@ -92,8 +88,6 @@ describe('failures that never reached the server', () => {
   });
 
   it('recognises a bare fetch rejection', () => {
-    // No status and no code is the signature of a request that did not
-    // arrive — a different message and a different remedy.
     expect(organizationErrorFrom(new TypeError('fetch failed'))).toBe(
       'NETWORK_ERROR',
     );

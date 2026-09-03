@@ -9,16 +9,6 @@ import {
   pageSize,
 } from '../../../../src/features/knowledge/knowledge-pagination';
 
-/**
- * The cursor's own behavior, separately from the query it is spliced into.
- *
- * Paging across tenants is asserted end to end in
- * `test/e2e/knowledge-management.e2e-spec.ts`, against a real database, because
- * that claim is about a `where` clause. What is here is the encoding and the
- * bounds — the parts that decide whether a malformed cursor restarts a listing
- * or refuses it, which is the difference between a client that finishes paging
- * and one that loops forever.
- */
 describe('knowledge pagination', () => {
   describe('pageSize', () => {
     it('defaults when the caller says nothing', () => {
@@ -30,13 +20,6 @@ describe('knowledge pagination', () => {
       expect(pageSize(MAX_DOCUMENT_PAGE_SIZE)).toBe(MAX_DOCUMENT_PAGE_SIZE);
     });
 
-    /**
-     * Refused, not clamped.
-     *
-     * Silently returning a hundred rows to a caller who asked for five thousand
-     * looks exactly like a collection that ended, and a client written against
-     * that behavior stops paging early and reports missing documents.
-     */
     it.each([0, -1, 1.5, MAX_DOCUMENT_PAGE_SIZE + 1, Number.NaN])(
       'refuses %p rather than clamping it',
       (requested) => {
@@ -64,14 +47,6 @@ describe('knowledge pagination', () => {
       expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
     });
 
-    /**
-     * base64url, not base64.
-     *
-     * A cursor travels in a query string, and a `+` there is a space by the
-     * time the server reads it — so a title whose encoding happened to produce
-     * one would decode to a different position, silently, for some documents
-     * and not others.
-     */
     it('produces a value that survives a query string unescaped', () => {
       const cursor = encodeCursor({
         title: 'Sûre / Titre ?? avec «ponctuation» ~ 1+1',
@@ -88,12 +63,6 @@ describe('knowledge pagination', () => {
       expect(decodeCursor(encodeCursor(cursor))).toEqual(cursor);
     });
 
-    /**
-     * Refused, not ignored.
-     *
-     * An ignored cursor restarts the listing at the first page, which a client
-     * paging through a collection reads as "there are more rows" — forever.
-     */
     it.each([
       ['not base64 at all', '!!!!'],
       [
@@ -114,16 +83,6 @@ describe('knowledge pagination', () => {
       expect(() => decodeCursor(value)).toThrow(AppException);
     });
 
-    /**
-     * A cursor is a position, not a capability.
-     *
-     * It carries no organization and no space, which is what makes it safe to
-     * hand out unsigned: the query it is spliced into keeps its own tenant
-     * predicate, so a cursor minted elsewhere can only position over rows the
-     * caller could already read. This asserts the encoding holds nothing else,
-     * so a future field added here is a deliberate decision rather than an
-     * accident.
-     */
     it('encodes a position and nothing else', () => {
       const decoded: unknown = JSON.parse(
         Buffer.from(

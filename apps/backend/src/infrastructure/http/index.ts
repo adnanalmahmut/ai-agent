@@ -1,7 +1,3 @@
-/**
- * Public surface of the HTTP boundary: the envelope, the validation pipeline
- * and the single exception filter.
- */
 export { HttpInfrastructureModule } from './http.module';
 export {
   configureTrustedProxy,

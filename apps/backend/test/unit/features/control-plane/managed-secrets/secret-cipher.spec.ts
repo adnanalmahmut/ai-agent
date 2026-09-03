@@ -11,32 +11,11 @@ import {
   sealSecret,
 } from '../../../../../src/features/control-plane/managed-secrets/secret-cipher';
 
-/**
- * The cryptography, tested for the properties that fail silently.
- *
- * Everything here is a promise the file's own comments make and that nothing
- * else in the system can check. A reused nonce still round-trips; a missing
- * fingerprint check still throws; a leaked plaintext still returns the right
- * answer. Each of those would pass a "does encryption work" test and be a
- * defect anyway, so every assertion below is about a property rather than
- * about the happy path.
- *
- * Every key is an obviously synthetic fill pattern and every plaintext is a
- * canary, so no value here could ever be mistaken for a real credential.
- */
-
-/** Obviously fake 32-byte fill patterns; never generated, never real. */
 const KEY_A = Buffer.alloc(32, 0xa1);
 const KEY_B = Buffer.alloc(32, 0xb2);
 
-/**
- * A plaintext that announces itself. Every leak assertion below searches for
- * this exact string, so a message that quoted any part of the secret would
- * have to quote something recognisable.
- */
 const CANARY = 'sk-CANARY-do-not-log-0000000000';
 
-/** Flips one byte, which is the smallest edit GCM has to notice. */
 const flipByte = (bytes: StoredBytes, index = 0): StoredBytes => {
   const copy = new Uint8Array(bytes);
   copy[index] ^= 0xff;
@@ -87,15 +66,6 @@ describe('secret cipher', () => {
     });
   });
 
-  /**
-   * The single most important property in this file.
-   *
-   * A nonce reused under GCM does not weaken the scheme gradually — it leaks
-   * the keystream and, with it, the authentication key. A hardcoded or derived
-   * IV would pass every round-trip test ever written, so the only thing that
-   * can catch it is an assertion that two encryptions of the *same* plaintext
-   * under the *same* key differ.
-   */
   describe('nonce freshness', () => {
     it('produces a different ciphertext each time it seals the same plaintext', () => {
       const first = sealSecret(CANARY, KEY_A);
@@ -109,7 +79,6 @@ describe('secret cipher', () => {
         Buffer.from(first.authTag),
       );
 
-      // Both still open, so the difference is a fresh nonce and not damage.
       expect(openSecret(first, KEY_A)).toBe(CANARY);
       expect(openSecret(second, KEY_A)).toBe(CANARY);
     });
@@ -128,12 +97,6 @@ describe('secret cipher', () => {
     });
   });
 
-  /**
-   * Authentication is the reason GCM was chosen over CTR: an edited row has to
-   * be a loud failure rather than plausible garbage handed to a provider as a
-   * credential. Each component is tampered with separately, because a check
-   * that covered only the ciphertext would leave two doors open.
-   */
   describe('tamper detection', () => {
     const cases: {
       component: keyof Pick<SealedSecret, 'ciphertext' | 'iv' | 'authTag'>;
@@ -166,16 +129,6 @@ describe('secret cipher', () => {
       expect(() => openSecret(altered, KEY_A)).toThrow(SecretDecryptionError);
     });
 
-    /**
-     * The downgrade this file exists to refuse.
-     *
-     * Node accepts 4, 8, and 12-16 byte GCM tags, and a short tag verifies
-     * against a *prefix* of the correct one — so a row whose tag was cut to
-     * four bytes decrypts successfully under stock `createDecipheriv`, with
-     * forgery reduced to about 2^32 work. The lengths asserted below are the
-     * ones Node would otherwise allow; every one of them must be refused
-     * before the cipher sees the row.
-     */
     it.each([4, 8, 12, 13, 14, 15])(
       'refuses a %i-byte authentication tag rather than verifying a prefix',
       (length) => {
@@ -197,15 +150,6 @@ describe('secret cipher', () => {
     });
   });
 
-  /**
-   * The two diagnoses must stay distinguishable.
-   *
-   * GCM cannot tell "wrong key" from "edited row" — both are an authentication
-   * failure — and the responses differ: one means re-enter the credential, the
-   * other means the row was altered. Collapsing them sends an operator to the
-   * wrong place, so this asserts both the message that is produced and the
-   * message that is not.
-   */
   describe('wrong master key', () => {
     it('reports a different master key rather than a tampered row', () => {
       const sealed = sealSecret(CANARY, KEY_A);
@@ -239,10 +183,6 @@ describe('secret cipher', () => {
       );
     });
 
-    /**
-     * Checked before anything else, so a row from a future algorithm says so
-     * instead of reporting the key or the authentication as the problem.
-     */
     it('refuses an unsupported algorithm ahead of the fingerprint check', () => {
       const sealed = sealSecret(CANARY, KEY_A);
       const altered = {
@@ -277,10 +217,6 @@ describe('secret cipher', () => {
       expect(KEY_A.toString('base64')).not.toContain(fingerprint);
     });
 
-    /**
-     * Two rounds, not one. A single digest of the key is still a digest of the
-     * key, and this value is stored in a table the control plane reads.
-     */
     it('is not a plain digest of the key material', () => {
       const single = createSingleDigest(KEY_A);
 
@@ -288,12 +224,6 @@ describe('secret cipher', () => {
     });
   });
 
-  /**
-   * No error this module raises may carry the credential it failed on. The
-   * messages are written by hand for exactly this reason, and Node's own —
-   * which sit next to the plaintext buffer — are swallowed rather than
-   * re-raised.
-   */
   describe('error messages', () => {
     it('never quotes the plaintext on any failure path', () => {
       const sealed = sealSecret(CANARY, KEY_A);
@@ -339,7 +269,6 @@ describe('secret cipher', () => {
   });
 });
 
-/** A single SHA-256 of the key, to prove the fingerprint is not that. */
 function createSingleDigest(key: Buffer): string {
   return createHash('sha256').update(key).digest('hex');
 }

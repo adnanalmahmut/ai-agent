@@ -77,7 +77,6 @@ const persistedVersion = (
   modelId: overrides.modelId ?? MODEL_IDS.openAiGpt4oMini,
   enabled: overrides.enabled ?? true,
   configuration: overrides.configuration ?? { tone: 'plain' },
-  // The column is defaulted, so a persisted row always carries an array.
   toolGrants: overrides.toolGrants ?? [],
   createdByUserId: 'actor-1',
   createdAt: new Date('2026-08-27T00:00:00.000Z'),
@@ -420,8 +419,6 @@ describe('OrganizationAgentInstallationService', () => {
       registry(),
     );
 
-    // Exercise the public conflict path with an expected revision that differs
-    // inside the transaction rather than coupling the test to its private error.
     (
       prisma.$transaction as jest.MockedFunction<PrismaService['$transaction']>
     ).mockImplementation(async (operation: never) => {

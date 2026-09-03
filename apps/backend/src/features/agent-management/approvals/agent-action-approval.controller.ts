@@ -28,19 +28,6 @@ class ListAgentActionApprovalsDto extends createZodDto(
   agentActionApprovalQuery,
 ) {}
 
-/**
- * Human approval of proposed agent actions, over HTTP.
- *
- * Four operations and no others: read what is waiting, read one, approve,
- * reject. There is no "execute", because nothing a caller can do here performs
- * the effect — approval commits an outbox event, and the worker does the rest
- * after checking everything again. There is no "edit", because a proposal is
- * the agent's and a person decides on it as written.
- *
- * The shared organization guard runs before the body is validated and
- * authorizes against the organization in the path. `read` is membership;
- * `decide` is `admin` and `owner`.
- */
 @ApiTags('Agent action approvals')
 @Controller('organizations/:organizationId/agent-action-approvals')
 @UseGuards(OrganizationPermissionGuard)
@@ -81,11 +68,6 @@ export class AgentActionApprovalController {
     return this.approvals.detail({ organizationId, toolExecutionId });
   }
 
-  /**
-   * Metered lightly. A decision is one row and one outbox event, but it is
-   * also the act that lets a message leave, so a loop should not be able to
-   * approve faster than a person could read.
-   */
   @Post(':toolExecutionId/approve')
   @RequiresOrganizationPermission({ agentActionApproval: ['decide'] })
   @UserRateLimit({ points: 60, durationSec: 300 })

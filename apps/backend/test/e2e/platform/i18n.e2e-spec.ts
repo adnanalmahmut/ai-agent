@@ -62,7 +62,6 @@ const errorBody = (response: Response): ErrorBody => {
 const fieldErrors = (response: Response): FieldErrorBody[] =>
   errorBody(response).errors ?? [];
 
-/** Field and code are the stable half of a validation error; message is not. */
 const errorIdentities = (response: Response) =>
   fieldErrors(response).map(({ field, code }) => ({ field, code }));
 
@@ -74,24 +73,17 @@ const signUpSchema = z
     role: z.enum(['admin', 'member']),
     tags: z.array(z.string()).min(1),
     age: z.coerce.number().int().min(18),
-    // Strict at this level too, so nested unknown keys are rejected and
-    // addressable rather than silently dropped.
     address: z
       .object({
         city: z.string().min(3),
       })
       .strict(),
-    // Deliberately *not* strict, to pin down the other half of the policy:
-    // strictness is a per-schema decision made by whoever describes the
-    // shape, not something the pipe imposes from above.
     preferences: z
       .object({
         theme: z.string(),
       })
       .optional(),
   })
-  // The Zod expression of `whitelist` + `forbidNonWhitelisted`: unknown keys
-  // are rejected by the schema that already describes the shape.
   .strict();
 
 class SignUpDto extends createZodDto(signUpSchema) {}
@@ -100,7 +92,6 @@ class SignUpDto extends createZodDto(signUpSchema) {}
 class TestI18nController {
   @Get('user-not-found')
   userNotFound(): never {
-    // Domain code states *what* happened. No language, no translation key.
     throw new AppException('USER_NOT_FOUND');
   }
 
@@ -155,10 +146,6 @@ const VALID_PAYLOAD = {
 async function createApp(
   options: { bodyParser: boolean } = { bodyParser: true },
 ): Promise<INestApplication> {
-  // `MailModule` now selects a delivery driver from configuration and logs
-  // through pino, so it needs both modules present. The sender address is set
-  // here rather than in `setup-env.ts` to keep the requirement visible next to
-  // the import that creates it.
   process.env.MAIL_DRIVER ??= 'log';
   process.env.MAIL_FROM_ADDRESS ??= 'no-reply@example.test';
 
@@ -249,10 +236,6 @@ describe('Backend i18n (e2e)', () => {
   });
 
   describe('HTTP status preservation', () => {
-    // Localization generalises a status into a code clients can branch on; it
-    // must never feed that code back into the status. These are the cases
-    // where the nearest code has a *different* default status than the
-    // exception was raised with.
     it.each([
       ['unprocessable', HttpStatus.UNPROCESSABLE_ENTITY, 'BAD_REQUEST'],
       ['method-not-allowed', HttpStatus.METHOD_NOT_ALLOWED, 'BAD_REQUEST'],
@@ -360,7 +343,6 @@ describe('Backend i18n (e2e)', () => {
         .send({ ...VALID_PAYLOAD, age: '30' });
 
       expect(response.status).toBe(201);
-      // `transform: true` equivalent — the handler receives parsed output.
       expect((response.body as { data: { age: number } }).data.age).toBe(30);
     });
 
@@ -522,10 +504,6 @@ describe('Backend i18n (e2e)', () => {
     });
 
     it('leaves a non-strict nested object to strip its own unknown keys', async () => {
-      // The other half of the policy: strictness belongs to each schema, so a
-      // nested object that does not ask for it keeps Zod's default — drop the
-      // key, accept the request — instead of the pipe enforcing strictness
-      // recursively behind the schema author's back.
       const response = await request(server)
         .post('/test-i18n/sign-up')
         .set('X-App-Locale', 'en')
@@ -565,7 +543,6 @@ describe('Backend i18n (e2e)', () => {
       expect(mail.html).toContain('عدنان');
       expect(mail.html).toContain('30');
       expect(mail.html).toContain('https://example.com/reset?token=abc123');
-      // The URL is isolated from the surrounding right-to-left text.
       expect(mail.html).toContain('<bdi dir="ltr">');
     });
 
@@ -598,10 +575,6 @@ describe('Backend i18n (e2e)', () => {
         },
       } as const;
 
-      // A worker re-running a failed job must send the language recorded in
-      // the payload, not one derived from whatever context exists at retry
-      // time — including when that retry happens inside a request for the
-      // other locale.
       const first = mailRenderer.render(job);
       const retry = mailRenderer.render(job);
 
@@ -626,11 +599,6 @@ describe('Backend i18n (e2e)', () => {
   });
 });
 
-/**
- * `main.ts` bootstraps with `bodyParser: false`. Anything asserted against a
- * default test app proves nothing about production unless the same option is
- * used, so the request-scoped behaviour is re-checked under that bootstrap.
- */
 describe('Backend i18n under the production bootstrap (bodyParser: false)', () => {
   let app: INestApplication;
   let server: App;
@@ -664,10 +632,6 @@ describe('Backend i18n under the production bootstrap (bodyParser: false)', () =
   });
 
   it('still refuses an invalid body rather than accepting it unvalidated', async () => {
-    // Without a body parser Express leaves `req.body` undefined, so the DTO
-    // sees no input at all. The contract that matters here is that the
-    // request is *rejected* with the standard localized envelope — validation
-    // never silently passes because parsing was skipped.
     const response = await request(server)
       .post('/test-i18n/sign-up')
       .set('X-App-Locale', 'en')

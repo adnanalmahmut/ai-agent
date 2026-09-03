@@ -1,12 +1,3 @@
-/**
- * The two authorization domains, asserted against the real role objects.
- *
- * Formerly `auth-access.spec.ts` and `organization-access.spec.ts`. Merged
- * because the invariant that matters most is the one *between* them — that a
- * platform role grants nothing inside an organization and an organization role
- * grants nothing on the platform — and that invariant reads as an afterthought
- * when the two catalogs are tested in separate files.
- */
 import { describe, expect, it } from '@jest/globals';
 import { defaultStatements as adminDefaultStatements } from 'better-auth/plugins/admin/access';
 import { defaultStatements as organizationDefaultStatements } from 'better-auth/plugins/organization/access';
@@ -35,12 +26,6 @@ const allowsOrganization = (
 ) => organizationRoles[role].authorize(permissions).success;
 describe('global access control', () => {
   describe('permission catalog', () => {
-    /**
-     * The plugin's routes check these exact strings — `/admin/set-role`
-     * against `user:["set-role"]`, `/admin/ban-user` against `user:["ban"]`.
-     * Deriving the catalog rather than retyping it is what stops a library
-     * upgrade from silently leaving a route unauthorizable.
-     */
     it('inherits every Better Auth admin statement verbatim', () => {
       for (const [resource, actions] of Object.entries(
         adminDefaultStatements,
@@ -96,12 +81,6 @@ describe('global access control', () => {
       expect(allowsGlobal('admin', { [resource]: [action] })).toBe(true);
     });
 
-    /**
-     * Each of these is withheld for a stated reason, not for symmetry:
-     * `set-role` is the privilege-escalation vector, `set-password` and
-     * `set-email` are silent account takeover, `impersonate-admins` is
-     * withheld by Better Auth's own built-in admin role too.
-     */
     it.each([
       ['user', 'set-role'],
       ['user', 'set-password'],
@@ -110,13 +89,6 @@ describe('global access control', () => {
       ['accountLifecycle', 'deactivate'],
       ['accountLifecycle', 'restore'],
       ['organizationLifecycle', 'restore'],
-      /**
-       * The control plane is deliberately not an administrative surface. It
-       * turns features on for the whole platform, changes operational limits
-       * every organization runs under, and holds the provider credentials —
-       * the blast radius is the deployment, not one account, so it belongs to
-       * the role the operator creates once at bootstrap.
-       */
       ['controlPlane', 'read'],
       ['controlPlane', 'write'],
       ['managedSecret', 'write'],
@@ -155,14 +127,6 @@ describe('global access control', () => {
     });
   });
 
-  /**
-   * The load-bearing assertion of the whole lifecycle policy.
-   *
-   * `user:delete` is Better Auth's hard, irreversible row deletion. The
-   * application replaces it with a reversible `accountLifecycle:deactivate`,
-   * and nobody — not even `super_admin` — is granted the destructive original.
-   * The e2e suite proves the same thing over HTTP.
-   */
   describe('hard delete is unreachable', () => {
     it.each(Object.keys(globalRoles) as (keyof typeof globalRoles)[])(
       '%s is not granted user:delete',
@@ -180,11 +144,6 @@ describe('global access control', () => {
   });
 
   describe('admin roles', () => {
-    /**
-     * `admin()` throws at construction when a name here is missing from
-     * `roles`, so this failing is the difference between a clear unit-test
-     * message and an opaque boot crash.
-     */
     it('names only roles that exist', () => {
       for (const role of GLOBAL_ADMIN_ROLES) {
         expect(Object.keys(globalRoles)).toContain(role);
@@ -201,7 +160,6 @@ describe('global access control', () => {
   });
 });
 
-/** Resources the plugin knows nothing about, so there is no default to narrow. */
 const OWN_ORGANIZATION_RESOURCES: readonly string[] = [
   'knowledge',
   'contentIdea',
@@ -210,7 +168,6 @@ const OWN_ORGANIZATION_RESOURCES: readonly string[] = [
   'mcpSession',
 ];
 
-/** What an ordinary member may do. Everything else must be refused. */
 const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
   ['knowledge', 'read'],
   ['contentIdea', 'read'],
@@ -228,12 +185,6 @@ describe('organization access control', () => {
           organizationDefaultStatements as Record<string, readonly string[]>
         )[resource];
 
-        /**
-         * `knowledge` is entirely ours: no plugin route checks it, so there is
-         * nothing upstream to narrow. It is asserted absent rather than merely
-         * skipped, so that a resource we believe is ours cannot quietly be a
-         * misspelling of one the plugin already enforces.
-         */
         if (OWN_ORGANIZATION_RESOURCES.includes(resource)) {
           expect(upstream).toBeUndefined();
           continue;
@@ -242,19 +193,12 @@ describe('organization access control', () => {
         expect(upstream).toBeDefined();
 
         for (const action of actions) {
-          // `archive` and `restore` are ours; everything else must exist
-          // upstream, because the plugin's own routes check those strings.
           if (action === 'archive' || action === 'restore') continue;
           expect(upstream).toContain(action);
         }
       }
     });
 
-    /**
-     * Teams and dynamic access control are off. Their endpoints are only
-     * registered when the options are enabled, so declaring the statements
-     * would authorize nothing while adding tables and query cost.
-     */
     it('omits team and dynamic-role statements', () => {
       expect(ORGANIZATION_PERMISSION_STATEMENTS).not.toHaveProperty('team');
       expect(ORGANIZATION_PERMISSION_STATEMENTS).not.toHaveProperty('ac');
@@ -262,12 +206,6 @@ describe('organization access control', () => {
   });
 
   describe('member', () => {
-    /**
-     * Stated as an allow-list rather than "nothing", because a member does
-     * hold one grant. Enumerating the whole catalog and excepting that grant
-     * keeps the assertion total: anything added to a role without being added
-     * here is refused by this test, which is the direction that matters.
-     */
     it('holds only the grants a member is meant to have', () => {
       for (const [resource, actions] of Object.entries(
         ORGANIZATION_PERMISSION_STATEMENTS,
@@ -292,11 +230,6 @@ describe('organization access control', () => {
       );
     });
 
-    /**
-     * The decision that lets a message leave the system belongs to whoever
-     * runs the organization. A member sees what is waiting and decides
-     * nothing.
-     */
     it('sees proposed agent actions but cannot decide them', () => {
       expect(
         allowsOrganization('member', { agentActionApproval: ['read'] }),
@@ -359,11 +292,6 @@ describe('organization access control', () => {
     });
   });
 
-  /**
-   * Hard organization deletion is disabled twice over: `organization:delete`
-   * is granted to nobody here, and `disableOrganizationDeletion: true` turns
-   * the route itself off. Archive is the lifecycle operation.
-   */
   describe('hard delete is unreachable', () => {
     it.each(
       Object.keys(organizationRoles) as (keyof typeof organizationRoles)[],
@@ -374,11 +302,6 @@ describe('organization access control', () => {
     });
   });
 
-  /**
-   * The structural half of "two authorization domains". These are separate
-   * `AccessControl` instances, so a role object from one is not the role
-   * object from the other even where the *name* coincides.
-   */
   describe('separation from global access control', () => {
     it('is a different AccessControl instance', () => {
       expect(organizationAccessControl).not.toBe(globalAccessControl);
@@ -405,10 +328,6 @@ describe('organization access control', () => {
     });
   });
 
-  /**
-   * Used by the archived-organization restore path, which cannot go through
-   * `@MemberHasPermission` — see `organization-lifecycle.service.ts`.
-   */
   describe('memberRoleHasPermission', () => {
     it('evaluates a single role', () => {
       expect(
@@ -419,7 +338,6 @@ describe('organization access control', () => {
       ).toBe(false);
     });
 
-    /** Better Auth joins multiple roles with a comma; so does this. */
     it('evaluates a comma-separated role list', () => {
       expect(
         memberRoleHasPermission('member,owner', { organization: ['restore'] }),
@@ -449,7 +367,6 @@ describe('organization access control', () => {
       ).toBe(false);
     });
 
-    /** A global role name must not resolve inside the organization domain. */
     it('denies a global role name', () => {
       expect(
         memberRoleHasPermission('super_admin', { organization: ['restore'] }),

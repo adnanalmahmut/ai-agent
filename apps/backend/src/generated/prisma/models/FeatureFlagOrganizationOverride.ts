@@ -14,8 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model FeatureFlagOrganizationOverride
- * A feature-flag override for one organization, which wins over the platform
- * override and the code default.
+ * 
  */
 export type FeatureFlagOrganizationOverrideModel = runtime.Types.Result.DefaultSelection<Prisma.$FeatureFlagOrganizationOverridePayload>
 

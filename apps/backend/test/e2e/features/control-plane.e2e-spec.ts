@@ -21,28 +21,12 @@ import {
   type TestUser,
 } from '../../support/auth-harness';
 
-/**
- * The operator surface, against the real application and the real database.
- *
- * Three things are only true end to end and are therefore asserted here rather
- * than in the service specs: that these routes are super-administrator
- * territory and stay that way, that one organization's override cannot be seen
- * by another, and that a credential posted through the HTTP surface does not
- * come back out of it.
- *
- * Authorization is asserted against a table of every route rather than a
- * sample, for the reason given on that block: these routes can switch a paid
- * subsystem on for every tenant at once, and the guard that goes missing is
- * always the one on the route nobody thought to probe.
- */
-
 const BASE = '/platform/control-plane';
 
 const FLAG = 'agents.enabled';
 const SETTING = 'agents.max_concurrent_runs_per_organization';
 const SECRET = 'openai.api_key';
 
-/** Unmistakable, and searched for in the raw response bytes. */
 const CANARY = 'sk-CANARY-do-not-log-0000000000';
 
 type FlagState = {
@@ -70,15 +54,6 @@ type SecretState = {
 
 const dataOf = <T>(body: unknown): T => (body as { data: T }).data;
 
-/**
- * One row per route the controller declares.
- *
- * The authorization sweep below is only worth as much as this table is
- * complete, so `handler` is typed against the controller and checked against
- * its prototype: a route added without a row here fails a test rather than
- * quietly shipping unprobed. `path` is a function because the organization
- * identifiers only exist once `beforeAll` has run.
- */
 type ControlPlaneRoute = {
   handler: keyof ControlPlaneController;
   label: string;
@@ -190,7 +165,6 @@ describe('Control plane (e2e)', () => {
     },
   ];
 
-  /** Issues one route, signed in as `actor` or with no session at all. */
   const send = (route: ControlPlaneRoute, actor: TestUser | undefined) => {
     const client =
       actor === undefined
@@ -210,11 +184,6 @@ describe('Control plane (e2e)', () => {
     return client.del(route.path());
   };
 
-  /**
-   * Every route's status, labelled. Compared against a labelled expectation so
-   * a leak names the route that leaked instead of reporting `403 !== 200`
-   * somewhere in a loop. Sequential because these share a database.
-   */
   const statusesFor = async (
     actor: TestUser | undefined,
   ): Promise<string[]> => {
@@ -231,7 +200,6 @@ describe('Control plane (e2e)', () => {
   const everyRoute = (status: number): string[] =>
     ROUTES.map((route) => `${route.label}: ${status}`);
 
-  /** Every table the control plane owns, so "nothing was written" is total. */
   const storedRowCounts = async () => ({
     featureFlagPlatformOverride:
       await harness.prisma.featureFlagPlatformOverride.count(),
@@ -263,17 +231,6 @@ describe('Control plane (e2e)', () => {
     return (response.body as { id: string }).id;
   };
 
-  /**
-   * Empties the four tables the control plane owns, so an interrupted run
-   * cannot leave a flag switched on for the next suite.
-   *
-   * Deliberately unscoped rather than restricted to the code-owned registry
-   * keys. Several assertions below are that a rejected write left *no* row
-   * behind, and the row a defect would leave is precisely one whose key no
-   * registry names — so a registry-scoped delete could never clear it, and one
-   * escaped write would fail every later run until somebody truncated the
-   * table by hand. Nothing outside these tables is touched.
-   */
   const cleanControlPlane = async () => {
     await harness.prisma.featureFlagOrganizationOverride.deleteMany();
     await harness.prisma.featureFlagPlatformOverride.deleteMany();
@@ -304,32 +261,7 @@ describe('Control plane (e2e)', () => {
     await harness?.close();
   });
 
-  /**
-   * The whole surface, for every caller who must not reach it.
-   *
-   * Read and write are separate permissions and neither belongs to anyone but a
-   * super administrator, so the unit of assertion is the route *table* rather
-   * than a hand-picked sample. A sample is what lets a guard go missing from
-   * the one route nobody thought to probe — a `DELETE` in particular, since the
-   * removals are the routes a reviewer's eye skips and the ones that silently
-   * revert an operator's configuration.
-   *
-   * `admin` is here deliberately. A plain user failing is unsurprising; the
-   * boundary that actually moves under a careless edit to `permissions.ts` is
-   * the one between `admin` and `super_admin`.
-   *
-   * The organization owner is here for the other reason: they own
-   * `organizationA`, and half of these routes are addressed by that
-   * organization's identifier. Owning the tenant a route names must not grant
-   * the route — these are an operator's rollout controls, not a tenant's
-   * settings page, and organization RBAC is a separate domain from platform
-   * RBAC.
-   */
   describe('authorization', () => {
-    /**
-     * Keeps the table honest. Without this, adding a route and forgetting to
-     * list it would silently shrink every sweep below to the old surface.
-     */
     it('probes every route the controller declares', () => {
       const declared = Object.getOwnPropertyNames(
         ControlPlaneController.prototype,
@@ -356,14 +288,6 @@ describe('Control plane (e2e)', () => {
       expect(await statusesFor(undefined)).toEqual(everyRoute(401));
     });
 
-    /**
-     * A refused write must not be a write.
-     *
-     * Status codes alone cannot show this: a guard that ran after the handler,
-     * or a handler that persisted before the guard's decision was applied,
-     * would still answer 403. So the sweep is followed by a direct look at
-     * every table the control plane owns.
-     */
     it('writes nothing while refusing every unauthorized caller', async () => {
       for (const actor of [plainUser, admin, owner, undefined]) {
         await statusesFor(actor);
@@ -413,10 +337,6 @@ describe('Control plane (e2e)', () => {
       });
     });
 
-    /**
-     * Clearing is a distinct operation from pinning the default, and the
-     * difference is visible in `source` even while the two agree on `enabled`.
-     */
     it('returns to the code default when the override is cleared', async () => {
       await as(harness, superAdmin)
         .put(`${BASE}/feature-flags/${FLAG}`, { enabled: true })
@@ -426,8 +346,6 @@ describe('Control plane (e2e)', () => {
         .del(`${BASE}/feature-flags/${FLAG}`)
         .expect(200);
 
-      // `undefined` fields do not survive JSON, so absence is the assertion:
-      // no override tier is reported at all.
       expect(dataOf<FlagState>(cleared.body)).toMatchObject({
         enabled: false,
         source: 'default',
@@ -449,14 +367,6 @@ describe('Control plane (e2e)', () => {
     });
   });
 
-  /**
-   * Tenant isolation, stated as its own property rather than inferred from the
-   * precedence tests.
-   *
-   * An override is a rollout tool, and a rollout that reached organizations it
-   * was not aimed at would be indistinguishable from a platform switch — which
-   * is exactly the mistake that makes a per-tenant flag worse than no flag.
-   */
   describe('organization overrides', () => {
     it('changes one organization and leaves the other exactly as it was', async () => {
       await as(harness, superAdmin)
@@ -485,7 +395,6 @@ describe('Control plane (e2e)', () => {
         'organizationOverride',
       );
 
-      // And the platform view is untouched by either.
       expect(
         flagIn(
           (
@@ -564,10 +473,6 @@ describe('Control plane (e2e)', () => {
       });
     });
 
-    /**
-     * A bounded setting whose refusal said only "invalid" would leave an
-     * operator guessing at the bound, so the schema's own messages are public.
-     */
     it.each([
       { label: 'above the maximum', value: 5_000 },
       { label: 'below the minimum', value: 0 },
@@ -614,12 +519,6 @@ describe('Control plane (e2e)', () => {
     });
   });
 
-  /**
-   * The credential surface, checked at the bytes.
-   *
-   * Asserting on the parsed body would miss a value that leaked through a field
-   * nobody thought to look at, so the raw response text is searched as well.
-   */
   describe('managed secrets', () => {
     const storeCanary = () =>
       as(harness, superAdmin)
@@ -671,11 +570,6 @@ describe('Control plane (e2e)', () => {
       expect(response.text).not.toContain('CANARY');
     });
 
-    /**
-     * What is in the table, not just what comes back out of it. Encryption at
-     * rest is the promise this model makes, and only a direct read can show
-     * that the column holds ciphertext rather than the credential.
-     */
     it('persists the credential encrypted, recoverable only with the master key', async () => {
       await storeCanary();
 
@@ -690,10 +584,6 @@ describe('Control plane (e2e)', () => {
         'CANARY',
       );
       expect(row.iv).toHaveLength(12);
-      // Asserted against the column, not only through `open`. A regression to
-      // unversioned writes would still open cleanly -- the legacy fingerprint
-      // path accepts a null version and the fingerprint would match -- so the
-      // round trip alone cannot tell a versioned row from an unversioned one.
       expect(row.keyVersion).toBe(encryptionConfig().activeKeyVersion);
       const keyring = new ManagedSecretKeyring(encryptionConfig());
       expect(keyring.open(SECRET, row)).toBe(CANARY);
@@ -739,11 +629,6 @@ describe('Control plane (e2e)', () => {
     });
   });
 
-  /**
-   * A key that is not in the code-owned registry is a 404 at the boundary, for
-   * all three resources. The alternative — accepting the write — is a row
-   * nothing reads and an operator who believes they configured something.
-   */
   describe('unknown keys', () => {
     const unknown = 'definitely.not.a.registered.key';
 
@@ -772,12 +657,6 @@ describe('Control plane (e2e)', () => {
 
         expect(errorBody(response).errorCode).toBe('NOT_FOUND');
         expect(response.text).not.toContain('CANARY');
-        /**
-         * The status is only half of the contract. A key checked after the
-         * write would answer 404 and still leave a row behind — one that no
-         * registry names, so no read surface lists it and no operator can
-         * clear it through the control plane.
-         */
         expect(await storedRowCounts()).toEqual(NO_ROWS);
       },
     );

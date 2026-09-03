@@ -9,18 +9,6 @@ import { AuthCard } from '@/features/auth/components/auth-card';
 import { AUTH_ROUTES, RETURN_TO_PARAM } from '@/features/auth/routes';
 import { Link } from '@/i18n/navigation';
 
-/**
- * What an invited visitor sees before they have signed in.
- *
- * Not a redirect. Someone arriving from an email deserves to know why they
- * are being asked to sign in, and a bare bounce to a sign-in form reads as
- * the link having failed. The invitation URL is carried through as
- * `returnTo`, so accepting is one step away once they are in.
- *
- * It shows no organization name, no inviter, nothing — the backend requires a
- * session before it will say anything about an invitation, which is what
- * stops an invitation id from being a lookup key for anyone who finds it.
- */
 export function InvitationSignInRequired({
   invitationPath,
 }: {

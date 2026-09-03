@@ -4,14 +4,6 @@ import { API_BASE_PATH } from '@/config/paths';
 
 import { ApiError, ApiUnavailableError, apiRequest } from './application-api';
 
-/**
- * The one place this application calls a NestJS route.
- *
- * Worth its own tests because everything it gets wrong is invisible at the
- * call site: a missing credentials mode looks like a permission bug, a
- * swallowed error code looks like a translation bug, and an HTML error body
- * from a gateway looks like a crash.
- */
 const fetchMock = vi.fn();
 
 beforeEach(() => {
@@ -29,7 +21,6 @@ const jsonResponse = (body: unknown, status = 200) =>
     headers: { 'content-type': 'application/json' },
   });
 
-/** What the backend's global `ResponseInterceptor` actually emits. */
 const enveloped = (data: unknown, status = 200) =>
   jsonResponse(
     {
@@ -42,8 +33,6 @@ const enveloped = (data: unknown, status = 200) =>
 
 describe('a successful call', () => {
   it('addresses the API by path on this same origin', async () => {
-    // No host anywhere: production and development both serve the backend
-    // from `/api` on the origin the page came from.
     fetchMock.mockResolvedValue(jsonResponse([]));
 
     await apiRequest('/organizations/archived');
@@ -54,13 +43,6 @@ describe('a successful call', () => {
     );
   });
 
-  /**
-   * The fixture is the envelope, because that is the only thing the backend
-   * emits. Its `ResponseInterceptor` is global and wraps every non-204 `/api`
-   * body as `{ success, data, meta }`, so a test written against a bare array
-   * asserts against a response the server cannot produce — and would keep
-   * passing while every caller that reads a body received the envelope.
-   */
   it('returns what the server put in the envelope, not the envelope', async () => {
     fetchMock.mockResolvedValue(enveloped([{ id: 'org_1' }]));
 
@@ -75,11 +57,6 @@ describe('a successful call', () => {
     await expect(apiRequest('/x')).resolves.toEqual({ key: 'agents.enabled' });
   });
 
-  /**
-   * `meta` carries a request id, a timestamp and — on paginated routes — the
-   * page counts. Nothing here reads any of it, and a caller that received the
-   * pair would have to unwrap something it never uses.
-   */
   it('drops the envelope metadata rather than returning a pair', async () => {
     fetchMock.mockResolvedValue(enveloped(['a']));
 
@@ -89,7 +66,6 @@ describe('a successful call', () => {
     expect(result).not.toHaveProperty('meta');
   });
 
-  /** `@RawResponse()` endpoints exist, and are not this function's business. */
   it('returns an unenveloped body as it stands', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ status: 'ok' }));
 
@@ -108,13 +84,6 @@ describe('a successful call', () => {
     });
   });
 
-  /**
-   * Content-idea generation requires an `Idempotency-Key`, so the client has to
-   * be able to send one. It travels beside the content type rather than
-   * replacing it — a request that lost its JSON header because it also carried
-   * a key would be refused by the pipe for a reason nothing in the UI could
-   * explain.
-   */
   it('sends a caller header alongside the JSON header', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ ok: true }));
 
@@ -170,9 +139,9 @@ describe('a refusal', () => {
       jsonResponse({ errorCode: 'x', code: 'ORGANIZATION_NOT_ARCHIVED' }, 409),
     );
 
-    await expect(apiRequest('/organizations/org_1/restore')).rejects.toMatchObject(
-      { status: 409, code: 'ORGANIZATION_NOT_ARCHIVED' },
-    );
+    await expect(
+      apiRequest('/organizations/org_1/restore'),
+    ).rejects.toMatchObject({ status: 409, code: 'ORGANIZATION_NOT_ARCHIVED' });
   });
 
   it('reads a code nested under `error`', async () => {
@@ -186,8 +155,6 @@ describe('a refusal', () => {
   });
 
   it('survives a body that is not JSON at all', async () => {
-    // A gateway that never reached Nest returns HTML. That must not turn a
-    // 502 into a parse exception on the way to an error message.
     fetchMock.mockResolvedValue(
       new Response('<html>bad gateway</html>', { status: 502 }),
     );
@@ -200,13 +167,13 @@ describe('a refusal', () => {
   });
 
   it('never puts the server’s message into the thrown error', async () => {
-    // The UI renders its own copy in the reader's language; surfacing a
-    // server-chosen sentence would mean two sources of truth for one screen.
     fetchMock.mockResolvedValue(
       jsonResponse({ code: 'FORBIDDEN', message: 'Nope, sunshine' }, 403),
     );
 
-    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
 
     expect(failure.message).not.toContain('sunshine');
   });
@@ -240,14 +207,6 @@ describe('an empty success', () => {
   });
 });
 
-/**
- * The reasons the server gave, on their way to a screen.
- *
- * Every screen that shows a specific rejection reason gets it through here,
- * and nothing else in the application parses an error body. A test that
- * constructs `new ApiError(422, code, { issues })` by hand proves the screen
- * renders details; only these prove the details ever arrive.
- */
 describe('the reasons a refusal carries', () => {
   it('reads the issues a validation failure listed', async () => {
     fetchMock.mockResolvedValue(
@@ -262,7 +221,9 @@ describe('the reasons a refusal carries', () => {
       ),
     );
 
-    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
 
     expect(failure.code).toBe('VALIDATION_ERROR');
     expect(failure.details.issues).toEqual([
@@ -272,24 +233,27 @@ describe('the reasons a refusal carries', () => {
 
   it('reads a single reason from an unnested body', async () => {
     fetchMock.mockResolvedValue(
-      jsonResponse({ code: 'VALIDATION_ERROR', details: { reason: 'no' } }, 422),
+      jsonResponse(
+        { code: 'VALIDATION_ERROR', details: { reason: 'no' } },
+        422,
+      ),
     );
 
-    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
 
     expect(failure.details.reason).toBe('no');
   });
 
-  /**
-   * The screen maps over `issues` and renders each as a list item. A body
-   * carrying objects there would otherwise reach React as children.
-   */
   it('refuses issues that are not all strings', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse({ error: { details: { issues: ['ok', { bad: 1 }] } } }, 422),
     );
 
-    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
 
     expect(failure.details.issues).toBeUndefined();
   });
@@ -299,15 +263,21 @@ describe('the reasons a refusal carries', () => {
       jsonResponse({ error: { details: { reason: { text: 'no' } } } }, 422),
     );
 
-    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
 
     expect(failure.details.reason).toBeUndefined();
   });
 
   it('carries no details when the body has none', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ error: { code: 'FORBIDDEN' } }, 403));
+    fetchMock.mockResolvedValue(
+      jsonResponse({ error: { code: 'FORBIDDEN' } }, 403),
+    );
 
-    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
 
     expect(failure.code).toBe('FORBIDDEN');
     expect(failure.details).toEqual({});
@@ -321,7 +291,9 @@ describe('the reasons a refusal carries', () => {
       }),
     );
 
-    const failure = (await apiRequest('/x').catch((e: unknown) => e)) as ApiError;
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
 
     expect(failure).toBeInstanceOf(ApiError);
     expect(failure.details).toEqual({});

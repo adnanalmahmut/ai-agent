@@ -1,21 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import { z } from 'zod';
 
-/**
- * Why this one stays in the environment.
- *
- * Everything else the control plane manages lives in PostgreSQL, which is the
- * point of having a control plane. This value cannot: it is what decrypts the
- * rows, so storing it beside them would encrypt nothing. It is bootstrap
- * configuration in the same sense as `DATABASE_URL` — needed before the
- * database is useful — and belongs in the root-owned runtime environment file
- * that the application reads at boot and never writes.
- *
- * 32 bytes because AES-256-GCM takes a 256-bit key. Base64 rather than hex or
- * raw text so the value is unambiguous in a `KEY=value` file and so a truncated
- * paste fails at boot instead of producing a short key that silently weakens
- * every secret.
- */
 const REQUIRED_KEY_BYTES = 32;
 const MAX_KEY_VERSION_LENGTH = 64;
 const MAX_DECRYPT_ONLY_KEYS = 16;
@@ -59,18 +44,8 @@ export type ConfiguredEncryptionKey = Readonly<{
 }>;
 
 export type EncryptionConfig = {
-  /**
-   * The master key as bytes.
-   *
-   * Decoded once at boot rather than on each use, so a malformed value is a
-   * startup failure an operator sees immediately instead of a runtime failure
-   * on the first secret read — which, for a credential, would surface as an
-   * unexplained provider outage.
-   */
   masterKey: Buffer;
-  /** Stable, non-secret identity recorded on every new ciphertext row. */
   activeKeyVersion: string;
-  /** Older key versions available for exact-version decryption only. */
   decryptOnlyKeys: readonly ConfiguredEncryptionKey[];
 };
 
@@ -100,11 +75,6 @@ function isCanonicalEncryptionKey(value: string): boolean {
   );
 }
 
-/**
- * Parses `version=base64,version=base64` without ever placing a submitted key
- * in an exception. The delimiter is safe because a version cannot contain `=`
- * and base64 padding appears only at the end of its value.
- */
 function parseDecryptOnlyKeys(
   raw: string,
   activeVersion: string,

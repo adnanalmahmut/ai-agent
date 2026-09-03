@@ -48,8 +48,6 @@ describe('requesting a reset link', () => {
   });
 
   it('confirms without saying whether the account exists', async () => {
-    // The backend goes out of its way not to answer that question — it burns
-    // the same work on a miss to keep the timing flat. The UI must not undo it.
     renderWithProviders(<ForgotPasswordBlock />);
 
     await request();
@@ -89,9 +87,7 @@ describe('requesting a reset link', () => {
     renderWithProviders(<ForgotPasswordBlock />);
     await request();
 
-    expect(
-      await screen.findByText(/Too many attempts/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Too many attempts/)).toBeInTheDocument();
     expect(screen.queryByText('Check your inbox')).not.toBeInTheDocument();
   });
 });

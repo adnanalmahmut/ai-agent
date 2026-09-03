@@ -1,12 +1,3 @@
-/**
- * The HTTP validation boundary: the issue vocabulary, the Zod DTO helper, the
- * Zod-to-issue mapper, and the pipe that ties them together.
- *
- * One file because they are one concern — a request is parsed against a Zod
- * DTO, its failures are translated into this module's stable codes, and the
- * result is thrown as a `ValidationException`. Splitting them apart hid the
- * fact that none of the four is usable without the other three.
- */
 import {
   ArgumentMetadata,
   HttpStatus,
@@ -15,7 +6,6 @@ import {
 } from '@nestjs/common';
 import type { z } from 'zod';
 
-/** Stable identifiers for field-level failures. */
 export const VALIDATION_ISSUE_CODES = [
   'REQUIRED',
   'INVALID_STRING',
@@ -87,16 +77,6 @@ export function isZodDto(target: unknown): target is ZodDto {
   );
 }
 
-/**
- * Translates Zod's issue vocabulary into the project's stable validation
- * codes.
- *
- * Zod messages themselves are never sent to users, nor read as keys — they
- * are English strings baked into the library ("Too small: expected string to
- * have >=3 characters"). Only the code and its arguments survive this step;
- * the wording is chosen later, in the requested language, by the only map
- * that knows about translations at all.
- */
 export function toValidationIssues(
   error: z.ZodError,
   input: unknown,

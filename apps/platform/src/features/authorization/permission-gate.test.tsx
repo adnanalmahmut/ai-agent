@@ -11,9 +11,8 @@ vi.mock('@/features/auth/auth-client', async () => {
 
 vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
 
-const { GlobalPermissionGate, OrganizationPermissionGate } = await import(
-  './permission-gate'
-);
+const { GlobalPermissionGate, OrganizationPermissionGate } =
+  await import('./permission-gate');
 
 beforeEach(resetAuthClientStub);
 
@@ -118,8 +117,6 @@ describe('GlobalPermissionGate', () => {
 
 describe('OrganizationPermissionGate', () => {
   it('reads the member role, not the platform role', () => {
-    // The two domains are separate. A platform super_admin is nobody inside
-    // an organization they have no membership in.
     signedInAs('super_admin');
     memberAs(null);
 
@@ -155,8 +152,6 @@ describe('OrganizationPermissionGate', () => {
   });
 
   it('never consults the global evaluator', () => {
-    // Passing an organization permission to the platform catalogue is the
-    // mistake the two separate components exist to prevent.
     memberAs('admin');
     authClientStub.organization.checkRolePermission.mockReturnValue(true);
 
@@ -170,8 +165,6 @@ describe('OrganizationPermissionGate', () => {
   });
 
   it('is context-blind: an active organization alone grants nothing', () => {
-    // Mirrors the backend invariant. A session can name an organization the
-    // user is not a member of; that is context, never access.
     authClientStub.useActiveOrganization.mockReturnValue({
       data: { id: 'org_1', name: 'Acme' },
       isPending: false,

@@ -1,37 +1,6 @@
 import type { KnowledgeSpaceSlug } from '../../../src/features/knowledge/knowledge-space.registry';
 import type { ContentIdeaOutput } from '../../../src/features/content/ideas/agent-definitions/content-idea';
 
-/**
- * The repository-owned evaluation set for `content-idea@1`.
- *
- * ## What this measures, and what it does not
- *
- * It measures **application-owned behavior**: that a request is normalized the
- * way the contract says, that the language and goal the caller asked for reach
- * the runtime request and the prompt, that context assembly retrieves from the
- * declared spaces and no others, that one organization's material cannot enter
- * another's context, that both budgets bind, and that a provider answer is
- * parsed before it becomes an output.
- *
- * It does **not** measure model quality. Nothing here can tell you whether the
- * ideas are any good, whether the Arabic reads naturally, or whether the angle
- * actually serves the goal — those are judgements about a provider's output,
- * and a fixture that claimed to score them would be scoring a stub. Saying so
- * plainly matters more than the number of cases: a suite named "eval" invites
- * the reading that a green run means the agent works, and the honest claim is
- * that a green run means the parts this repository controls behave as
- * specified.
- *
- * ## Why it is deterministic
- *
- * No provider call, no credential, no network. The corpus is fixed text in this
- * file, the embedding is a fake, and the provider answer is supplied per case —
- * so a failure is always a change in this application, never weather at a
- * vendor. A benchmark that reaches a live model fails for reasons unrelated to
- * the diff under review and is therefore ignored within a month.
- */
-
-/** One document in a fixture organization's knowledge base. */
 export type EvalDocument = {
   organizationId: string;
   slug: KnowledgeSpaceSlug;
@@ -40,36 +9,19 @@ export type EvalDocument = {
 
 export type EvalCase = {
   id: string;
-  /** What the case is for, in the words a reviewer would use. */
   intent: string;
   organizationId: string;
-  /** Deliberately `unknown`: several cases submit payloads the schema refuses. */
   request: unknown;
-  /** What the provider returns, so output handling can be exercised per case. */
   providerAnswer?: unknown;
   expect: {
-    /** The request is refused by the pinned input schema. */
     rejectsInput?: boolean;
-    /** The provider's answer is refused by the pinned output schema. */
     rejectsOutput?: boolean;
-    /**
-     * The answer parses but breaks the request/answer contract — today, the
-     * exact idea count. Separate from `rejectsOutput` because the two are
-     * different layers and a case that confused them would pass while the
-     * count check was deleted.
-     */
     rejectsOutputContract?: boolean;
-    /** Substrings that must appear in the prompt sent to the provider. */
     promptContains?: readonly string[];
-    /** Substrings that must not appear anywhere in the prompt. */
     promptExcludes?: readonly string[];
-    /** The exact set of space slugs the assembled context may be drawn from. */
     contextSpaces?: readonly KnowledgeSpaceSlug[];
-    /** The assembled context is empty. */
     contextEmpty?: boolean;
-    /** An upper bound on assembled passages, for the budget cases. */
     maxPassages?: number;
-    /** Fields of the normalized input, after defaults and trimming. */
     normalized?: Record<string, unknown>;
   };
 };
@@ -86,34 +38,11 @@ const ORG_CANARY = 'org_canary';
 const ORG_BUDGET = 'org_budget';
 const ORG_OVERSIZED = 'org_oversized';
 
-/**
- * Text that announces itself wherever it should not be.
- *
- * Each canary is filed in a space the policy excludes, or in another
- * organization. A case that finds one in the prompt has found a real leak, and
- * the assertion names the string rather than a count — so a partially correct
- * predicate that returns *some* forbidden passages still fails.
- */
 export const EXCLUDED_SPACE_CANARY = 'CANARY-EXCLUDED-SPACE-MATERIAL';
 export const CROSS_TENANT_CANARY = 'CANARY-OTHER-ORGANIZATION-MATERIAL';
 
-/**
- * A single passage larger than the policy's whole character budget.
- *
- * Exported so the assertion can name the same string the corpus holds rather
- * than a length that has to be kept in step with it by hand.
- */
 export const OVERSIZED_PASSAGE = `OVERSIZED-${'x'.repeat(13_000)}`;
 
-/**
- * The fixture corpus.
- *
- * Every organization here is a different shape of customer, because the failure
- * this set exists to catch is a policy that works for the one organization the
- * developer had in mind. A consultant with three sentences of context and an
- * e-commerce brand with a full knowledge base exercise the same code along
- * different branches of the budget and the slug resolution.
- */
 export const EVAL_CORPUS: readonly EvalDocument[] = [
   {
     organizationId: ORG_DEVELOPER,
@@ -139,7 +68,6 @@ export const EVAL_CORPUS: readonly EvalDocument[] = [
     content:
       'This quarter we are arguing that deployment safety is a design problem rather than a tooling problem.',
   },
-  /** Filed in spaces this agent must never read. */
   {
     organizationId: ORG_DEVELOPER,
     slug: 'design.system',
@@ -237,14 +165,12 @@ export const EVAL_CORPUS: readonly EvalDocument[] = [
       'Filing deadlines drive the calendar. Every quarter opens with a deadline explainer.',
   },
 
-  /** Exactly one document, in one allowed space. */
   {
     organizationId: ORG_SPARSE,
     slug: 'brand.voice',
     content: 'Short sentences. No jargon.',
   },
 
-  /** The neighbour whose material must never surface for the canary tenant. */
   {
     organizationId: ORG_NEIGHBOUR,
     slug: 'brand.voice',
@@ -255,7 +181,6 @@ export const EVAL_CORPUS: readonly EvalDocument[] = [
     slug: 'organization.profile',
     content: `Neighbour Co sells industrial fasteners. ${CROSS_TENANT_CANARY}`,
   },
-  /** The canary tenant's own material, so a passing case is not simply empty. */
   {
     organizationId: ORG_CANARY,
     slug: 'brand.voice',
@@ -263,28 +188,12 @@ export const EVAL_CORPUS: readonly EvalDocument[] = [
       'We write in the second person and keep paragraphs to three lines.',
   },
 
-  /**
-   * Twenty documents in one allowed space, so `maxChunks` is the binding
-   * constraint rather than the size of the corpus.
-   */
   ...Array.from({ length: 20 }, (_unused, index): EvalDocument => ({
     organizationId: ORG_BUDGET,
     slug: 'content.strategy',
     content: `Campaign note ${index + 1}: a short, distinct sentence about the autumn plan.`,
   })),
 
-  /**
-   * One document far over the character budget, ranked *ahead* of three that
-   * fit.
-   *
-   * The ordering is the whole point. Filed behind twelve other documents it
-   * would never be retrieved at all, and the case asserting it does not reach
-   * the prompt would pass because `maxChunks` had already excluded it — a green
-   * assertion about a code path that never ran. Ranked first, the only thing
-   * that can keep it out of the prompt is the character budget, and the three
-   * shorter passages behind it prove the oversized one was skipped rather than
-   * ending the loop.
-   */
   {
     organizationId: ORG_OVERSIZED,
     slug: 'brand.voice',
@@ -307,7 +216,6 @@ export const EVAL_CORPUS: readonly EvalDocument[] = [
   },
 ];
 
-/** The spaces `content-idea@1` is allowed to read, restated for the assertions. */
 export const ALLOWED_SPACES: readonly KnowledgeSpaceSlug[] = [
   'organization.profile',
   'brand.voice',
@@ -315,7 +223,6 @@ export const ALLOWED_SPACES: readonly KnowledgeSpaceSlug[] = [
   'content.strategy',
 ];
 
-/** One well-formed idea, the unit every fixture answer below is built from. */
 const VALID_IDEA: ContentIdeaOutput['ideas'][number] = {
   title: 'Deployment safety is a design problem',
   hook: 'Your incident review keeps blaming the deploy tool. It is not the deploy tool.',
@@ -326,20 +233,6 @@ const VALID_IDEA: ContentIdeaOutput['ideas'][number] = {
   suggestedFormat: 'post',
 };
 
-/**
- * A well-formed answer of exactly `count` ideas.
- *
- * A function rather than a constant because `numberOfIdeas` is an output
- * contract, not a prompt hint: the runner refuses an answer whose idea count
- * differs from the request's. A single fixed answer would therefore make every
- * case that asks for three or nine fail for a reason that has nothing to do
- * with what the case is about, and pinning each case's count to the fixture's
- * would delete the coverage of the count travelling to the provider at all.
- *
- * The titles are numbered so the ideas are distinct, which is what the
- * instructions ask a provider for and what makes an off-by-one visible when a
- * case fails.
- */
 export function validAnswerFor(count: number): ContentIdeaOutput {
   return {
     ideas: Array.from({ length: count }, (unusedValue, index) => ({
@@ -350,22 +243,8 @@ export function validAnswerFor(count: number): ContentIdeaOutput {
   };
 }
 
-/**
- * The count the pinned input schema will settle on for a request.
- *
- * Restated here rather than imported so a fixture answer is built against the
- * declared default: reading the default off the schema would make the harness
- * agree with the contract however the contract changed, which is the one thing
- * these cases exist to notice.
- */
 export const DEFAULT_NUMBER_OF_IDEAS = 5;
 
-/**
- * A well-formed answer, used wherever the case is not about output.
- *
- * One idea, matching a request for one. Cases that ask for another count get
- * their answer from `validAnswerFor` instead.
- */
 export const VALID_ANSWER: ContentIdeaOutput = validAnswerFor(1);
 
 export const EVAL_CASES: readonly EvalCase[] = [
@@ -615,15 +494,7 @@ export const EVAL_CASES: readonly EvalCase[] = [
       language: 'en',
     },
     expect: {
-      /**
-       * The marker rather than a run of `x`, so the assertion fails on the
-       * passage being present rather than on any long string being present.
-       */
       promptExcludes: ['OVERSIZED-'],
-      /**
-       * And the three behind it are kept. Without this the case would pass for
-       * an assembler that returned nothing at all.
-       */
       promptContains: [
         'Readers who skim',
         'The winter series runs weekly',
@@ -639,8 +510,6 @@ export const EVAL_CASES: readonly EvalCase[] = [
       'The happy path, so the rejection cases below are not vacuously green.',
     organizationId: ORG_DEVELOPER,
     request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
-    // Sized to the default count, because the count is part of the contract:
-    // a well-formed answer of the wrong length is not the happy path.
     providerAnswer: validAnswerFor(DEFAULT_NUMBER_OF_IDEAS),
     expect: {},
   },
@@ -650,11 +519,6 @@ export const EVAL_CASES: readonly EvalCase[] = [
       'A provider is an untrusted source this application pays for; an answer missing a required field is refused rather than stored.',
     organizationId: ORG_DEVELOPER,
     request: { topic: 'Deployment safety', goal: 'Book demos', language: 'en' },
-    /**
-     * Sized to the default count, so this case violates the *schema* and only
-     * the schema. A one-idea answer to a five-idea request breaks both layers,
-     * and would then pass for whichever happens to run first.
-     */
     providerAnswer: {
       ideas: [
         { title: 'Only a title', suggestedFormat: 'post' },

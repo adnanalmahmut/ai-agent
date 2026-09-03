@@ -9,26 +9,8 @@ import {
 } from './content-idea-submission';
 import type { ContentIdeaRequest } from './organization-api';
 
-/**
- * The record that survives a reload, and what it is allowed to contain.
- *
- * Two claims are being made here and they are separable. The first is
- * behavioral: the same material request reuses the key it was already sent
- * with, and a materially different one does not. The second is a containment
- * claim: what reaches `sessionStorage` is an opaque digest and an identifier,
- * never the operator's request. The behavior tests would all pass against the
- * previous implementation, which stored the request verbatim — so the
- * containment assertions are the ones that would catch a revert.
- */
-
 const STORAGE_KEY = 'content-idea:pending:org_1';
 
-/**
- * Deliberately recognizable, and deliberately the kind of thing a marketing
- * request actually carries: an unannounced product, a launch date, a customer
- * segment. If any of it can be read back out of the browser, this feature has
- * written the organization's plans somewhere nobody asked it to.
- */
 const REQUEST: ContentIdeaRequest = {
   topic: 'Project Nightjar, unannounced',
   goal: 'Warm the list before the 14 March launch',
@@ -45,7 +27,6 @@ const SECRETS = [
   'Do not mention the recall',
 ];
 
-/** Everything this origin's session storage holds, keys and values alike. */
 const storageDump = () =>
   Object.entries({ ...window.sessionStorage })
     .map(([key, value]) => `${key}=${String(value)}`)
@@ -60,15 +41,6 @@ beforeEach(() => {
 });
 
 describe('digestOf', () => {
-  /**
-   * Pinned to a literal rather than recomputed in the test.
-   *
-   * Recomputing it here would only prove the test agrees with itself: the
-   * canonical form — sorted keys, dropped `undefined` — would change silently
-   * along with the implementation, and a record digested by one build would
-   * stop matching one written by another. The literal is what makes the
-   * canonical form part of the contract.
-   */
   it('is SHA-256 of the canonical rendering, as lowercase hex', async () => {
     await expect(
       digestOf({
@@ -101,11 +73,6 @@ describe('digestOf', () => {
     expect(first).toBe(second);
   });
 
-  /**
-   * "No audience" and "audience omitted" are the same request. Serializing an
-   * explicit `undefined` as `null` would digest them apart and mint a second
-   * key — and a second billed run — for a form the reader never touched.
-   */
   it('treats an explicitly undefined field as an absent one', async () => {
     const [omitted, explicit] = await Promise.all([
       digestOf({
@@ -142,7 +109,6 @@ describe('digestOf', () => {
     }
   });
 
-  /** Opaque, and the same length whatever it was computed over. */
   it('is a fixed-width hex digest that reveals no request text', async () => {
     const digest = await digestOf(REQUEST);
 
@@ -175,14 +141,6 @@ describe('what is written to the browser', () => {
     ]);
   });
 
-  /**
-   * The regression this file exists for.
-   *
-   * The previous record was `JSON.stringify` of the request, so every one of
-   * these strings was sitting in `sessionStorage` for any script on the origin
-   * to read. Asserting against the whole dump rather than against one key means
-   * a future record that stashes the request under a *different* key fails too.
-   */
   it('leaves no request text anywhere in session storage', async () => {
     const pending = await keyForSubmission('org_1', REQUEST, mint);
 
@@ -197,11 +155,6 @@ describe('what is written to the browser', () => {
     }
   });
 
-  /**
-   * Written field by field, so a caller that hands this a record carrying the
-   * request alongside the key cannot put the request in the browser by
-   * accident — which is precisely how the plaintext got there before.
-   */
   it('ignores extra fields a caller attaches to the record', async () => {
     writePendingSubmission('org_1', {
       idempotencyKey: 'key_x',
@@ -216,7 +169,10 @@ describe('what is written to the browser', () => {
   });
 
   it('is forgotten when the submission is no longer ambiguous', async () => {
-    writePendingSubmission('org_1', await keyForSubmission('org_1', REQUEST, mint));
+    writePendingSubmission(
+      'org_1',
+      await keyForSubmission('org_1', REQUEST, mint),
+    );
 
     clearPendingSubmission('org_1');
 
@@ -249,7 +205,6 @@ describe('keyForSubmission', () => {
     expect(second.idempotencyKey).not.toBe(first.idempotencyKey);
   });
 
-  /** One tab's pending purchase is not another organization's. */
   it('does not reuse another organization’s key', async () => {
     writePendingSubmission(
       'org_1',
@@ -261,15 +216,6 @@ describe('keyForSubmission', () => {
     expect(other.idempotencyKey).toBe('key_2');
   });
 
-  /**
-   * The precedence rule, with both records present — which is the only
-   * arrangement that can prove it.
-   *
-   * The stored record is the one that survived a reload, so it is the
-   * authoritative of the two. With only one present at a time the loop can be
-   * written in either order and nothing notices, which is exactly how a
-   * documented rule becomes a comment about code that does something else.
-   */
   it('prefers the stored record over the in-memory one', async () => {
     const requestDigest = await digestOf(REQUEST);
 
@@ -287,11 +233,6 @@ describe('keyForSubmission', () => {
     expect(minted).toBe(0);
   });
 
-  /**
-   * The in-memory fallback is checked *after* the stored record, because the
-   * stored one is what survived the reload and is therefore the authoritative
-   * of the two.
-   */
   it('falls back to the in-memory record when nothing was stored', async () => {
     const inMemory = {
       idempotencyKey: 'key_from_memory',
@@ -320,22 +261,17 @@ describe('keyForSubmission', () => {
     expect(minted2.idempotencyKey).toBe('key_1');
   });
 
-  /**
-   * A record written by a build that stored the request verbatim is discarded
-   * rather than adapted. Minting a fresh key for a submission this tab has no
-   * reliable record of is the safe direction; the alternative is reusing a key
-   * against a request nobody can confirm it was bound to.
-   */
   it('discards a record that is not the current shape', async () => {
     window.sessionStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ key: 'legacy_key', fingerprint: JSON.stringify(REQUEST) }),
+      JSON.stringify({
+        key: 'legacy_key',
+        fingerprint: JSON.stringify(REQUEST),
+      }),
     );
 
     expect(readPendingSubmission('org_1')).toBeNull();
-    await expect(
-      keyForSubmission('org_1', REQUEST, mint),
-    ).resolves.toEqual({
+    await expect(keyForSubmission('org_1', REQUEST, mint)).resolves.toEqual({
       idempotencyKey: 'key_1',
       requestDigest: await digestOf(REQUEST),
     });
@@ -350,15 +286,6 @@ describe('keyForSubmission', () => {
     ).resolves.toMatchObject({ idempotencyKey: 'key_1' });
   });
 
-  /**
-   * A digest that cannot be computed is a failed submission, not a silent
-   * fallback to storing the request.
-   *
-   * `crypto.subtle` is absent outside a secure context, exactly like
-   * `crypto.randomUUID` — so this rejects rather than degrading, and the caller
-   * is responsible for showing it. The alternative that must never appear is a
-   * fallback that persists the plaintext when the digest is unavailable.
-   */
   it('rejects rather than degrading when the digest cannot be computed', async () => {
     const digest = vi
       .spyOn(crypto.subtle, 'digest')
@@ -376,7 +303,6 @@ describe('keyForSubmission', () => {
     }
   });
 
-  /** A browser configured to block site data must still be able to submit. */
   it('still produces a key when storage refuses to answer', async () => {
     const getItem = vi
       .spyOn(Storage.prototype, 'getItem')

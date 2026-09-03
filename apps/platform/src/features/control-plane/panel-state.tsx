@@ -5,18 +5,6 @@ import { useTranslations } from 'use-intl';
 
 import type { ControlPlaneResource } from './use-control-plane-resource';
 
-/**
- * Loading, failure, empty, and content — for all three panels.
- *
- * Extracted because the alternative is three copies of the same branch, and
- * the branch that gets forgotten in a copy is always the failure one. Failures
- * are shown in the reader's own language rather than the server's sentence:
- * the backend guesses at a locale, the client knows it.
- *
- * A failed *load* replaces the table, because there is nothing to show. A
- * failed *write* sits above the table, because the rows are still valid and
- * the operator needs to see the one they just tried to change.
- */
 export function PanelState<T extends { key: string }>({
   resource,
   emptyLabel,
@@ -67,14 +55,14 @@ export function PanelState<T extends { key: string }>({
               <p>{t(`error.${resource.actionError}`)}</p>
 
               {/*
-                * The server's own reasons, under the generic sentence rather
-                * than instead of it. A bounded setting is useless if the
-                * screen cannot say why 5000 was refused, and "check the
-                * allowed range" is not even the right sentence for a
-                * credential that started with the wrong prefix. These
-                * describe the rule and never the submitted value, which is
-                * what makes them safe to render.
-                */}
+               * The server's own reasons, under the generic sentence rather
+               * than instead of it. A bounded setting is useless if the
+               * screen cannot say why 5000 was refused, and "check the
+               * allowed range" is not even the right sentence for a
+               * credential that started with the wrong prefix. These
+               * describe the rule and never the submitted value, which is
+               * what makes them safe to render.
+               */}
               {reasons.length > 0 ? (
                 <ul className="list-disc space-y-0.5 ps-4 text-xs">
                   {reasons.map((reason) => (

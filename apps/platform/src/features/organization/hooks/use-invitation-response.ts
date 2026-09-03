@@ -9,23 +9,6 @@ import {
   invitationFailureFrom,
 } from '../invitation-state';
 
-/**
- * Accepting or declining an invitation.
- *
- * Both are one call plus one navigation, but they share enough state —
- * pending, failure, which action is running — that keeping them out of the
- * block is what lets the block stay a description of a screen.
- *
- * Accepting changes two things the platform displays: the user gains a
- * membership, and the backend makes the new organization active in the same
- * transaction. Neither is visible to Server Component data already in hand,
- * so refreshing is not optional here — without it the shell would keep
- * showing the previous organization until a hard reload.
- *
- * On success the reader is taken *into* the organization they just joined
- * rather than to the dashboard. They followed a link about one specific
- * organization; landing anywhere else makes them go looking for it.
- */
 export function useInvitationResponse(invitationId: string) {
   const navigate = useAppNavigate();
   const revalidate = useRevalidate();

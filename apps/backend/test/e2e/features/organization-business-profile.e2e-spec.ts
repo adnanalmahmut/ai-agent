@@ -130,9 +130,6 @@ describe('organization business profile', () => {
   });
 
   beforeEach(async () => {
-    // Audit rows cannot be deleted even by the application's database role.
-    // Give every case a fresh tenant instead of weakening the invariant for
-    // test cleanup or relying on history left by an earlier case.
     organizationSequence += 1;
     organizationId = await createOrganization(
       owner,

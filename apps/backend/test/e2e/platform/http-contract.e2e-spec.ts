@@ -273,7 +273,6 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
           message: expect.any(String),
         },
       });
-      // Details must be undefined and internal context keys must not leak
       expect(res.body.error.details).toBeUndefined();
       expect(JSON.stringify(res.body)).not.toContain('secretQuery');
       expect(JSON.stringify(res.body)).not.toContain('SELECT * FROM users');
@@ -361,7 +360,6 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
         })
         .expect(200);
 
-      // Native Better Auth response shape: { token, user: { id, email, ... } }
       expect(res.body.user).toBeDefined();
       expect(res.body.user.email).toBe(uniqueEmail);
       expect(res.body.token).toBeDefined();

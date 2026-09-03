@@ -19,7 +19,7 @@ const ACME = { id: 'org_1', name: 'Acme', slug: 'acme' };
 const GLOBEX = { id: 'org_2', name: 'Globex', slug: 'globex' };
 
 const withOrganizations = (
-  organizations: typeof ACME[],
+  organizations: (typeof ACME)[],
   active: typeof ACME | null = null,
   isPending = false,
 ) => {
@@ -48,8 +48,6 @@ describe('states', () => {
   });
 
   it('explains the empty case instead of offering an empty menu', () => {
-    // A user with no organization is normal here — membership arrives by
-    // invitation — so this state gets a sentence, not a dead dropdown.
     withOrganizations([]);
 
     renderWithProviders(<OrganizationSwitcher />);
@@ -63,9 +61,7 @@ describe('states', () => {
 
     renderWithProviders(<OrganizationSwitcher />);
 
-    expect(
-      screen.getByRole('button', { name: /Acme/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Acme/ })).toBeInTheDocument();
   });
 
   it('prompts for a choice when memberships exist but none is active', () => {
@@ -81,8 +77,6 @@ describe('states', () => {
 
 describe('switching', () => {
   it('asks the server to change the active organization', async () => {
-    // A server operation: it writes `activeOrganizationId` onto the session
-    // row and re-issues the cookie. There is no client state to update.
     const user = userEvent.setup();
     withOrganizations([ACME, GLOBEX], ACME);
 
@@ -111,8 +105,6 @@ describe('switching', () => {
   });
 
   it('refreshes even when the switch is refused', async () => {
-    // The backend *clears* the active organization when the membership check
-    // fails, so the user really is now in none — the UI has to say so.
     const user = userEvent.setup();
     authClientStub.organization.setActive.mockResolvedValue({
       data: null,
@@ -136,10 +128,9 @@ describe('switching', () => {
 
     await user.click(screen.getByRole('button', { name: /Acme/ }));
 
-    expect(await screen.findByRole('menuitem', { name: 'Acme' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    expect(
+      await screen.findByRole('menuitem', { name: 'Acme' }),
+    ).toHaveAttribute('aria-disabled', 'true');
   });
 });
 

@@ -14,11 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model OrganizationAgentVersion
- * One immutable effective state of an organization's installed agent.
  * 
- * Definition behavior remains code-owned. This row pins the exact code
- * definition revision plus the organization-owned, definition-validated
- * configuration and whether that effective state is enabled.
  */
 export type OrganizationAgentVersionModel = runtime.Types.Result.DefaultSelection<Prisma.$OrganizationAgentVersionPayload>
 
@@ -1059,31 +1055,9 @@ export type $OrganizationAgentVersionPayload<ExtArgs extends runtime.Types.Exten
     definitionVersion: number
     enabled: boolean
     configuration: runtime.JsonValue
-    /**
-     * The exact tool versions this immutable version selected, as `id@version`.
-     * 
-     * A subset of the pinned definition's maximum, validated in the application
-     * before the row is written. Stored on the version rather than on the
-     * installation because it is part of what a version *is*: an accepted run
-     * pins a version id, so this column is already the durable, immutable
-     * authority for that run's grants and needs no second copy on `AgentRun`.
-     * 
-     * Defaulted so the column is additive. Every row written before this
-     * existed, and every row an older image writes during a rollback, means
-     * exactly what the empty list means: no tools.
-     */
     toolGrants: string[]
-    /**
-     * The definition-owned policy revision and its organization-selected model.
-     * New application versions always write both. Nullable together only for
-     * rows created before MOD-01B or by the preceding image during rollback.
-     */
     modelPolicyId: string | null
     modelId: string | null
-    /**
-     * Attribution without a foreign key so history cannot block or lose its
-     * actor during a future user lifecycle change.
-     */
     createdByUserId: string | null
     createdAt: Date
   }, ExtArgs["result"]["organizationAgentVersion"]>

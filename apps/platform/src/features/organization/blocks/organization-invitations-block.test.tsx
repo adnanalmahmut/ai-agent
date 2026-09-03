@@ -9,7 +9,11 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
-import { context, invitation, organization } from '@/test/organization-fixtures';
+import {
+  context,
+  invitation,
+  organization,
+} from '@/test/organization-fixtures';
 import { renderInOrganization } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
@@ -19,9 +23,8 @@ vi.mock('@/features/auth/auth-client', async () => {
 
 vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
 
-const { OrganizationInvitationsBlock } = await import(
-  './organization-invitations-block'
-);
+const { OrganizationInvitationsBlock } =
+  await import('./organization-invitations-block');
 
 beforeEach(() => {
   resetAuthClientStub();
@@ -38,15 +41,21 @@ describe('the list', () => {
   });
 
   it('keeps the history rather than hiding what happened', () => {
-    // Cancelled and accepted invitations are kept by the backend on purpose;
-    // the page shows the same thing the database does.
     renderInOrganization(
       <OrganizationInvitationsBlock />,
       context({
         organization: organization({
           invitations: [
-            invitation({ id: 'inv_a', status: 'canceled', email: 'a@example.com' }),
-            invitation({ id: 'inv_b', status: 'accepted', email: 'b@example.com' }),
+            invitation({
+              id: 'inv_a',
+              status: 'canceled',
+              email: 'a@example.com',
+            }),
+            invitation({
+              id: 'inv_b',
+              status: 'accepted',
+              email: 'b@example.com',
+            }),
           ],
         }),
       }),
@@ -88,8 +97,6 @@ describe('inviting', () => {
   beforeEach(() => allow('invitation:create'));
 
   it('sends the address and role, and asks for a resend', async () => {
-    // `resend: true` is what makes "invite again" work: Better Auth has no
-    // resend route, and re-inviting is the operation that exists.
     const user = userEvent.setup();
     renderInOrganization(<OrganizationInvitationsBlock />, context());
 
@@ -107,8 +114,6 @@ describe('inviting', () => {
   });
 
   it('confirms without saying whether the address has an account', async () => {
-    // Inviting a deactivated account does not restore it, and this screen may
-    // not reveal that one exists.
     const user = userEvent.setup();
     renderInOrganization(<OrganizationInvitationsBlock />, context());
 
@@ -171,8 +176,6 @@ describe('inviting', () => {
   });
 
   it('reports a role it may not hand out, rather than hiding the option', async () => {
-    // Whether this caller may grant `owner` is the server's decision; the
-    // select offers every role and surfaces the refusal.
     authClientStub.organization.inviteMember.mockResolvedValue(
       fail('YOU_ARE_NOT_ALLOWED_TO_INVITE_USER_WITH_THIS_ROLE', 403),
     );
@@ -205,9 +208,11 @@ describe('withdrawing', () => {
     await user.click(screen.getByRole('button', { name: 'Withdraw' }));
 
     await waitFor(() =>
-      expect(authClientStub.organization.cancelInvitation).toHaveBeenCalledWith({
-        invitationId: 'inv_1',
-      }),
+      expect(authClientStub.organization.cancelInvitation).toHaveBeenCalledWith(
+        {
+          invitationId: 'inv_1',
+        },
+      ),
     );
     expect(revalidateSpy).toHaveBeenCalled();
   });

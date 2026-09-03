@@ -6,10 +6,6 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9_.-]+$/;
 
 export type CorrelatedRequest = IncomingMessage & { id?: string };
 
-/**
- * Validates and sanitizes a client-provided Request ID.
- * Returns the sanitized ID if valid; undefined otherwise.
- */
 export function sanitizeIncomingRequestId(
   incoming: unknown,
 ): string | undefined {
@@ -27,13 +23,6 @@ export function sanitizeIncomingRequestId(
   return trimmed;
 }
 
-/**
- * Assigns the application's request correlation ID.
- *
- * Reuses an already assigned ID or a validated client-provided ID;
- * otherwise generates a new server-side ID (`req_<uuid>`).
- * Shared across the standard HTTP pipeline and authentication requests.
- */
 export function assignRequestId(
   req: IncomingMessage,
   res: ServerResponse,

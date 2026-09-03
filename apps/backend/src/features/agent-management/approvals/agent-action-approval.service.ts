@@ -51,24 +51,6 @@ type ApprovalRow = Prisma.ToolExecutionApprovalGetPayload<{
   select: typeof approvalSelect;
 }>;
 
-/**
- * Human approval of proposed agent actions: the read surface and the two
- * decisions.
- *
- * Both decisions are compare-and-set transitions on two rows in one
- * transaction — the approval leaves `PENDING`, the execution leaves
- * `AWAITING_APPROVAL` — and each requires exactly one row to have moved. A
- * second approver, a concurrent rejection, or a replayed request matches
- * nothing and is refused with `CONFLICT`, never merged and never overwritten.
- * For an approval the outbox event that will perform the effect is written in
- * the same transaction, so "approved" and "queued to perform" are one fact.
- *
- * Authorization is not here. It is the shared organization guard on the
- * controller, which runs before the body is parsed and answers about the
- * organization in the path. This service trusts `organizationId` only as a
- * predicate: every read and write carries it, so an execution id from another
- * tenant finds nothing.
- */
 @Injectable()
 export class AgentActionApprovalService {
   constructor(
@@ -136,18 +118,6 @@ export class AgentActionApprovalService {
     return this.decide(input, 'rejected');
   }
 
-  /**
-   * One decision, as one transaction.
-   *
-   * The approval row moves first because its predicate is the one that tells
-   * "no such proposal here" from "already decided" — `refusal` reads it to
-   * choose between 404 and 409. Under READ COMMITTED a second decider's
-   * `UPDATE` waits for the first to commit, re-evaluates `status = PENDING`,
-   * matches nothing, and is refused. The execution row moves second under its
-   * own predicate; a mismatch there means the two rows disagree about the
-   * world and the whole transaction rolls back rather than record half a
-   * decision.
-   */
   private async decide(
     input: DecisionInput,
     decision: 'approved' | 'rejected',
@@ -228,12 +198,6 @@ export class AgentActionApprovalService {
     return this.detail(input);
   }
 
-  /**
-   * Why a decision matched nothing: no such proposal here, or one already
-   * decided. A proposal in another organization is the former — the predicate
-   * carried the tenant, so it is indistinguishable from one that does not
-   * exist, which is the only answer a non-member may receive.
-   */
   private async refusal(
     tx: Prisma.TransactionClient,
     input: DecisionInput,
@@ -254,14 +218,6 @@ export class AgentActionApprovalService {
     });
   }
 
-  /**
-   * Rows to views, with the recipient resolved against the organization.
-   *
-   * One membership query for the page rather than one per row. A member id
-   * that no longer resolves *in this organization* yields `null`, and a row
-   * whose input no longer parses as its tool's input — which cannot happen
-   * through the gateway — yields no proposal at all rather than a guess.
-   */
   private async project(
     organizationId: string,
     rows: readonly ApprovalRow[],
@@ -342,13 +298,6 @@ type DecisionInput = {
   note?: string;
 };
 
-/**
- * The stored input, re-parsed through the tool's own schema.
- *
- * Only one side-effect tool exists, so this is a check rather than a
- * dispatch. A second tool makes it a `switch` on `toolId@toolVersion`, and the
- * view type gains a second `kind`.
- */
 function proposalOf(row: ApprovalRow): {
   recipientMemberId: string;
   subject: string;
@@ -363,11 +312,6 @@ function proposalOf(row: ApprovalRow): {
   return parsed.success ? parsed.data : null;
 }
 
-/**
- * The stored column is `String?`; the view promises the closed union. A value
- * outside it cannot be written by this code, and is answered as `null` rather
- * than passed through as a string the client would render as its own key.
- */
 function toFailureCode(value: string | null): ToolFailureCode | null {
   return value !== null &&
     (TOOL_FAILURE_CODES as readonly string[]).includes(value)

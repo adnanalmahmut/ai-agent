@@ -1,12 +1,3 @@
-/**
- * Initials for an avatar fallback.
- *
- * `Intl.Segmenter` rather than `split('')`, because a name can begin with an
- * emoji or a combining sequence and slicing by code unit would render half a
- * character. Falls back to the local part of the email when there is no
- * usable name — never to a hard-coded letter, which would make every such
- * user look identical.
- */
 export function userInitials(name: string | null, email: string): string {
   const source = (name ?? '').trim() || localPart(email);
   const words = source.split(/\s+/).filter(Boolean).slice(0, 2);

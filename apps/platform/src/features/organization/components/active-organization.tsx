@@ -9,20 +9,6 @@ import { OrganizationRoleLabel } from './organization-role-label';
 
 const subscribeToHydration = () => () => undefined;
 
-/**
- * Shows which organization is active and what the user is inside it.
- *
- * Two separate reads, deliberately. `useActiveOrganization` answers "which
- * organization", `useActiveMember` answers "what am I here" — and they can
- * legitimately disagree: a session can carry an `activeOrganizationId` for an
- * organization the user has no membership in, in which case there is a name
- * to show and no role.
- *
- * Rendering that honestly is the point. It is the same invariant the backend
- * enforces — an active organization is context, never proof of access — and a
- * component that assumed the role must exist would be quietly asserting the
- * opposite.
- */
 export function ActiveOrganization() {
   const t = useTranslations('Organization');
   const isHydrated = useSyncExternalStore(

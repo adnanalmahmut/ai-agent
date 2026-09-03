@@ -41,10 +41,6 @@ import {
 const TOOL_AGENT_ID = 'tool-only-agent';
 const REF = 'knowledge.search@1';
 
-/**
- * The second declared tool, stubbed so the gateway composes. Never granted to
- * this suite's agent; its own lifecycle is the approval suite's subject.
- */
 const sideEffectStub = {
   ref: 'notification.send@1' as const,
   kind: 'side_effect' as const,
@@ -52,11 +48,6 @@ const sideEffectStub = {
   prepareEffect: () => Promise.reject(new Error('never')),
 };
 
-/**
- * A test-only definition, deliberately not registered in the production
- * catalog. TOOL-01 must prove tool execution without inventing a product agent
- * whose only purpose is to have tools.
- */
 const toolAgent = (
   version: number,
   maxToolGrants?: readonly string[],
@@ -79,7 +70,6 @@ const toolAgent = (
   ...(maxToolGrants ? { maxToolGrants: maxToolGrants as never } : {}),
 });
 
-/** v1 permits the tool; v2 permits nothing. */
 const TOOL_AGENT_DEFINITIONS = [toolAgent(1, [REF]), toolAgent(2)] as const;
 
 describe('governed tool execution', () => {
@@ -94,13 +84,10 @@ describe('governed tool execution', () => {
 
   const ownedOrganizationIds: string[] = [];
 
-  /** What the tool implementation returns; swapped per test. */
   const succeeding: ToolImplementation['execute'] = () =>
     Promise.resolve({ passages: [{ space: 'brand', content: 'Be concise.' }] });
   let implementation: ToolImplementation['execute'] = succeeding;
 
-  // Reset, so a test that installs a failing implementation cannot decide the
-  // outcome of whichever test happens to run after it.
   beforeEach(() => {
     implementation = succeeding;
   });
@@ -111,7 +98,6 @@ describe('governed tool execution', () => {
       sideEffectStub,
     ]);
 
-  /** A runtime that calls every tool it was given, then answers. */
   const callingRuntime = (calls: AgentRuntimeTool[][]) => ({
     resolve: () => ({
       name: 'mastra' as const,
@@ -145,7 +131,6 @@ describe('governed tool execution', () => {
     return id;
   };
 
-  /** Installs the tool agent, selecting the given grants. */
   const install = async (
     target: string,
     actor: string,
@@ -163,12 +148,6 @@ describe('governed tool execution', () => {
       actor,
     );
 
-  /**
-   * A terminal run, written directly.
-   *
-   * `SUCCEEDED` on purpose: a non-terminal row would be swept by the global
-   * agent-run reconciler and would change another suite's expectations.
-   */
   const acceptedRun = async (input: {
     organizationId: string;
     organizationAgentVersionId: string;
@@ -197,25 +176,11 @@ describe('governed tool execution', () => {
 
   beforeAll(async () => {
     harness = await createHarness();
-    /**
-     * Built against this suite's own registry, not the container's.
-     *
-     * The production catalog deliberately contains no tool-enabled agent, so
-     * resolving the service from the app would install nothing this suite can
-     * exercise. This is the same fixture pattern the agent-run suite uses.
-     */
     installations = new OrganizationAgentInstallationService(
       harness.prisma,
       new AgentDefinitionRegistry(TOOL_AGENT_DEFINITIONS),
     );
     runs = harness.app.get(AgentRunService);
-    /**
-     * Constructed directly rather than resolved from the container.
-     *
-     * `AgentToolsModule` belongs to the worker composition, and this harness
-     * boots the API root. Reaching for `app.get` here would be asserting a
-     * wiring that deliberately does not exist.
-     */
     durable = new ToolExecutionService(harness.prisma);
 
     owner = await createUser(harness);
@@ -225,8 +190,6 @@ describe('governed tool execution', () => {
   });
 
   afterAll(async () => {
-    // This suite's runs, and the executions that hang off them. Left behind,
-    // the runs would be swept by the reconciler in whatever suite follows.
     for (const id of ownedOrganizationIds) {
       await harness.prisma.toolExecution.deleteMany({
         where: { organizationId: id },
@@ -344,7 +307,6 @@ describe('governed tool execution', () => {
         organizationId: other,
         agentRunId: run.id,
         agentRunAttempt: 1,
-        // The durable identity, not the model-facing runtime name.
         toolId: 'knowledge.search',
         toolVersion: 1,
         status: 'SUCCEEDED',
@@ -426,11 +388,6 @@ describe('governed tool execution', () => {
   });
 
   describe('grant pinning', () => {
-    /**
-     * Both directions of the same property: the run points at an immutable
-     * version, and publishing a newer one creates a different row rather than
-     * editing the one the run named.
-     */
     it('keeps a grant the organization later removed', async () => {
       const other = await createOrganization(owner, 'tools-pin-removed');
       const installed = await install(other, owner.id, [REF]);
@@ -516,11 +473,6 @@ describe('governed tool execution', () => {
   });
 
   describe('tenancy', () => {
-    /**
-     * Asks PostgreSQL directly rather than the service, because the service
-     * check is not what makes a cross-tenant execution impossible — the
-     * composite foreign key on `(agentRunId, organizationId)` is.
-     */
     it('is refused by PostgreSQL when the application is bypassed', async () => {
       const installed = await install(organizationId, owner.id, [REF]);
       const run = await acceptedRun({
@@ -539,16 +491,8 @@ describe('governed tool execution', () => {
                 "toolId","toolVersion","status","input","startedAt",
                 "createdAt","updatedAt")
              VALUES ($1,$2,$3,1,'knowledge.search',1,'STARTED','{}',NOW(),NOW(),NOW())`,
-            [
-              `cross-tenant-${Date.now()}`,
-              // The other organization, pointing at this one's run.
-              otherOrganizationId,
-              run.id,
-            ],
+            [`cross-tenant-${Date.now()}`, otherOrganizationId, run.id],
           ),
-          // The constraint, not just the SQLSTATE. A 23503 from the plain
-          // organization foreign key would satisfy `code` alone and would
-          // prove nothing about the composite this test exists for.
         ).rejects.toMatchObject({
           code: '23503',
           constraint: 'tool_execution_agentRunId_organizationId_fkey',
@@ -595,10 +539,6 @@ describe('governed tool execution', () => {
   });
 
   describe('durable detail', () => {
-    /**
-     * A retried run performs its tools again, and two executions of one tool
-     * for one run are distinguishable only by this number.
-     */
     it('records the run attempt it actually executed under', async () => {
       const other = await createOrganization(owner, 'tools-attempt');
       const installed = await install(other, owner.id, [REF]);
@@ -663,7 +603,6 @@ describe('governed tool execution', () => {
       });
     });
 
-    /** The tenant predicate on the update side, at row level. */
     it('will not complete an execution for another organization', async () => {
       const other = await createOrganization(owner, 'tools-update-scope');
       const installed = await install(other, owner.id, [REF]);
@@ -681,11 +620,6 @@ describe('governed tool execution', () => {
         input: { query: 'tone' },
       });
 
-      /**
-       * Rejects rather than resolving. The tenant predicate always kept the
-       * row from changing, but a silent no-op made "wrote nothing" and "wrote
-       * the outcome" the same observation to the caller.
-       */
       await expect(
         durable.succeed(id, otherOrganizationId, { passages: [] }),
       ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
@@ -699,18 +633,6 @@ describe('governed tool execution', () => {
     });
   });
 
-  /**
-   * The lifecycle, enforced against PostgreSQL rather than described in a
-   * comment.
-   *
-   * `STARTED -> SUCCEEDED | FAILED` was always the documented shape, but the
-   * terminal writes matched on `{ id, organizationId }` and ignored
-   * `updateMany.count`, so nothing stopped a settled row from being rewritten
-   * and nothing distinguished a write that landed from one that matched no row
-   * at all. These run against the real database because the guarantee is the
-   * `WHERE` clause: a mocked Prisma would only be asserting the arguments this
-   * service passes, which is the part that was already right.
-   */
   describe('terminal transitions', () => {
     let transitionOrganizationId: string;
     let transitionRunId: string;
@@ -755,8 +677,6 @@ describe('governed tool execution', () => {
       expect(first.status).toBe('SUCCEEDED');
       expect(first.completedAt).not.toBeNull();
 
-      // The second attempt matches no STARTED row and must not rewrite the
-      // outcome, nor refresh `completedAt`.
       await expect(
         durable.succeed(id, transitionOrganizationId, {
           passages: ['rewritten'],
@@ -820,7 +740,6 @@ describe('governed tool execution', () => {
       expect(settled.output).toBeNull();
     });
 
-    /** No row at all: the update matches nothing and must not resolve. */
     it('refuses a terminal write for an execution that does not exist', async () => {
       await expect(
         durable.succeed(
@@ -831,20 +750,8 @@ describe('governed tool execution', () => {
       ).rejects.toBeInstanceOf(ToolExecutionTransitionError);
     });
 
-    /**
-     * The consequence that matters, and the reason this is a required
-     * correction rather than tidiness.
-     *
-     * A terminal write matching zero rows used to resolve, so `ToolGateway`
-     * returned the tool's output to the model with no durable row claiming the
-     * call ever completed — the transcript and the history would disagree, and
-     * the history is the authority. Now the gateway fails closed, and the
-     * failure is contained on the way out like any other.
-     */
     it('does not let the gateway answer when no row transitioned', async () => {
       const id = await started();
-      // Settle it out from under the gateway, so its own `succeed` matches
-      // nothing — the same observation as a lost row or a crashed transition.
       await durable.succeed(id, transitionOrganizationId, { passages: [] });
 
       const stuck = new ToolExecutionService(harness.prisma);
@@ -870,25 +777,17 @@ describe('governed tool execution', () => {
       );
 
       expect(failure).toBeInstanceOf(ToolExecutionFailure);
-      // The gateway's constant, not the service's message and not Prisma's.
       expect((failure as Error).message).toBe(
         'Tool "knowledge_search_v1" could not be completed',
       );
       expect((failure as Error).stack).toBeUndefined();
     });
 
-    /**
-     * The same path with a real driver rejection rather than a lost race, so
-     * the containment is proven against the message Prisma actually writes —
-     * which names the connection target and renders the invocation arguments.
-     */
     it('lets no raw database error out through the tool result', async () => {
       const exploding = {
         start: () => Promise.resolve('execution-1'),
         succeed: () =>
           harness.prisma.toolExecution.create({
-            // Deliberately invalid: Prisma renders the arguments it was given,
-            // which at this point would be the tool's own values.
             data: { organizationId: null } as never,
           }),
         fail: () => Promise.resolve(),
@@ -930,16 +829,8 @@ describe('governed tool execution', () => {
   });
 
   describe('two durable facts that disagree', () => {
-    /**
-     * Only reachable by a direct write or an in-place definition edit, which is
-     * exactly why the application-level tests cannot reach it. A stored grant
-     * outside the pinned definition's maximum is refused rather than
-     * intersected away, and deterministically so.
-     */
     it('refuses a run whose stored grant exceeds its definition maximum', async () => {
       const other = await createOrganization(owner, 'tools-disagree');
-      // Installed against v2, which permits no tools, then granted behind the
-      // service's back.
       const installed = await install(other, owner.id, [], 2);
       await harness.prisma.organizationAgentVersion.update({
         where: { id: installed.activeVersionId },
@@ -988,11 +879,6 @@ describe('governed tool execution', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     });
 
-    /**
-     * The migration's rollback argument, as a test rather than as a comment:
-     * a row written by an image that does not know the column exists means
-     * what an empty grant list means.
-     */
     it('treats a version written without the column as granting nothing', async () => {
       const other = await createOrganization(owner, 'tools-legacy-row');
       const installed = await install(other, owner.id, [REF]);

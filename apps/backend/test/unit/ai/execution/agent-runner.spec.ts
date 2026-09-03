@@ -29,19 +29,16 @@ const definition = {
   output: z.string(),
 } as const;
 
-/** The adapter resolves a credential per run; these tests never reach it. */
 const stubRuntimeConfig = {
   secret: jest.fn<() => Promise<string>>(() =>
     Promise.resolve('unused-in-these-tests'),
   ),
 } as never;
 
-/** No policy, so the assembler is never consulted unless a test asks for one. */
 const noContext = {
   assemble: jest.fn<() => Promise<never[]>>(() => Promise.resolve([])),
 };
 
-/** These suites are about definitions, pinning and configuration, not tools. */
 const noTools = { authorize: () => [] };
 
 type OptionalRunPin =
@@ -151,12 +148,6 @@ describe('AgentRunner', () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
-  /**
-   * The worker/runner cannot execute an MCP session.
-   *
-   * Persisted runtime ("mcp") disagrees with the definition's runtime ("mastra").
-   * The runner throws AgentConfigurationError before resolving any runtime.
-   */
   it('refuses to execute an MCP session run before resolving any runtime', async () => {
     const resolve = jest.fn();
     const runtimes = { resolve } as unknown as AgentRuntimeRegistry;
@@ -199,8 +190,6 @@ describe('AgentRunner', () => {
       resolve: jest.fn<(name: string) => AgentRuntime>(() => runtime),
     } as unknown as AgentRuntimeRegistry;
 
-    // v2 exists in the registry; a run accepted against v1 must not drift onto
-    // it. This is the rolling-deployment case the pinned pair exists for.
     const runner = runnerFor([definition, definitionV2], runtimes);
 
     await runner.run({
@@ -569,21 +558,6 @@ describe('AgentRuntimeRegistry', () => {
   });
 });
 
-/**
- * The class, not the wording, at every deterministic throw site.
- *
- * A proven hole rather than a hypothetical one: reverting all three sites from
- * `AgentConfigurationError` to a plain `new Error(...)` left the entire unit
- * and e2e suites green, because every assertion above matches only on message
- * text — which both classes carry identically.
- *
- * The regression that hides behind that is not cosmetic. `AgentExecutionHandler`
- * branches on `isAgentConfigurationError`, and identity is the only thing it
- * reads. A plain `Error` therefore stops being final on first sight and
- * silently regains the full retry budget with exponential backoff for a failure
- * whose third attempt resolves exactly the same registry as its first — while
- * the run sits `RUNNING` between the attempts and nobody is told any sooner.
- */
 describe('deterministic configuration failures carry their own class', () => {
   it('marks an unregistered (id, version) pair as a configuration failure', async () => {
     const registry = new AgentDefinitionRegistry([definition]);
@@ -596,8 +570,6 @@ describe('deterministic configuration failures carry their own class', () => {
       AgentConfigurationError,
     );
 
-    // Asserted through the runner too: this is the path the worker takes, and
-    // it is the worker's classification that the class decides.
     await expect(
       runner.run({
         agentId: definition.id,
@@ -636,15 +608,6 @@ describe('deterministic configuration failures carry their own class', () => {
   });
 });
 
-/**
- * The pinned version decides the contract, not just the instructions.
- *
- * The tests above prove the pinned *definition object* reaches the runtime.
- * They say nothing about which schema the stored input was checked against,
- * and those are different claims: resolving the definition correctly and then
- * validating against `resolve(id)`-latest would pass every one of them while
- * admitting an input the accepted version never promised to handle.
- */
 describe('the pinned version validates the input', () => {
   const strictV1 = {
     ...definition,
@@ -696,8 +659,6 @@ describe('the pinned version validates the input', () => {
       }),
     ).rejects.toBeInstanceOf(AgentConfigurationError);
 
-    // Never reached the provider: a stored input that does not satisfy the
-    // version it was accepted against cannot be made to by paying for a call.
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -715,11 +676,6 @@ describe('the pinned version validates the input', () => {
     expect(run).toHaveBeenCalledTimes(1);
   });
 
-  /**
-   * Deterministic, so it must not be retried. A stored input is a fixed value
-   * and the schema it is checked against is pinned; the third attempt reaches
-   * the same verdict as the first, three backoffs later.
-   */
   it('classifies unsatisfied input as a configuration failure', async () => {
     const { runner } = runnerWithBoth();
 
@@ -735,15 +691,6 @@ describe('the pinned version validates the input', () => {
   });
 });
 
-/**
- * The other half of the classification, which is the half that costs money if
- * it is wrong in either direction.
- *
- * A model that answered in the wrong shape once may answer correctly on the
- * next attempt, so this failure keeps its retry budget — and the natural
- * "tidy-up" of making every throw in this file an `AgentConfigurationError`
- * would turn one bad response into an immediately final run.
- */
 describe('a malformed provider answer', () => {
   const runnerReturning = (output: unknown) => {
     const definitionWithOutput = {
@@ -751,7 +698,6 @@ describe('a malformed provider answer', () => {
       output: z
         .object({
           answer: z.string(),
-          /** A default, so the parsed value is observably not the payload. */
           sources: z.array(z.string()).default([]),
         })
         .strict(),
@@ -786,14 +732,6 @@ describe('a malformed provider answer', () => {
     ).rejects.not.toBeInstanceOf(AgentConfigurationError);
   });
 
-  /**
-   * What is stored is the schema's product, not the provider's payload.
-   *
-   * Returning `result.output` directly passes every other test in this block —
-   * the parse still happens, so malformed answers are still refused — while
-   * every consumer of `AgentRun.output` loses the guarantees the schema was
-   * declared for. Here that is a defaulted field arriving absent.
-   */
   it('returns the parsed value, not the provider payload', async () => {
     await expect(
       runOnce(runnerReturning({ answer: 'hello' })),
@@ -801,15 +739,6 @@ describe('a malformed provider answer', () => {
   });
 });
 
-/**
- * The contract between the request and the answer, which no schema can state.
- *
- * A Zod output schema is handed the provider's answer and nothing else, so it
- * cannot know that a request for five results came back with four. That pair is
- * exactly where a billed agent goes wrong in a way every shape check passes, so
- * the definition carries an optional second gate and the runner runs it after
- * the parse and before the value is returned for durable storage.
- */
 describe('the declared output contract', () => {
   const countingDefinition = {
     ...definition,
@@ -858,12 +787,6 @@ describe('the declared output contract', () => {
     );
   });
 
-  /**
-   * The message is the runner's, assembled from the violation's code and its two
-   * integers. Asserted because it is the containment claim: a contract cannot
-   * put provider text into an `Error` even if it wants to, since the violation
-   * type carries no string at all.
-   */
   it('composes the message itself, from a code and two integers', async () => {
     const outputContract = jest.fn<AgentOutputContract>(() => ({
       code: 'count_mismatch',
@@ -881,14 +804,6 @@ describe('the declared output contract', () => {
     );
   });
 
-  /**
-   * "I could not check" is not "it is fine".
-   *
-   * A contract that recovers its types by re-parsing has a branch the runner's
-   * own guarantees make unreachable — and the day a schema grows a transform
-   * whose output no longer satisfies it, that branch is the whole promise
-   * quietly switching itself off. It is a refusal, and a retryable one.
-   */
   it('refuses an answer a contract could not verify', async () => {
     const runner = runnerReturning(
       { items: ['a', 'b', 'c'] },
@@ -909,14 +824,6 @@ describe('the declared output contract', () => {
     await expect(attempt).rejects.not.toBeInstanceOf(AgentConfigurationError);
   });
 
-  /**
-   * A class of its own, and the one thing it is *not*.
-   *
-   * The class exists so the worker can name the failure in a log without
-   * changing how it is retried — so both halves are asserted here, because
-   * making it an `AgentConfigurationError` would be the natural-looking tidy-up
-   * and would end the run on first sight.
-   */
   it('carries its own class, which is not the deterministic one', async () => {
     const attempt = runWanting(runnerReturning({ items: [] }), 3);
 
@@ -927,11 +834,6 @@ describe('the declared output contract', () => {
     });
   });
 
-  /**
-   * The count is exact in both directions. A contract stated as a floor would
-   * accept an answer that spends output tokens nobody asked for, and would let
-   * a list overflow a screen sized for what was requested.
-   */
   it('refuses an answer that overshoots the contract', async () => {
     await expect(
       runWanting(runnerReturning({ items: ['a', 'b', 'c', 'd'] }), 3),
@@ -944,32 +846,15 @@ describe('the declared output contract', () => {
     ).resolves.toEqual({ output: { items: ['a', 'b', 'c'] } });
   });
 
-  /**
-   * The classification, which is the part that costs money if it is wrong.
-   *
-   * A model that miscounted once may count correctly on the next attempt, so a
-   * violation is an ordinary retryable failure. Making it an
-   * `AgentConfigurationError` — the natural-looking tidy-up, since it is a
-   * "contract" failure — would end the run on first sight and spend none of the
-   * budget the failure is eligible for.
-   */
   it('keeps its retry budget', async () => {
     const attempt = runWanting(runnerReturning({ items: [] }), 3);
 
-    // Both halves. The negative alone is satisfied by any rejection that is not
-    // that class — including a `TypeError` from an unrelated regression in the
-    // runner — so it would pass while proving nothing.
     await expect(attempt).rejects.toThrow(
       'does not satisfy its declared contract',
     );
     await expect(attempt).rejects.not.toBeInstanceOf(AgentConfigurationError);
   });
 
-  /**
-   * The contract sees the *parsed* input, so a value the schema defaulted is
-   * the value contracted against. Reading `run.input` instead would contract a
-   * request that omitted the field against `undefined` and pass anything.
-   */
   it('is given the defaulted input rather than the stored row', async () => {
     const seen: unknown[] = [];
     const defaulting = {
@@ -1003,12 +888,6 @@ describe('the declared output contract', () => {
     expect(seen).toEqual([{ wanted: 3 }]);
   });
 
-  /**
-   * The contract never runs on unparsed data, so an implementation may rely on
-   * its arguments. A malformed answer is the schema's refusal, not the
-   * contract's, and running the contract on it would hand every implementation
-   * a shape it did not agree to read.
-   */
   it('is not consulted when the schema already refused the answer', async () => {
     const outputContract = jest.fn<AgentOutputContract>(() => null);
     const guarded = {
@@ -1030,7 +909,6 @@ describe('the declared output contract', () => {
     expect(outputContract).not.toHaveBeenCalled();
   });
 
-  /** A definition without one is unaffected: the schema is the whole contract. */
   it('is optional', async () => {
     const runner = runnerFor([definition], {
       resolve: jest.fn<(name: string) => AgentRuntime>(() => ({
@@ -1051,15 +929,6 @@ describe('the declared output contract', () => {
   });
 });
 
-/**
- * What the retrieval is made similar to, and on whose behalf.
- *
- * Nothing else asserts the arguments to `assemble`, so the organization and
- * the policy could both be dropped — and the query could be `JSON.stringify`
- * of the whole envelope, which embeds field names and punctuation and moves
- * the vector away from the material the caller is asking about. All three fail
- * silently: retrieval still returns *something*.
- */
 describe('the query handed to retrieval', () => {
   const contextual = {
     ...definition,

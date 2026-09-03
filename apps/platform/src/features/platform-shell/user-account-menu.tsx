@@ -28,7 +28,11 @@ type UserAccountMenuProps = {
   variant?: 'compact' | 'full';
 };
 
-function ConnectedUserAccountMenu({ variant }: { variant: 'compact' | 'full' }) {
+function ConnectedUserAccountMenu({
+  variant,
+}: {
+  variant: 'compact' | 'full';
+}) {
   const session = usePlatformSession();
   return (
     <UserAccountMenuContent
@@ -40,9 +44,6 @@ function ConnectedUserAccountMenu({ variant }: { variant: 'compact' | 'full' }) 
   );
 }
 
-/**
- * Identity and user options menu styled according to project design system.
- */
 export function UserAccountMenu({
   name,
   email,
@@ -99,7 +100,9 @@ function UserAccountMenuContent({
             <div className="flex min-w-0 items-center gap-2">
               <Avatar className="size-6 border border-border/50 text-xs font-semibold">
                 {image ? <AvatarImage src={image} alt="" /> : null}
-                <AvatarFallback className="bg-primary/10 text-primary">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-primary/10 text-primary">
+                  {initials}
+                </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1 truncate">
                 <div className="truncate text-xs font-semibold text-foreground">
@@ -114,7 +117,10 @@ function UserAccountMenuContent({
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-60 rounded-md border border-border shadow-md">
+        <DropdownMenuContent
+          align="end"
+          className="w-60 rounded-md border border-border shadow-md"
+        >
           <div className="px-2 py-1.5">
             <div className="truncate text-xs font-semibold text-foreground">
               {name ?? t('account.unnamed')}
@@ -127,7 +133,10 @@ function UserAccountMenuContent({
           <DropdownMenuSeparator />
 
           <DropdownMenuItem asChild className="text-xs">
-            <Link href={PLATFORM_ROUTES.userSettings} className="flex items-center gap-2">
+            <Link
+              href={PLATFORM_ROUTES.userSettings}
+              className="flex items-center gap-2"
+            >
               <UserCog className="size-3.5 text-muted-foreground" />
               {t('account.userSettings')}
             </Link>
@@ -135,7 +144,10 @@ function UserAccountMenuContent({
 
           <GlobalPermissionGate permissions={{ user: ['list'] }}>
             <DropdownMenuItem asChild className="text-xs">
-              <Link href={PLATFORM_ROUTES.adminUsers} className="flex items-center gap-2">
+              <Link
+                href={PLATFORM_ROUTES.adminUsers}
+                className="flex items-center gap-2"
+              >
                 <ShieldCheck className="size-3.5 text-primary" />
                 {t('account.administration')}
               </Link>
@@ -175,12 +187,17 @@ function UserAccountMenuContent({
         >
           <Avatar className="size-7">
             {image ? <AvatarImage src={image} alt="" /> : null}
-            <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
+            <AvatarFallback className="text-xs font-semibold">
+              {initials}
+            </AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-60 rounded-md border border-border shadow-md">
+      <DropdownMenuContent
+        align="end"
+        className="w-60 rounded-md border border-border shadow-md"
+      >
         <div className="px-2 py-1.5">
           <div className="truncate text-xs font-semibold text-foreground">
             {name ?? t('account.unnamed')}
@@ -193,7 +210,10 @@ function UserAccountMenuContent({
         <DropdownMenuSeparator />
 
         <DropdownMenuItem asChild className="text-xs">
-          <Link href={PLATFORM_ROUTES.userSettings} className="flex items-center gap-2">
+          <Link
+            href={PLATFORM_ROUTES.userSettings}
+            className="flex items-center gap-2"
+          >
             <UserCog className="size-3.5 text-muted-foreground" />
             {t('account.userSettings')}
           </Link>
@@ -201,7 +221,10 @@ function UserAccountMenuContent({
 
         <GlobalPermissionGate permissions={{ user: ['list'] }}>
           <DropdownMenuItem asChild className="text-xs">
-            <Link href={PLATFORM_ROUTES.adminUsers} className="flex items-center gap-2">
+            <Link
+              href={PLATFORM_ROUTES.adminUsers}
+              className="flex items-center gap-2"
+            >
               <ShieldCheck className="size-3.5 text-primary" />
               {t('account.administration')}
             </Link>

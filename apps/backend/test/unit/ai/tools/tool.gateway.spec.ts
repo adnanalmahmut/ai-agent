@@ -53,12 +53,6 @@ const agentDefinition = (
   ...(maxToolGrants ? { maxToolGrants } : {}),
 });
 
-/**
- * The second declared tool, so a registry built for these tests is complete.
- *
- * A stub whose `propose` accepts everything, swapped per test where the
- * proposal path itself is under test.
- */
 const sideEffectDefinition = (
   overrides: Partial<ToolDefinition> = {},
 ): ToolDefinition => ({
@@ -167,11 +161,6 @@ describe('ToolGateway composition', () => {
     ).toThrow('Duplicate tool implementation');
   });
 
-  /**
-   * The classification and the implementation must agree. A `side_effect`
-   * definition with a plain `execute` would perform the effect inside the
-   * generation, which is the one thing the risk class exists to prevent.
-   */
   it('refuses a side-effect definition implemented as a read-only tool', () => {
     expect(
       () =>
@@ -237,11 +226,6 @@ describe('ToolGateway authorization', () => {
     ).toEqual([]);
   });
 
-  /**
-   * The escalation case. A stored grant outside the pinned definition's
-   * maximum is refused rather than intersected away: two durable facts
-   * disagree, and silently honouring the narrower one hides that.
-   */
   it('refuses a stored grant outside the definition maximum', () => {
     const { gateway } = gatewayWith(() => Promise.resolve({ passages: [] }));
 
@@ -261,7 +245,6 @@ describe('ToolGateway authorization', () => {
     expect((caught as Error).message).toContain(
       'outside its definition maximum',
     );
-    // Deterministic, so it must not spend the run's retry budget.
     expect(isAgentConfigurationError(caught)).toBe(true);
   });
 
@@ -297,8 +280,6 @@ describe('ToolGateway side-effect proposals', () => {
       status: 'awaiting_approval',
     });
 
-    // The proposal path, not the read-only one: nothing STARTED, nothing
-    // SUCCEEDED, and the parsed input is what was recorded.
     expect(durable.start).not.toHaveBeenCalled();
     expect(durable.succeed).not.toHaveBeenCalled();
     expect(durable.propose).toHaveBeenCalledWith({
@@ -312,7 +293,6 @@ describe('ToolGateway side-effect proposals', () => {
   });
 
   it('performs nothing and offers no execute on the implementation', () => {
-    // Structural: the side-effect contract has no inline execution at all.
     const implementation = sideEffectImplementation();
 
     expect('execute' in implementation).toBe(false);
@@ -339,7 +319,6 @@ describe('ToolGateway side-effect proposals', () => {
     expect(failure?.message).toBe(
       'Tool "notification_send_v1" could not record the proposal',
     );
-    // The code names a member row in this tenant; the model does not learn it.
     expect(failure?.message).not.toContain('recipient');
     expect(durable.propose).not.toHaveBeenCalled();
   });
@@ -431,7 +410,6 @@ describe('ToolGateway execution', () => {
       organizationId: 'org_1',
       agentRunId: 'run_1',
       agentRunAttempt: 2,
-      // The durable identity, never the model-facing runtime name.
       toolId: 'knowledge.search',
       toolVersion: 1,
       input: { query: 'refunds' },
@@ -442,10 +420,6 @@ describe('ToolGateway execution', () => {
     expect(durable.fail).not.toHaveBeenCalled();
   });
 
-  /**
-   * A refused call is not a failed execution. Recording one would make a
-   * denial indistinguishable from an attempt in history.
-   */
   it('writes nothing durable when the input is refused', async () => {
     await expect(
       run(() => Promise.resolve({ passages: [] }), { query: '' }),
@@ -512,14 +486,6 @@ describe('ToolGateway execution', () => {
   });
 });
 
-/**
- * Nothing but the application's own sentence may leave a tool call.
- *
- * Mastra does not let a tool error end the run: it serializes the error's
- * name, message, stack and own properties into the transcript and sends that
- * to the provider on the next step. Everything raised in here is therefore
- * outbound text, not a failure signal.
- */
 describe('ToolGateway containment', () => {
   const runWithDurable = async (
     durable: Record<string, unknown>,
@@ -566,7 +532,6 @@ describe('ToolGateway containment', () => {
     expect((thrown as Error).message).not.toContain('10.0.0.5');
   });
 
-  /** A failed durable write must not replace the contained failure either. */
   it('contains a failure to record the failure', async () => {
     const thrown = await runWithDurable(
       {
@@ -574,7 +539,6 @@ describe('ToolGateway containment', () => {
         succeed: () => Promise.resolve(),
         fail: () => Promise.reject(new Error(leak)),
       },
-      // The implementation must fail for `fail` to be reached at all.
       () => Promise.reject(new Error('implementation exploded')),
     ).catch((error: unknown) => error);
 
@@ -584,12 +548,6 @@ describe('ToolGateway containment', () => {
 });
 
 describe('ToolGateway invocation budget', () => {
-  /**
-   * The step ceiling bounds model round-trips, not tool calls: one assistant
-   * step may emit many, and the SDK runs them all. Without this, the model
-   * chooses how much the platform pays by repetition rather than by a
-   * parameter the schema already refuses.
-   */
   it('stops a run attempt calling without limit', async () => {
     const execute = jest.fn<ToolImplementation['execute']>(() =>
       Promise.resolve({ passages: [] }),
@@ -634,16 +592,6 @@ describe('ToolGateway invocation budget', () => {
   });
 });
 
-/**
- * Parsed, not merely validated.
- *
- * Every schema today is a `.strict()` object of primitives, so the parsed value
- * and the raw one are identical and nothing distinguishes them. The promises
- * are stronger than that — `ToolExecutionService` records "as the application
- * parsed it, never as the caller sent it", and the gateway returns nothing it
- * did not parse — and the first schema to gain a default, a transform, or a
- * non-strict object would break both silently. These use such a schema.
- */
 describe('ToolGateway uses the parsed value', () => {
   const transforming = toolDefinition({
     input: z
@@ -710,14 +658,6 @@ describe('ToolGateway uses the parsed value', () => {
   });
 });
 
-/**
- * What the gateway does when the durable half refuses.
- *
- * The e2e suite proves the compare-and-set against PostgreSQL, which is where
- * the guarantee actually lives. These cover the gateway's half of the contract
- * — that a refused terminal write is never treated as a completed call — which
- * needs no database and would otherwise only be exercised behind one.
- */
 describe('ToolGateway when a terminal write refuses', () => {
   const refusing = () =>
     Promise.reject(new Error('ToolExecution "x" could not transition'));
@@ -735,11 +675,6 @@ describe('ToolGateway when a terminal write refuses', () => {
     );
     const [tool] = authorizeOne(gateway);
 
-    /**
-     * The point of the whole correction. The implementation succeeded and its
-     * output parsed, so before this change the gateway returned it to the model
-     * while no durable row claimed the call had completed.
-     */
     await expect(tool.execute({ query: 'refunds' })).rejects.toBeInstanceOf(
       ToolExecutionFailure,
     );
@@ -761,14 +696,11 @@ describe('ToolGateway when a terminal write refuses', () => {
     );
     const [tool] = authorizeOne(gateway);
 
-    // Still contained, and still a failure: an unrecorded failure must not
-    // become a successful call either.
     await expect(tool.execute({ query: 'refunds' })).rejects.toBeInstanceOf(
       ToolExecutionFailure,
     );
   });
 
-  /** Nothing from the refusal reaches the value the SDK will serialize. */
   it('contains the transition failure like any other', async () => {
     const durable = executions();
     durable.succeed.mockImplementation(() =>

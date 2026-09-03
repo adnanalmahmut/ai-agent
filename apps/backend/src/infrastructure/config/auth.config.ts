@@ -1,13 +1,6 @@
 import { registerAs } from '@nestjs/config';
 import { z } from 'zod';
 
-/**
- * Credentials for the Google social provider.
- *
- * Null when the feature is switched off — the same discriminated shape the
- * mail configuration uses, so an inactive provider's environment is never
- * required and an active one's is never optional.
- */
 export type GoogleAuthConfig = {
   clientId: string;
   clientSecret: string;
@@ -44,14 +37,6 @@ const baseSchema = z.object({
     ),
 });
 
-/**
- * Parsed only when Google is switched on.
- *
- * `.min(1)` rather than a bare string: a commented-out `.env` line leaves the
- * variable absent, but an emptied one leaves it present and empty, and an
- * empty client secret would otherwise reach Google as a silent authentication
- * failure at the first sign-in instead of a loud failure at boot.
- */
 const googleSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),

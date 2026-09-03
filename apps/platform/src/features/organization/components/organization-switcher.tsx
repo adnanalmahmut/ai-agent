@@ -16,9 +16,6 @@ import { useTranslations } from 'use-intl';
 import { userInitials } from '@/lib/user-initials';
 import { useOrganizationSwitcher } from '../hooks/use-organization-switcher';
 
-/**
- * Workspace / Organization Switcher Component.
- */
 export function OrganizationSwitcher() {
   const t = useTranslations('Organization');
   const { organizations, activeOrganization, isLoading, pendingId, switchTo } =
@@ -26,7 +23,10 @@ export function OrganizationSwitcher() {
 
   if (isLoading) {
     return (
-      <Skeleton className="h-8 w-full rounded-md" aria-label={t('switcher.loading')} />
+      <Skeleton
+        className="h-8 w-full rounded-md"
+        aria-label={t('switcher.loading')}
+      />
     );
   }
 
@@ -50,7 +50,10 @@ export function OrganizationSwitcher() {
           className="group flex h-8 w-full items-center justify-between gap-2 rounded-md border border-transparent px-2 text-start text-sm font-medium transition-colors hover:border-border hover:bg-sidebar-accent focus-visible:ring-1 focus-visible:ring-ring group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center"
         >
           <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none">
-            <Avatar aria-hidden="true" className="size-5 rounded border border-border/60 bg-muted/60 text-xs font-semibold text-foreground">
+            <Avatar
+              aria-hidden="true"
+              className="size-5 rounded border border-border/60 bg-muted/60 text-xs font-semibold text-foreground"
+            >
               <AvatarFallback className="rounded bg-primary/10 text-primary">
                 {initials}
               </AvatarFallback>
@@ -67,7 +70,10 @@ export function OrganizationSwitcher() {
         </Button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="w-64 rounded-md border border-border shadow-md">
+      <DropdownMenuContent
+        align="start"
+        className="w-64 rounded-md border border-border shadow-md"
+      >
         <DropdownMenuLabel className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           {t('switcher.label')}
         </DropdownMenuLabel>
@@ -76,7 +82,10 @@ export function OrganizationSwitcher() {
         {organizations.map((organization) => {
           const isActive = organization.id === activeOrganization?.id;
           const isPending = organization.id === pendingId;
-          const orgInitials = userInitials(organization.name, organization.name);
+          const orgInitials = userInitials(
+            organization.name,
+            organization.name,
+          );
 
           return (
             <DropdownMenuItem
@@ -88,7 +97,10 @@ export function OrganizationSwitcher() {
                 void switchTo(organization.id);
               }}
             >
-              <Avatar aria-hidden="true" className="size-5 rounded border border-border/40 text-xs font-medium">
+              <Avatar
+                aria-hidden="true"
+                className="size-5 rounded border border-border/40 text-xs font-medium"
+              >
                 <AvatarFallback className="rounded bg-muted text-muted-foreground">
                   {orgInitials}
                 </AvatarFallback>

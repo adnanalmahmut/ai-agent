@@ -362,11 +362,6 @@ describe('SideEffectExecutionHandler', () => {
       ]);
     });
 
-    /**
-     * On a retry the provider may be refusing *because* the earlier request
-     * with this key was accepted. The provider's word is not enough to write
-     * FAILED over a message that may have been delivered.
-     */
     it('records a provider refusal on a retry as OUTCOME_UNKNOWN', async () => {
       current = row({
         effectAttemptCount: 1,
@@ -440,7 +435,6 @@ describe('SideEffectExecutionHandler', () => {
 
     it('accepts a settlement another delivery already wrote', async () => {
       settle.mockResolvedValue(false);
-      // The re-read finds the row terminal: the other delivery's answer stands.
       current = row();
       const h = handler();
       let reads = 0;
@@ -463,11 +457,6 @@ describe('SideEffectExecutionHandler', () => {
     });
   });
 
-  /**
-   * Every log line is application identifiers and closed words. The failure
-   * paths are the ones that carry material — a recipient, a provider's text, a
-   * driver's message — and none of it may reach the logger.
-   */
   describe('log containment', () => {
     const ALLOWED_KEYS = new Set([
       'toolExecutionId',

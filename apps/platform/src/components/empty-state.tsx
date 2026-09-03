@@ -1,17 +1,6 @@
 import { cn } from '@repo/ui';
 import type { ReactNode } from 'react';
 
-/**
- * What a list looks like when there is nothing in it.
- *
- * An empty list is a state worth designing, not an accident to leave blank: it
- * is usually the *first* thing a new user sees, and a blank panel reads as a
- * page that failed. So this always carries a sentence explaining why it is
- * empty, and — when there is one — the action that would fill it.
- *
- * The icon is decorative and hidden from assistive technology; the title
- * carries the meaning.
- */
 export function EmptyState({
   icon,
   title,

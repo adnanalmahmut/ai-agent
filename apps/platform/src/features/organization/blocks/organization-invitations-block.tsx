@@ -27,35 +27,16 @@ import { MIRRORED_ICON } from '@/components/directional-icon';
 import { OrganizationErrorAlert } from '../components/organization-error-alert';
 import { OrganizationRoleLabel } from '../components/organization-role-label';
 import { OrganizationRoleSelect } from '../components/organization-role-select';
-import {
-  useCancelInvitation,
-  useInviteMember,
-} from '../hooks/use-invitations';
+import { useCancelInvitation, useInviteMember } from '../hooks/use-invitations';
 import { useOrganizationContext } from '../organization-context';
 import type { OrganizationInvitation } from '../organization-types';
 
-/**
- * What a new invitation defaults to.
- *
- * The least privileged role, read from the catalogue rather than written as a
- * literal — so no role name appears in a component, and a catalogue that grew
- * a lower rung would be picked up here.
- */
 const DEFAULT_INVITE_ROLE = ORGANIZATION_ROLE_NAMES[0] as OrganizationRoleName;
 
-/** Better Auth's own status values, kept as data rather than as branches. */
 const STATUS_VARIANT: Record<string, 'secondary' | 'outline'> = {
   pending: 'secondary',
 };
 
-/**
- * Invitations to this organization: the pending ones, the history, and the
- * form that adds to both.
- *
- * The whole list comes from the organization the layout already loaded, so
- * this page issues no request of its own until the reader acts. Every action
- * ends in a revalidation, which reloads that one source.
- */
 export function OrganizationInvitationsBlock() {
   const t = useTranslations('Organization');
   const { organization, viewer } = useOrganizationContext();
@@ -83,7 +64,9 @@ export function OrganizationInvitationsBlock() {
 
       <Card className="border border-border/60 rounded-lg shadow-2xs overflow-hidden bg-card">
         <CardHeader className="p-4 pb-2 space-y-1">
-          <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('invitations.listTitle')}</CardTitle>
+          <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+            {t('invitations.listTitle')}
+          </CardTitle>
           <CardDescription className="text-xs text-muted-foreground">
             {t('invitations.pendingCount', { count: pending.length })}
           </CardDescription>
@@ -100,7 +83,10 @@ export function OrganizationInvitationsBlock() {
           ) : (
             <ul className="divide-y divide-border/40 border-t border-border/40">
               {invitations.map((invitation) => (
-                <li key={invitation.id} className="hover:bg-sidebar-accent/50 transition-colors">
+                <li
+                  key={invitation.id}
+                  className="hover:bg-sidebar-accent/50 transition-colors"
+                >
                   <InvitationRow
                     invitation={invitation}
                     canCancel={canCancel}
@@ -115,9 +101,6 @@ export function OrganizationInvitationsBlock() {
   );
 }
 
-/**
- * Sends an invitation, or sends one again.
- */
 function InviteForm({ organizationId }: { organizationId: string }) {
   const t = useTranslations('Organization');
   const invite = useInviteMember(organizationId);
@@ -128,8 +111,12 @@ function InviteForm({ organizationId }: { organizationId: string }) {
   return (
     <Card className="border border-border/60 rounded-lg shadow-2xs bg-card">
       <CardHeader className="p-4 pb-2 space-y-1">
-        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">{t('invitations.inviteTitle')}</CardTitle>
-        <CardDescription className="text-xs text-muted-foreground">{t('invitations.inviteDescription')}</CardDescription>
+        <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
+          {t('invitations.inviteTitle')}
+        </CardTitle>
+        <CardDescription className="text-xs text-muted-foreground">
+          {t('invitations.inviteDescription')}
+        </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-5">
@@ -269,7 +256,6 @@ function InvitationRow({
   );
 }
 
-/** Newest first — a pending invitation is more interesting than an old one. */
 function byRecency(a: OrganizationInvitation, b: OrganizationInvitation) {
   if (a.status !== b.status) {
     if (a.status === 'pending') return -1;

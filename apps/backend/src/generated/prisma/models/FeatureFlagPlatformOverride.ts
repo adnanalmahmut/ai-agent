@@ -14,13 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model FeatureFlagPlatformOverride
- * A platform-wide feature-flag override.
  * 
- * Separate from the organization-scoped table rather than one table with a
- * nullable `organizationId`, because PostgreSQL treats NULLs as distinct in a
- * unique index — so the single most important constraint here, "at most one
- * platform override per key", would silently not hold. Two tables state the
- * precedence in the schema instead of in a comment.
  */
 export type FeatureFlagPlatformOverrideModel = runtime.Types.Result.DefaultSelection<Prisma.$FeatureFlagPlatformOverridePayload>
 

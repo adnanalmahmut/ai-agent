@@ -19,7 +19,6 @@ import { AgentOutputContractError } from './agent-output-contract.error';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import { AgentRunService } from './agent-run.service';
 
-/** Resolves application definitions before crossing a runtime boundary. */
 @Injectable()
 export class AgentRunner {
   constructor(
@@ -72,19 +71,6 @@ export class AgentRunner {
       organizationAgentVersionId !== null,
     );
 
-    /**
-     * The tools this run may call, decided from its own pins and nothing else.
-     *
-     * Both sides are historical: the definition revision the run was accepted
-     * against, and the immutable `OrganizationAgentVersion` it named. So a
-     * grant added or removed after acceptance changes nothing for this run —
-     * the newer version is a different row, and this one still points at the
-     * old one. That is the property the pin already had for configuration and
-     * for the model; tools inherit it rather than needing their own snapshot.
-     *
-     * A legacy run with no pinned version gets no tools, which is the same
-     * answer an empty grant list gives.
-     */
     const tools = this.tools.authorize({
       definition,
       organizationId: run.organizationId,
@@ -93,16 +79,6 @@ export class AgentRunner {
       grants: pinned?.toolGrants ?? [],
     });
 
-    /**
-     * Parsed here rather than trusted from the row.
-     *
-     * The input was validated when the run was accepted, but that was against
-     * whatever the definition's schema said *then*. This run is pinned to a
-     * definition version and may execute days later, so the schema it is
-     * checked against is the one it will actually be run with. A stored input
-     * that no longer satisfies it is a configuration problem, not a transient
-     * one, and retrying cannot change the answer.
-     */
     const parsedInput = definition.input.safeParse(run.input);
 
     if (!parsedInput.success) {
@@ -126,14 +102,6 @@ export class AgentRunner {
       tools,
     });
 
-    /**
-     * The provider's answer is parsed before it becomes the run's output.
-     *
-     * A model is an untrusted source that this application happens to pay
-     * for. Storing whatever came back would make `AgentRun.output` a shape no
-     * consumer could rely on, and every reader downstream would have to
-     * re-check it — or, more likely, not.
-     */
     const parsedOutput = definition.output.safeParse(result.output);
 
     if (!parsedOutput.success) {
@@ -143,33 +111,6 @@ export class AgentRunner {
       throw new Error('Agent output does not satisfy its declared schema');
     }
 
-    /**
-     * The second half of the output contract, and the half a schema cannot
-     * state: what the answer must be true of *given the request*.
-     *
-     * `numberOfIdeas` is the motivating case. A request for five ideas that
-     * comes back with four parses perfectly — the array is bounded and every
-     * member is well-formed — and is still the wrong answer to the question the
-     * caller was billed for. Checked here rather than in the handler because
-     * this is the last point before the value is returned for durable storage,
-     * and checked after the schema parse so a contract only ever sees data it
-     * can rely on.
-     *
-     * Not an `AgentConfigurationError`, deliberately, for the same reason a
-     * malformed answer is not one: the count is the model's to get right and its
-     * next attempt may. Classifying it as deterministic would make a miscount
-     * immediately final and spend nothing of the retry budget the failure is
-     * actually eligible for.
-     *
-     * It carries its own class all the same, so the worker can *name* it in a
-     * log without changing how it is retried. Without that, a model that has
-     * started miscounting is indistinguishable from a provider outage or a
-     * timeout — three problems with three different remedies, all reported as
-     * `runtime_error`. The class is application-owned and so is everything in
-     * it: a closed code and, for a count, two integers. Its message is composed
-     * from those, so a contract cannot put the provider's answer into an `Error`
-     * even by accident, because the type will not carry text.
-     */
     const violation = definition.outputContract?.(
       parsedInput.data as AgentValue,
       parsedOutput.data as AgentValue,
@@ -233,8 +174,7 @@ function parseConfiguration(
 ): AgentConfiguration {
   const contract = definition.organizationConfiguration;
 
-  // Definitions that predate the installation contract historically executed
-  // with no organization configuration. Only a legacy run may keep that shape.
+  // Only pinned compatibility runs may omit the installation contract.
   if (!contract) {
     if (!pinned) return {};
     throw new AgentConfigurationError(
@@ -251,14 +191,6 @@ function parseConfiguration(
   }
 }
 
-/**
- * What the retrieval is made similar to.
- *
- * A string input is its own query. A structured one is flattened to its string
- * leaves rather than to `JSON.stringify`, because the keys and punctuation of
- * the envelope are not part of what the caller is asking about and embedding
- * them moves the query away from the material.
- */
 function queryOf(input: AgentValue): string {
   const parts: string[] = [];
 

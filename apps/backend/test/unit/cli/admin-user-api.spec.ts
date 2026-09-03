@@ -7,19 +7,6 @@ import {
   resolvePasswordPolicy,
 } from '../../../src/cli/admin-user-api';
 
-/**
- * The two things this process reads out of an untyped Better Auth instance,
- * and what happens when they are not there.
- *
- * Both are narrowings the compiler cannot check: the admin plugin's endpoints
- * are invisible on `auth.api`, and the password policy lives on a runtime
- * context object. So the guards are the only thing standing between a library
- * upgrade and a command that fails somewhere deep inside itself while holding a
- * plaintext password — or, worse, one that quietly stops enforcing a rule and
- * says nothing. The e2e suite proves the happy paths against the real library;
- * these prove the refusals, which the real library will not produce on demand.
- */
-
 const authOf = (instance: unknown, api: unknown = {}): AuthService<AppAuth> =>
   ({ api, instance }) as unknown as AuthService<AppAuth>;
 
@@ -36,12 +23,6 @@ describe('resolveAdminUserApi', () => {
     });
   });
 
-  /**
-   * A stated error at startup rather than `undefined is not a function` in the
-   * middle of a command that has already read the operator's password. The
-   * failure this converts is a plugin removed from the conditional array, or an
-   * endpoint renamed by an upgrade — both silent to the compiler.
-   */
   it.each([
     ['the endpoint is missing', {}],
     ['the endpoint is not callable', { createUser: 'nope' }],
@@ -66,7 +47,6 @@ describe('resolvePasswordPolicy', () => {
     });
   });
 
-  /** Whatever the deployment configured, not a remembered default. */
   it('carries non-default bounds through unchanged', async () => {
     const auth = authOf(
       contextOf({
@@ -80,15 +60,6 @@ describe('resolvePasswordPolicy', () => {
     });
   });
 
-  /**
-   * Refusing beats defaulting, and this is the assertion that keeps it that
-   * way. A fallback of, say, 8 would look reasonable and would be wrong in the
-   * only direction that matters: if the deployment had configured something
-   * stricter, the one account nobody can reset would be the one account created
-   * under a weaker rule than the platform's own — and nothing would report it.
-   * The whole point of reading the number is to avoid holding a second opinion,
-   * and a guessed default is a second opinion.
-   */
   it.each([
     ['the context has no password section', {}],
     ['the password section has no config', { password: {} }],

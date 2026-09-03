@@ -1307,55 +1307,14 @@ export type $ToolExecutionPayload<ExtArgs extends runtime.Types.Extensions.Inter
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     organizationId: string
-    /**
-     * The run this was performed for, referenced as a tenant-safe pair.
-     * 
-     * `(agentRunId, organizationId)` against `agent_run(id, organizationId)`, so
-     * a row claiming one organization's execution against another's run is
-     * refused by PostgreSQL. A service predicate would be the only guard if this
-     * were a plain `agentRunId`, and a service predicate is one forgotten
-     * `where` clause away from absent.
-     */
     agentRunId: string
-    /**
-     * Which attempt of that run. A retried run performs its tools again, and
-     * two executions of one tool for one run are only distinguishable by this.
-     */
     agentRunAttempt: number
     toolId: string
     toolVersion: number
     status: $Enums.ToolExecutionStatus
-    /**
-     * The input as the application parsed it, never as the model sent it.
-     */
     input: runtime.JsonValue
-    /**
-     * The result as the tool's own output schema parsed it. Null until the
-     * execution reaches `SUCCEEDED`, and null forever if it never does.
-     */
     output: runtime.JsonValue | null
-    /**
-     * A closed application-owned code, never provider or SDK text.
-     * 
-     * The failure vocabulary is a union of literals in `ToolFailureCode`, so
-     * this column cannot receive `error.message` without someone widening that
-     * type first.
-     */
     failureCode: string | null
-    /**
-     * Side-effect bookkeeping. Null or zero for a read-only execution.
-     * 
-     * `effectAttemptCount` is the concurrency fence for effect delivery: a
-     * worker claims an attempt by matching the count it read and bumping it, so
-     * two deliveries of one approved action cannot both hold the same attempt.
-     * `effectFirstAttemptedAt` bounds retries to the provider's idempotency
-     * window. `effectPayloadDigest` is the digest of the effective payload the
-     * first attempt sent; a later attempt whose payload differs cannot know
-     * whether the first reached the provider, so it resolves to
-     * `OUTCOME_UNKNOWN` rather than sending something else under the same key.
-     * `providerMessageId` is the provider's own identifier for the accepted
-     * effect — the durable fact success is reconstructed from.
-     */
     effectAttemptCount: number
     effectFirstAttemptedAt: Date | null
     effectPayloadDigest: string | null

@@ -37,7 +37,6 @@ const CONFIG: LogMailConfig = {
   writeHtml: false,
 };
 
-/** Records what the service handed down, and can be told to fail. */
 class RecordingTransport implements MailTransport {
   readonly sent: OutboundMail[] = [];
   failure: Error | undefined;
@@ -69,8 +68,6 @@ describe('MailService', () => {
     const error = jest.fn();
     errorCalls = () => error.mock.calls as unknown as LoggedCall[];
 
-    // The renderer is real: the point of most of these assertions is what the
-    // transport actually receives, and a stubbed renderer would assert nothing.
     const moduleRef = await Test.createTestingModule({
       imports: [AppI18nModule],
       providers: [
@@ -147,11 +144,6 @@ describe('MailService', () => {
       expect(service.dispatch(verificationJob)).toBeUndefined();
     });
 
-    /**
-     * The property the auth callbacks depend on. A provider outage must not
-     * turn into a failed signup, and must not surface as an unhandled
-     * rejection either — Node's default for those is to terminate the process.
-     */
     it('swallows a transport failure without an unhandled rejection', async () => {
       const unhandled = jest.fn();
       process.on('unhandledRejection', unhandled);
@@ -200,11 +192,6 @@ describe('MailService', () => {
       );
     });
 
-    /**
-     * Provider SDK errors routinely carry the originating request — headers,
-     * query string, sometimes the key that signed it. `MailDeliveryError`
-     * keeps that on `cause` for debugging; nothing may copy it into a log.
-     */
     it('never logs the underlying provider error', async () => {
       transport.failure = new MailDeliveryError('log', 'Request failed', {
         request: { headers: { authorization: 'Bearer LEAKY_SDK_SECRET' } },
@@ -255,10 +242,6 @@ describe('MailService', () => {
         variables: {
           name: 'Adnan',
           actionUrl: 'https://example.com',
-          // The directive has to sit on the offending line, not above the
-          // declaration: an excess property is reported where it is written,
-          // so a directive on `const foreign` would suppress nothing and
-          // report itself as unused.
           // @ts-expect-error `expiresInMinutes` does not belong to EMAIL_VERIFICATION.
           expiresInMinutes: 30,
         },
@@ -269,5 +252,4 @@ describe('MailService', () => {
   });
 });
 
-/** Lets the floating promise inside `dispatch` settle. */
 const flush = () => new Promise((resolve) => setImmediate(resolve));

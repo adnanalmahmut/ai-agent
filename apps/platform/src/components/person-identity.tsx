@@ -2,16 +2,6 @@ import { Avatar, AvatarFallback, AvatarImage } from '@repo/ui';
 
 import { userInitials } from '@/lib/user-initials';
 
-/**
- * A person, as a row of a list sees them: avatar, name, address.
- *
- * The email is wrapped in `<bdi>` — it is left-to-right text, and inside an
- * Arabic interface its punctuation reorders without the isolation, which turns
- * `name@example.com` into something that is not an address.
- *
- * `alt=""` on the avatar because the name is right beside it; describing the
- * photograph as well would announce the person twice.
- */
 export function PersonIdentity({
   name,
   email,

@@ -1,13 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@repo/ui';
 import type { ReactNode } from 'react';
 
-/**
- * The frame every authentication screen sits in.
- *
- * Presentational and translation-free on purpose: it takes already-translated
- * nodes, so it can be rendered from a Server Component and never needs a
- * dictionary of its own. Every string it displays was chosen by its caller.
- */
 export function AuthCard({
   title,
   description,

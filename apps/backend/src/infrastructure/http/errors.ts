@@ -25,11 +25,6 @@ import {
   resolveLocaleFromHeaders,
 } from '../i18n/request-locale';
 
-/**
- * The single exception filter for the HTTP boundary.
- *
- * Registered by `HttpInfrastructureModule`.
- */
 @Catch()
 export class UnifiedExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(UnifiedExceptionFilter.name);

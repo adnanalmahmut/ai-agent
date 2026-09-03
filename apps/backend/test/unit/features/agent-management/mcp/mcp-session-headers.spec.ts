@@ -7,19 +7,6 @@ import {
   withoutConsoleWarnings,
 } from '../../../../../src/features/agent-management/mcp/mcp-session.service';
 
-/**
- * What the protocol SDK is allowed to see of an incoming request.
- *
- * The MCP endpoint is authenticated by this application's own session cookie,
- * so the request that reaches the adapter carries a credential. Forwarding
- * headers wholesale would put that cookie inside a third-party SDK, its
- * transports, and anything either of them logs — for no benefit, because
- * nothing in the protocol reads it.
- *
- * Asserted directly rather than inferred from a working request, because the
- * failure mode is silent: an exchange that forwards the cookie behaves exactly
- * like one that does not.
- */
 describe('the headers handed to the protocol SDK', () => {
   it('forwards content negotiation and every protocol header', () => {
     expect(
@@ -61,7 +48,6 @@ describe('the headers handed to the protocol SDK', () => {
     }
   });
 
-  /** Case is not part of the allowlist decision; HTTP header names are not. */
   it('matches header names case-insensitively', () => {
     expect(
       forwardedHeaders({
@@ -71,7 +57,6 @@ describe('the headers handed to the protocol SDK', () => {
     ).toEqual({ accept: 'application/json', 'mcp-method': 'tools/list' });
   });
 
-  /** Express represents a repeated header as an array; the SDK wants one value. */
   it('joins a repeated header rather than dropping it', () => {
     expect(
       forwardedHeaders({ accept: ['application/json', 'text/event-stream'] }),

@@ -1,8 +1,5 @@
 import type { ReactNode } from 'react';
 
-/**
- * The heading every dashboard page opens with.
- */
 export function PageHeader({
   title,
   description,

@@ -48,20 +48,6 @@ const intl = Intl as typeof Intl & {
 const TIMEZONES = [...new Set(['UTC', ...intl.supportedValuesOf('timeZone')])];
 const CURRENCIES = intl.supportedValuesOf('currency');
 
-/**
- * Organization settings, and the one irreversible-looking action this product
- * has.
- *
- * The two halves are gated by two different permissions on purpose. Updating
- * is `organization:update`, which an organization admin holds; archiving is
- * `organization:archive`, which only an owner does — the backend withholds it
- * from admins because taking an organization offline affects every member, and
- * this page mirrors that rather than inventing its own rule.
- *
- * There is no delete. The backend runs with `disableOrganizationDeletion`, no
- * role is granted `organization:delete`, and no function exists here to call
- * one. Offering a button would be offering a 404.
- */
 export function OrganizationSettingsBlock({
   businessProfile = { profile: null, error: null },
 }: {
@@ -431,9 +417,6 @@ function ProfileForm({
   );
 }
 
-/**
- * Archiving.
- */
 function DangerZone({
   organizationId,
   organizationName,

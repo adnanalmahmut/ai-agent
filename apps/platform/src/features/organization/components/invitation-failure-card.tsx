@@ -13,17 +13,6 @@ import {
   invitationFailureKey,
 } from '../invitation-state';
 
-/**
- * Every way an invitation can fail to open, in one screen.
- *
- * A Server Component, because the failure is already known by the time the
- * page renders — there is nothing to interact with and nothing to wait for.
- *
- * The copy is per-failure rather than generic. "This invitation is no longer
- * valid" and "you are signed in as someone else" call for different actions,
- * and collapsing them into one apologetic sentence leaves the user with
- * nothing to do.
- */
 export function InvitationFailureCard({
   failure,
 }: {

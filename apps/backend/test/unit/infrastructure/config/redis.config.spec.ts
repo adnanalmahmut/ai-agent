@@ -2,10 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
 import redisConfig from '../../../../src/infrastructure/config/redis.config';
 
-/**
- * The factory reads `process.env` when `ConfigModule` calls it during boot, so
- * "does this throw" is the same question as "does the process start".
- */
 describe('redisConfig', () => {
   const original = process.env;
 
@@ -67,12 +63,6 @@ describe('redisConfig', () => {
   });
 
   describe('fail-fast', () => {
-    /**
-     * Deliberately has no localhost default. A default would let a worker boot
-     * against nothing and retry connections forever while queued work piled up
-     * in the outbox — a failure that looks like a slow system rather than a
-     * misconfigured one.
-     */
     it('refuses to boot without a URL', () => {
       expect(() => redisConfig()).toThrow();
     });
@@ -89,11 +79,6 @@ describe('redisConfig', () => {
       expect(() => redisConfig()).toThrow();
     });
 
-    /**
-     * The prefix is concatenated into key names. Characters that Redis treats
-     * specially in patterns — or a stray `{}` hash tag under Cluster — would
-     * change which keyspace is addressed rather than merely look untidy.
-     */
     it('rejects a key prefix containing pattern characters', () => {
       process.env.REDIS_URL = 'redis://localhost:6379';
       process.env.REDIS_KEY_PREFIX = 'app*{shard}';
@@ -108,14 +93,6 @@ describe('redisConfig', () => {
       expect(() => redisConfig()).toThrow(/REDIS_KEY_PREFIX/);
     });
 
-    /**
-     * The cap is the point of the variable. An unbounded retry budget on a
-     * request-path connection converts a Redis outage into hung HTTP requests,
-     * and on the outbox dispatcher it prevents control from ever returning so
-     * the event can be left for the next pass. The worker's mandatory `null`
-     * lives in the connection layer, where an environment variable cannot
-     * reach it.
-     */
     it('refuses a retry budget above the fast-fail ceiling', () => {
       process.env.REDIS_URL = 'redis://localhost:6379';
       process.env.REDIS_MAX_RETRIES_PER_REQUEST = '50';

@@ -11,7 +11,6 @@ function key(id: string, version: number): string {
   return `${id}@${version}`;
 }
 
-/** Explicit code-owned definitions. There is no discovery or plugin loading. */
 @Injectable()
 export class AgentDefinitionRegistry {
   private readonly definitions: ReadonlyMap<string, AgentDefinition>;
@@ -43,15 +42,6 @@ export class AgentDefinitionRegistry {
     this.registered = [...indexed.values()];
   }
 
-  /**
-   * Resolves the exact pinned revision. There is deliberately no fallback to a
-   * latest version: silently running newer code for a run accepted against an
-   * older definition is the drift this pairing exists to prevent.
-   *
-   * An unregistered pair is an `AgentConfigurationError`, not a plain one. The
-   * registry is built from code at startup, so the answer cannot change between
-   * a first attempt and a third — retrying only postpones the report.
-   */
   resolve(id: string, version: number): AgentDefinition {
     const identity = key(id, version);
     const definition = this.definitions.get(identity);
@@ -62,7 +52,6 @@ export class AgentDefinitionRegistry {
     return definition;
   }
 
-  /** Latest installable revision of every code-owned agent, stable by id. */
   listInstallable(): readonly AgentDefinition[] {
     const latest = new Map<string, AgentDefinition>();
 
@@ -79,10 +68,6 @@ export class AgentDefinitionRegistry {
     );
   }
 
-  /**
-   * Parses configuration against the exact requested definition revision.
-   * There is no fallback to latest and no runtime-owned validation path.
-   */
   parseOrganizationConfiguration(
     id: string,
     version: number,
@@ -122,19 +107,6 @@ function immutableDefinition(definition: AgentDefinition): AgentDefinition {
   });
 }
 
-/**
- * A definition's maximum grants, checked at composition rather than at run time.
- *
- * The compiler already refuses an unknown reference, so this catches the cases
- * it cannot see: a value that reached the shape through a cast or a fixture,
- * and a duplicate — which type-checks perfectly and would make the "maximum"
- * a multiset whose size no longer means what a subset check assumes.
- *
- * Deliberately not a check that the `ToolRegistry` holds each one. This module
- * is constructed from a plain array with no injected registry, and the registry
- * already asserts in both directions that its definitions and `TOOL_REFS` name
- * the same set — so a reference accepted here is one the registry has.
- */
 function validateMaxToolGrants(definition: AgentDefinition): void {
   const grants = definition.maxToolGrants;
   if (grants === undefined) return;

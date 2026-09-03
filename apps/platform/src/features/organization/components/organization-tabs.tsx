@@ -22,9 +22,6 @@ type Tab = {
   exact: boolean;
 };
 
-/**
- * Segmented Tab Control navigation between organization views.
- */
 export function OrganizationTabs({
   organizationId,
 }: {
@@ -106,7 +103,10 @@ export function OrganizationTabs({
               )}
             >
               <Icon
-                className={cn('size-3.5', isActive ? 'text-primary' : 'text-muted-foreground')}
+                className={cn(
+                  'size-3.5',
+                  isActive ? 'text-primary' : 'text-muted-foreground',
+                )}
                 aria-hidden
               />
               {label}

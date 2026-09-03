@@ -13,13 +13,6 @@ import {
   type TestUser,
 } from '../../support/auth-harness';
 
-/**
- * Global RBAC and the account lifecycle that replaces hard deletion.
- *
- * Routes carry permissions, never role names — which is also what makes these
- * probes meaningful: each one asks a question of the access-control
- * definitions, and the answer is resolved from the database on every request.
- */
 @Controller('probe/global')
 class GlobalProbeController {
   @Get('list-users')
@@ -95,11 +88,6 @@ describe('Global RBAC and account lifecycle (e2e)', () => {
       await as(harness, admin).get('/probe/global/deactivate').expect(403);
     });
 
-    /**
-     * The escalation attempt, end to end. An admin who could grant `admin`
-     * could grant `super_admin`, because Better Auth's `setRole` validates
-     * only that the target role exists.
-     */
     it('cannot promote itself through Better Auth', async () => {
       const response = await as(harness, admin).post(
         '/api/auth/admin/set-role',
@@ -135,10 +123,6 @@ describe('Global RBAC and account lifecycle (e2e)', () => {
       expect(row?.role).toBe('admin');
     });
 
-    /**
-     * With no session cache, a role change is visible to the very next
-     * permission check — the authorization decision is a database read.
-     */
     it('a role change takes effect on the next request', async () => {
       const target = await createUser(harness);
 
@@ -152,13 +136,6 @@ describe('Global RBAC and account lifecycle (e2e)', () => {
     });
   });
 
-  /**
-   * The lifecycle policy, made executable.
-   *
-   * Better Auth's hard `remove-user` requires `user:["delete"]`, which no role
-   * holds — so even the highest privilege in the system cannot destroy a row.
-   * The reversible operation is available instead.
-   */
   describe('hard user deletion is unavailable', () => {
     it('denies user:delete to super_admin', async () => {
       await as(harness, superAdmin)
@@ -247,7 +224,6 @@ describe('Global RBAC and account lifecycle (e2e)', () => {
         .post(`/admin/users/${victim.id}/deactivate`)
         .expect(201);
 
-      // 401, not 403: the session is gone, so there is nothing to authorize.
       await as(harness, victim).get('/probe/global/list-users').expect(401);
     });
 
@@ -264,11 +240,6 @@ describe('Global RBAC and account lifecycle (e2e)', () => {
       expect(JSON.stringify(response.body)).toContain('ACCOUNT_DEACTIVATED');
     });
 
-    /**
-     * Enforced at session creation rather than per sign-in route, which is
-     * what makes it hold for Google and for any provider added later: every
-     * path ends in `databaseHooks.session.create.before`.
-     */
     it('blocks session creation regardless of the sign-in path', async () => {
       const victim = await createUser(harness);
 
@@ -445,11 +416,6 @@ describe('Global RBAC and account lifecycle (e2e)', () => {
     });
   });
 
-  /**
-   * A ban and a deactivation are different states with different authorities.
-   * Overloading `banned` to mean "deleted" would make each one silently undo
-   * the other.
-   */
   describe('ban and deactivation are independent', () => {
     it('deactivating does not set the ban flag', async () => {
       const victim = await createUser(harness);

@@ -15,7 +15,6 @@ import type { LogMailConfig } from '../../../../src/infrastructure/config/mail.c
 import { LogMailTransport } from '../../../../src/infrastructure/mail/log-mail.transport';
 import type { OutboundMail } from '../../../../src/infrastructure/mail/mail.types';
 
-/** The single-use credential this whole test file exists to keep out of logs. */
 const TOKEN = 'SUPER_SECRET_TOKEN_VALUE';
 
 const ACTION_URL = `https://app.example.com/verify-email?token=${TOKEN}`;
@@ -72,8 +71,6 @@ describe('LogMailTransport', () => {
 
       await transport.send(mail());
 
-      // An exact key comparison, not a subset match: a future field added to
-      // the log line has to be justified here before it can ship.
       expect(Object.keys(logger.payload()).sort()).toEqual([
         'direction',
         'event',
@@ -101,12 +98,6 @@ describe('LogMailTransport', () => {
       });
     });
 
-    /**
-     * The assertion this file is really for. Serializing the whole call the
-     * way a log shipper would is the only check that survives someone adding
-     * a field: matching on individual keys would miss a token smuggled in
-     * under a new name.
-     */
     it('never lets a token reach the log, in any field', async () => {
       const transport = new LogMailTransport(config(), logger.logger);
 
@@ -147,11 +138,6 @@ describe('LogMailTransport', () => {
   });
 
   describe('development HTML dump', () => {
-    /**
-     * The dump writes live account-takeover links to disk. Enabling it in
-     * production has no legitimate use, so it must fail loudly at construction
-     * rather than quietly at the first send.
-     */
     it('refuses to construct when enabled in production', () => {
       const previous = process.env.NODE_ENV;
       process.env.NODE_ENV = 'production';
@@ -212,10 +198,6 @@ describe('LogMailTransport', () => {
         expect(dumped()[0]?.file).toMatch(/^\d+-EMAIL_VERIFICATION-en\.html$/);
       });
 
-      /**
-       * The dump exists so a developer can *see* the token-bearing link. That
-       * is exactly why it must never be what the log shows.
-       */
       it('still keeps the token out of the log', async () => {
         const transport = new LogMailTransport(
           config({ writeHtml: true }),

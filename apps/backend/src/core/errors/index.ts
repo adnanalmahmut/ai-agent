@@ -1,10 +1,3 @@
-/**
- * Stable, machine-readable application error codes.
- *
- * Clients branch on `errorCode`, never on the localized human-readable
- * message. Domain and application code remain unaware of localization
- * and HTTP status mapping.
- */
 export const APP_ERROR_CODES = [
   'USER_NOT_FOUND',
   'EMAIL_ALREADY_EXISTS',
@@ -26,15 +19,6 @@ export const APP_ERROR_CODES = [
   'ORGANIZATION_NOT_ARCHIVED',
   'ORGANIZATION_ARCHIVED',
 
-  /**
-   * The platform must keep at least one usable super administrator.
-   *
-   * 409 rather than 403: the caller holds the authority and the request is
-   * well-formed — it is the *state* that forbids it, and it stops being
-   * forbidden as soon as a second super administrator exists. A 403 would send
-   * an operator looking for a permission to grant themselves, which is exactly
-   * the permission they already have.
-   */
   'LAST_SUPER_ADMIN',
 
   // Control plane. A disabled feature is 403 rather than 404: the route exists
@@ -62,27 +46,11 @@ export function isAppErrorCode(value: unknown): value is AppErrorCode {
 }
 
 export interface AppExceptionOptions {
-  /**
-   * Internal structured context for server-side logging and translation
-   * message interpolation. Never serialized directly into API responses.
-   */
   context?: Record<string, unknown>;
 
-  /**
-   * Explicit machine-readable details safe to expose in the public API error
-   * response (`error.details`). Only populate this with non-sensitive details
-   * (e.g. dependency probe status).
-   */
   publicDetails?: Record<string, unknown>;
 }
 
-/**
- * The only application exception business logic should throw.
- *
- * Carries a stable error code, optional internal logging context, and
- * explicitly separated public response details without coupling the domain
- * to HTTP status codes, localization, or user-facing messages.
- */
 export class AppException extends Error {
   readonly context?: Record<string, unknown>;
   readonly publicDetails?: Record<string, unknown>;

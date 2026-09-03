@@ -39,11 +39,6 @@ const fixtureId = `agent-run-e2e-${process.pid}`;
 const userId = `${fixtureId}-user`;
 const organizationIds = [`${fixtureId}-org-a`, `${fixtureId}-org-b`] as const;
 
-/**
- * Writes through the real transaction client before failing. If both writes are
- * truly in the same transaction, the preceding outbox insert and the AgentRun
- * insert are rolled back together.
- */
 class AppendThenFailOutboxRepository extends OutboxRepository {
   attemptedDedupeKey: string | undefined;
 
@@ -119,8 +114,6 @@ describe('AgentRun foundation (e2e)', () => {
     });
     await prisma.onModuleInit();
 
-    // Remove only this suite's known fixture identities after an interrupted
-    // prior run; no broad table cleanup is needed.
     await cleanRuns();
     await prisma.organization.deleteMany({
       where: { id: { in: [...organizationIds] } },
@@ -297,10 +290,6 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('returns the same run for a sequential retry without re-queueing it', async () => {
-    // The concurrent case above only ever exercises the P2002 branch, because
-    // all six requests get past the pre-check before anyone commits. This is
-    // the ordinary client retry — the first request already committed — and it
-    // is the path that must not append a second queue intent.
     const first = await service.create(request('sequential-retry'));
     const second = await service.create(request('sequential-retry'));
 
@@ -682,8 +671,6 @@ describe('AgentRun foundation (e2e)', () => {
     expect(persisted.createdByUserId).toBeNull();
     expect(persisted.createdByUser).toBeNull();
 
-    // A creator-less run is still fully durable work: it commits its queue
-    // intent exactly like a user-initiated one.
     await expect(
       prisma.outboxEvent.count({ where: { dedupeKey: result.id } }),
     ).resolves.toBe(1);
@@ -700,7 +687,6 @@ describe('AgentRun foundation (e2e)', () => {
     expect(persisted.createdByUserId).toBe(userId);
     expect(persisted.createdByUser).toMatchObject({ id: userId });
 
-    // The relation is a real restricted foreign key, not a loose string.
     await expect(
       prisma.agentRun.create({
         data: {

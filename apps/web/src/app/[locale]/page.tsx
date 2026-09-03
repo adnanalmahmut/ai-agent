@@ -213,7 +213,6 @@ export default async function HomePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Top bar */}
       <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 md:px-8">
           <div className="flex items-center gap-3">
@@ -237,7 +236,6 @@ export default async function HomePage() {
       </header>
 
       <div className="mx-auto max-w-7xl px-5 md:px-8">
-        {/* Hero */}
         <div className="border-b py-12 md:py-16">
           <div className="max-w-3xl">
             <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
@@ -251,7 +249,6 @@ export default async function HomePage() {
         </div>
 
         <div className="grid items-start gap-12 py-10 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-16">
-          {/* Navigation */}
           <aside className="hidden lg:block">
             <nav className="sticky top-24 space-y-1">
               <div className="mb-3 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -270,9 +267,7 @@ export default async function HomePage() {
             </nav>
           </aside>
 
-          {/* Main content */}
           <main className="min-w-0 space-y-20 pb-24">
-            {/* Foundations */}
             <section id="foundations" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tFoundations('title')}
@@ -330,7 +325,6 @@ export default async function HomePage() {
               </div>
             </section>
 
-            {/* Colors */}
             <section id="colors" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tColors('title')}
@@ -397,7 +391,6 @@ export default async function HomePage() {
               </DemoFrame>
             </section>
 
-            {/* Typography */}
             <section id="typography" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tTypography('title')}
@@ -426,7 +419,6 @@ export default async function HomePage() {
               </DemoFrame>
             </section>
 
-            {/* Surfaces */}
             <section id="surfaces" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tSurfaces('title')}
@@ -501,7 +493,6 @@ export default async function HomePage() {
               </DemoFrame>
             </section>
 
-            {/* Buttons */}
             <section id="buttons" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tButtons('title')}
@@ -580,7 +571,6 @@ export default async function HomePage() {
               </DemoFrame>
             </section>
 
-            {/* Inputs */}
             <section id="inputs" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tInputs('title')}
@@ -679,7 +669,6 @@ export default async function HomePage() {
               </DemoFrame>
             </section>
 
-            {/* Cards */}
             <section id="cards" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tCards('title')}
@@ -719,7 +708,6 @@ export default async function HomePage() {
               </div>
             </section>
 
-            {/* Dialog */}
             <section id="dialogs" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tDialogs('title')}
@@ -787,7 +775,6 @@ export default async function HomePage() {
               </DemoFrame>
             </section>
 
-            {/* Internationalization */}
             <section
               id="internationalization"
               className="scroll-mt-24 space-y-8"
@@ -857,7 +844,6 @@ export default async function HomePage() {
               </Card>
             </section>
 
-            {/* Formatting */}
             <section id="formatting" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tFormatting('title')}
@@ -905,7 +891,6 @@ export default async function HomePage() {
               </DemoFrame>
             </section>
 
-            {/* Footer */}
             <footer className="border-t pt-8">
               <div className="flex flex-col justify-between gap-2 text-sm text-muted-foreground sm:flex-row">
                 <span>{tShowcase('footerTitle')}</span>

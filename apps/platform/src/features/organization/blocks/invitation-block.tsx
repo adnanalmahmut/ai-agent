@@ -18,15 +18,6 @@ import { OrganizationRoleLabel } from '../components/organization-role-label';
 import { useInvitationResponse } from '../hooks/use-invitation-response';
 import type { InvitationDetails } from '../invitation-state';
 
-/**
- * The invitation itself, once the server has confirmed the visitor may see
- * it.
- *
- * Everything shown here came from `/organization/get-invitation`, which the
- * backend only answers for the signed-in recipient. Nothing is inferred and
- * nothing is fetched again — the block's whole job is the accept/decline
- * decision and the states that follow it.
- */
 export function InvitationBlock({
   invitation,
 }: {

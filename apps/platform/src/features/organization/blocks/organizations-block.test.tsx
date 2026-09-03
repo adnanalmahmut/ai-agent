@@ -56,7 +56,6 @@ describe('with no organizations', () => {
   });
 
   it('offers the way out of it', () => {
-    // Before organization creation existed this state could only apologise.
     renderWithProviders(<OrganizationsBlock data={data()} />);
 
     expect(
@@ -90,9 +89,10 @@ describe('with organizations', () => {
     );
 
     expect(screen.getAllByRole('link')).toHaveLength(4);
-    expect(
-      screen.getByRole('link', { name: /Beta Works/ }),
-    ).toHaveAttribute('href', '/en/organizations/org_2');
+    expect(screen.getByRole('link', { name: /Beta Works/ })).toHaveAttribute(
+      'href',
+      '/en/organizations/org_2',
+    );
   });
 
   it('does not show the empty state', () => {
@@ -102,7 +102,9 @@ describe('with organizations', () => {
       />,
     );
 
-    expect(screen.queryByText('You are not in any organization yet')).toBeNull();
+    expect(
+      screen.queryByText('You are not in any organization yet'),
+    ).toBeNull();
   });
 });
 
@@ -116,7 +118,6 @@ describe('archived organizations', () => {
   };
 
   it('are absent from the normal list', () => {
-    // Better Auth's own list filters them out; nothing here puts them back.
     renderWithProviders(
       <OrganizationsBlock
         data={data({ organizations: [summary('org_1', 'Acme Research')] })}
@@ -138,8 +139,6 @@ describe('archived organizations', () => {
   });
 
   it('offer restore only when the server said this caller may', () => {
-    // There is no role check here and there could not be one: the answer
-    // arrived pre-decided from the endpoint that will enforce it.
     renderWithProviders(
       <OrganizationsBlock
         data={data({ archived: [{ ...archived, canRestore: false }] })}
@@ -157,7 +156,9 @@ describe('archived organizations', () => {
 
     await user.click(screen.getByRole('button', { name: 'Restore' }));
 
-    await waitFor(() => expect(restoreOrganization).toHaveBeenCalledWith('org_9'));
+    await waitFor(() =>
+      expect(restoreOrganization).toHaveBeenCalledWith('org_9'),
+    );
     expect(revalidateSpy).toHaveBeenCalled();
   });
 
@@ -182,8 +183,6 @@ describe('archived organizations', () => {
 
 describe('when the list could not be loaded', () => {
   it('says so rather than claiming there are none', () => {
-    // "You are in no organizations" and "we could not ask" are different
-    // facts, and only one of them suggests creating one.
     renderWithProviders(
       <OrganizationsBlock data={data({ error: 'NETWORK_ERROR' })} />,
     );
@@ -193,6 +192,8 @@ describe('when the list could not be loaded', () => {
         'We could not reach the server. Check your connection and try again.',
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByText('You are not in any organization yet')).toBeNull();
+    expect(
+      screen.queryByText('You are not in any organization yet'),
+    ).toBeNull();
   });
 });

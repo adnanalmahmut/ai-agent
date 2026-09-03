@@ -42,7 +42,6 @@ function stubSendMail(
   internals(transport).sendMail = sendMail;
 }
 
-/** Shaped like a Nodemailer SMTP error. */
 const smtpError = (
   code: string,
   responseCode: number | undefined,
@@ -94,11 +93,6 @@ describe('SmtpMailTransport', () => {
       });
     });
 
-    /**
-     * `auth` has to be absent, not empty: Nodemailer reads a present `auth` as
-     * an instruction to authenticate, and an anonymous relay would reject the
-     * session. This is what keeps local MailHog/Mailpit setups working.
-     */
     it('omits auth entirely for an unauthenticated relay', () => {
       const options = internals(new SmtpMailTransport(config())).options;
 
@@ -166,11 +160,6 @@ describe('SmtpMailTransport', () => {
       );
     });
 
-    /**
-     * Relays echo the envelope back in their response text, and on an auth
-     * failure that text can include the username. Only the stable code and
-     * numeric response reach the message.
-     */
     it('keeps the server response text and password out of the message', async () => {
       const transport = new SmtpMailTransport(
         config({ auth: { user: 'mailer', password: PASSWORD } }),

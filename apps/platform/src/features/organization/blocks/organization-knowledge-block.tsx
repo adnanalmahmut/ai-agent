@@ -40,15 +40,6 @@ import {
 } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
 
-/**
- * One write, as a thunk.
- *
- * Written as a call signature rather than an arrow type on purpose. The
- * repository's architecture test finds untranslated text with a regex for a
- * word between `>` and `<`, and an arrow type's `=> Promise<` is exactly that
- * shape. This form says the same thing and leaves the check able to catch what
- * it is for.
- */
 type Work = {
   (): Promise<unknown>;
 };
@@ -73,13 +64,6 @@ const classify = (thrown: unknown): Failure => {
 
   if (thrown instanceof ApiError) {
     if (thrown.status === 401) return { kind: 'unauthenticated', details };
-    /**
-     * The code, not the status alone. A disabled feature and a missing
-     * permission are both 403, and telling an owner who holds every grant
-     * that they lack permission sends them to change roles over something no
-     * role can fix. Reads are not gated, so this only ever appears on a write
-     * — which is exactly when it is confusing.
-     */
     if (thrown.status === 403) {
       return {
         kind: thrown.code === 'FEATURE_DISABLED' ? 'disabled' : 'forbidden',
@@ -94,20 +78,6 @@ const classify = (thrown: unknown): Failure => {
   return { kind: 'failed', details };
 };
 
-/**
- * The organization's reference material: what an agent will answer from.
- *
- * Two levels, and only two. A space is chosen, its documents are listed, and a
- * document is submitted as text. There is no upload, no crawler and no
- * connector, because none of those is what makes retrieval work — the content
- * is — and each would be a moving part between the operator and the thing they
- * are trying to check.
- *
- * Every control is gated on the reader's membership **in this organization**,
- * and none of those gates is a boundary: the backend re-derives the same
- * decision from the database. Hiding a button only avoids showing someone a
- * door that opens onto a 403.
- */
 export function OrganizationKnowledgeBlock() {
   const t = useTranslations('Knowledge');
   const format = useFormatter();
@@ -118,18 +88,6 @@ export function OrganizationKnowledgeBlock() {
   });
 
   const [spaces, setSpaces] = useState<KnowledgeSpace[]>([]);
-  /**
-   * Tagged with the space the rows were loaded for, rather than a bare list.
-   *
-   * The list and the chosen space arrive at different times, and an untagged
-   * list renders whichever one landed last: choosing a second space would show
-   * the first space's documents beneath the second space's heading until the
-   * fetch returned. Carrying the slug makes that state unrepresentable — rows
-   * are shown only to the space that asked for them.
-   *
-   * `nextCursor` rides along for the same reason: a cursor is a position in one
-   * space's ordering and means nothing in another's.
-   */
   const [documents, setDocuments] = useState<{
     slug: string;
     rows: KnowledgeDocument[];
@@ -159,15 +117,7 @@ export function OrganizationKnowledgeBlock() {
         setSelectedSlug((selected) =>
           selected !== null && loaded.some((space) => space.slug === selected)
             ? selected
-            : /**
-               * The first space that already holds something, falling back to
-               * the first in the taxonomy.
-               *
-               * Every organization gets all eight, so "the first one" would
-               * always be the same space regardless of what they use — and an
-               * operator who has only written brand notes would land on an
-               * empty organization profile every time.
-               */
+            : /* Prefer a configured space over the taxonomy's fixed first item. */
               (loaded.find((space) => space.configured)?.slug ??
               loaded[0]?.slug ??
               null),
@@ -216,18 +166,10 @@ export function OrganizationKnowledgeBlock() {
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 
-  /** Empty until this space's own rows have arrived. */
   const visible =
     documents !== null && documents.slug === selectedSlug ? documents : null;
   const visibleDocuments = visible?.rows ?? [];
 
-  /**
-   * Appends the next page rather than replacing the list.
-   *
-   * The cursor is checked against the space it belongs to before it is used: a
-   * position in one space's ordering means nothing in another's, and a stale
-   * click after switching spaces would otherwise page the wrong collection.
-   */
   const loadMore = useCallback(async () => {
     if (visible === null || visible.nextCursor === null) return;
 
@@ -286,12 +228,6 @@ export function OrganizationKnowledgeBlock() {
       }),
     );
 
-    /**
-     * Cleared only on success. A refused document is often refused for
-     * something the operator can fix — a title collision, a size limit — and
-     * emptying a textarea they have just pasted into is the worst possible
-     * response to a correctable error.
-     */
     if (stored) {
       setTitle('');
       setContent('');
@@ -300,20 +236,6 @@ export function OrganizationKnowledgeBlock() {
 
   const selected = spaces.find((space) => space.slug === selectedSlug) ?? null;
 
-  /**
-   * The space's name in the reader's language, not the server's.
-   *
-   * The taxonomy is code-owned on both sides, so the slug is the join and the
-   * label is a translation — an operator reading Arabic should not be shown an
-   * English taxonomy just because the column happens to hold one. The slug's
-   * dots are already `use-intl`'s path separator, so `brand.voice` addresses
-   * the nested message without any transformation.
-   *
-   * There is deliberately no fallback to `space.name`. A space with no
-   * translation is a mistake in this repository rather than a state to render
-   * around, and `messages.test.ts` asserts every mirrored slug has copy in both
-   * dictionaries.
-   */
   const nameOf = (space: KnowledgeSpace) => t(`spaces.name.${space.slug}`);
 
   return (

@@ -5,16 +5,6 @@ import {
   chunkDocument,
 } from '../../../../src/features/knowledge/chunking';
 
-/**
- * The splitter, tested for the properties retrieval depends on.
- *
- * Every one of these would pass a "does it split" test and be a defect anyway:
- * a chunk over the bound is rejected by the provider, an empty chunk embeds to
- * a vector that matches everything equally badly, a lost ordinal means a
- * retrieved passage cannot be placed, and dropped text is material the
- * organization believes it has stored.
- */
-
 const paragraph = (length: number, filler = 'a') => filler.repeat(length);
 
 describe('chunkDocument', () => {
@@ -38,11 +28,6 @@ describe('chunkDocument', () => {
     ]);
   });
 
-  /**
-   * A heading is a paragraph. Embedded alone it is a near-useless vector that
-   * outranks the text it introduces for any query echoing its words, so it is
-   * merged forward into what it heads.
-   */
   it('merges a short paragraph into the one after it', () => {
     const chunks = chunkDocument(`Refund policy\n\n${paragraph(400, 'a')}`);
 
@@ -69,15 +54,9 @@ describe('chunkDocument', () => {
     for (const chunk of chunks) {
       expect(chunk.content.length).toBeLessThanOrEqual(MAX_CHUNK_CHARACTERS);
     }
-    // Cut at a sentence end, not mid-word.
     for (const chunk of chunks) expect(chunk.content.endsWith('.')).toBe(true);
   });
 
-  /**
-   * Text with no punctuation at all — a table, a code block, a minified blob.
-   * Without the hard split the function would either loop or emit a chunk the
-   * provider refuses.
-   */
   it('splits text that offers no sentence boundary at all', () => {
     const chunks = chunkDocument(paragraph(MAX_CHUNK_CHARACTERS * 3 + 17));
 
@@ -98,8 +77,6 @@ describe('chunkDocument', () => {
     for (const input of inputs) {
       const chunks = chunkDocument(input);
 
-      // Guarded: a function returning nothing would satisfy the loop below
-      // without ever entering it.
       expect(chunks.length).toBeGreaterThan(0);
 
       for (const chunk of chunks) {
@@ -115,19 +92,12 @@ describe('chunkDocument', () => {
       ),
     );
 
-    // Both sides derive from `chunks`, so an empty result would satisfy this
-    // without asserting anything about numbering.
     expect(chunks.length).toBeGreaterThan(1);
     expect(chunks.map((chunk) => chunk.ordinal)).toEqual(
       chunks.map((_, index) => index),
     );
   });
 
-  /**
-   * The property that matters most and is easiest to break: the split must not
-   * lose text. A dropped paragraph is material the organization believes it
-   * has stored and an agent will never see.
-   */
   it('keeps every non-whitespace character', () => {
     const text = [
       'Heading',
@@ -147,15 +117,6 @@ describe('chunkDocument', () => {
     ).toBe(bare(text));
   });
 
-  /**
-   * Re-chunking a chunk returns it unchanged.
-   *
-   * The previous form of this test compared two calls on the same input, which
-   * a pure synchronous function cannot fail. This states the property that is
-   * actually load-bearing: a chunk is already small enough and already whole,
-   * so passing one back through must not split it further — which is what
-   * makes re-ingestion of unchanged text produce an identical chunk set.
-   */
   it('leaves an already-chunked passage alone', () => {
     const text = `${paragraph(900, 'a')}\n\n${paragraph(900, 'b')}`;
     const chunks = chunkDocument(text);

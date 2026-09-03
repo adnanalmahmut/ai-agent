@@ -14,15 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model ManagedSecret
- * A provider credential, encrypted at rest with the application master key.
  * 
- * The plaintext is never returned by any read surface and never enters
- * `process.env`; it is decrypted only when an adapter is about to use it. What
- * the control plane can show is everything in this model except `ciphertext`.
- * 
- * `keyVersion` records the exact configured encryption key. It remains nullable
- * only for rows written by the preceding image; those use `keyFingerprint` for
- * an explicit compatibility lookup. Key material never enters this table.
  */
 export type ManagedSecretModel = runtime.Types.Result.DefaultSelection<Prisma.$ManagedSecretPayload>
 
@@ -737,23 +729,11 @@ export type $ManagedSecretPayload<ExtArgs extends runtime.Types.Extensions.Inter
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     key: string
     ciphertext: runtime.Bytes
-    /**
-     * The GCM nonce. Unique per encryption, stored beside the ciphertext
-     * because decryption needs it and it is not secret.
-     */
     iv: runtime.Bytes
-    /**
-     * The GCM authentication tag, which is what makes a tampered ciphertext a
-     * loud failure rather than silent garbage.
-     */
     authTag: runtime.Bytes
     algorithm: string
     keyFingerprint: string
     keyVersion: string | null
-    /**
-     * A non-secret hint — never the value, never a prefix of it — so an
-     * operator can tell two credentials apart in a list.
-     */
     label: string | null
     lastRotatedAt: Date
     createdAt: Date

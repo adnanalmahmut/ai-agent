@@ -21,17 +21,6 @@ import { useGoogleSignIn } from '../hooks/use-google-sign-in';
 import { useSignIn } from '../hooks/use-sign-in';
 import { AUTH_ROUTES, RETURN_TO_PARAM } from '../routes';
 
-/**
- * The sign-in experience.
- *
- * Composition only: the form's state and the decision about where a
- * successful sign-in leads both live in `useSignIn`, so this file can be read
- * as a description of the screen.
- *
- * The one piece of logic it does own is which error to show, because three
- * can arrive at once — the password attempt, the Google attempt, and an
- * `?error=` left by a Google redirect that failed before the page loaded.
- */
 export function SignInBlock({
   returnTo,
   providerError,
@@ -155,7 +144,10 @@ export function SignInBlock({
           </div>
         </div>
 
-        <SubmitButton isPending={signIn.isPending} icon={<LogIn className={MIRRORED_ICON} />}>
+        <SubmitButton
+          isPending={signIn.isPending}
+          icon={<LogIn className={MIRRORED_ICON} />}
+        >
           {t('signIn.submit')}
         </SubmitButton>
       </form>

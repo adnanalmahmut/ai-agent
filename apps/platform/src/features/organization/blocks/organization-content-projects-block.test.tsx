@@ -2,10 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  authClientStub,
-  resetAuthClientStub,
-} from '@/test/auth-client-stub';
+import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
 import { context, organization } from '@/test/organization-fixtures';
 import { renderInOrganization } from '@/test/render';
 
@@ -28,9 +25,8 @@ vi.mock('../organization-api', async () => {
   };
 });
 
-const { OrganizationContentProjectsBlock } = await import(
-  './organization-content-projects-block'
-);
+const { OrganizationContentProjectsBlock } =
+  await import('./organization-content-projects-block');
 
 const project = (overrides: Record<string, unknown> = {}) => ({
   id: 'proj_1',
@@ -82,12 +78,6 @@ describe('organization content projects block', () => {
     expect(await screen.findByText(/no projects yet/i)).toBeInTheDocument();
   });
 
-  /**
-   * The second page is appended, not swapped in.
-   *
-   * A "load more" that replaced the list would read as the first page having
-   * vanished, which is indistinguishable from a bug in the cursor.
-   */
   it('appends the next page rather than replacing the first', async () => {
     listContentProjects
       .mockResolvedValueOnce({ items: [project()], nextCursor: 'cursor-1' })
@@ -102,23 +92,13 @@ describe('organization content projects block', () => {
     await userEvent.click(screen.getByRole('button', { name: /load more/i }));
 
     expect(await screen.findByText('Morning ritual')).toBeInTheDocument();
-    // Still there.
     expect(screen.getByText('Kettle teardown')).toBeInTheDocument();
 
-    // Asserted positionally rather than on the whole call, so giving
-    // `loadMore` an abort signal later does not break a test about cursors.
     expect(listContentProjects.mock.calls[1]?.[1]).toMatchObject({
       cursor: 'cursor-1',
     });
   });
 
-  /**
-   * A page that failed to append is not a list that failed to load.
-   *
-   * Collapsing the two would either replace correct rows with an error card or
-   * offer a retry that silently restarts from page one and drops everything
-   * already accumulated.
-   */
   it('keeps the loaded rows when the next page fails', async () => {
     listContentProjects
       .mockResolvedValueOnce({ items: [project()], nextCursor: 'cursor-1' })
@@ -132,9 +112,7 @@ describe('organization content projects block', () => {
     expect(
       await screen.findByText(/next page could not be loaded/i),
     ).toBeInTheDocument();
-    // The rows that did load are still there.
     expect(screen.getByText('Kettle teardown')).toBeInTheDocument();
-    // And the whole-list error card is not shown.
     expect(
       screen.queryByText(/projects could not be loaded/i),
     ).not.toBeInTheDocument();

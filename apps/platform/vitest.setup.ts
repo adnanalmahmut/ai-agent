@@ -5,19 +5,6 @@ import { afterEach, vi } from 'vitest';
 
 vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
 
-/**
- * Shared test environment.
- *
- * Next navigation requires an App Router context that component tests do not
- * mount. The shared navigation stub records destinations while preserving the
- * locale behavior those tests assert.
- */
-
-/**
- * jsdom implements none of these, and Radix's dropdowns, dialogs and sheets
- * call all of them. Without the stubs every menu test fails on the
- * environment rather than on the component.
- */
 if (!window.matchMedia) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: false,
@@ -35,11 +22,6 @@ if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = vi.fn();
 }
 
-/**
- * Radix's Select drives its trigger with Pointer Events, which jsdom does not
- * implement. Without these the menu never opens and every test about choosing
- * a role fails on the environment rather than on the component.
- */
 for (const method of [
   'hasPointerCapture',
   'setPointerCapture',
@@ -58,20 +40,9 @@ if (!window.ResizeObserver) {
   } as unknown as typeof ResizeObserver;
 }
 
-/**
- * No test reaches the network.
- *
- * The application makes exactly one kind of `fetch` — the archived-organization
- * read through `lib/application-api` — and a test that hit it for real would
- * be slow, flaky and dependent on a running backend. Failing loudly here is
- * better than a request that quietly resolves against whatever is listening on
- * the developer's machine. Tests that care about that call replace the module.
- */
 vi.stubGlobal(
   'fetch',
-  vi.fn(() =>
-    Promise.reject(new Error('Network access is disabled in tests')),
-  ),
+  vi.fn(() => Promise.reject(new Error('Network access is disabled in tests'))),
 );
 
 afterEach(() => {

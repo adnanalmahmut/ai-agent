@@ -50,34 +50,12 @@ import {
   type TestUser,
 } from '../../support/auth-harness';
 
-/**
- * MCP as an adapter, proved over real HTTP against a real database.
- *
- * The protocol mechanics are the unit suite's subject. Everything here is an
- * *authority* claim, and every one of them is a claim that cannot be made
- * anywhere else: whether a predicate actually scopes, whether a guard actually
- * refuses, whether a proposal actually stops at a durable row. The load-bearing
- * one is the last block — an MCP client cannot send a notification, and the
- * only thing that could prove otherwise is a provider double that records
- * every call it receives.
- */
-
 const AGENT_ID = 'mcp-adapter-test-agent';
 const KNOWLEDGE_REF = 'knowledge.search@1';
 const NOTIFY_REF = 'notification.send@1';
-/** A real slug from the code-owned taxonomy: the policy resolves against it. */
 const SPACE = 'brand.voice';
 const MODEL = 'text-embedding-3-small';
 
-/**
- * A test-only definition that may be granted both tools.
- *
- * Not registered in the production catalog, and deliberately so: MCP-01 proves
- * the adapter without inventing a product agent whose only purpose is to have
- * tools. `content-project-handoff@1` is DEMO-01's, and until it exists no
- * production definition grants anything at all — which is exactly why this
- * suite has to supply its own.
- */
 const mcpAgent = (version: number): AgentDefinition => ({
   id: AGENT_ID,
   version,
@@ -102,16 +80,9 @@ const DEFINITIONS = [mcpAgent(1)] as const;
 
 const ENABLED_FLAGS = ['agents.enabled', 'mcp.enabled'] as const;
 
-/** A unit vector on one axis, so "which is closer" is unambiguous. */
 const axis = (index: number): number[] =>
   Array.from({ length: EMBEDDING_DIMENSIONS }, (_, i) => (i === index ? 1 : 0));
 
-/**
- * A provider double that records every call.
- *
- * Its whole purpose is the negative claim: if MCP could reach a provider, this
- * array would not be empty.
- */
 class RecordingDelivery implements NotificationDelivery {
   readonly idempotent = true;
   readonly sender = 'Acme <no-reply@example.test>';
@@ -149,17 +120,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
   let recipient: TestUser;
   let outsider: TestUser;
   let superAdmin: TestUser;
-  /**
-   * A pool of session-opening admins.
-   *
-   * `POST /mcp-sessions` is metered at 30 requests per five minutes per user,
-   * which is a real production bound on an endpoint that takes an in-flight
-   * slot and can spend on every later call. It is not loosened to fit a test
-   * suite — so a file that opens more than thirty sessions has to spread them,
-   * exactly as the content-idea suite spreads its billed requests. Whose
-   * session it is only matters in the block that asserts it, and that block
-   * names its users explicitly.
-   */
   let openers: TestUser[];
   let nextOpener = 0;
   let organizationId: string;
@@ -170,17 +130,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
 
   const ownedOrganizationIds: string[] = [];
 
-  /**
-   * Every session this test opened, so it can be released.
-   *
-   * A session holds one of the organization's in-flight run slots until it is
-   * closed or expires — the deliberate consequence of modelling it as an
-   * `AgentRun`, and the reason the operator ceiling applies to it at all. The
-   * default ceiling is ten, so a suite that opens thirty sessions and closes
-   * none is refused partway through by the very bound it is supposed to
-   * respect. Released between tests rather than at the end, because the
-   * ceiling is a *concurrency* limit.
-   */
   const openRunIds: string[] = [];
 
   const base = (org = organizationId) =>
@@ -216,7 +165,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
     expect(accepted.status).toBe(200);
   };
 
-  /** Installs the agent with exactly the grants a case needs. */
   const install = async (org: string, toolGrants: readonly string[]) => {
     const installed = await harness.app
       .get(OrganizationAgentInstallationService)
@@ -235,14 +183,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
     return installed.id;
   };
 
-  /**
-   * Publishes a new immutable version with a different grant selection.
-   *
-   * The revision is read rather than remembered: `replace` is a
-   * compare-and-set on the installation pointer, so it refuses a caller
-   * holding a stale revision — which is the behaviour that makes a published
-   * version immutable, and not something to work around.
-   */
   const regrant = async (toolGrants: readonly string[]) => {
     const { revision } =
       await harness.prisma.organizationAgentInstallation.findUniqueOrThrow({
@@ -298,27 +238,18 @@ describe('MCP as an adapter over the governed tool gateway', () => {
     expect(written).toBe(true);
   };
 
-  /** The next admin in the pool, so no single user hits its own budget. */
   const opener = (): TestUser => {
     const user = openers[nextOpener % openers.length];
     nextOpener += 1;
     return user;
   };
 
-  /**
-   * A session opened by whichever pooled admin is next.
-   *
-   * Returned together with its user, because every later request in the same
-   * test has to come from the member who opened it — that is the rule under
-   * test elsewhere, so it has to hold here too.
-   */
   const openSession = async (org = organizationId) => {
     const user = opener();
     const { runId } = await open(user, org);
     return { user, runId };
   };
 
-  /** Opens a session and returns its run id. */
   const open = async (
     user: TestUser,
     org = organizationId,
@@ -337,30 +268,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
     return data;
   };
 
-  /**
-   * A real MCP client speaking to the real endpoint.
-   *
-   * The transport is the client SDK's own, with `fetch` pointed at supertest so
-   * the request travels through Nest — the guard, the session lookup, the
-   * gateway — rather than around it. Anything this client can do, a real MCP
-   * client can do.
-   */
-  /**
-   * A real MCP client speaking to the real endpoint.
-   *
-   * The transport is the client SDK's own, with `fetch` routed through
-   * supertest so every request travels through Nest — the guard, the session
-   * lookup, the gateway — rather than around it. Anything this client can do,
-   * a real MCP client can do, and anything it cannot do is a refusal the
-   * application actually made.
-   *
-   * `mode: 'auto'` because the v2 client defaults to `'legacy'`, and the point
-   * of this suite is the protocol revision the deployment actually serves. The
-   * headers have to be copied out of a `Headers` instance rather than spread:
-   * the SDK sends `Accept: application/json, text/event-stream`, and a
-   * transport that dropped it would be refused `406` before reaching anything
-   * this suite is about.
-   */
   const clientFor = async (
     user: TestUser,
     runId: string,
@@ -399,12 +306,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
             }
           }
 
-          /**
-           * The SDK always sends a JSON string body, so it is parsed back and
-           * handed to supertest as an object — which is what makes the
-           * application's own JSON parsing, and its `@Body()` binding, part of
-           * what this suite exercises.
-           */
           const body =
             typeof init?.body === 'string'
               ? (JSON.parse(init.body) as object)
@@ -434,10 +335,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
 
     harness = await createHarness({
       definitions: DEFINITIONS,
-      /**
-       * Deterministic vectors, and the reason CI never reaches a provider. The
-       * query embeds onto the same axis as the organization's own chunk.
-       */
       embeddings: {
         model: MODEL,
         dimensions: EMBEDDING_DIMENSIONS,
@@ -495,9 +392,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
   afterEach(async () => {
     if (openRunIds.length === 0) return;
 
-    // Written directly rather than through the endpoint: releasing a slot is
-    // fixture teardown, and routing it through HTTP would spend the per-user
-    // budget that the assertions themselves need.
     await harness.prisma.agentRun.updateMany({
       where: { id: { in: openRunIds }, status: 'RUNNING' },
       data: {
@@ -522,8 +416,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
         where: { organizationId: { in: ownedOrganizationIds } },
       });
     } finally {
-      // Always, so a cleanup fault cannot leave the Nest app and its pools open
-      // and hang the run.
       await harness.close();
     }
   });
@@ -555,18 +447,9 @@ describe('MCP as an adapter over the governed tool gateway', () => {
         agentVersion: 1,
       });
       expect(run.startedAt).not.toBeNull();
-      // Pinned at acceptance, which is what makes the grant set immutable for
-      // this session however the installation changes later.
       expect(run.organizationAgentVersionId).not.toBeNull();
     });
 
-    /**
-     * No queue intent, which is the durable form of "the worker must never
-     * execute this".
-     *
-     * `AgentRuntimeRegistry.resolve('mcp')` would also throw, but that is a
-     * second line of defence. The first is that no job is ever published.
-     */
     it('publishes no queue intent for a session', async () => {
       const { runId } = await openSession();
 
@@ -663,11 +546,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       await close();
     });
 
-    /**
-     * The other organization granted only knowledge, and that is what its
-     * session sees. An absent grant is an absent tool, not a tool that
-     * refuses — the model is never told a capability exists.
-     */
     it('omits a tool the organization did not grant', async () => {
       const session = await open(outsider, otherOrganizationId);
       const { client, close } = await clientFor(
@@ -707,14 +585,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       await close();
     });
 
-    /**
-     * A grant changed after acceptance does not reach an open session.
-     *
-     * The session reads the immutable `OrganizationAgentVersion` it pinned,
-     * not the installation's current one. Publishing a narrower version while
-     * a session is open is exactly the case where reading the live
-     * installation would silently change what an accepted run may do.
-     */
     it('is unaffected by a grant change made after acceptance', async () => {
       const { user, runId } = await openSession();
 
@@ -723,14 +593,12 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       try {
         const { client, close } = await clientFor(user, runId);
 
-        // Still both, because the run pinned the version that granted both.
         expect(
           (await client.listTools()).tools.map((t) => t.name).sort(),
         ).toEqual(['knowledge_search_v1', 'notification_send_v1']);
 
         await close();
 
-        // And a session opened now sees the narrowed set.
         const narrowed = await openSession();
         const after = await clientFor(narrowed.user, narrowed.runId);
 
@@ -771,7 +639,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
         },
       });
 
-      // One row, through the same service the Mastra path writes with.
       expect(executions).toEqual([
         {
           status: 'SUCCEEDED',
@@ -785,15 +652,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       await close();
     });
 
-    /**
-     * The claim a unit test cannot make: the predicate scopes.
-     *
-     * The other organization's chunk sits on the same axis as this query, so
-     * an unscoped or post-filtered retrieval would return it. The caller
-     * supplies only a query string — there is no organization parameter to
-     * get wrong, which is the design — so this proves the *closure* carries
-     * the tenant.
-     */
     it('cannot read another organization’s material', async () => {
       const session = await open(outsider, otherOrganizationId);
       const { client, close } = await clientFor(
@@ -814,13 +672,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       await close();
     });
 
-    /**
-     * There is no argument through which a caller can name a tenant.
-     *
-     * The application's own input schema is `.strict()`, and it is the schema
-     * the protocol publishes, so an extra property is refused before the
-     * closure runs rather than ignored.
-     */
     it('refuses an attempt to widen scope through tool arguments', async () => {
       const { user, runId } = await openSession();
       const { client, close } = await clientFor(user, runId);
@@ -840,9 +691,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
     });
   });
 
-  /**
-   * The load-bearing block. Everything else is scaffolding for this.
-   */
   describe('a side-effecting tool through MCP', () => {
     it('can only propose, and reaches no provider', async () => {
       const { user, runId } = await openSession();
@@ -857,7 +705,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
         },
       });
 
-      // What the caller is told is exactly what a Mastra run is told.
       expect(result.isError).toBeFalsy();
       expect(result.structuredContent).toEqual({
         status: 'awaiting_approval',
@@ -875,7 +722,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(execution.status).toBe('AWAITING_APPROVAL');
       expect(execution.approval?.status).toBe('PENDING');
 
-      // The negative claim, stated as evidence rather than as reasoning.
       expect(delivery.calls).toEqual([]);
 
       await close();
@@ -917,15 +763,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(delivery.calls).toEqual([]);
     });
 
-    /**
-     * An approved MCP proposal is delivered by ACT-01's worker, unchanged.
-     *
-     * The handler is constructed here rather than mocked, and it is the same
-     * class the worker registers. The idempotency key is asserted to equal
-     * `idempotencyKeyFor(row)` — the derivation ACT-01 owns — because "MCP
-     * uses the same effect path" is only true if the key a provider would
-     * deduplicate on is the same one.
-     */
     it('is delivered by the same worker path, under the same idempotency key', async () => {
       const { user, runId } = await openSession();
       const { client, close } = await clientFor(user, runId);
@@ -953,8 +790,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
 
       expect(approved.status).toBe(201);
 
-      // Nothing has left yet: approval commits an outbox event, and the worker
-      // is what performs the effect.
       expect(delivery.calls).toEqual([]);
 
       const handler = new SideEffectExecutionHandler(
@@ -981,7 +816,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(settled.status).toBe('SUCCEEDED');
       expect(settled.providerMessageId).not.toBeNull();
 
-      // And a redelivery performs no second external effect.
       await handler.handle(job(execution.id, organizationId));
       expect(delivery.calls).toHaveLength(1);
     });
@@ -995,8 +829,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
         .post(`${base()}/${session.runId}/mcp`)
         .send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
 
-      // Not 403: an id is not a capability, and a refusal must not confirm
-      // that somebody else's session exists.
       expect(response.status).toBe(404);
     });
 
@@ -1018,13 +850,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(response.status).toBe(404);
     });
 
-    /**
-     * A worker run's id is not a session id.
-     *
-     * Without the runtime predicate this would be a way to drive a run Mastra
-     * owns — writing tool executions against an attempt whose transcript
-     * nobody is keeping.
-     */
     it('refuses a run that is not an MCP session', async () => {
       const workerRun = await harness.prisma.agentRun.create({
         data: {
@@ -1091,7 +916,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       });
     });
 
-    /** An admin in the same organization can close to recover capacity. */
     it('allows another admin of the same organization to close the session', async () => {
       const session = await open(owner);
 
@@ -1125,11 +949,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(response.status).toBe(404);
     });
 
-    /**
-     * An expired session is closed by the request that discovers it, not
-     * merely refused — otherwise the row would say `RUNNING` forever while
-     * every request refused it.
-     */
     it('closes an expired session and refuses the exchange', async () => {
       const { user, runId } = await openSession();
 
@@ -1158,16 +977,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
   });
 
   describe('the cost of a session', () => {
-    /**
-     * The bound the gateway cannot enforce, enforced durably.
-     *
-     * `MAX_TOOL_INVOCATIONS_PER_ATTEMPT` lives inside one `authorize()` call,
-     * and an MCP session authorizes once per HTTP request — so without this
-     * ceiling a session would receive a fresh budget on every request and
-     * could make an unbounded number of paid embedding calls. The rows are
-     * written directly rather than by making forty-eight real calls, because
-     * what is under test is the predicate, not the arithmetic.
-     */
     it('refuses a tool call once the session has spent its budget', async () => {
       const { user, runId } = await openSession();
 
@@ -1192,7 +1001,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
 
       expect(result.isError).toBe(true);
 
-      // Refused, so nothing durable was added and no embedding was paid for.
       const count = await harness.prisma.toolExecution.count({
         where: { agentRunId: runId },
       });
@@ -1201,27 +1009,9 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       await close();
     });
 
-    /**
-     * A session consumes one of the organization's in-flight run slots.
-     *
-     * This is the deliberate consequence of modelling a session as an
-     * `AgentRun`, and it is asserted rather than merely documented because it
-     * is the kind of tradeoff a later change could remove by accident — at
-     * which point an organization could hold unlimited open sessions, each
-     * able to spend.
-     */
     it('counts against the organization’s in-flight ceiling', async () => {
       const settings = harness.app.get(RuntimeSettingService);
 
-      /**
-       * Measured rather than assumed to be zero.
-       *
-       * Another case in this file deliberately leaves a `mastra` run
-       * `RUNNING`, to prove a worker run's id is not a session id — and that
-       * run holds a slot too, which is the whole point of the ceiling. So the
-       * bound is set relative to what is already in flight: one more session
-       * fits, and the one after it must not.
-       */
       const inFlight = await harness.prisma.agentRun.count({
         where: { organizationId, status: { in: ['QUEUED', 'RUNNING'] } },
       });
@@ -1253,14 +1043,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
   });
 
   describe('transport and operator boundaries', () => {
-    /**
-     * Exact origin validation.
-     *
-     * The specification requires a streamable-HTTP server to validate Origin.
-     * Reusing the deployment's trusted origins (scheme + hostname + effective port)
-     * prevents DNS rebinding and cross-origin request forgery across different schemes
-     * or ports on the same host, while allowing non-browser clients that send no Origin.
-     */
     it('allows a request carrying an exact trusted origin', async () => {
       const { user, runId } = await openSession();
       const { client, close } = await clientFor(user, runId, organizationId, {
@@ -1314,7 +1096,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       });
     });
 
-    /** A non-browser MCP client sends no `Origin`, and must not be refused. */
     it('allows a request with no origin at all', async () => {
       const { user, runId } = await openSession();
       const { client, close } = await clientFor(user, runId);
@@ -1340,9 +1121,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
           .post(`${base()}/${runId}/mcp`)
           .send({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} });
 
-        // The switch reaches an already-open session, which is the point: a
-        // feature gate that only guarded acceptance would leave every live
-        // session spending after an operator had stopped the feature.
         expect(response.status).toBe(403);
       } finally {
         await flags.setOrganizationOverride({
@@ -1354,14 +1132,6 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       }
     });
 
-    /**
-     * The session's credential never enters the protocol SDK.
-     *
-     * Asserted through the durable evidence available to a test: the exchange
-     * succeeds while the forwarded header set excludes `cookie`, so the SDK
-     * cannot be relaying one. The allowlist itself is unit-tested; this proves
-     * a real request still works under it.
-     */
     it('serves an exchange without forwarding the session cookie', async () => {
       const { user, runId } = await openSession();
       const { client, close } = await clientFor(user, runId);

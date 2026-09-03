@@ -46,7 +46,6 @@ describe('registering', () => {
         name: 'Sara Haddad',
         email: 'sara@example.com',
         password: 'a-good-password',
-        // Without this, Better Auth points the emailed link at the API host.
         callbackURL:
           'http://localhost:3000/platform/en/verify-email?status=verified',
       });
@@ -54,8 +53,6 @@ describe('registering', () => {
   });
 
   it('does not pretend the user is signed in', async () => {
-    // The backend requires email verification, so registration creates a user
-    // and no session. Navigating to the dashboard would land on a redirect.
     renderWithProviders(<SignUpBlock />);
 
     await register();

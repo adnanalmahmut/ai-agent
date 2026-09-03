@@ -2,23 +2,6 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 import { DEFAULT_LOCALE } from '@repo/i18n-core';
-/**
- * Locates the translation directory for the *running* build.
- *
- * This is deliberately not a single hard-coded relative path, because the
- * directory differs between the three ways this code runs:
- *
- * - production/dev build — sources emit to `dist/src/core/…` (a root-level
- *   `prisma.config.ts` widens the TypeScript root) while `nest-cli.json`
- *   copies the JSON to `dist/i18n`;
- * - the ESM test transform — where `__dirname` does not exist at all;
- * - a plain source run.
- *
- * A path that guessed wrong would still boot happily and only show up in
- * production as every message silently degrading to its raw key. So: try the
- * layouts this project can actually produce, and fail loudly if none of them
- * holds real translation files.
- */
 export function resolveTranslationsPath(moduleDir?: string): string {
   // `moduleDir` is absent only when the code runs straight from TypeScript
   // (Jest's ESM transform, ts-node). That is also the signal for *which tree
@@ -55,10 +38,6 @@ export function resolveTranslationsPath(moduleDir?: string): string {
   return found;
 }
 
-/**
- * `__dirname` exists in the CommonJS output that `nest build` produces, but
- * not under the ESM transform Jest applies to TypeScript sources.
- */
 export function currentModuleDir(): string | undefined {
   return typeof __dirname === 'undefined' ? undefined : __dirname;
 }

@@ -1,10 +1,3 @@
-/**
- * Process lifecycle: readiness state and the shutdown sequence that flips it.
- *
- * One suite because they are one process concept — readiness is what the
- * shutdown sequence turns off first, and the probe contract only makes sense
- * next to the drain that drives it.
- */
 import {
   afterEach,
   beforeEach,
@@ -29,11 +22,6 @@ describe('ProcessReadiness', () => {
     readiness = new ProcessReadiness();
   });
 
-  /**
-   * A process that reported ready before it finished starting would be sent
-   * traffic it cannot serve — which is the failure a readiness probe exists to
-   * prevent, reintroduced by the initial value.
-   */
   it('starts not ready', () => {
     expect(readiness.status).toBe('starting');
     expect(readiness.isReady).toBe(false);
@@ -56,11 +44,6 @@ describe('ProcessReadiness', () => {
     expect(readiness.isDraining).toBe(true);
   });
 
-  /**
-   * `SIGTERM` is not retractable. A process that re-advertised itself mid-drain
-   * would be sent work it has already given up the means to finish — and with
-   * a boolean flag that call is a single assignment away.
-   */
   it('never returns to ready once draining', () => {
     readiness.markReady();
     readiness.markDraining();
@@ -76,11 +59,6 @@ describe('ProcessReadiness', () => {
     expect(readiness.status).toBe('draining');
   });
 
-  /**
-   * Both read as "not ready" to a probe, but they are opposite situations for
-   * whoever is watching a rollout: one resolves by waiting and the other never
-   * will.
-   */
   it('distinguishes starting from draining', () => {
     expect(new ProcessReadiness().status).toBe('starting');
 
@@ -131,17 +109,9 @@ describe('runShutdownSequence', () => {
       { logger: silent, timeoutMs: 5_000 },
     );
 
-    // Overlapping them would mean closing a queue while a dispatcher was still
-    // publishing to it — the exact hazard the ordering exists to prevent.
     expect(order).toEqual(['slow', 'fast']);
   });
 
-  /**
-   * The steps most likely to throw are the ones whose resource is already
-   * unreachable — `quit()` on a dead Redis, a queue close against a refused
-   * connection. Propagating that would strand the Prisma disconnect behind it,
-   * which is the step that actually matters.
-   */
   it('continues past a step that throws, and reports it', async () => {
     const after = jest.fn<() => void>();
 
@@ -181,10 +151,6 @@ describe('runShutdownSequence', () => {
     expect(outcome.failed).toEqual(['broken']);
   });
 
-  /**
-   * A hung sequence is worse than a failed one: the orchestrator's `SIGKILL`
-   * lands at an arbitrary point instead of the process stopping on its own.
-   */
   it('fires the deadline when the sequence overruns', async () => {
     const onTimeout = jest.fn();
 
@@ -209,8 +175,6 @@ describe('runShutdownSequence', () => {
       { logger: silent, timeoutMs: 1_000, onTimeout },
     );
 
-    // Deliberately longer than the sequence took, to prove the watchdog is
-    // cleared rather than merely outrun.
     await new Promise((resolve) => setTimeout(resolve, 60));
 
     expect(onTimeout).not.toHaveBeenCalled();
@@ -224,15 +188,6 @@ describe('runShutdownSequence', () => {
   });
 });
 
-/**
- * One deadline for the process, shared by every bounded wait inside it.
- *
- * The alternative — each component holding its own full grace period — promises
- * more time than the process has. A worker with a 25-second dispatcher grace and
- * a 25-second drain grace inside a 30-second deadline cannot honour both, and
- * finds out only when the orchestrator kills it part-way through closing a
- * connection.
- */
 describe('the shutdown budget', () => {
   const budgetOf = async (
     timeoutMs: number,
@@ -288,10 +243,6 @@ describe('the shutdown budget', () => {
     expect(budget.remaining()).toBe(0);
   });
 
-  /**
-   * `min(componentMax, remaining - reserve)`. The component's configured grace
-   * is a ceiling, not an entitlement.
-   */
   it('caps a component by its own maximum when the budget is ample', async () => {
     const budget = await budgetOf(60_000, () => undefined);
 
@@ -307,11 +258,6 @@ describe('the shutdown budget', () => {
     expect(budget.allow(25_000)).toBeGreaterThan(0);
   });
 
-  /**
-   * The reserve is what stops a draining step from spending the allowance that
-   * closing connections needs. Without it, a dispatcher and a worker that each
-   * used their full grace would reach the closing steps with an expired deadline.
-   */
   it('withholds the reserve from what a component may wait for', async () => {
     const budget = await budgetOf(10_000, () => undefined);
 
@@ -326,16 +272,9 @@ describe('the shutdown budget', () => {
       await new Promise((resolve) => setTimeout(resolve, 60));
     });
 
-    // The reserve is larger than anything that can be left: the component is
-    // told to wait for nothing, which forces an immediate forced close rather
-    // than a wait the process cannot afford.
     expect(budget.allow(25_000, 60_000)).toBe(0);
   });
 
-  /**
-   * The invariant the whole mechanism exists for, asserted end to end: two
-   * components that each *want* the full deadline cannot between them exceed it.
-   */
   it('keeps two greedy sequential waits inside the one deadline', async () => {
     const TOTAL = 400;
     const RESERVE = 100;
@@ -359,10 +298,8 @@ describe('the shutdown budget', () => {
 
     const elapsed = Date.now() - startedAt;
 
-    // The first takes TOTAL - RESERVE; the second gets only what is left.
     expect(waited[0]).toBeLessThanOrEqual(TOTAL - RESERVE);
     expect(waited[1]).toBeLessThan(waited[0]);
-    // Generous scheduling tolerance; the assertion is "bounded", not "exact".
     expect(elapsed).toBeLessThan(TOTAL + 200);
   });
 });
@@ -384,12 +321,6 @@ describe('onTerminationSignal', () => {
     expect(handler).toHaveBeenCalledWith('SIGUSR2');
   });
 
-  /**
-   * An orchestrator that considers a process slow sends a second `SIGTERM`, and
-   * an operator who considers it stuck sends several more. Without the guard,
-   * each starts a fresh concurrent sequence closing the same connections — so a
-   * shutdown that was merely slow becomes one that fails.
-   */
   it('ignores every signal after the first', () => {
     const handler = jest.fn();
     dispose = onTerminationSignal(handler, ['SIGUSR2']);

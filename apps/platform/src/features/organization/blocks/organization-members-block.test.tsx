@@ -8,8 +8,17 @@ import {
   fail,
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
-import { navigateSpy, resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
-import { context, member, organization, VIEWER_ID } from '@/test/organization-fixtures';
+import {
+  navigateSpy,
+  resetNavigationStub,
+  revalidateSpy,
+} from '@/test/navigation-stub';
+import {
+  context,
+  member,
+  organization,
+  VIEWER_ID,
+} from '@/test/organization-fixtures';
 import { renderInOrganization } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
@@ -19,7 +28,8 @@ vi.mock('@/features/auth/auth-client', async () => {
 
 vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
 
-const { OrganizationMembersBlock } = await import('./organization-members-block');
+const { OrganizationMembersBlock } =
+  await import('./organization-members-block');
 
 const OTHER = member({
   id: 'member_other',
@@ -42,18 +52,20 @@ beforeEach(() => {
 
 describe('the member list', () => {
   it('shows everybody in the organization', () => {
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
-    // Twice each: the table for wide screens and the card list for narrow
-    // ones are both in the DOM, and CSS decides which one is seen.
     expect(screen.getAllByText('Sara Haddad')).toHaveLength(2);
     expect(screen.getAllByText('Omar Nassar')).toHaveLength(2);
   });
 
   it('renders a real table on wide screens, with column headers', () => {
-    // The header row is what makes the table navigable by screen reader; a
-    // grid of divs would look identical and announce nothing.
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     expect(
       screen.getByRole('columnheader', { name: 'Member' }),
@@ -66,8 +78,6 @@ describe('the member list', () => {
   it('shows a role as plain text when the reader cannot change it', () => {
     renderInOrganization(<OrganizationMembersBlock />, context());
 
-    // A disabled select would invite the reader to work out why it is
-    // disabled. There is nothing to work out: the role is information here.
     expect(screen.queryAllByRole('combobox')).toHaveLength(0);
     expect(screen.getAllByText('Owner').length).toBeGreaterThan(0);
   });
@@ -77,7 +87,10 @@ describe('changing a role', () => {
   beforeEach(() => allow('member:update'));
 
   it('offers a picker per member, labelled by who it is for', () => {
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     expect(
       screen.getAllByRole('combobox', { name: 'Role for Omar Nassar' }).length,
@@ -86,7 +99,10 @@ describe('changing a role', () => {
 
   it('sends the change to the server and revalidates', async () => {
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     const picker = screen.getAllByRole('combobox', {
       name: 'Role for Omar Nassar',
@@ -100,11 +116,13 @@ describe('changing a role', () => {
     );
 
     await waitFor(() =>
-      expect(authClientStub.organization.updateMemberRole).toHaveBeenCalledWith({
-        organizationId: 'org_1',
-        memberId: 'member_other',
-        role: 'admin',
-      }),
+      expect(authClientStub.organization.updateMemberRole).toHaveBeenCalledWith(
+        {
+          organizationId: 'org_1',
+          memberId: 'member_other',
+          role: 'admin',
+        },
+      ),
     );
 
     expect(revalidateSpy).toHaveBeenCalled();
@@ -116,7 +134,10 @@ describe('changing a role', () => {
     );
 
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     const picker = screen.getAllByRole('combobox', {
       name: 'Role for Omar Nassar',
@@ -142,7 +163,10 @@ describe('removing a member', () => {
 
   it('asks before doing it', async () => {
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     await user.click(screen.getAllByRole('button', { name: 'Remove' })[0]!);
 
@@ -154,7 +178,10 @@ describe('removing a member', () => {
 
   it('says plainly that nothing they made is deleted', async () => {
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     await user.click(screen.getAllByRole('button', { name: 'Remove' })[0]!);
 
@@ -165,7 +192,10 @@ describe('removing a member', () => {
 
   it('removes on confirmation', async () => {
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     await user.click(screen.getAllByRole('button', { name: 'Remove' })[1]!);
     await user.click(
@@ -181,11 +211,11 @@ describe('removing a member', () => {
   });
 
   it('calls the reader’s own removal leaving, and takes them out', async () => {
-    // Removing yourself is allowed, and afterwards every endpoint for this
-    // organization refuses you — so staying on the page would mean watching
-    // it fail to reload.
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     await user.click(screen.getAllByRole('button', { name: 'Leave' })[0]!);
     await user.click(
@@ -201,7 +231,10 @@ describe('removing a member', () => {
 
   it('stays put when somebody else is removed', async () => {
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     await user.click(screen.getAllByRole('button', { name: 'Remove' })[0]!);
     await user.click(
@@ -213,39 +246,37 @@ describe('removing a member', () => {
   });
 
   it('surfaces the last-owner rule rather than pre-empting it', async () => {
-    // The server owns that rule. Hiding the control would encode a copy of it
-    // in the browser that could drift.
     authClientStub.organization.removeMember.mockResolvedValue(
       fail('YOU_CANNOT_LEAVE_THE_ORGANIZATION_AS_THE_ONLY_OWNER', 400),
     );
 
     const user = userEvent.setup();
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     await user.click(screen.getAllByRole('button', { name: 'Leave' })[0]!);
     await user.click(
       await screen.findByRole('button', { name: 'Leave organization' }),
     );
 
-    expect(
-      await screen.findByText(/at least one owner/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/at least one owner/)).toBeInTheDocument();
   });
 });
 
 describe('without permission', () => {
   it('offers neither control', () => {
-    // The gate is UX. The server refuses either way; this only avoids showing
-    // a door that opens onto a 403.
-    renderInOrganization(<OrganizationMembersBlock />, context({ organization: twoMembers }));
+    renderInOrganization(
+      <OrganizationMembersBlock />,
+      context({ organization: twoMembers }),
+    );
 
     expect(screen.queryByRole('button', { name: 'Remove' })).toBeNull();
     expect(screen.queryByRole('combobox')).toBeNull();
   });
 
   it('asks about the viewer’s membership in *this* organization', () => {
-    // Not the active one. A reader with organization A selected while reading
-    // organization B must be judged by their role in B.
     renderInOrganization(
       <OrganizationMembersBlock />,
       context({

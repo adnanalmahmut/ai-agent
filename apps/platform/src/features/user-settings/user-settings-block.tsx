@@ -32,7 +32,6 @@ export function UserSettingsBlock() {
     <div className="space-y-6">
       <PageHeader title={t('title')} description={t('description')} />
 
-      {/* Segmented Tab Control */}
       <nav aria-label={t('tabs.label')} className="overflow-x-auto py-1">
         <div className="inline-flex items-center gap-1 rounded-lg bg-secondary/70 p-1 border border-border/40 shadow-2xs">
           {tabs.map(({ id, label, Icon }) => {
@@ -51,7 +50,10 @@ export function UserSettingsBlock() {
                 )}
               >
                 <Icon
-                  className={cn('size-3.5', isActive ? 'text-primary' : 'text-muted-foreground')}
+                  className={cn(
+                    'size-3.5',
+                    isActive ? 'text-primary' : 'text-muted-foreground',
+                  )}
                   aria-hidden
                 />
                 {label}

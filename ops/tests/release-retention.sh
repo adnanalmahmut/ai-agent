@@ -5,12 +5,8 @@ set -eu
 # store: repositories, identities, RepoDigests, containers holding images, and
 # removal that refuses while a container references an image.
 #
-# The identity model is the one proven empirically on 2026-08-26 against Docker
-# 29.7.2 and the real published release images. The digest a release record
-# holds is an OCI *index* digest; the platform manifest digest inside that index
-# is a different value that does not resolve as a local image. The stub models
-# both, so a script that ever compared a recorded digest against a platform
-# manifest digest fails here rather than on a host.
+# A release record holds an OCI index digest, not its nested platform manifest
+# digest. The stub models both identities so confusing them fails locally.
 #
 # Every refusal is probed: the guard is removed, the suite must fail, and the
 # guard is restored. A refusal no test can make fail is indistinguishable from

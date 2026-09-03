@@ -14,12 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model KnowledgeSpace
- * A named collection of documents inside one organization.
  * 
- * Spaces exist so an agent can be pointed at *some* of an organization's
- * material rather than all of it: `content-idea@1` reads brand and product
- * notes and has no business reading a support archive. The set an agent may
- * see is declared in its code-owned context policy, not chosen at call time.
  */
 export type KnowledgeSpaceModel = runtime.Types.Result.DefaultSelection<Prisma.$KnowledgeSpacePayload>
 
@@ -757,11 +752,6 @@ export type $KnowledgeSpacePayload<ExtArgs extends runtime.Types.Extensions.Inte
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     organizationId: string
-    /**
-     * Stable, human-written, and unique within the organization. A context
-     * policy names spaces by slug, so a policy stays readable in code review
-     * and does not embed a uuid that differs per deployment.
-     */
     slug: string
     name: string
     createdAt: Date

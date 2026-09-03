@@ -14,12 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model OrganizationAgentInstallation
- * One code-owned agent installed inside one organization.
  * 
- * The mutable facts are only `revision` and the pointer to the current
- * immutable version. `activeVersionId` is nullable so the installation and its
- * first version can be created in one transaction; application-created
- * committed rows always point at a version.
  */
 export type OrganizationAgentInstallationModel = runtime.Types.Result.DefaultSelection<Prisma.$OrganizationAgentInstallationPayload>
 
@@ -857,10 +852,6 @@ export type $OrganizationAgentInstallationPayload<ExtArgs extends runtime.Types.
   name: "OrganizationAgentInstallation"
   objects: {
     organization: Prisma.$OrganizationPayload<ExtArgs>
-    /**
-     * The owning migration defers this foreign key to transaction commit so a
-     * replacement can win pointer CAS before inserting its immutable version.
-     */
     activeVersion: Prisma.$OrganizationAgentVersionPayload<ExtArgs> | null
     versions: Prisma.$OrganizationAgentVersionPayload<ExtArgs>[]
   }

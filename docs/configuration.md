@@ -1,104 +1,54 @@
 # Runtime configuration
 
-Configuration has four ownership boundaries. Values must remain at their
-owning boundary; this repository records names, validation, and flow only.
+Configuration belongs to four boundaries:
 
-| Boundary | Source of truth | Examples | Secret values allowed in Git? |
-|---|---|---|---|
-| Build/tooling | `package.json`, package manifests, `docker-bake.hcl` | Node/pnpm versions, build targets, `NEXT_PUBLIC_APP_NAME` | No |
-| Local/test | `apps/backend/.env.example`, CI job environment, Compose test defaults | throwaway test DB/auth/mail values | Only explicit non-live fixtures |
-| GitHub deployment metadata | `staging` Environment variables plus restricted deploy key secret | VPS host/user, pinned host key, public URL | Names/workflow references only |
-| VPS runtime | `/etc/ai-agent/runtime.env`, root-owned `0600` | database, Redis, Better Auth, mail, OAuth, MaxMind | Never |
+| Boundary             | Source of truth                                             | May contain live secrets in Git? |
+| -------------------- | ----------------------------------------------------------- | -------------------------------- |
+| Build/tooling        | package manifests and `docker-bake.hcl`                     | No                               |
+| Local/test           | `apps/backend/.env.example`, CI fixtures, Compose defaults  | Only explicit throwaway values   |
+| Deployment transport | GitHub Staging Environment variables and restricted SSH key | No runtime secrets               |
+| VPS runtime          | root-owned `/etc/ai-agent/runtime.env` (`0600`)             | Never committed or exposed       |
 
-Production Environment values do not currently exist because Production is not
-provisioned. The Production workflow documents the future contract only.
+Production configuration does not exist because Production is not provisioned.
+See [deployment state](deployment-state.md).
 
-## The control plane, and what may not move into it
+Backend environment values are parsed with Zod in
+`apps/backend/src/infrastructure/config/*.config.ts`. Missing or invalid
+active-provider values stop the relevant process at startup. The names-only VPS
+template is `ops/environments/runtime.env.example`; preflight checks values
+without printing them.
 
-Most operational values no longer require a deployment to change. They live in
-PostgreSQL and are edited by a `super_admin` through the Platform. Four kinds
-of value are involved and they are not interchangeable:
+Compose uses explicit per-service environment allowlists. It does not use
+`env_file`, so the worker and migration process do not inherit API-only
+credentials. Each frontend separates server-only and browser-safe settings
+under `src/config`; `NEXT_PUBLIC_*` values are compiled into an image and
+must not contain secrets.
 
-| Kind | Where it lives | Changed by | Example |
-|---|---|---|---|
-| Bootstrap | `/etc/ai-agent/runtime.env` | Operator, then restart | `DATABASE_URL`, `APP_ENCRYPTION_KEY`, `APP_ENCRYPTION_ACTIVE_KEY_VERSION` |
-| Dynamic setting | `runtime_setting` row, registered in code | `super_admin`, effective immediately | retrieval chunk limit |
-| Managed secret | `managed_secret` row, encrypted | `super_admin`, effective immediately | provider API key |
-| Versioned behavior | Code, in a versioned definition | A deployment, as a new version | an agent's prompt |
+## Control-plane values
 
-Bootstrap configuration cannot move. `DATABASE_URL` is what reaches the rows,
-and `APP_ENCRYPTION_KEY` is what decrypts them, so storing either beside them
-would be circular.
+| Kind               | Storage                   | Change model                        |
+| ------------------ | ------------------------- | ----------------------------------- |
+| Bootstrap          | VPS runtime environment   | operator change and process restart |
+| Runtime setting    | registered PostgreSQL row | immediate, schema-validated         |
+| Managed secret     | encrypted PostgreSQL row  | immediate, metadata readable        |
+| Versioned behavior | code-owned definition     | new version and deployment          |
 
-Versioned behavior must not move either, and the reason is subtler than it
-looks. A durable `AgentRun` accepted against version 1 must still execute
-version 1 when a worker picks it up, possibly after a rollout. A prompt in a
-mutable row cannot promise that: editing it silently changes the meaning of work
-that was already accepted. Changing behavior publishes a new version.
+Database connectivity and the key used to decrypt database values remain
+bootstrap configuration. Agent instructions, schemas, grants, and model policy
+remain versioned code so work already accepted cannot change meaning.
 
-Between those, a setting qualifies as dynamic only if it is registered in
-`apps/backend/src/features/control-plane/runtime-settings/runtime-setting.registry.ts`
-with a Zod schema, a default, a sensitivity, and — for anything numeric —
-bounds. An unregistered key cannot be written, so the Platform cannot create a
-setting nothing reads, and a value outside its bounds is refused rather than
-stored.
+Runtime settings must be registered with a schema, default, sensitivity, and
+numeric bounds where applicable. Unknown keys cannot be written.
 
-Managed secrets are encrypted with AES-256-GCM under a versioned keyring. No
-read surface returns one, not even masked, and none is ever placed into
-`process.env` — an adapter receives the plaintext directly at the point of use.
+Managed secrets use AES-256-GCM under a versioned keyring. No read surface
+returns plaintext or a masked derivative, and adapters receive plaintext
+directly rather than through `process.env`. The active key version is required.
+Older keys may be configured as decrypt-only entries while rows are migrated.
+Changing the active key does not re-encrypt stored values; use the
+[managed-secret rotation procedure](operations-runbook.md#managed-secret-key-rotation)
+before retiring an older key.
 
-`APP_ENCRYPTION_KEY` is the active key and `APP_ENCRYPTION_ACTIVE_KEY_VERSION`
-names it. Every new or replaced credential is sealed under that version and
-records it, so a read resolves the exact key that sealed the row rather than
-guessing at it. `APP_ENCRYPTION_DECRYPT_KEYS` optionally carries older versions
-as comma-separated `version=base64` pairs, decrypt-only, so rows written under a
-previous key stay readable while they are migrated. A row whose recorded
-version is not configured fails closed and reports as unusable; it is never
-retried with the active key.
-
-The active version is required, with no default. A deployment that omits it
-refuses at boot rather than picking a key on the operator's behalf, because a
-default here would mean ciphertext written under an identity nobody chose — and
-the whole point of recording a version is that a later key change can tell rows
-apart. Rows written before the keyring existed record no version at all; those
-resolve by fingerprint against exactly one configured key, which is a stated
-compatibility path rather than a fallback, and a row that *does* carry a version
-never reaches it.
-
-Changing the active key re-encrypts nothing by itself. Existing rows keep their
-recorded version and are still read with the older key for as long as it remains
-in `APP_ENCRYPTION_DECRYPT_KEYS`, and `managed-secret:rotate-key` migrates them.
-Retiring the old key is a separate, later decision — see
-[the operations runbook](operations-runbook.md#managed-secret-key-rotation).
-
-The first release carrying the keyring needs the version configured on the host
-*before* it deploys, and a host bundle new enough to pass it to the containers.
-See [the first version-aware release](operations-runbook.md#first-version-aware-encryption-release).
-
-## Validation and distribution
-
-- Backend configuration is parsed by Zod in
-  `apps/backend/src/infrastructure/config/*.config.ts`; required active-provider settings fail
-  at boot.
-- `ops/environments/runtime.env.example` is the authoritative names-only VPS
-  template. `ops/runtime-preflight.sh` validates it without printing values.
-- `docker-compose.yml` uses explicit per-service `environment` allowlists. It
-  deliberately does not use `env_file`, so worker and migration containers do
-  not inherit API-only credentials. The worker's allowlist includes the mail
-  driver values, and the worker parses `mailConfig` at boot, because it
-  performs approved agent notifications through the same driver.
-- Next.js `NEXT_PUBLIC_*` configuration is compiled into each frontend image.
-  It is not a runtime secret or a mutable VPS setting.
-- Next.js server/public separation lives under each frontend's `src/config/`.
-
-## Ownership rules
-
-- Application/runtime secrets are installed and rotated by the host operator.
-- The Staging GitHub Environment owns only deployment transport metadata and
-  its restricted SSH key.
-- Coding agents must not read, print, modify, or request live runtime values.
-- Adding an environment name requires updating the validating config,
-  names-only template, Compose allowlist, tests, and this document when
-  ownership changes.
-- Never solve a configuration problem by dumping an environment or copying a
-  live value into logs, issues, commits, prompts, or GitHub variables.
+When adding a backend environment name, update the validating config, example
+file, Compose allowlist, relevant tests, and this document if ownership changes.
+Never diagnose configuration by dumping an environment or reading the live
+runtime file.
