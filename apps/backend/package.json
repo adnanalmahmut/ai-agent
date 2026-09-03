@@ -12,12 +12,12 @@
     "dev": "nest start --watch",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/src/main",
+    "start:prod": "node dist/src/api/main",
     "worker": "nest start --entryFile workers/main",
     "worker:dev": "nest start --watch --entryFile workers/main",
     "worker:prod": "node dist/src/workers/main",
-    "cli": "node dist/src/cli",
-    "cli:dev": "nest start --entryFile cli --",
+    "cli": "node dist/src/cli/main",
+    "cli:dev": "nest start --entryFile cli/main --",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "typecheck": "tsc -p tsconfig.spec.json",
@@ -107,14 +107,14 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "rootDir": ".",
+    "testRegex": "test/(unit|integration)/.*\\.spec\\.ts$",
     "transform": {
       "^.+\\.ts$": [
         "ts-jest",
         {
           "useESM": true,
-          "tsconfig": "<rootDir>/../tsconfig.spec.json"
+          "tsconfig": "<rootDir>/tsconfig.spec.json"
         }
       ]
     },
@@ -125,9 +125,9 @@
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.(t|j)s"
     ],
-    "coverageDirectory": "../coverage",
+    "coverageDirectory": "coverage",
     "testEnvironment": "node"
   }
 }

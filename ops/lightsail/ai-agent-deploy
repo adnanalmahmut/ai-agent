@@ -354,7 +354,7 @@ case "${1:-}" in
     bootstrap_digest=$(digest_from_manifest "$current_release" backend)
     BACKEND_IMAGE="$registry/backend@sha256:$bootstrap_digest" \
       compose run --rm --interactive --tty --no-deps backend \
-      node dist/src/cli super-admin:create "$@"
+      node dist/src/cli/main super-admin:create "$@"
     ;;
   rotate-managed-secret-keys)
     # Re-encrypts stored managed secrets under the configured active key
@@ -381,7 +381,7 @@ case "${1:-}" in
     rotation_digest=$(digest_from_manifest "$current_release" backend)
     BACKEND_IMAGE="$registry/backend@sha256:$rotation_digest" \
       compose run --rm --no-deps backend \
-      node dist/src/cli managed-secret:rotate-key "$@"
+      node dist/src/cli/main managed-secret:rotate-key "$@"
     ;;
   *) die 'unsupported operation' ;;
 esac

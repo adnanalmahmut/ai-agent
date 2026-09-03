@@ -5,7 +5,7 @@ import { Test } from '@nestjs/testing';
 import request, { type Response } from 'supertest';
 import type { App } from 'supertest/types';
 
-import { AppModule } from '../../src/app.module';
+import { AppModule } from '../../src/api/app.module';
 import { httpConfig } from '../../src/infrastructure/config';
 import {
   GeoIpService,

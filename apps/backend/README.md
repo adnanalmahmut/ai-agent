@@ -18,7 +18,7 @@ pnpm dev
 pnpm worker:dev
 ```
 
-There is a third entrypoint, `src/cli.ts`, which runs one operator command and
+There is a third entrypoint, `src/cli/main.ts`, which runs one operator command and
 exits rather than serving anything. It creates the platform's first super
 administrator — the one action nothing inside the authorized surface can
 perform, because granting that role is itself a super-administrator action:
@@ -66,7 +66,7 @@ as a runtime failure later.
 
 ## Two processes
 
-| | `src/main.ts` (API) | `src/workers/main.ts` (Worker) |
+| | `src/api/main.ts` (API) | `src/workers/main.ts` (Worker) |
 |---|---|---|
 | Serves | HTTP, on `APP_PORT` | nothing; no listener |
 | Reads work from | requests | `outbox_event`, then BullMQ |
@@ -111,12 +111,10 @@ src/infrastructure/
 application exception and its stable codes. Feature modules live outside both
 technical layers.
 
-Each folder is flat: implementation files sit directly in it, `index.ts` is its
-public surface, and every `*.spec.ts` lives in a `__tests__/` subfolder beside
-them. A module is read by scanning its folder, so nothing that is not
-production code is allowed to appear in that scan. Whole-application tests are
-not part of a module and live in `test/e2e/`, with their shared harness in
-`test/support/`.
+Production folders contain production code only. Tests are classified by what
+they exercise under `test/unit/`, `test/integration/`, and `test/e2e/`; e2e
+suites are further grouped into platform, AI, and feature behavior. Shared test
+harnesses remain in `test/support/`.
 
 ## Where state lives
 
@@ -436,11 +434,11 @@ The e2e suites run against real Redis and PostgreSQL with per-run key
 namespaces, because the behaviour they assert is precisely what a mock would not
 reproduce:
 
-- `test/e2e/outbox.e2e-spec.ts` — `FOR UPDATE SKIP LOCKED`, database-clock leases,
+- `test/e2e/platform/outbox.e2e-spec.ts` — `FOR UPDATE SKIP LOCKED`, database-clock leases,
   conditional claim-version updates, and a crash window that performs a real
   `queue.add` before losing the acknowledgement.
-- `test/e2e/queue-drain.e2e-spec.ts` — BullMQ's fetch loop and lock handling.
-- `test/e2e/worker-shutdown.e2e-spec.ts` — the global deadline with a real active
+- `test/e2e/platform/queue-drain.e2e-spec.ts` — BullMQ's fetch loop and lock handling.
+- `test/e2e/platform/worker-shutdown.e2e-spec.ts` — the global deadline with a real active
   BullMQ job *and* a stuck outbox publication at the same time. The only
   injected part is the producer, since a real Redis cannot be made to hang on
   demand.

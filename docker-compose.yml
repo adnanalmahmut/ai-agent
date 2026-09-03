@@ -123,7 +123,7 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
       target: runtime
-    command: [node, dist/src/main]
+    command: [node, dist/src/api/main]
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       APP_PORT: 3002
@@ -206,7 +206,7 @@ services:
       context: .
       dockerfile: apps/backend/Dockerfile
       target: runtime
-    command: [node, dist/src/worker]
+    command: [node, dist/src/workers/main]
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       APP_SHUTDOWN_TIMEOUT_MS: ${APP_SHUTDOWN_TIMEOUT_MS:-30000}

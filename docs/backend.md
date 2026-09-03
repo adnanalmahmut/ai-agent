@@ -1,8 +1,8 @@
 # Backend
 
-`apps/backend` is NestJS 11 with three entrypoints: `src/main.ts` serves HTTP,
+`apps/backend` is NestJS 11 with three entrypoints: `src/api/main.ts` serves HTTP,
 `src/workers/main.ts` dispatches the transactional outbox and runs BullMQ consumers,
-and `src/cli.ts` runs operator commands and exits. Each has its own composition
+and `src/cli/main.ts` runs operator commands and exits. Each has its own composition
 root, so what a process cannot do is as much of the design as what it can: the
 API has no queue producer in request handlers, and accepted asynchronous work
 survives Redis outages in PostgreSQL.
@@ -608,7 +608,7 @@ to be restated as fact in a caption, `design.system` has nothing to say about
 prose, and `faq` holds the organization's most quotable liabilities.
 
 A repository-owned evaluation set
-(`src/features/content/ideas/agent-definitions/__tests__/content-idea.eval-cases.ts`) drives every case
+(`test/integration/ai/content-idea.eval-cases.ts`) drives every case
 through the real runner, assembler, and adapter with three fakes at the edges.
 It measures application-owned behavior — normalization, language and goal
 reaching the prompt, context drawn only from the declared spaces, cross-tenant
@@ -803,7 +803,7 @@ rather than from a snapshot taken when it was accepted.
 
 ## Operator commands
 
-`src/cli.ts` runs one command and exits. There are two: `super-admin:create`,
+`src/cli/main.ts` runs one command and exits. There are two: `super-admin:create`,
 which creates the platform's first super administrator, and
 `managed-secret:rotate-key`, which re-encrypts stored credentials under the
 active encryption key version.
