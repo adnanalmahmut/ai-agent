@@ -13,10 +13,15 @@ current_release=$state_dir/CURRENT_RELEASE.json
 previous_release=$state_dir/PREVIOUS_RELEASE.json
 registry=ghcr.io/adnanalmahmut/ai-agent
 
-# Reserve enough disk to pull and extract the complete release before mutation.
+# Pulling and extracting the four release images is the deploy step most likely
+# to exhaust a small Lightsail plan, and it fails there partway through a
+# release that has already started. Refused up front instead.
 required_free_mib=4096
 
-# Migrations require these extensions to exist in the server image.
+# Extensions a migration in this release creates and therefore cannot create
+# itself if the image does not carry them. Kept in sync with the migrations by
+# ops/tests/host-bundle.sh, because `CREATE EXTENSION vector` failing inside the
+# migration container is exactly the failure this list exists to prevent.
 required_extensions='vector'
 
 die() { echo "deployment rejected: $*" >&2; exit 64; }
@@ -95,14 +100,20 @@ pull_release_images() {
   done
 }
 
-# Immutable-image labels carry release identity and host requirements without
-# widening the forced-command interface used by the CI deploy key.
+# A release states which host it needs through labels on its own immutable
+# images, not through a new deploy argument: the dispatcher's forced-command
+# grammar is the trust boundary for the CI deploy key and stays exactly as wide
+# as it is, and an argument would also force every host into lockstep with every
+# release. A label travels with the digest, is readable after the pull and
+# before migrations, and lets an older bundle keep serving releases whose
+# minimum it already satisfies.
 image_label() {
   image=$1
   label=$2
   value=$(docker image inspect --format "{{ index .Config.Labels \"$label\" }}" "$image" 2>/dev/null) ||
     die "release image is not present locally after the pull"
-  # Docker versions represent a missing label as empty or `<no value>`.
+  # Verified against an attested bake push pulled by index digest: an absent
+  # label comes back empty on Docker 29 and as `<no value>` on older releases.
   [ -n "$value" ] && [ "$value" != '<no value>' ] || die "release image does not declare $label"
   printf '%s' "$value"
 }
@@ -112,7 +123,9 @@ verify_release_declaration() {
   minimum=
 
   for image in "$BACKEND_IMAGE" "$BACKEND_MIGRATION_IMAGE" "$WEB_IMAGE" "$PLATFORM_IMAGE"; do
-    # Independent valid digests still need a shared release identity.
+    # Ties the four digests to one release. Digests are immutable but not
+    # necessarily related: four valid digests from four different builds would
+    # otherwise deploy as a release that was never tested together.
     declared_sha=$(image_label "$image" io.ai-agent.release.sha)
     [ "$declared_sha" = "$sha" ] ||
       die 'release image does not belong to the requested release'
@@ -130,7 +143,10 @@ verify_release_declaration() {
   "$host_preflight" require-version "$minimum"
 }
 
-# Verify the installed Compose model resolves exactly the four pinned digests.
+# The installed compose file passing an existence check is what let Staging
+# deploy a release against a compose file that predated it. This asserts what
+# the file actually resolves to: the four pinned digests, and no mutable
+# application tag anywhere.
 verify_compose_images() {
   images=$(compose_with_migration config --images)
 
@@ -144,8 +160,13 @@ verify_compose_images() {
   fi
 }
 
-# Refuse before migrations if the running server lacks required extensions.
-# Names are code-owned and shape-checked before SQL interpolation.
+# Migrations run inside a container that can only report what it finds. When the
+# installed compose file pinned stock PostgreSQL, `CREATE EXTENSION vector`
+# failed there — after the release had been pulled and the database was already
+# up. Asked of the running database first, so it is a refusal instead of a
+# half-applied release. The extension names are code-owned and shape-checked, so
+# interpolating them into the query introduces nothing the script did not
+# already control.
 require_postgres_extensions() {
   for extension in $required_extensions; do
     printf '%s' "$extension" | grep -Eq '^[a-z][a-z0-9_]*$' ||

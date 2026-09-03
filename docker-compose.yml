@@ -14,8 +14,16 @@ x-app-security: &app-security
 services:
   postgres:
     profiles: [development, staging, production]
-    # Knowledge retrieval requires pgvector. Volumes created under Alpine/musl
-    # need the collation repair documented in docs/deployment.md.
+    # pgvector, not stock PostgreSQL: knowledge retrieval stores embeddings in a
+    # `vector` column, and the extension is absent from `postgres:16-alpine`.
+    # There is no Alpine variant, so this is a Debian image where the previous
+    # one was musl. The data directory is binary-compatible for the same major,
+    # but the two libcs sort text differently under the same locale name and
+    # musl records no collation version — so PostgreSQL emits no mismatch
+    # warning and every text btree index is silently left in the wrong order.
+    # An existing volume therefore needs `REINDEX DATABASE` followed by
+    # `ALTER DATABASE ... REFRESH COLLATION VERSION`, by an operator, once.
+    # See docs/deployment.md.
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
@@ -38,7 +46,9 @@ services:
 
   postgres-test:
     profiles: [test]
-    # Ephemeral test data does not carry the host collation caveat.
+    # Same image as `postgres`, for the same reason. This one keeps its data in
+    # tmpfs, so the collation caveat above does not apply: there is no volume to
+    # carry an index built under the other libc.
     image: pgvector/pgvector:pg16
     restart: "no"
     environment:

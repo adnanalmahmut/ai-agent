@@ -1,9 +1,19 @@
 #!/bin/sh
 set -eu
 
-# Verifies that the installed host bundle matches its recorded manifest before
-# deployment. Paths are fixed literals because the command runs as root under
-# `sudo -n` with `!setenv`.
+# Installed as /usr/local/sbin/ai-agent-host-preflight and called by
+# ai-agent-deploy before anything irreversible happens.
+#
+# The runtime preflight answers "is this host configured?". This one answers a
+# different question that the Staging bring-up proved is not the same: "is this
+# host the one this release was built for, and is it still what it claims to
+# be?". A compose file from an earlier release exists, is readable, and passes
+# every check the deploy script used to make.
+#
+# Every path is a fixed absolute literal. This runs as root under `sudo -n`
+# with `!setenv`, so a path that could be steered from the environment would be
+# a privilege boundary, not a convenience. Tests rewrite these literals the way
+# ops/tests/release-manifest.sh already does.
 
 manifest=/etc/ai-agent/host-bundle.manifest
 compose_destination=/opt/ai-agent/docker-compose.yml
@@ -25,7 +35,10 @@ read_installed_version() {
   printf '%s' "$version"
 }
 
-# Per-file digests make the recorded bundle version independently verifiable.
+# A version alone is a claim. Recording a digest per file is what makes it
+# checkable: the Staging failure was an installed compose file that no longer
+# matched the bundle the host believed it had, and a version number would have
+# gone on asserting the old value forever.
 verify_integrity() {
   installed_version=$(read_installed_version)
 
