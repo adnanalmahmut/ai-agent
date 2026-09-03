@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
+import type { AgentRun, AgentValue } from '../../../ai/agents/agent.types';
+import { AgentRunService } from '../../../ai/execution/agent-run.service';
 import {
-  AgentRunService,
   CONTENT_IDEA_AGENT_ID,
   contentIdeaInput,
-  type AgentRun,
-  type AgentValue,
   type ContentIdeaInput,
-} from '../../agent-management';
+} from './agent-definitions';
 import { RuntimeConfigResolver } from '../../control-plane';
 import { AppException } from '../../../core/errors';
 

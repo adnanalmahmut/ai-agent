@@ -10,10 +10,8 @@ import {
 import { Queue, Worker, type Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 
-import {
-  AgentRunService,
-  type CreateAgentRun,
-} from '../../../src/features/agent-management';
+import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
+import type { CreateAgentRun } from '../../../src/ai/agents/agent.types';
 import { AgentConfigurationError } from '../../../src/ai/agents/agent-configuration.error';
 import {
   AgentExecutionHandler,

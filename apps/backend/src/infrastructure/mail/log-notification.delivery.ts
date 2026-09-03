@@ -7,7 +7,7 @@ import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
-} from './notification-delivery';
+} from './notification-delivery.port';
 
 /**
  * The development driver: nothing leaves the process.

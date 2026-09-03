@@ -11,7 +11,7 @@ import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
 import { z } from 'zod';
 
-import { contentIdeaInput } from '../../agent-management';
+import { contentIdeaInput } from './agent-definitions';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,

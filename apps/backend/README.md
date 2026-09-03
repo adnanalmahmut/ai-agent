@@ -107,9 +107,9 @@ src/infrastructure/
   redis/      connection provisioning per role
 ```
 
-`src/core` is deliberately small; it currently contains only the generic
-application exception and its stable codes. Feature modules live outside both
-technical layers.
+`src/core` is deliberately small; it contains the generic application exception
+and the provider-neutral external-effect outcome. Feature modules live outside
+both technical layers.
 
 Production folders contain production code only. Tests are classified by what
 they exercise under `test/unit/`, `test/integration/`, and `test/e2e/`; e2e

@@ -3,7 +3,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   NOTIFICATION_DELIVERY,
   type NotificationDelivery,
-} from '../../../infrastructure/mail/notification-delivery';
+} from '../../../infrastructure/mail/notification-delivery.port';
 import { PrismaService } from '../../../infrastructure/database';
 import type { AgentValue } from '../../../ai/agents/agent.types';
 import { digestStrings } from '../../../ai/tools/digest';

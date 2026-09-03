@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { Client } from 'pg';
 
-import { CONTENT_IDEA_AGENT_ID } from '../../../src/features/agent-management';
+import { CONTENT_IDEA_AGENT_ID } from '../../../src/features/content/ideas/agent-definitions';
 import { OrganizationAuditService } from '../../../src/features/organizations/audit';
 import {
   as,

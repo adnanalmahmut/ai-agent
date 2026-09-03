@@ -10,11 +10,11 @@
  * empty" are the same observation.
  *
  * Making the set closed turns that into a compile error. `KnowledgeSpaceSlug` is
- * a union of the eight keys below, `ContextPolicy.spaceSlugs` is typed as an
- * array of it, and a typo no longer type-checks. What the HTTP surface accepts
- * is narrowed the same way: there is no endpoint that defines a space, only one
- * that ensures a registered one exists, so an unknown slug cannot be persisted
- * through the application at all.
+ * a union of the eight keys below, and product definitions bind their generic
+ * `ContextPolicy` to that union, so a typo no longer type-checks. What the HTTP
+ * surface accepts is narrowed the same way: there is no endpoint that defines a
+ * space, only one that ensures a registered one exists, so an unknown slug
+ * cannot be persisted through the application at all.
  *
  * The names here are the application's, not the customer's. A caller submitting
  * taxonomy metadata would be submitting the label an operator reads beside their

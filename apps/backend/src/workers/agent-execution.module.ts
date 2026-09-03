@@ -16,6 +16,7 @@ import { AgentDefinitionsModule } from '../features/agent-management/agent-defin
 import { AgentsModule } from '../features/agent-management/agents.module';
 import { AgentToolsModule } from '../features/agent-management/tools/agent-tools.module';
 import { AgentExecutionHandler } from './handlers/agent-execution.handler';
+import { SideEffectExecutionHandler } from './handlers/side-effect-execution.handler';
 
 /**
  * Worker-only composition for durable background agent execution.
@@ -54,12 +55,17 @@ import { AgentExecutionHandler } from './handlers/agent-execution.handler';
     AgentRuntimeRegistry,
     AgentRunner,
     AgentExecutionHandler,
+    SideEffectExecutionHandler,
     AgentRunReconciler,
   ],
   /**
-   * `AgentToolsModule` is re-exported so the worker root can register the
-   * side-effect handler it provides beside the two handlers here.
+   * The handlers are exported so the worker root can register them beside the
+   * knowledge embedding handler.
    */
-  exports: [AgentExecutionHandler, AgentRunReconciler, AgentToolsModule],
+  exports: [
+    AgentExecutionHandler,
+    SideEffectExecutionHandler,
+    AgentRunReconciler,
+  ],
 })
 export class AgentExecutionModule {}

@@ -58,7 +58,7 @@ export default tseslint.config(
    */
   {
     files: ['src/**/*.ts'],
-    ignores: ['src/cli/**', 'src/cli.ts', '**/*.spec.ts'],
+    ignores: ['src/cli/**', '**/*.spec.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
@@ -66,6 +66,92 @@ export default tseslint.config(
           selector: "MemberExpression[property.name='createUser']",
           message:
             'Better Auth createUser bypasses authorization when called in-process. It is permitted only from the CLI bootstrap composition root (src/cli/**).',
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/core/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/infrastructure/**',
+                '**/ai/**',
+                '**/features/**',
+                '**/api/**',
+                '**/workers/**',
+                '**/cli/**',
+              ],
+              message:
+                'Core must remain independent of infrastructure, AI, product features, and composition roots.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/infrastructure/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/ai/**',
+                '**/features/**',
+                '**/api/**',
+                '**/workers/**',
+                '**/cli/**',
+              ],
+              message:
+                'Infrastructure must not depend on AI, product features, or composition roots.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/ai/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: [
+                '**/features/**',
+                '**/api/**',
+                '**/workers/**',
+                '**/cli/**',
+              ],
+              message:
+                'Generic AI code must not depend on product features or composition roots.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/features/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/api/**', '**/workers/**', '**/cli/**'],
+              message:
+                'Product features must not depend on process composition roots.',
+            },
+          ],
         },
       ],
     },

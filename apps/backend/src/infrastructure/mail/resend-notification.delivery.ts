@@ -6,7 +6,7 @@ import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
-} from './notification-delivery';
+} from './notification-delivery.port';
 
 /**
  * Governed delivery through Resend, with the provider's idempotency key.

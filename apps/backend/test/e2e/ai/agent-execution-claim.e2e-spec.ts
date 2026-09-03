@@ -7,10 +7,8 @@ import {
   it,
 } from '@jest/globals';
 
-import {
-  AgentRunService,
-  type CreateAgentRun,
-} from '../../../src/features/agent-management';
+import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
+import type { CreateAgentRun } from '../../../src/ai/agents/agent.types';
 import { OutboxRepository } from '../../../src/infrastructure/outbox';
 import { PrismaService } from '../../../src/infrastructure/database';
 import {
