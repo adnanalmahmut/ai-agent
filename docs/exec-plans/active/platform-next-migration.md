@@ -104,7 +104,7 @@ Final stack:
 - [x] PR 1 — Next foundation, routing, auth, and i18n.
 - [x] PR 2 — feature and test migration.
 - [x] PR 3 — runtime/deployment cutover, cleanup, and documentation.
-- [ ] Final CI inspection and human handoff.
+- [x] Final CI inspection and human handoff preparation.
 
 ## Outcome
 
@@ -119,8 +119,9 @@ server reads retain their server-only uncached NestJS boundary.
 
 ## Blockers
 
-None. Final-head CI inspection remains before this plan moves to `completed/`.
-The recursive workspace test reproduced the recorded five-second CPU-contention
+None. The plan remains active while the three PRs are open for human review and
+moves to `completed/` only when the work lands. The recursive workspace test
+reproduced the recorded five-second CPU-contention
 timeout in two interaction-heavy settings cases. Their assertions and behavior
 are unchanged, but the cases now declare a 15-second budget; the recursive
 backend, web, and Platform suites subsequently passed together.
