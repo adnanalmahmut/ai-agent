@@ -6,15 +6,15 @@ import { ZodError } from 'zod';
 import { AppException } from '../core/errors';
 import { PrismaService } from '../infrastructure/database';
 import { Prisma } from '../generated/prisma/client';
-import { isAgentConfigurationError } from './agent-configuration.error';
-import { AgentDefinitionRegistry } from './agent-definition.registry';
-import type { AgentConfiguration } from './agent.types';
-import type { AgentDefinition } from './agent.types';
-import type { ToolRef } from './tools/tool.types';
+import { isAgentConfigurationError } from '../ai/agents/agent-configuration.error';
+import { AgentDefinitionRegistry } from '../ai/agents/agent-definition.registry';
+import type { AgentConfiguration } from '../ai/agents/agent.types';
+import type { AgentDefinition } from '../ai/agents/agent.types';
+import type { ToolRef } from '../ai/tools/tool.types';
 import {
   APPLICATION_MODEL_CATALOG,
   type AgentModelId,
-} from '../model-catalog/model-catalog';
+} from '../ai/models/model-catalog';
 import type {
   CreateOrganizationAgentInstallation,
   OrganizationAgentCatalogEntry,

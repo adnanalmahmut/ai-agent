@@ -16,17 +16,20 @@ import {
   containMastraAgent,
   MastraRuntime,
   toMastraTools,
-} from '../mastra.runtime';
+} from '../../../../ai/infrastructure/runtimes/mastra/mastra.runtime';
 
 import {
   AGENT_RUNTIME_NAMES,
   type AgentDefinition,
   type AgentRuntimeTool,
-} from '../../../agent.types';
-import { MODEL_IDS } from '../../../../model-catalog/model-catalog';
-import { ToolExecutionFailure, ToolGateway } from '../../../tools/tool.gateway';
-import { ToolRegistry } from '../../../tools/tool.registry';
-import type { ToolRef } from '../../../tools/tool.types';
+} from '../../../../ai/agents/agent.types';
+import { MODEL_IDS } from '../../../../ai/models/model-catalog';
+import {
+  ToolExecutionFailure,
+  ToolGateway,
+} from '../../../../ai/tools/tool.gateway';
+import { ToolRegistry } from '../../../../ai/tools/tool.registry';
+import type { ToolRef } from '../../../../ai/tools/tool.types';
 
 /**
  * Runs against the REAL `@mastra/core`, unlike `mastra.runtime.spec.ts`, which
@@ -209,7 +212,7 @@ describe('Mastra credential containment', () => {
 
     const runtime = new MastraRuntime({
       secret: () => Promise.resolve(CREDENTIAL_CANARY),
-    } as never);
+    });
 
     /**
      * Rejects because `fetch` is forbidden, which is the point: the run gets

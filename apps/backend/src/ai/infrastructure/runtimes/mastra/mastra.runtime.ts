@@ -1,23 +1,26 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
 import { noopLogger } from '@mastra/core/logger';
 import { createTool } from '@mastra/core/tools';
 
-import { RuntimeConfigResolver } from '../../../control-plane';
-import { AppException } from '../../../core/errors';
+import { AppException } from '../../../../core/errors';
+import {
+  AI_RUNTIME_CONFIG,
+  type AiRuntimeConfigPort,
+} from '../../runtime-config.port';
 import {
   APPLICATION_MODEL_CATALOG,
   type AgentModelId,
-} from '../../../model-catalog/model-catalog';
-import type { AgentRuntime } from '../../agent-runtime';
-import { AgentConfigurationError } from '../../agent-configuration.error';
+} from '../../../models/model-catalog';
+import { AgentConfigurationError } from '../../../agents/agent-configuration.error';
 import {
   AGENT_RUNTIME_NAMES,
   RUNTIME_TOOL_NAME_PATTERN,
   type AgentContextPassage,
   type AgentRuntimeTool,
   type AgentValue,
-} from '../../agent.types';
+} from '../../../agents/agent.types';
+import type { AgentRuntime } from '../../../execution/agent-runtime';
 
 /**
  * Which managed secret pays for which provider.
@@ -108,7 +111,10 @@ const MAX_TOOL_GENERATION_STEPS = 4;
 export class MastraRuntime implements AgentRuntime {
   readonly name = AGENT_RUNTIME_NAMES.mastra;
 
-  constructor(private readonly runtimeConfig: RuntimeConfigResolver) {}
+  constructor(
+    @Inject(AI_RUNTIME_CONFIG)
+    private readonly runtimeConfig: AiRuntimeConfigPort,
+  ) {}
 
   async run(request: Parameters<AgentRuntime['run']>[0]) {
     const { definition } = request;

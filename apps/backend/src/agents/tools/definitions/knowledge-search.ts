@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 import { RUNTIME_SETTINGS } from '../../../control-plane';
-import type { ToolDefinition } from '../tool.types';
+import type { ToolDefinition } from '../../../ai/tools/tool.types';
 
 /**
  * The most passages one search can possibly return.

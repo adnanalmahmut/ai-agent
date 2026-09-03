@@ -6,7 +6,7 @@ import {
   type ToolExecutionApprovalStatus,
   type ToolExecutionStatus,
 } from '../../generated/prisma/client';
-import type { AgentValue } from '../agent.types';
+import type { AgentValue } from '../agents/agent.types';
 import { digestValue } from './digest';
 import type { ToolFailureCode } from './tool.types';
 

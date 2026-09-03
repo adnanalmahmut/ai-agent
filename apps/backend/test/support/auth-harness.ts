@@ -12,8 +12,8 @@ import {
   type GeoIpLocation,
 } from '../../src/infrastructure/geoip';
 import { configureTrustedProxy } from '../../src/infrastructure/http';
-import { AGENT_DEFINITIONS } from '../../src/agents/agent-definition.registry';
-import type { AgentDefinition } from '../../src/agents/agent.types';
+import { AGENT_DEFINITIONS } from '../../src/ai/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../src/ai/agents/agent.types';
 import { EMBEDDING_PORT } from '../../src/knowledge';
 import { MAIL_TRANSPORT } from '../../src/infrastructure/mail/mail-transport';
 import type { MailTransport } from '../../src/infrastructure/mail/mail-transport';

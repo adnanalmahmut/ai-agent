@@ -1,11 +1,11 @@
 import { describe, expect, it } from '@jest/globals';
 import { z } from 'zod';
 
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
-import type { AgentDefinition } from '../agent.types';
+import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../ai/agents/agent.types';
 import { PRODUCTION_AGENT_DEFINITIONS } from '../definitions';
-import { MODEL_IDS } from '../../model-catalog/model-catalog';
-import type { ToolRef } from '../tools/tool.types';
+import { MODEL_IDS } from '../../ai/models/model-catalog';
+import type { ToolRef } from '../../ai/tools/tool.types';
 
 const definition = (maxToolGrants?: readonly unknown[]): AgentDefinition => ({
   id: 'granting-agent',

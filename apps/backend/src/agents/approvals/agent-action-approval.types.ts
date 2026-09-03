@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { AppException } from '../../core/errors';
 import type { ToolExecutionStatus } from '../../generated/prisma/client';
-import type { ToolFailureCode } from '../tools/tool.types';
+import type { ToolFailureCode } from '../../ai/tools/tool.types';
 
 export const AGENT_ACTION_APPROVAL_STATUSES = [
   'PENDING',

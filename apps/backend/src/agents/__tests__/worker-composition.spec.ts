@@ -19,26 +19,26 @@ import {
   KNOWLEDGE_SPACE_SLUGS,
   isKnowledgeSpaceSlug,
 } from '../../knowledge/knowledge-space.registry';
-import { APPLICATION_MODEL_CATALOG } from '../../model-catalog/model-catalog';
+import { APPLICATION_MODEL_CATALOG } from '../../ai/models/model-catalog';
 import { WorkerModule } from '../../worker.module';
 import { AgentContextAssembler } from '../agent-context.assembler';
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
+import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
 import { AgentExecutionHandler } from '../agent-execution.handler';
 import { AgentExecutionModule } from '../agent-execution.module';
-import { AgentRunReconciler } from '../agent-run-reconciler.service';
-import { AgentRunService } from '../agent-run.service';
-import { AgentRunner } from '../agent-runner.service';
-import { AgentRuntimeRegistry } from '../agent-runtime.registry';
-import type { AgentDefinition } from '../agent.types';
+import { AgentRunReconciler } from '../../ai/execution/agent-run-reconciler.service';
+import { AgentRunService } from '../../ai/execution/agent-run.service';
+import { AgentRunner } from '../../ai/execution/agent-runner.service';
+import { AgentRuntimeRegistry } from '../../ai/execution/agent-runtime.registry';
+import type { AgentDefinition } from '../../ai/agents/agent.types';
 import { AgentsModule } from '../agents.module';
 import { PRODUCTION_AGENT_DEFINITIONS } from '../definitions';
 import {
   CONTENT_IDEA_AGENT_ID,
   CONTENT_IDEA_AGENT_VERSION,
 } from '../definitions/content-idea';
-import { MastraRuntime } from '../runtime/mastra/mastra.runtime';
+import { MastraRuntime } from '../../ai/infrastructure/runtimes/mastra/mastra.runtime';
 import { SideEffectExecutionHandler } from '../tools/side-effect-execution.handler';
-import { ToolGateway } from '../tools/tool.gateway';
+import { ToolGateway } from '../../ai/tools/tool.gateway';
 
 describe('WorkerModule agent composition', () => {
   let moduleRef: TestingModule;

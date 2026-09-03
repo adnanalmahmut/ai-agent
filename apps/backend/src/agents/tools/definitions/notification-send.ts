@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ToolDefinition } from '../tool.types';
+import type { ToolDefinition } from '../../../ai/tools/tool.types';
 
 export const NOTIFICATION_SUBJECT_MAX_LENGTH = 120;
 export const NOTIFICATION_BODY_MAX_LENGTH = 2_000;

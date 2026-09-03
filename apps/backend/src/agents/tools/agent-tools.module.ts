@@ -3,16 +3,17 @@ import { Module } from '@nestjs/common';
 import { NotificationDeliveryModule } from '../../infrastructure/mail/notification-delivery';
 import { DatabaseModule } from '../../infrastructure/database';
 import { KnowledgeCoreModule } from '../../knowledge';
+import { AGENT_CONTEXT } from '../../ai/execution/agent-context.port';
+import { ToolExecutionService } from '../../ai/tools/tool-execution.service';
+import { TOOL_IMPLEMENTATIONS, ToolGateway } from '../../ai/tools/tool.gateway';
+import { TOOL_DEFINITIONS, ToolRegistry } from '../../ai/tools/tool.registry';
+import type { AnyToolImplementation } from '../../ai/tools/tool.types';
 import { AgentContextAssembler } from '../agent-context.assembler';
 import { AgentDefinitionsModule } from '../agent-definitions.module';
 import { KnowledgeSearchTool } from './knowledge-search.tool';
 import { NotificationSendTool } from './notification-send.tool';
 import { APPLICATION_TOOL_DEFINITIONS } from './definitions';
 import { SideEffectExecutionHandler } from './side-effect-execution.handler';
-import { TOOL_DEFINITIONS, ToolRegistry } from './tool.registry';
-import { ToolExecutionService } from './tool-execution.service';
-import { TOOL_IMPLEMENTATIONS, ToolGateway } from './tool.gateway';
-import type { AnyToolImplementation } from './tool.types';
 
 /**
  * The governed tool boundary, composed once.
@@ -41,6 +42,7 @@ import type { AnyToolImplementation } from './tool.types';
     ToolRegistry,
     ToolExecutionService,
     AgentContextAssembler,
+    { provide: AGENT_CONTEXT, useExisting: AgentContextAssembler },
     KnowledgeSearchTool,
     NotificationSendTool,
     {
@@ -76,6 +78,7 @@ import type { AnyToolImplementation } from './tool.types';
     ToolGateway,
     ToolExecutionService,
     AgentContextAssembler,
+    AGENT_CONTEXT,
     SideEffectExecutionHandler,
   ],
 })

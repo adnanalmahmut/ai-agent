@@ -14,10 +14,13 @@ import type {
   QueueJobTransportState,
   QueueProducer,
 } from '../../infrastructure/queue';
-import { AgentRunReconciler } from '../agent-run-reconciler.service';
-import type { AgentRunService, StaleRunCursor } from '../agent-run.service';
-import type { AgentRunStatus } from '../agent.types';
-import { MCP_SESSION_TTL_MS } from '../agent.types';
+import { AgentRunReconciler } from '../../ai/execution/agent-run-reconciler.service';
+import type {
+  AgentRunService,
+  StaleRunCursor,
+} from '../../ai/execution/agent-run.service';
+import type { AgentRunStatus } from '../../ai/agents/agent.types';
+import { MCP_SESSION_TTL_MS } from '../../ai/agents/agent.types';
 
 /**
  * The recovery decisions, tested without a PostgreSQL, a Redis or a clock that

@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import type { Job } from 'bullmq';
 import { z } from 'zod';
 
-import { AgentDefinitionRegistry } from '../../agent-definition.registry';
-import type { AgentDefinition } from '../../agent.types';
-import { MODEL_IDS } from '../../../model-catalog/model-catalog';
+import { AgentDefinitionRegistry } from '../../../ai/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../../ai/agents/agent.types';
+import { MODEL_IDS } from '../../../ai/models/model-catalog';
 import type { ExternalEffectOutcome } from '../../../infrastructure/mail/notification-delivery';
-import { digestValue } from '../digest';
+import { digestValue } from '../../../ai/tools/digest';
 import {
   EFFECT_RETRY_WINDOW_MS,
   SIDE_EFFECT_ATTEMPT_FAILED,
@@ -16,14 +16,14 @@ import {
 import type {
   EffectSettlement,
   SideEffectExecutionRow,
-} from '../tool-execution.service';
-import { ToolRegistry } from '../tool.registry';
+} from '../../../ai/tools/tool-execution.service';
+import { ToolRegistry } from '../../../ai/tools/tool.registry';
 import { APPLICATION_TOOL_DEFINITIONS } from '../definitions';
 import {
   SideEffectPreconditionError,
   type PreparedEffect,
   type SideEffectToolImplementation,
-} from '../tool.types';
+} from '../../../ai/tools/tool.types';
 
 const REF = 'notification.send@1';
 

@@ -3,9 +3,9 @@ import { z } from 'zod';
 
 import type { PrismaService } from '../../infrastructure/database';
 import { Prisma } from '../../generated/prisma/client';
-import { MODEL_IDS } from '../../model-catalog/model-catalog';
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
-import type { AgentDefinition } from '../agent.types';
+import { MODEL_IDS } from '../../ai/models/model-catalog';
+import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
+import type { AgentDefinition } from '../../ai/agents/agent.types';
 import { OrganizationAgentInstallationService } from '../organization-agent-installation.service';
 
 const configurableV1: AgentDefinition = {

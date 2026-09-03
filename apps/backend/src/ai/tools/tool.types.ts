@@ -1,7 +1,7 @@
 import type { ZodType } from 'zod';
 
-import type { ExternalEffectOutcome } from '../../infrastructure/mail/notification-delivery';
-import type { AgentDefinition, AgentValue } from '../agent.types';
+import type { ExternalEffectOutcome } from '../../core/external-effect';
+import type { AgentDefinition, AgentValue } from '../agents/agent.types';
 
 /**
  * Every tool this build can execute, named exactly once.

@@ -186,7 +186,8 @@ PostgreSQL is the version and configuration authority.
 
 The runtime contract intentionally has only `name` and `run`. Mastra is the
 first adapter, and every Mastra import must stay within
-`src/agents/runtime/mastra/**` or tests under that directory.
+`src/ai/infrastructure/runtimes/mastra/**` or the tests that exercise that
+adapter.
 
 The adapter installs the SDK's exported `noopLogger` on each agent before
 running it. `MastraBase` otherwise constructs a `ConsoleLogger` at level

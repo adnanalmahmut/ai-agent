@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { z } from 'zod';
 
-import type { AgentDefinition } from '../../agent.types';
-import { MODEL_IDS } from '../../../model-catalog/model-catalog';
+import type { AgentDefinition } from '../../../ai/agents/agent.types';
+import { MODEL_IDS } from '../../../ai/models/model-catalog';
 import type {
   ExternalEffectOutcome,
   NotificationMessage,
@@ -14,7 +14,7 @@ import {
 import {
   SideEffectPreconditionError,
   type ToolInvocationContext,
-} from '../tool.types';
+} from '../../../ai/tools/tool.types';
 
 const definition: AgentDefinition = {
   id: 'test-agent',

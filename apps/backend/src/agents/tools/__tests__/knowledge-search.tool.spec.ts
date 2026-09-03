@@ -1,8 +1,11 @@
 import { describe, expect, it, jest } from '@jest/globals';
 import { z } from 'zod';
 
-import { MODEL_IDS } from '../../../model-catalog/model-catalog';
-import type { AgentDefinition, ContextPolicy } from '../../agent.types';
+import { MODEL_IDS } from '../../../ai/models/model-catalog';
+import type {
+  AgentDefinition,
+  ContextPolicy,
+} from '../../../ai/agents/agent.types';
 import { knowledgeSearchInput } from '../definitions/knowledge-search';
 import { KnowledgeSearchTool } from '../knowledge-search.tool';
 

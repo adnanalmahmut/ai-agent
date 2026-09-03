@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { AgentValue } from '../agent.types';
+import type { AgentValue } from '../agents/agent.types';
 
 /**
  * A stable digest of application JSON.

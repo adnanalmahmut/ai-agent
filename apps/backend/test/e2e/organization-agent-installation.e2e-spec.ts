@@ -10,13 +10,13 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 import type { AgentDefinition } from '../../src/agents';
-import { AgentDefinitionRegistry } from '../../src/agents/agent-definition.registry';
+import { AgentDefinitionRegistry } from '../../src/ai/agents/agent-definition.registry';
 import {
   CONTENT_IDEA_AGENT_ID,
   CONTENT_IDEA_AGENT_VERSION,
 } from '../../src/agents/definitions/content-idea';
 import { OrganizationAgentInstallationService } from '../../src/agents/organization-agent-installation.service';
-import { MODEL_IDS } from '../../src/model-catalog/model-catalog';
+import { MODEL_IDS } from '../../src/ai/models/model-catalog';
 import {
   as,
   createHarness,

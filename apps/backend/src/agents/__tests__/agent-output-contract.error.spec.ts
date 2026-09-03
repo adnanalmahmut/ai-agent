@@ -3,12 +3,12 @@ import { describe, expect, it } from '@jest/globals';
 import {
   AgentOutputContractError,
   isAgentOutputContractError,
-} from '../agent-output-contract.error';
+} from '../../ai/execution/agent-output-contract.error';
 import {
   AGENT_OUTPUT_CONTRACT_VIOLATIONS,
   type AgentOutputContractViolation,
   type AgentOutputContractViolationCode,
-} from '../agent.types';
+} from '../../ai/agents/agent.types';
 
 /**
  * The violation vocabulary, and the one property that makes listing it worth

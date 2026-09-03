@@ -2,8 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { AgentConfigurationError } from './agent-configuration.error';
 import type { AgentConfiguration, AgentDefinition } from './agent.types';
-import { isToolRef } from './tools/tool.types';
-import { APPLICATION_MODEL_CATALOG } from '../model-catalog/model-catalog';
+import { APPLICATION_MODEL_CATALOG } from '../models/model-catalog';
+import { isToolRef } from '../tools/tool.types';
 
 export const AGENT_DEFINITIONS = Symbol('AGENT_DEFINITIONS');
 

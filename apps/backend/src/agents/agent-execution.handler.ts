@@ -3,11 +3,14 @@ import { UnrecoverableError, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
 import { QUEUE_NAMES, type QueueJobHandler } from '../infrastructure/queue';
-import { isAgentConfigurationError } from './agent-configuration.error';
-import { isAgentOutputContractError } from './agent-output-contract.error';
-import { AgentRunService } from './agent-run.service';
-import { AgentRunner } from './agent-runner.service';
-import { AGENT_EXECUTION_FAILED, type AgentRuntimeResult } from './agent.types';
+import { isAgentConfigurationError } from '../ai/agents/agent-configuration.error';
+import {
+  AGENT_EXECUTION_FAILED,
+  type AgentRuntimeResult,
+} from '../ai/agents/agent.types';
+import { isAgentOutputContractError } from '../ai/execution/agent-output-contract.error';
+import { AgentRunService } from '../ai/execution/agent-run.service';
+import { AgentRunner } from '../ai/execution/agent-runner.service';
 
 export type AgentExecutionJob = { runId: string };
 

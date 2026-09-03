@@ -8,9 +8,9 @@ import type { ZodType } from 'zod';
  * type depend transitively on the storage adapters. The registry is a plain
  * table with no imports of its own.
  */
-import type { KnowledgeSpaceSlug } from '../knowledge/knowledge-space.registry';
-import type { AgentModelId } from '../model-catalog/model-catalog';
-import type { ToolRef } from './tools/tool.types';
+import type { KnowledgeSpaceSlug } from '../../knowledge/knowledge-space.registry';
+import type { AgentModelId } from '../models/model-catalog';
+import type { ToolRef } from '../tools/tool.types';
 
 export const AGENT_RUN_STATUSES = [
   'QUEUED',

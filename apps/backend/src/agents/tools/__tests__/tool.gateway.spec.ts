@@ -1,18 +1,24 @@
 import { beforeEach, describe, expect, it, jest } from '@jest/globals';
 import { z } from 'zod';
 
-import { isAgentConfigurationError } from '../../agent-configuration.error';
-import type { AgentDefinition, AgentValue } from '../../agent.types';
-import { MODEL_IDS } from '../../../model-catalog/model-catalog';
-import { ToolExecutionFailure, ToolGateway } from '../tool.gateway';
-import { ToolRegistry } from '../tool.registry';
+import { isAgentConfigurationError } from '../../../ai/agents/agent-configuration.error';
+import type {
+  AgentDefinition,
+  AgentValue,
+} from '../../../ai/agents/agent.types';
+import { MODEL_IDS } from '../../../ai/models/model-catalog';
+import {
+  ToolExecutionFailure,
+  ToolGateway,
+} from '../../../ai/tools/tool.gateway';
+import { ToolRegistry } from '../../../ai/tools/tool.registry';
 import {
   SideEffectPreconditionError,
   type SideEffectToolImplementation,
   type ToolDefinition,
   type ToolImplementation,
   type ToolRef,
-} from '../tool.types';
+} from '../../../ai/tools/tool.types';
 
 const REF: ToolRef = 'knowledge.search@1';
 const SIDE_EFFECT_REF: ToolRef = 'notification.send@1';

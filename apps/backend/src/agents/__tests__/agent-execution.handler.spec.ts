@@ -3,20 +3,20 @@ import { UnrecoverableError, type Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 import { z } from 'zod';
 
-import { MODEL_IDS } from '../../model-catalog/model-catalog';
-import { AgentConfigurationError } from '../agent-configuration.error';
-import { AgentDefinitionRegistry } from '../agent-definition.registry';
+import { MODEL_IDS } from '../../ai/models/model-catalog';
+import { AgentConfigurationError } from '../../ai/agents/agent-configuration.error';
+import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
 import {
   AgentExecutionHandler,
   type AgentExecutionJob,
 } from '../agent-execution.handler';
-import type { AgentRunService } from '../agent-run.service';
-import { AgentRunner } from '../agent-runner.service';
+import type { AgentRunService } from '../../ai/execution/agent-run.service';
+import { AgentRunner } from '../../ai/execution/agent-runner.service';
 import type {
   AgentDefinition,
   AgentOutputContract,
   AgentRun,
-} from '../agent.types';
+} from '../../ai/agents/agent.types';
 
 const run: AgentRun = {
   id: 'run-1',
@@ -514,7 +514,7 @@ describe('a declared output contract violation, through the worker', () => {
           run: () => Promise.resolve({ output: providerOutput as never }),
         })),
       } as never,
-      { assemble: () => Promise.resolve([]) } as never,
+      { assemble: () => Promise.resolve([]) },
       { pinnedVersionFor: () => Promise.resolve(null) } as never,
       { authorize: () => [] } as never,
     );

@@ -1,23 +1,23 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import { AgentConfigurationError } from './agent-configuration.error';
-import { AgentContextAssembler } from './agent-context.assembler';
-import { AgentDefinitionRegistry } from './agent-definition.registry';
-import { AgentOutputContractError } from './agent-output-contract.error';
-import { AgentRuntimeRegistry } from './agent-runtime.registry';
-import { AgentRunService } from './agent-run.service';
-import { ToolGateway } from './tools/tool.gateway';
+import { AgentConfigurationError } from '../agents/agent-configuration.error';
+import { AgentDefinitionRegistry } from '../agents/agent-definition.registry';
 import type {
   AgentConfiguration,
   AgentDefinition,
   AgentRun,
   AgentRuntimeResult,
   AgentValue,
-} from './agent.types';
+} from '../agents/agent.types';
 import {
   APPLICATION_MODEL_CATALOG,
   type AgentModelId,
-} from '../model-catalog/model-catalog';
+} from '../models/model-catalog';
+import { ToolGateway } from '../tools/tool.gateway';
+import { AGENT_CONTEXT, type AgentContextPort } from './agent-context.port';
+import { AgentOutputContractError } from './agent-output-contract.error';
+import { AgentRuntimeRegistry } from './agent-runtime.registry';
+import { AgentRunService } from './agent-run.service';
 
 /** Resolves application definitions before crossing a runtime boundary. */
 @Injectable()
@@ -25,7 +25,7 @@ export class AgentRunner {
   constructor(
     private readonly definitions: AgentDefinitionRegistry,
     private readonly runtimes: AgentRuntimeRegistry,
-    private readonly context: AgentContextAssembler,
+    @Inject(AGENT_CONTEXT) private readonly context: AgentContextPort,
     private readonly runs: AgentRunService,
     private readonly tools: ToolGateway,
   ) {}

@@ -2,9 +2,9 @@ import { describe, expect, it } from '@jest/globals';
 import { z } from 'zod';
 
 import { APPLICATION_TOOL_DEFINITIONS } from '../definitions';
-import { ToolRegistry } from '../tool.registry';
-import { RUNTIME_TOOL_NAME_PATTERN } from '../../agent.types';
-import { TOOL_REFS, type ToolDefinition } from '../tool.types';
+import { ToolRegistry } from '../../../ai/tools/tool.registry';
+import { RUNTIME_TOOL_NAME_PATTERN } from '../../../ai/agents/agent.types';
+import { TOOL_REFS, type ToolDefinition } from '../../../ai/tools/tool.types';
 
 const valid = (overrides: Partial<ToolDefinition> = {}): ToolDefinition => ({
   id: 'knowledge.search',

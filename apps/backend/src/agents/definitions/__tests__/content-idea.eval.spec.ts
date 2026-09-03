@@ -56,11 +56,11 @@ const Agent = jest.fn(() => ({ generate, __setLogger: setLogger }));
 
 jest.unstable_mockModule('@mastra/core/agent', () => ({ Agent }));
 
-let AgentRunner: typeof import('../../agent-runner.service').AgentRunner;
+let AgentRunner: typeof import('../../../ai/execution/agent-runner.service').AgentRunner;
 let AgentContextAssembler: typeof import('../../agent-context.assembler').AgentContextAssembler;
-let AgentDefinitionRegistry: typeof import('../../agent-definition.registry').AgentDefinitionRegistry;
-let AgentRuntimeRegistry: typeof import('../../agent-runtime.registry').AgentRuntimeRegistry;
-let MastraRuntime: typeof import('../../runtime/mastra/mastra.runtime').MastraRuntime;
+let AgentDefinitionRegistry: typeof import('../../../ai/agents/agent-definition.registry').AgentDefinitionRegistry;
+let AgentRuntimeRegistry: typeof import('../../../ai/execution/agent-runtime.registry').AgentRuntimeRegistry;
+let MastraRuntime: typeof import('../../../ai/infrastructure/runtimes/mastra/mastra.runtime').MastraRuntime;
 let KnowledgeRetrievalService: typeof import('../../../knowledge/knowledge-retrieval.service').KnowledgeRetrievalService;
 let KnowledgeSpaceService: typeof import('../../../knowledge/knowledge-space.service').KnowledgeSpaceService;
 let contentIdeaAgent: typeof import('../content-idea').contentIdeaAgent;
@@ -68,12 +68,15 @@ let CONTENT_IDEA_AGENT_ID: string;
 let CONTENT_IDEA_AGENT_VERSION: number;
 
 beforeAll(async () => {
-  ({ AgentRunner } = await import('../../agent-runner.service'));
+  ({ AgentRunner } =
+    await import('../../../ai/execution/agent-runner.service'));
   ({ AgentContextAssembler } = await import('../../agent-context.assembler'));
   ({ AgentDefinitionRegistry } =
-    await import('../../agent-definition.registry'));
-  ({ AgentRuntimeRegistry } = await import('../../agent-runtime.registry'));
-  ({ MastraRuntime } = await import('../../runtime/mastra/mastra.runtime'));
+    await import('../../../ai/agents/agent-definition.registry'));
+  ({ AgentRuntimeRegistry } =
+    await import('../../../ai/execution/agent-runtime.registry'));
+  ({ MastraRuntime } =
+    await import('../../../ai/infrastructure/runtimes/mastra/mastra.runtime'));
   ({ KnowledgeRetrievalService } =
     await import('../../../knowledge/knowledge-retrieval.service'));
   ({ KnowledgeSpaceService } =
@@ -197,9 +200,7 @@ const buildHarness = (): Harness => {
   );
   const assembler = new AgentContextAssembler(spaces, retrieval, embeddingPort);
   const definitions = new AgentDefinitionRegistry([contentIdeaAgent]);
-  const runtimes = new AgentRuntimeRegistry(
-    new MastraRuntime(runtimeConfig as never),
-  );
+  const runtimes = new AgentRuntimeRegistry(new MastraRuntime(runtimeConfig));
   const runner = new AgentRunner(
     definitions,
     runtimes,

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
-import { AgentConfigurationError } from './agent-configuration.error';
+import { AgentConfigurationError } from '../agents/agent-configuration.error';
+import { MastraRuntime } from '../infrastructure/runtimes/mastra/mastra.runtime';
 import type { AgentRuntime } from './agent-runtime';
-import { MastraRuntime } from './runtime/mastra/mastra.runtime';
 
 /** Deliberately explicit runtime mapping; adding a runtime is a code change. */
 @Injectable()
