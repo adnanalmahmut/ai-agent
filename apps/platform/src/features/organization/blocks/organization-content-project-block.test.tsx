@@ -27,14 +27,6 @@ vi.mock('../organization-api', async () => {
   };
 });
 
-vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
-
-  return { ...actual, useParams: () => ({ projectId: 'proj_1' }) };
-});
-
 const { OrganizationContentProjectBlock } = await import(
   './organization-content-project-block'
 );

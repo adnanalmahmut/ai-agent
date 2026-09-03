@@ -39,7 +39,7 @@ import {
   useOrganizationBusinessProfile,
   type BusinessProfileFormValues,
 } from '../hooks/use-organization-business-profile';
-import type { OrganizationBusinessProfileData } from '../loaders';
+import type { OrganizationBusinessProfileData } from '../route-data';
 import { useOrganizationContext } from '../organization-context';
 
 const intl = Intl as typeof Intl & {

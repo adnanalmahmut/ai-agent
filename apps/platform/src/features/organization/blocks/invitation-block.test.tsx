@@ -85,7 +85,7 @@ describe('accepting', () => {
 
   it('goes into the organization it just joined, and revalidates', async () => {
     // Accepting grants a membership *and* makes the organization active, in
-    // one server transaction. Neither is visible to loader data already in
+    // one server transaction. Neither is visible to route data already in
     // hand, so the revalidation is not cosmetic. The destination is the
     // organization itself: the reader followed a link about one specific
     // organization, and landing anywhere else makes them go looking for it.

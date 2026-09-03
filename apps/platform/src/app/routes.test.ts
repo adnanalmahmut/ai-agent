@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const pages = [
+  '[locale]/[...rest]/page.tsx',
   '[locale]/(platform)/page.tsx',
   '[locale]/(auth)/(guest)/sign-in/page.tsx',
   '[locale]/(auth)/(guest)/sign-up/page.tsx',

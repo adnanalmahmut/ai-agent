@@ -64,9 +64,8 @@ export function useSignIn(returnTo?: string | null) {
 
       navigate(destination, { replace: true });
 
-      // The protected route's loader ran before the session existed and
-      // cached its answer. Without this the reader lands inside the private
-      // tree on data fetched while they were anonymous.
+      // Refresh the server layouts so the newly created session becomes the
+      // authority for the protected tree before it renders.
       revalidate();
     },
     [navigate, returnTo, revalidate, run],

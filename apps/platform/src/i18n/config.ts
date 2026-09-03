@@ -11,12 +11,10 @@
 /**
  * The locale is always in the path.
  *
- * Under Next.js this was a two-mode switch (`always` / `as-needed`, with the
- * default locale unprefixed). React Router matches on a real `:locale`
- * segment, so "sometimes there is no segment" would mean two route trees and
- * a set of ambiguities — `/organizations` would be indistinguishable from a
- * locale named `organizations`. One shape, always present, is both simpler and
- * the shape the deployment plan asks for: `/platform/ar/…`, `/platform/en/…`.
+ * `next-intl` supports both `always` and `as-needed`, with the default locale
+ * unprefixed in the latter mode. One always-present shape avoids two public
+ * URL grammars and is the deployment contract: `/platform/ar/…` and
+ * `/platform/en/…`.
  *
  * A visitor who omits it is redirected rather than guessed at; see
  * `localeFallbackPath`.

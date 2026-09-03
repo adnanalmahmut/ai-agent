@@ -11,7 +11,9 @@ export default async function NotFoundPage() {
     <main className="flex min-h-screen items-center justify-center bg-muted/40 p-5">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>{t('notFound.title')}</CardTitle>
+          <CardTitle>
+            <h1>{t('notFound.title')}</h1>
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">

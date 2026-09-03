@@ -129,10 +129,9 @@ function pathnameOf(value: string): string {
 /**
  * Builds the value stored in `returnTo` from a real browser URL.
  *
- * Two sources feed this and they differ. A router location has already had the
- * mount point removed by `basename`; `window.location` has not. Both are
- * normalised here rather than at each call site, because the failure is silent
- * either way — a stored `/platform/reports` sends the reader to
+ * Request URLs and browser locations still carry the configured mount point.
+ * They are normalised here rather than at each call site, because the failure
+ * is silent — a stored `/platform/reports` sends the reader to
  * `/platform/en/platform/reports`, and a stored `/en/reports` doubles the
  * locale when the sign-in page re-applies one.
  *

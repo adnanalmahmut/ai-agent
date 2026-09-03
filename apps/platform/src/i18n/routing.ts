@@ -37,11 +37,9 @@ export const routing = defineRouting({
  *   /platform  /en           /organizations/abc/members?tab=active
  *   └ base     └ locale      └ application path
  *
- * The base is stripped by React Router's `basename` before a component ever
- * sees a path, and re-applied when it navigates — so components deal only in
- * the last two. Loaders are the exception: they receive a `Request` carrying
- * the real browser URL, base and all, which is why `stripBasePath` exists and
- * is exported rather than being folded into the locale helper.
+ * Next applies `basePath` at the routing boundary, so application navigation
+ * deals in locale-aware paths while request-boundary code still sees the real
+ * browser URL. `stripBasePath` exists for those request and callback helpers.
  *
  * These are deliberately free of React and of the router: the redirect rules
  * they encode are the ones most worth testing, and a test should not need a
@@ -80,10 +78,8 @@ export function localizedPath(locale: AppLocale, href: string): string {
 }
 
 /**
- * Removes the SPA's mount point from a real browser pathname.
- *
- * Only loaders need this. Anything reached through `useLocation` has already
- * had it removed by the router.
+ * Removes the application's configured mount point from a real browser
+ * pathname.
  */
 export function stripBasePath(
   pathname: string,

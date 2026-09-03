@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PlatformSession } from '@/features/auth/session-types';
-import type { OrganizationData } from '../loaders';
+import type { OrganizationData } from '../route-data';
 import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
 import { organization } from '@/test/organization-fixtures';
 import { renderWithProviders } from '@/test/render';

@@ -101,6 +101,20 @@ describe('Next.js boundaries are explicit', () => {
     );
   });
 
+  it('does not retain the legacy router package or source imports', () => {
+    const manifest: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } =
+      JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+
+    expect({
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+    }).not.toHaveProperty('react-router');
+
+    for (const path of ALL_FILES) {
+      expect(read(path), label(path)).not.toMatch(/from ['"]react-router/);
+    }
+  });
+
   it('keeps server-only imports out of client modules', () => {
     const clientFiles = SOURCE_FILES.filter((path) =>
       /^['"]use client['"];/.test(read(path)),
@@ -129,7 +143,7 @@ describe('routes stay thin', () => {
     (_name, path) => {
       const source = withoutComments(read(path));
 
-      // A route may read its loader data, read the query string, and render a
+      // A route may receive its server data, read the query string, and render a
       // block. Anything longer is a page that has grown a feature inside it.
       // The budget grew from 90 to 100 when the organization gained its ninth
       // tab: one export per tab is composition, and the four assertions below

@@ -16,8 +16,8 @@ import { AUTH_ROUTES } from './routes';
  * They must also carry both prefixes themselves. By the time the browser
  * follows one of these it has been through Google or an email client, neither
  * of which knows that this application is mounted at `/platform` or that its
- * locale lives in the path. React Router's `basename` is a runtime convenience
- * inside the SPA; it does not exist in an email.
+ * locale lives in the path. Next's `basePath` only applies while the
+ * application builds routes; it does not exist in an email.
  *
  * Every value produced here is checked by the backend against its
  * `trustedOrigins` before it is honoured, so this file decides where a

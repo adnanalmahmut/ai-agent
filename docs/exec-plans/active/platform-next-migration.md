@@ -6,7 +6,7 @@ Replace the `apps/platform` React/Vite/React Router SPA with a Next.js 16.3 App 
 
 ## Context
 
-The Platform is the repository's authenticated operations UI. It is currently a static Vite build served by an unprivileged Nginx container at `/platform/`; the NestJS API and Better Auth remain authoritative at same-origin `/api`. The migration establishes one filesystem router and a server-gated private tree before Platform features expand.
+The Platform is the repository's authenticated operations UI. PR 1 established its Next.js App Router route tree, server authentication boundaries, locale proxy, and transitional standalone runtime at `/platform/`; the NestJS API and Better Auth remain authoritative at same-origin `/api`. PR 2 removes the superseded React Router feature/test layer and restores browser-level coverage for the route contracts.
 
 Baseline anchor: `f8e958235bd69dae893f32d3bcfa2103df2caf4f`.
 
@@ -90,6 +90,8 @@ Final stack:
 - 2026-09-03: use nested App Router layouts for locale, guest-only, protected, and organization data boundaries.
 - 2026-09-03: browser API calls remain relative `/api`; server reads use a dedicated server-only backend origin and forward cookies.
 - 2026-09-03: keep existing interactive feature components during migration, converting only their router dependencies and entry boundaries.
+- 2026-09-03: use a locale catch-all route so unknown descendants render the application's localized not-found boundary instead of Next's generic root 404.
+- 2026-09-03: treat the availability request fired by the content-idea mount effect as the browser test's hydration signal before interacting with controlled fields.
 
 ## Progress
 
@@ -97,10 +99,10 @@ Final stack:
 - [x] Record URL, locale, auth, API, and runtime invariants.
 - [x] Read repository workflow, installed Next 16.3 guidance, and current primary documentation.
 - [x] PR 1 — Next foundation, routing, auth, and i18n.
-- [ ] PR 2 — feature and test migration.
+- [x] PR 2 — feature and test migration.
 - [ ] PR 3 — runtime/deployment cutover, cleanup, and documentation.
 - [ ] Final CI inspection and human handoff.
 
 ## Blockers
 
-None. The untouched recursive workspace test command showed one resource-contention timeout while the isolated Platform suite passed all 877 tests; this is baseline evidence to re-evaluate on the final stack, not a migration blocker.
+None. The recursive workspace test reproduced the recorded five-second CPU-contention timeout in two interaction-heavy settings cases. Their assertions and behavior are unchanged, but the cases now declare a 15-second budget; the recursive backend, web, and Platform suites subsequently passed together.

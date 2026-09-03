@@ -48,8 +48,8 @@ const cache = new Map<AppLocale, AppMessages>([[STATIC_DICTIONARY_LOCALE, arabic
 /**
  * Reads a dictionary, once per locale per session.
  *
- * Called from the locale route's loader, so the messages are in hand before
- * the tree below renders and no screen ever paints untranslated.
+ * Called from the locale request configuration, so the messages are in hand
+ * before the tree renders and no screen ever paints untranslated.
  */
 export async function loadMessages(locale: AppLocale): Promise<AppMessages> {
   const cached = cache.get(locale);

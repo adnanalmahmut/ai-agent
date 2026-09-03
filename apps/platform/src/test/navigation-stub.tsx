@@ -6,7 +6,7 @@ import { vi } from 'vitest';
 /**
  * A stand-in for `@/i18n/navigation`.
  *
- * The real module resolves through React Router, which a component test has no
+ * The real module resolves through the App Router, which a component test has no
  * reason to mount: what is worth asserting is *where* a component decides to
  * go and *when* it asks for its data to be refetched — not what the router
  * subsequently did with either.
@@ -21,7 +21,7 @@ export const navigateSpy = vi.fn<
   (href: Href, options?: { replace?: boolean; locale?: AppLocale }) => void
 >();
 
-/** Records every request to re-run the loaders. */
+/** Records every request to refresh server-rendered route data. */
 export const revalidateSpy = vi.fn<() => void>();
 
 export const testRouter = {

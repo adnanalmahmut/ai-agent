@@ -17,34 +17,12 @@ vi.mock('@/features/auth/auth-client', async () => {
 
 vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
 
-const routeData = vi.fn<() => unknown>(() => undefined);
-
-vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
-
-  return {
-    ...actual,
-    useRouteLoaderData: (id: string) => {
-      if (id === 'protected') {
-        return {
-          user: { id: 'admin_1', name: 'Admin User', email: 'admin@example.com', role: 'admin' },
-          session: {},
-        };
-      }
-      return routeData();
-    },
-  };
-});
-
 const { AdminUsersBlock } = await import('./admin-users-block');
 const { AdminUsersTable } = await import('./admin-users-table');
 
 beforeEach(() => {
   resetAuthClientStub();
   resetNavigationStub();
-  routeData.mockReturnValue(undefined);
   allowGlobalPermissions('user:list', 'user:set-role', 'user:ban');
 });
 

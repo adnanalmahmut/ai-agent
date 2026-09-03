@@ -22,10 +22,8 @@ export type SlugAvailability = 'unknown' | 'checking' | 'available' | 'taken';
  * Three things happen on success and the order matters. The backend makes the
  * creator an owner and, because `organization.create` sets it, the new
  * organization becomes the session's active one — both server-side, neither
- * visible to data already loaded. So the loaders are revalidated, and only
- * then is the reader taken into the organization they just made. Navigating
- * first would land them on a page whose loader had not yet been told the
- * organization exists.
+ * visible to data already loaded. So the App Router data is refreshed, and
+ * then the reader is taken into the organization they just made.
  */
 export function useCreateOrganization() {
   const navigate = useAppNavigate();

@@ -26,7 +26,7 @@ export function firstParam(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-/** The same read, from a full URL. Convenient inside loaders. */
+/** The same read, from a full URL. Convenient at request boundaries. */
 export function firstParamOf(url: URL, key: string): string | undefined {
   return firstParam(url.searchParams, key);
 }

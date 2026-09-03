@@ -102,8 +102,9 @@ the application-owned business-settings form. Owners and admins can select the
 default content locale, IANA timezone, and ISO currency and maintain bounded
 legal name, industry, HTTP(S) website, and business description fields. The
 route loads the settings for the organization in the URL, validates before
-sending, and refreshes its loader data after a successful replacement. A
-server-side version conflict is rendered as a closed organization error so the
+sending, and refreshes its server-rendered route data after a successful
+replacement. A server-side version conflict is rendered as a closed
+organization error so the
 screen never silently overwrites a newer edit. Members see the existing
 read-only state; the client gate is UX and the backend permission guard remains
 authoritative.

@@ -11,7 +11,7 @@ import type { OrganizationRoleName } from '@/features/authorization/permissions'
  * nothing, and would have quietly let every field name in the UI be wrong.
  *
  * Declaring them here does not give up the drift protection, because the
- * loaders assign real responses to these types without a cast. A field the
+ * server data boundary assigns real responses to these types without a cast. A field the
  * server renames stops compiling at the assignment rather than at a `??` in a
  * component.
  *

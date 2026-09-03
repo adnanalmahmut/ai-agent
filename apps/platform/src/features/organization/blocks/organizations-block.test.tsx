@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
-import type { OrganizationsListData } from '../loaders';
+import type { OrganizationsListData } from '../route-data';
 
 vi.mock('@/features/auth/auth-client', async () => {
   const { authClientStub } = await import('@/test/auth-client-stub');
