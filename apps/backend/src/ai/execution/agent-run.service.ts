@@ -4,23 +4,23 @@ import { AppException } from '../../core/errors';
 import { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../infrastructure/database';
 import { OutboxRepository } from '../../infrastructure/outbox';
-import {
-  APPLICATION_MODEL_CATALOG,
-  type AgentModelId,
-} from '../models/model-catalog';
 import { AgentConfigurationError } from '../agents/agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agents/agent-definition.registry';
 import {
   AGENT_RUN_DRIVERS,
   MCP_SESSION_RUNTIME,
   TERMINAL_TRANSPORT_FAILURE,
-  type AgentFailureDiagnostic,
   type AgentConfiguration,
+  type AgentFailureDiagnostic,
   type AgentRun,
   type AgentRunStatus,
   type AgentValue,
   type CreateAgentRun,
 } from '../agents/agent.types';
+import {
+  APPLICATION_MODEL_CATALOG,
+  type AgentModelId,
+} from '../models/model-catalog';
 
 const AGENT_RUN_QUEUED = 'agent-run.queued';
 

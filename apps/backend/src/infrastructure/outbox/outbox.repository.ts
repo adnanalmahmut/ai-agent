@@ -90,6 +90,8 @@ export class OutboxRepository {
     }));
   }
 
+  // Delivery is transport fact, not claim-owner judgement: once queue publish
+  // succeeded, record DELIVERED even if the publication claim expired meanwhile.
   async markDelivered(ids: string[]): Promise<void> {
     if (ids.length === 0) return;
 
@@ -105,6 +107,8 @@ export class OutboxRepository {
     });
   }
 
+  // Retry/failure are claim-owner decisions; fence them so a stale dispatcher
+  // cannot overwrite the outcome of a newer claim.
   async reschedule(
     claim: OutboxClaim,
     delayMs: number,

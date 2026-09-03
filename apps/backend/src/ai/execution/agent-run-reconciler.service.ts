@@ -187,6 +187,8 @@ export class AgentRunReconciler {
 
       pass.failed += 1;
 
+      // Advance only after the terminal write resolves; otherwise a transient DB
+      // failure can move the cursor past a run already proven to need reconciliation.
       const reconciled = await this.runs.reconcileTerminalFailure(candidate.id);
 
       this.advancePast(candidate);

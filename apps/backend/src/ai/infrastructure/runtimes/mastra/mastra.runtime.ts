@@ -1,17 +1,9 @@
-import { Inject, Injectable } from '@nestjs/common';
 import { Agent } from '@mastra/core/agent';
 import { noopLogger } from '@mastra/core/logger';
 import { createTool } from '@mastra/core/tools';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { AppException } from '../../../../core/errors';
-import {
-  AI_RUNTIME_CONFIG,
-  type AiRuntimeConfigPort,
-} from '../../runtime-config.port';
-import {
-  APPLICATION_MODEL_CATALOG,
-  type AgentModelId,
-} from '../../../models/model-catalog';
 import { AgentConfigurationError } from '../../../agents/agent-configuration.error';
 import {
   AGENT_RUNTIME_NAMES,
@@ -21,6 +13,14 @@ import {
   type AgentValue,
 } from '../../../agents/agent.types';
 import type { AgentRuntime } from '../../../execution/agent-runtime';
+import {
+  APPLICATION_MODEL_CATALOG,
+  type AgentModelId,
+} from '../../../models/model-catalog';
+import {
+  AI_RUNTIME_CONFIG,
+  type AiRuntimeConfigPort,
+} from '../../runtime-config.port';
 
 const PROVIDER_SECRETS = {
   openai: 'openai.api_key',

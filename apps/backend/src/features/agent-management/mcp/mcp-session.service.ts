@@ -3,12 +3,8 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
 import { createHash } from 'node:crypto';
 
-import { authConfig } from '../../../infrastructure/config';
-import { RuntimeConfigResolver } from '../../control-plane';
-import { AppException } from '../../../core/errors';
 import { AgentConfigurationError } from '../../../ai/agents/agent-configuration.error';
 import { AgentDefinitionRegistry } from '../../../ai/agents/agent-definition.registry';
-import { AgentRunService } from '../../../ai/execution/agent-run.service';
 import {
   AGENT_RUN_DRIVERS,
   isMcpSessionExpired,
@@ -16,11 +12,15 @@ import {
   type AgentRuntimeTool,
   type AgentValue,
 } from '../../../ai/agents/agent.types';
+import { AgentRunService } from '../../../ai/execution/agent-run.service';
 import { ToolExecutionService } from '../../../ai/tools/tool-execution.service';
 import {
   ToolExecutionFailure,
   ToolGateway,
 } from '../../../ai/tools/tool.gateway';
+import { AppException } from '../../../core/errors';
+import { authConfig } from '../../../infrastructure/config';
+import { RuntimeConfigResolver } from '../../control-plane';
 import {
   MCP_EXCHANGE_DEADLINE_MS,
   MCP_FORWARDED_HEADERS,
