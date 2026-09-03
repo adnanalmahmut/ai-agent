@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from '@repo/ui';
 import { LogIn } from 'lucide-react';
 import { useTranslations } from 'use-intl';

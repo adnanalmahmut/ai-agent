@@ -1,3 +1,5 @@
+'use client';
+
 import { DEFAULT_LOCALE, LOCALE_META, isAppLocale } from '@repo/i18n-core';
 import {
   Button,

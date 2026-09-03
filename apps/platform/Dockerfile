@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:24-bookworm-slim AS build
+FROM node:24-bookworm-slim AS dependencies
 
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
@@ -21,17 +21,24 @@ COPY packages/ui packages/ui
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter platform...
 
+FROM dependencies AS build
 COPY apps/platform apps/platform
+ARG NEXT_PUBLIC_APP_NAME=Feedogo
+ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
+RUN test -n "$NEXT_PUBLIC_APP_NAME"
+RUN pnpm --filter @repo/i18n-core build && pnpm --filter platform build
 
-ARG VITE_APP_NAME
-RUN test -n "$VITE_APP_NAME"
-RUN VITE_APP_NAME="$VITE_APP_NAME" pnpm --filter @repo/i18n-core build && \
-    VITE_APP_NAME="$VITE_APP_NAME" pnpm --filter platform build && \
-    ! grep -R "%VITE_" /workspace/apps/platform/dist
+FROM node:24-bookworm-slim AS runtime
 
-FROM nginxinc/nginx-unprivileged:1.27-alpine AS runtime
-
-COPY apps/platform/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /workspace/apps/platform/dist /usr/share/nginx/html/platform
-USER 101
+ENV NODE_ENV=production
+ENV HOSTNAME=0.0.0.0
+ENV PORT=8080
+WORKDIR /app
+RUN groupadd --system --gid 1001 nodejs \
+    && useradd --system --uid 1001 --gid nodejs nextjs
+COPY --from=build --chown=nextjs:nodejs /workspace/apps/platform/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /workspace/apps/platform/.next/static ./apps/platform/.next/static
+COPY --from=build --chown=nextjs:nodejs /workspace/apps/platform/public ./apps/platform/public
+USER nextjs
 EXPOSE 8080
+CMD ["node", "apps/platform/server.js"]

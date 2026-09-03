@@ -1,3 +1,5 @@
+'use client';
+
 import { Alert, AlertDescription, AlertTitle, buttonVariants } from '@repo/ui';
 import { AlertCircle } from 'lucide-react';
 import { useTranslations } from 'use-intl';

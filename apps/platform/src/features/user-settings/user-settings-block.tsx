@@ -1,3 +1,5 @@
+'use client';
+
 import { cn } from '@repo/ui';
 import { Laptop, Lock, ShieldAlert, User } from 'lucide-react';
 import { useState } from 'react';

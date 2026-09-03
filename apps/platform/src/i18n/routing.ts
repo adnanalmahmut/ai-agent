@@ -4,8 +4,30 @@ import {
   isAppLocale,
   type AppLocale,
 } from '@repo/i18n-core';
+import { defineRouting } from 'next-intl/routing';
 
 import { PLATFORM_BASE_PATH } from '@/config/paths';
+import {
+  LOCALE_COOKIE,
+  LOCALE_DETECTION,
+  LOCALE_PREFIX,
+} from './config';
+
+/** The single Next.js locale routing definition. */
+export const routing = defineRouting({
+  locales: SUPPORTED_LOCALES,
+  defaultLocale: DEFAULT_LOCALE,
+  localePrefix: LOCALE_PREFIX,
+  localeDetection: LOCALE_DETECTION,
+  localeCookie: {
+    name: LOCALE_COOKIE.name,
+    path: LOCALE_COOKIE.path,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    maxAge: LOCALE_COOKIE.maxAgeSeconds,
+  },
+  alternateLinks: false,
+});
 
 /**
  * The URL grammar of the platform, as pure functions.

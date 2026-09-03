@@ -1,17 +1,12 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { LOCALE_META } from '@repo/i18n-core';
-import { DirectionProvider } from '@repo/ui';
-import { createMemoryRouter, RouterProvider } from 'react-router';
-import { IntlProvider } from 'use-intl';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PROTECTED_ROUTE_ID } from '@/features/auth/loaders';
+import type { PlatformSession } from '@/features/auth/session-types';
 import type { OrganizationData } from '../loaders';
 import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
 import { organization } from '@/test/organization-fixtures';
-
-import english from '../../../../messages/en.json';
+import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
   const { authClientStub } = await import('@/test/auth-client-stub');
@@ -42,28 +37,14 @@ const SESSION = {
 };
 
 /**
- * The layout reads the session from the protected route's loader, so the test
- * has to provide a route with that id — which is the arrangement the
- * application actually has, and worth reproducing rather than stubbing.
+ * The protected layout passes its server-resolved session through the same
+ * provider mounted by this test helper.
  */
 function renderShell(data: OrganizationData, tab = <span>tab</span>) {
-  const router = createMemoryRouter([
-    {
-      id: PROTECTED_ROUTE_ID,
-      path: '/',
-      loader: () => SESSION,
-      element: (
-        <IntlProvider locale="en" messages={english} timeZone="UTC">
-          <DirectionProvider direction={LOCALE_META.en.direction}>
-            <OrganizationShellBlock data={data} />
-          </DirectionProvider>
-        </IntlProvider>
-      ),
-      children: [{ index: true, element: tab }],
-    },
-  ]);
-
-  return render(<RouterProvider router={router} />);
+  return renderWithProviders(
+    <OrganizationShellBlock data={data}>{tab}</OrganizationShellBlock>,
+    { session: SESSION as PlatformSession },
+  );
 }
 
 beforeEach(() => {

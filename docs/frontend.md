@@ -5,8 +5,8 @@ localized routes, server/public configuration separation, theme support, and a
 Better Auth client. Its production image is Next standalone output running as a
 non-root user.
 
-`apps/platform` is a React 19 + Vite application mounted at `/platform/`. It
-contains authentication, account settings, active-session location, global
+`apps/platform` is a Next.js 16 App Router application mounted at `/platform/`.
+It contains authentication, account settings, active-session location, global
 administration, organization membership/invitations, the operator control-plane
 surface, and permission-gated UI. Client permission gates improve UX; backend
 authorization remains decisive.
@@ -108,14 +108,17 @@ screen never silently overwrites a newer edit. Members see the existing
 read-only state; the client gate is UX and the backend permission guard remains
 authoritative.
 
-The production image serves static files with unprivileged Nginx.
+The production image runs a standalone Next.js server as an unprivileged user;
+host Nginx remains the public reverse proxy.
 
-Platform public configuration is compiled into the immutable Vite artifact at
-build time. `docker-bake.hcl` passes `VITE_APP_NAME=Feedogo` to the Platform
-Docker build; the Dockerfile rejects an empty value and rejects emitted files
-that still contain unresolved `%VITE_*%` placeholders. `VITE_*` values are not
-runtime settings and must not be added to `/etc/ai-agent/runtime.env` as a way
-to alter an already-built Platform image.
+Platform public configuration is compiled into the immutable Next.js artifact
+at build time. `docker-bake.hcl` passes `NEXT_PUBLIC_APP_NAME=Feedogo` to the
+Platform Docker build, and the Dockerfile rejects an empty value. Public build
+values are not runtime settings and must not be added to
+`/etc/ai-agent/runtime.env` as a way to alter an already-built Platform image.
+Server Components use the server-only `PLATFORM_API_ORIGIN` to reach the NestJS
+service over the Compose network and forward the incoming cookie; browser API
+traffic remains same-origin under `/api`.
 
 Both applications use the shared `@repo/ui` and `@repo/i18n-core` packages.
 English and Arabic messages are parity-tested. CI runs Web lint/test/build and

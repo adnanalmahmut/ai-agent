@@ -2,10 +2,15 @@ import { LOCALE_META, type AppLocale } from '@repo/i18n-core';
 import { DirectionProvider } from '@repo/ui';
 import { render, type RenderResult } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { createMemoryRouter, Outlet, RouterProvider } from 'react-router';
 import { IntlProvider } from 'use-intl';
 
-import type { OrganizationContext } from '@/features/organization/organization-context';
+import type { PlatformSession } from '@/features/auth/session-types';
+import { PlatformSessionProvider } from '@/features/auth/use-platform-session';
+import {
+  OrganizationProvider,
+  type OrganizationContext,
+} from '@/features/organization/organization-context';
+import { stubLocation, testRouter } from '@/test/navigation-stub';
 
 import arabic from '../../messages/ar.json';
 import english from '../../messages/en.json';
@@ -30,15 +35,53 @@ import english from '../../messages/en.json';
  */
 const MESSAGES = { ar: arabic, en: english } as const;
 
+export const TEST_SESSION = {
+  user: {
+    id: 'user_owner',
+    name: 'Sara Haddad',
+    email: 'sara@example.com',
+    emailVerified: true,
+    image: null,
+    role: 'admin',
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  },
+  session: {
+    id: 'session_1',
+    token: 'test-token',
+    userId: 'user_owner',
+    expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+  },
+} as PlatformSession;
+
 export function renderWithProviders(
   ui: ReactElement,
-  { locale = 'en' as AppLocale } = {},
+  {
+    locale = 'en' as AppLocale,
+    organization,
+    session = TEST_SESSION,
+  }: {
+    locale?: AppLocale;
+    organization?: OrganizationContext;
+    session?: PlatformSession;
+  } = {},
 ): RenderResult & { locale: AppLocale } {
   const { direction } = LOCALE_META[locale];
+  const content = organization ? (
+    <OrganizationProvider value={organization}>{ui}</OrganizationProvider>
+  ) : (
+    ui
+  );
 
   const result = render(
     <IntlProvider locale={locale} messages={MESSAGES[locale]} timeZone="UTC">
-      <DirectionProvider direction={direction}>{ui}</DirectionProvider>
+      <DirectionProvider direction={direction}>
+        <PlatformSessionProvider session={session}>
+          {content}
+        </PlatformSessionProvider>
+      </DirectionProvider>
     </IntlProvider>,
   );
 
@@ -48,11 +91,8 @@ export function renderWithProviders(
 /**
  * Renders a component that lives inside an organization's layout.
  *
- * The four organization tabs read their organization from the outlet context,
- * so a test has to supply one — which means a router, because that is what
- * `useOutletContext` reads from. A memory router with two routes is the
- * smallest honest way to do it; faking the context with a hand-rolled provider
- * would test a component against a fiction of its own plumbing.
+ * The App Router organization layout supplies a React context, so component
+ * tests mount that same provider directly.
  */
 export function renderInOrganization(
   ui: ReactElement,
@@ -70,33 +110,11 @@ export function renderInOrganization(
      */
     initialEntries = ['/'],
   }: { locale?: AppLocale; initialEntries?: string[] } = {},
-): RenderResult & { locale: AppLocale; router: ReturnType<typeof createMemoryRouter> } {
-  const { direction } = LOCALE_META[locale];
+): RenderResult & { locale: AppLocale; router: typeof testRouter } {
+  stubLocation(initialEntries[0] ?? '/');
+  const result = renderWithProviders(ui, { locale, organization: context });
 
-  const router = createMemoryRouter(
-    [
-      {
-        path: '/',
-        element: (
-          <IntlProvider
-            locale={locale}
-            messages={MESSAGES[locale]}
-            timeZone="UTC"
-          >
-            <DirectionProvider direction={direction}>
-              <Outlet context={context} />
-            </DirectionProvider>
-          </IntlProvider>
-        ),
-        children: [{ index: true, element: ui }],
-      },
-    ],
-    { initialEntries },
-  );
-
-  const result = render(<RouterProvider router={router} />);
-
-  return Object.assign(result, { locale, router });
+  return Object.assign(result, { router: testRouter });
 }
 
 export { arabic, english };

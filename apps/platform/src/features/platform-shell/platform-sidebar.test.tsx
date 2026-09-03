@@ -5,6 +5,7 @@ import { SidebarProvider } from '@repo/ui';
 
 import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
 import { resetNavigationStub } from '@/test/navigation-stub';
+import { context, organization } from '@/test/organization-fixtures';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
@@ -14,43 +15,23 @@ vi.mock('@/features/auth/auth-client', async () => {
 
 vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
 
-/** The sidebar reads the current organization from the route's loader data. */
-const routeData = vi.fn<() => unknown>(() => undefined);
-
-vi.mock('react-router', async () => {
-  const actual = await vi.importActual<typeof import('react-router')>(
-    'react-router',
-  );
-
-  return {
-    ...actual,
-    useRouteLoaderData: (id: string) => {
-      if (id === 'protected') {
-        return {
-          user: { name: 'Sara Haddad', email: 'sara@example.com', image: null },
-          session: {},
-        };
-      }
-      return routeData();
-    },
-  };
-});
-
 const { PlatformSidebar } = await import('./platform-sidebar');
 
-function renderSidebar(locale: 'en' | 'ar' = 'en') {
+function renderSidebar(
+  locale: 'en' | 'ar' = 'en',
+  organizationContext?: ReturnType<typeof context>,
+) {
   return renderWithProviders(
     <SidebarProvider>
       <PlatformSidebar />
     </SidebarProvider>,
-    { locale },
+    { locale, organization: organizationContext },
   );
 }
 
 beforeEach(() => {
   resetAuthClientStub();
   resetNavigationStub();
-  routeData.mockReturnValue(undefined);
 });
 
 describe('the primary navigation', () => {
@@ -88,12 +69,12 @@ describe('the organization section', () => {
     // The route's organization wins over the active one: showing the active
     // organization's sections while reading another would be navigation that
     // lies about where its links go.
-    routeData.mockReturnValue({
-      state: 'ready',
-      organization: { id: 'org_route', name: 'Route Org' },
-    });
-
-    renderSidebar();
+    renderSidebar(
+      'en',
+      context({
+        organization: organization({ id: 'org_route', name: 'Route Org' }),
+      }),
+    );
 
     expect(screen.getByRole('link', { name: 'Members' })).toHaveAttribute(
       'href',
@@ -117,8 +98,6 @@ describe('the organization section', () => {
   });
 
   it('shows nothing for an organization that failed to load', () => {
-    routeData.mockReturnValue({ state: 'error', error: 'NOT_A_MEMBER' });
-
     renderSidebar();
 
     expect(screen.queryByRole('link', { name: 'Members' })).toBeNull();
@@ -130,12 +109,10 @@ describe('what the sidebar is not', () => {
     // The sections appear because there is something to look at, not because
     // the reader may act on it. Each page asks its own permission, and the
     // server asks again.
-    routeData.mockReturnValue({
-      state: 'ready',
-      organization: { id: 'org_1', name: 'Acme' },
-    });
-
-    renderSidebar();
+    renderSidebar(
+      'en',
+      context({ organization: organization({ id: 'org_1', name: 'Acme' }) }),
+    );
 
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(

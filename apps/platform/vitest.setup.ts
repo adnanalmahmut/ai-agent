@@ -3,14 +3,15 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
 
+vi.mock('@/i18n/navigation', async () => import('@/test/navigation-stub'));
+
 /**
  * Shared test environment.
  *
- * `VITE_APP_NAME` is read at module scope by the public configuration, which
- * the auth client imports — so it has to exist before any import of it is
- * evaluated. A `beforeEach` would be too late.
+ * Next navigation requires an App Router context that component tests do not
+ * mount. The shared navigation stub records destinations while preserving the
+ * locale behavior those tests assert.
  */
-import.meta.env.VITE_APP_NAME ??= 'AI Agents';
 
 /**
  * jsdom implements none of these, and Radix's dropdowns, dialogs and sheets

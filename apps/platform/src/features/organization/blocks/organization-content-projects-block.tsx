@@ -1,12 +1,14 @@
+'use client';
+
 import { Badge, Button, Card, CardContent } from '@repo/ui';
 import { FolderKanban, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { ORGANIZATION_DETAIL_ROUTES } from '@/features/auth/routes';
+import { Link } from '@/i18n/navigation';
 import {
   listContentProjects,
   type ContentProject,
@@ -147,7 +149,7 @@ export function OrganizationContentProjectsBlock() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Link
                       className="font-medium underline-offset-4 hover:underline"
-                      to={ORGANIZATION_DETAIL_ROUTES.contentProject(
+                      href={ORGANIZATION_DETAIL_ROUTES.contentProject(
                         organizationId,
                         project.id,
                       )}

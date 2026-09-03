@@ -5,7 +5,7 @@ owning boundary; this repository records names, validation, and flow only.
 
 | Boundary | Source of truth | Examples | Secret values allowed in Git? |
 |---|---|---|---|
-| Build/tooling | `package.json`, package manifests, `docker-bake.hcl` | Node/pnpm versions, build targets, `VITE_APP_NAME` | No |
+| Build/tooling | `package.json`, package manifests, `docker-bake.hcl` | Node/pnpm versions, build targets, `NEXT_PUBLIC_APP_NAME` | No |
 | Local/test | `apps/backend/.env.example`, CI job environment, Compose test defaults | throwaway test DB/auth/mail values | Only explicit non-live fixtures |
 | GitHub deployment metadata | `staging` Environment variables plus restricted deploy key secret | VPS host/user, pinned host key, public URL | Names/workflow references only |
 | VPS runtime | `/etc/ai-agent/runtime.env`, root-owned `0600` | database, Redis, Better Auth, mail, OAuth, MaxMind | Never |
@@ -87,9 +87,9 @@ See [the first version-aware release](operations-runbook.md#first-version-aware-
   not inherit API-only credentials. The worker's allowlist includes the mail
   driver values, and the worker parses `mailConfig` at boot, because it
   performs approved agent notifications through the same driver.
-- Vite `VITE_*` configuration is compiled into the Platform image. It is not a
-  runtime secret or a mutable VPS setting.
-- Next.js server/public separation lives under `apps/web/src/config/`.
+- Next.js `NEXT_PUBLIC_*` configuration is compiled into each frontend image.
+  It is not a runtime secret or a mutable VPS setting.
+- Next.js server/public separation lives under each frontend's `src/config/`.
 
 ## Ownership rules
 

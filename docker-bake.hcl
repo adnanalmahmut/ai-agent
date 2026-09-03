@@ -62,7 +62,7 @@ target "platform" {
   dockerfile = "apps/platform/Dockerfile"
   target = "runtime"
   args = {
-    VITE_APP_NAME = "Feedogo"
+    NEXT_PUBLIC_APP_NAME = "Feedogo"
   }
   tags = ["${REGISTRY}/platform:${IMAGE_TAG}"]
 }

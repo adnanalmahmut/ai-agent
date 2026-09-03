@@ -1,0 +1,106 @@
+# Platform Next.js migration
+
+## Goal
+
+Replace the `apps/platform` React/Vite/React Router SPA with a Next.js 16.3 App Router application in three stacked pull requests while preserving its public URLs, authentication and authorization behavior, localization, product UI, backend API boundary, tests, and reverse-proxy topology.
+
+## Context
+
+The Platform is the repository's authenticated operations UI. It is currently a static Vite build served by an unprivileged Nginx container at `/platform/`; the NestJS API and Better Auth remain authoritative at same-origin `/api`. The migration establishes one filesystem router and a server-gated private tree before Platform features expand.
+
+Baseline anchor: `f8e958235bd69dae893f32d3bcfa2103df2caf4f`.
+
+## Scope
+
+- Next.js App Router, route groups, localized route tree, layouts, and boundaries in `apps/platform`.
+- Server-side session resolution and protected/guest redirects through the existing backend.
+- Migration of React Router loaders, hooks, outlets, links, tests, and route assertions.
+- Next standalone container runtime, Compose/bake/CI/operator assertions, host proxy compatibility, and owning documentation.
+- Removal of Vite, React Router, SPA index/runtime, and Vite-specific public configuration.
+
+## Non-goals
+
+- Backend business-logic or database changes.
+- New product features, visual redesign, state-management replacement, or a shared frontend framework.
+- Combining `apps/web` and `apps/platform`.
+- Production provisioning, manual deployment, merging, or auto-merge.
+
+## Constraints
+
+- Preserve `/platform/{locale}/...`, `en`/`ar`, deterministic URL locale selection, `APP_LOCALE`, and RTL/LTR behavior.
+- Anonymous sessions redirect before protected UI renders; backend/network failure must not masquerade as sign-out.
+- Backend authorization remains decisive; client gates remain UX only.
+- Server Components are the default; Client Components are limited to interactive boundaries.
+- Server reads forward request cookies to a server-only internal backend origin and opt out of caching.
+- Every PR must be coherent and green against its declared base; PR 2 depends on PR 1 and PR 3 depends on PR 2.
+- Preserve unrelated `.vscode/settings.json` work and stage explicit paths only.
+
+## Acceptance criteria
+
+- PR 1 targets `main`, PR 2 targets PR 1, and PR 3 targets PR 2; all remain open for human review.
+- Next App Router is the only runtime routing authority and all existing route contracts remain reachable.
+- Protected and guest-only redirects, safe `returnTo`, invitations, verification, and reset flows retain their behavior.
+- All feature surfaces and meaningful tests are migrated without deleting coverage.
+- The final Platform image runs the standalone Next Node server on the existing loopback/reverse-proxy boundary.
+- No Vite, React Router, SPA `index.html`, `VITE_*`, or obsolete static-Nginx platform runtime remains.
+- Final repository validation and all final-head PR checks pass.
+
+## Validation
+
+At each PR boundary:
+
+- `pnpm --filter platform typecheck`
+- `pnpm --filter platform lint`
+- `pnpm --filter platform test`
+- `pnpm --filter platform build`
+- relevant browser/runtime and architecture checks
+- `git diff --check`
+
+Final stack:
+
+- `pnpm agents:check`
+- `pnpm typecheck`
+- `pnpm lint`
+- `pnpm test`
+- `pnpm build`
+- `pnpm --filter backend test:e2e`
+- `ops/tests/documentation.sh`
+- container image build/start/health and reverse-proxy contract checks
+- Playwright Platform smoke
+
+## Required evidence
+
+- Baseline results and preserved invariant record in the ignored migration state.
+- Reviewable route tree and architecture tests.
+- Browser evidence for locale, direct deep links, 404s, and auth redirects.
+- Container build/start/health evidence.
+- PR URLs, bases, head SHAs, and final-head CI states.
+
+## Git and PR policy
+
+- PR 1: `refactor/platform-next-01-foundation` → `main`.
+- PR 2: `refactor/platform-next-02-features` → PR 1 branch.
+- PR 3: `refactor/platform-next-03-cutover` → PR 2 branch.
+- Never force-push, merge, enable auto-merge, deploy manually, or operate Production.
+
+## Decision log
+
+- 2026-09-03: use repository-compatible Next.js `16.3.0`, React `19.2.8`, and `next-intl` `4.13.x`.
+- 2026-09-03: preserve `/platform` with Next `basePath`; route `href` values remain base-less because Next applies the base automatically.
+- 2026-09-03: use nested App Router layouts for locale, guest-only, protected, and organization data boundaries.
+- 2026-09-03: browser API calls remain relative `/api`; server reads use a dedicated server-only backend origin and forward cookies.
+- 2026-09-03: keep existing interactive feature components during migration, converting only their router dependencies and entry boundaries.
+
+## Progress
+
+- [x] Synchronize and verify baseline `main`.
+- [x] Record URL, locale, auth, API, and runtime invariants.
+- [x] Read repository workflow, installed Next 16.3 guidance, and current primary documentation.
+- [x] PR 1 — Next foundation, routing, auth, and i18n.
+- [ ] PR 2 — feature and test migration.
+- [ ] PR 3 — runtime/deployment cutover, cleanup, and documentation.
+- [ ] Final CI inspection and human handoff.
+
+## Blockers
+
+None. The untouched recursive workspace test command showed one resource-contention timeout while the isolated Platform suite passed all 877 tests; this is baseline evidence to re-evaluate on the final stack, not a migration blocker.
