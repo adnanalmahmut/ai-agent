@@ -1,3 +1,3 @@
-import { AuthLayout } from '@/routes/auth/auth-layout';
+import { AuthLayout } from '@/features/auth/components/auth-layout';
 
 export default AuthLayout;

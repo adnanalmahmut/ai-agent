@@ -19,7 +19,11 @@ import { describe, expect, it } from 'vitest';
 const SRC = join(process.cwd(), 'src');
 
 /** The showcase predates this work and is a reference, not a page. */
-const DESIGN_SYSTEM_PAGE = join('routes', 'dashboard', 'design-system-page.tsx');
+const DESIGN_SYSTEM_PAGE = join(
+  'features',
+  'design-system',
+  'design-system-page.tsx',
+);
 
 /**
  * Code this migration owns.
@@ -34,7 +38,6 @@ const OWNED_DIRECTORIES = [
   join('src', 'features'),
   join('src', 'i18n'),
   join('src', 'lib'),
-  join('src', 'routes'),
   join('src', 'components', 'brand-mark.tsx'),
   join('src', 'components', 'confirm-dialog.tsx'),
   join('src', 'components', 'directional-icon.ts'),
@@ -112,6 +115,27 @@ describe('Next.js boundaries are explicit', () => {
 
     for (const path of ALL_FILES) {
       expect(read(path), label(path)).not.toMatch(/from ['"]react-router/);
+    }
+  });
+
+  it('does not retain the legacy SPA toolchain or static runtime', () => {
+    const manifest: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } =
+      JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+    const installed = {
+      ...manifest.dependencies,
+      ...manifest.devDependencies,
+    };
+
+    expect(installed).not.toHaveProperty('vite');
+    expect(installed).not.toHaveProperty('@vitejs/plugin-react');
+    expect(installed).not.toHaveProperty('@tailwindcss/vite');
+
+    for (const obsoletePath of [
+      'index.html',
+      'vite.config.ts',
+      'nginx.conf',
+    ]) {
+      expect(() => statSync(join(process.cwd(), obsoletePath))).toThrow();
     }
   });
 
@@ -392,7 +416,6 @@ describe('direction is handled logically', () => {
 describe('no user-facing string is hard-coded', () => {
   const FEATURE_DIRECTORIES = [
     join('src', 'features'),
-    join('src', 'routes'),
     join('src', 'components'),
   ];
 

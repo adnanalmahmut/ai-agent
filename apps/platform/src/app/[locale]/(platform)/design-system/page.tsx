@@ -1,3 +1,3 @@
-import { DesignSystemPage } from '@/routes/dashboard/design-system-page';
+import { DesignSystemPage } from '@/features/design-system/design-system-page';
 
 export default DesignSystemPage;

@@ -22,8 +22,8 @@ import {
  *
  * `baseURL` is built from the page's own origin plus a fixed path, which is
  * what "same-origin" means in practice: production serves the API from
- * `/api/auth` on this very host, and development reproduces that through the
- * Vite proxy. There is no host to configure and no cross-origin request to
+ * `/api/auth` on this very host, and development reproduces that through a
+ * Next.js rewrite. There is no host to configure and no cross-origin request to
  * make, so the cookie is a plain first-party cookie and CORS never enters the
  * picture.
  *

@@ -1,20 +1,13 @@
 import { fileURLToPath } from 'node:url';
 
-import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 /**
- * Test configuration, separate from `vite.config.ts` on purpose.
- *
- * The application config carries a `base` of `/platform/` and a dev proxy;
- * neither is meaningful under Vitest, and inheriting them would make the test
- * environment differ from the assertions in ways nobody would think to check.
- * What the tests do need is the same module resolution, so the alias is
- * repeated and nothing else is.
+ * Vitest owns its test transform and module resolution independently of the
+ * Next.js application build. The alias mirrors tsconfig so tests exercise the
+ * same imports without pulling a second application bundler into the package.
  */
 export default defineConfig({
-  plugins: [react()],
-
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),

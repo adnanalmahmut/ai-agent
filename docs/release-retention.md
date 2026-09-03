@@ -209,6 +209,11 @@ Platform service from the static runtime to the Next.js server and supplies its
 server-only backend origin, so `MIN_VERSION` moves to 8 while retention behavior
 stays unchanged.
 
+Retention remains untouched at host bundle 9. That bundle aligns the Platform
+standalone server's internal and loopback host ports at 3001; `MIN_VERSION`
+stays at 8 because bundle 8 can still run the image by overriding `PORT` and
+mapping its transitional internal port.
+
 Retention is likewise untouched at host bundle 5, which adds only the operator
 rotation verb to the deploy wrapper. `MIN_VERSION` stays at 4 there, so that
 bundle behaves the way bundle 3 did: a host still on bundle 4 deploys the

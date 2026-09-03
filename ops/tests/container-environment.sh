@@ -130,6 +130,9 @@ assert_jq 'migrate has no APP_ENCRYPTION_DECRYPT_KEYS' '.services.migrate.enviro
 assert_jq 'migrate environment is DATABASE_URL only' '.services.migrate.environment | keys == ["DATABASE_URL"]'
 assert_jq 'web environment allowlist' '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]'
 assert_jq 'platform environment allowlist' '.services.platform.environment | keys | sort == ["HOSTNAME", "PLATFORM_API_ORIGIN", "PORT"]'
+assert_jq 'platform standalone server port' '.services.platform.environment.PORT == "3001"'
+assert_jq 'platform loopback port targets the standalone server directly' '.services.platform.ports == [{"mode":"ingress","host_ip":"127.0.0.1","target":3001,"published":"3001","protocol":"tcp"}]'
+assert_jq 'platform healthcheck probes the standalone server port' '.services.platform.healthcheck.test[3] | contains("127.0.0.1:3001/platform/health")'
 assert_jq 'geoipupdate environment allowlist' '.services.geoipupdate.environment | keys | sort == ["GEOIPUPDATE_ACCOUNT_ID", "GEOIPUPDATE_EDITION_IDS", "GEOIPUPDATE_FREQUENCY", "GEOIPUPDATE_LICENSE_KEY"]'
 
 echo 'container environment least-privilege invariants: ok'

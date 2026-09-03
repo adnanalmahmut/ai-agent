@@ -1,10 +1,13 @@
 import { Badge, Skeleton } from '@repo/ui';
 import { Building2 } from 'lucide-react';
+import { useSyncExternalStore } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { authClient } from '@/features/auth/auth-client';
 
 import { OrganizationRoleLabel } from './organization-role-label';
+
+const subscribeToHydration = () => () => undefined;
 
 /**
  * Shows which organization is active and what the user is inside it.
@@ -22,10 +25,15 @@ import { OrganizationRoleLabel } from './organization-role-label';
  */
 export function ActiveOrganization() {
   const t = useTranslations('Organization');
+  const isHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
   const organization = authClient.useActiveOrganization();
   const member = authClient.useActiveMember();
 
-  if (organization.isPending) {
+  if (!isHydrated || organization.isPending) {
     return <Skeleton className="h-5 w-32" aria-label={t('active.loading')} />;
   }
 

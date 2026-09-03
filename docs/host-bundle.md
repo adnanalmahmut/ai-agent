@@ -160,6 +160,14 @@ requests pointed at the Platform container itself. `MIN_VERSION` therefore
 moves to 8. Install bundle 8 as part of deploying the release that carries the
 Next.js Platform runtime.
 
+Bundle 9 aligns the Platform container's internal port with its existing host
+port: the installed Compose file now maps loopback port 3001 directly to the
+standalone server on port 3001 and probes that port for health. `MIN_VERSION`
+stays at 8. A bundle-8 host explicitly sets the final image's `PORT` to 8080,
+maps the same loopback host port to it, and supplies `PLATFORM_API_ORIGIN`, so it
+continues to run this release correctly; bundle 9 removes that transitional
+internal-port translation without creating a release compatibility dependency.
+
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by
 `ops/backup/install-backups.sh` on their own schedule.
