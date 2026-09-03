@@ -51,19 +51,15 @@ describe('AdminUsersBlock request concurrency (latest-request-wins)', () => {
 
     renderWithProviders(<AdminUsersBlock />);
 
-    // Wait for initial debounce to trigger request A
     await sleep(350);
     expect(callCount).toBe(1);
 
-    // Type in search box to trigger request B
     const searchInput = screen.getByRole('searchbox');
     fireEvent.change(searchInput, { target: { value: 'user-b' } });
 
-    // Wait for second debounce to trigger request B
     await sleep(350);
     expect(callCount).toBe(2);
 
-    // Resolve Request A late with User A
     resolveRequestA(
       ok({
         users: [
@@ -80,11 +76,9 @@ describe('AdminUsersBlock request concurrency (latest-request-wins)', () => {
       }),
     );
 
-    // Stale User A must NOT be displayed
     await sleep(50);
     expect(screen.queryByText('Stale User A')).not.toBeInTheDocument();
 
-    // Now resolve Request B with User B
     resolveRequestB(
       ok({
         users: [
@@ -101,7 +95,6 @@ describe('AdminUsersBlock request concurrency (latest-request-wins)', () => {
       }),
     );
 
-    // Authoritative User B MUST be displayed
     expect(await screen.findByText('Authoritative User B')).toBeInTheDocument();
     expect(screen.queryByText('Stale User A')).not.toBeInTheDocument();
   });
@@ -118,24 +111,20 @@ describe('AdminUsersBlock request concurrency (latest-request-wins)', () => {
       if (callCount === 1) {
         return promiseA as never;
       }
-      // Request B stays pending forever
       return new Promise(() => {}) as never;
     });
 
     renderWithProviders(<AdminUsersBlock />);
 
-    // Wait for debounce to start Request A
     await sleep(350);
     expect(callCount).toBe(1);
 
-    // Type to trigger Request B
     const searchInput = screen.getByRole('searchbox');
     fireEvent.change(searchInput, { target: { value: 'query-2' } });
 
     await sleep(350);
     expect(callCount).toBe(2);
 
-    // Resolve stale Request A
     resolveRequestA(
       ok({
         users: [],
@@ -143,7 +132,6 @@ describe('AdminUsersBlock request concurrency (latest-request-wins)', () => {
       }),
     );
 
-    // Loading state MUST remain active because Request B is still pending
     await sleep(50);
     expect(screen.getByText('Loading users...')).toBeInTheDocument();
   });
@@ -182,10 +170,8 @@ describe('super_admin selector handling in AdminUsersTable', () => {
       />,
     );
 
-    // super_admin should be a badge, not a combobox
     expect(screen.getByText('Super Administrator')).toBeInTheDocument();
 
-    // normal user should have a role combobox
     const comboboxes = screen.getAllByRole('combobox');
     expect(comboboxes).toHaveLength(1);
   });

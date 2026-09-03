@@ -20,10 +20,6 @@ const valid = (overrides: Partial<ToolDefinition> = {}): ToolDefinition => ({
   ...overrides,
 });
 
-/**
- * The second declared reference, so a registry built from `valid()` alone is
- * not refused for the unrelated reason that `notification.send@1` is missing.
- */
 const sideEffect = (): ToolDefinition => ({
   id: 'notification.send',
   version: 1,
@@ -47,8 +43,6 @@ describe('ToolRegistry composition', () => {
   });
 
   it('refuses a duplicate exact identity', () => {
-    // Distinct runtime names, so this reaches the identity check rather than
-    // being caught earlier as a name collision.
     expect(() =>
       registryOf(valid(), valid({ runtimeName: 'knowledge_search_v1_again' })),
     ).toThrow('Duplicate tool "knowledge.search@1"');
@@ -60,10 +54,6 @@ describe('ToolRegistry composition', () => {
     );
   });
 
-  /**
-   * The whole point of pinning: two registrations of one `(id, version)` make
-   * a stored grant and a stored `ToolExecution` ambiguous.
-   */
   it('distinguishes versions of one tool id', () => {
     expect(() =>
       registryOf(
@@ -89,7 +79,6 @@ describe('ToolRegistry composition', () => {
     );
   });
 
-  /** The other direction: a declared reference nothing implements. */
   it('refuses a build whose declared reference has no definition', () => {
     expect(() => new ToolRegistry([])).toThrow(
       'Tool "knowledge.search@1" is not registered',
@@ -111,10 +100,6 @@ describe('ToolRegistry composition', () => {
     },
   );
 
-  /**
-   * The SDK would not reject these names — it would rewrite them, which is the
-   * silent failure this check exists to convert into a loud one.
-   */
   it.each([
     ['knowledge.search@1'],
     ['knowledge search'],

@@ -16,29 +16,12 @@ import {
   type TestUser,
 } from '../../support/auth-harness';
 
-/**
- * The control plane's change history, against the real application.
- *
- * Three claims are only true end to end. That an acknowledged mutation and its
- * audit row commit together — which is a transaction, not a call order. That
- * history outlives the row it describes, which is the case a
- * `updatedByUserId` column structurally cannot cover. And that no credential
- * material reaches the table, the API response, or the process log, which has
- * to be checked against the bytes rather than against a projection function.
- */
-
 const BASE = '/platform/control-plane';
 
 const FLAG = 'content_ideas.enabled';
 const SETTING = 'knowledge.retrieval_max_chunks';
 const SECRET = 'openai.api_key';
 
-/**
- * Unmistakable, and searched for in the raw stored row and the raw response.
- *
- * Long enough and prefixed correctly to pass `looksLikeCredential`, because a
- * canary the validator rejects would never reach the code path under test.
- */
 const CANARY = 'sk-CANARY-audit-must-never-store-this-000';
 
 const dataOf = <T>(body: unknown): T => (body as { data: T }).data;
@@ -100,9 +83,6 @@ describe('Control plane audit (e2e)', () => {
     await harness.prisma.featureFlagOrganizationOverride.deleteMany({});
     await harness.prisma.runtimeSetting.deleteMany({});
     await harness.prisma.managedSecret.deleteMany({});
-    // The resets above are writes this table does not describe, so it is
-    // cleared last — otherwise the first assertion in every test would be
-    // looking at the teardown.
     await harness.prisma.controlPlaneAuditEvent.deleteMany({});
   });
 
@@ -132,13 +112,6 @@ describe('Control plane audit (e2e)', () => {
       });
     });
 
-    /**
-     * The case a last-writer column cannot cover.
-     *
-     * Clearing an override deletes the row that carried `updatedByUserId`, so
-     * without this table the fact that somebody removed it — and what it was —
-     * leaves no trace anywhere. That is the moment the evidence matters most.
-     */
     it('keeps the history of an override after the override is gone', async () => {
       await as(harness, superAdmin)
         .put(`${BASE}/feature-flags/${FLAG}`, { enabled: true })
@@ -164,18 +137,6 @@ describe('Control plane audit (e2e)', () => {
       });
     });
 
-    /**
-     * A clear that cleared nothing is not a change, and an append-only history
-     * must not say it was one.
-     *
-     * The Platform disables the button when there is no override, but the API
-     * is the authority and has no such guard: a script, a retried request, or a
-     * double-click that races the disabled state reaches the endpoint with
-     * nothing stored. Appending there would put a `before: null, after: null`
-     * event in the log — an assertion that this operator cleared an override,
-     * readable in the audit tab as "No stored state → No stored state" — and
-     * the audit log is the artefact an incident review trusts.
-     */
     it('appends nothing when the clear had nothing to clear', async () => {
       await as(harness, superAdmin)
         .del(`${BASE}/feature-flags/${FLAG}`)
@@ -191,10 +152,6 @@ describe('Control plane audit (e2e)', () => {
       expect(await rowsFor(SETTING)).toHaveLength(0);
     });
 
-    /**
-     * And the same endpoint still records the clear that *did* clear something,
-     * so the guard above cannot be satisfied by never recording a clear at all.
-     */
     it('still appends the second clear when the first stored something', async () => {
       await as(harness, superAdmin)
         .put(`${BASE}/feature-flags/${FLAG}`, { enabled: true })
@@ -202,7 +159,6 @@ describe('Control plane audit (e2e)', () => {
       await as(harness, superAdmin)
         .del(`${BASE}/feature-flags/${FLAG}`)
         .expect(200);
-      // The repeat: idempotent for the caller, and silent in the history.
       await as(harness, superAdmin)
         .del(`${BASE}/feature-flags/${FLAG}`)
         .expect(200);
@@ -257,11 +213,6 @@ describe('Control plane audit (e2e)', () => {
       });
     });
 
-    /**
-     * Configuring and rotating are one operation and two events. "This slot has
-     * never held a credential" is the fact an incident asks about, and
-     * collapsing the two would lose it.
-     */
     it('distinguishes configuring a credential from rotating one', async () => {
       await as(harness, superAdmin)
         .put(`${BASE}/secrets/${SECRET}`, { value: CANARY, label: 'primary' })
@@ -288,11 +239,6 @@ describe('Control plane audit (e2e)', () => {
       });
     });
 
-    /**
-     * A refused mutation must leave no trace saying it happened. An audit log
-     * that recorded attempts alongside changes would answer "was this ever set
-     * to 5000" with a yes for a request the service rejected.
-     */
     it.each([
       [
         'a setting outside its bounds',
@@ -330,14 +276,6 @@ describe('Control plane audit (e2e)', () => {
       expect(await harness.prisma.controlPlaneAuditEvent.count({})).toBe(0);
     });
 
-    /**
-     * A caller who is refused by authorization must likewise leave nothing.
-     *
-     * The guard runs before the handler, so this passing is unsurprising —
-     * which is exactly why it is worth pinning: an audit written in a global
-     * interceptor rather than in the service would record every attempt,
-     * including the ones nobody was allowed to make.
-     */
     it('writes no event for a caller who is refused', async () => {
       await as(harness, plainAdmin)
         .put(`${BASE}/feature-flags/${FLAG}`, { enabled: true })
@@ -347,10 +285,6 @@ describe('Control plane audit (e2e)', () => {
     });
   });
 
-  /**
-   * The containment claim, checked against bytes rather than against the shape
-   * the projection happens to build.
-   */
   describe('secret containment', () => {
     it('never stores credential material in the audit row', async () => {
       await as(harness, superAdmin)
@@ -361,7 +295,6 @@ describe('Control plane audit (e2e)', () => {
       const raw = JSON.stringify(rows);
 
       expect(raw).not.toContain(CANARY);
-      // Nor the encrypted form of it, nor the material needed to open it.
       const stored = await harness.prisma.managedSecret.findUniqueOrThrow({
         where: { key: SECRET },
         select: { ciphertext: true, iv: true, authTag: true },
@@ -382,7 +315,6 @@ describe('Control plane audit (e2e)', () => {
 
       expect(response.status).toBe(200);
       expect(JSON.stringify(response.body)).not.toContain(CANARY);
-      // Not vacuous: the event is there, it simply carries no credential.
       expect(
         dataOf<AuditPage>(response.body).items.some(
           (item) => item.resourceKey === SECRET,
@@ -390,11 +322,6 @@ describe('Control plane audit (e2e)', () => {
       ).toBe(true);
     });
 
-    /**
-     * And the process log. `ManagedSecretService` already asserts this for its
-     * own paths in a unit spec; the audit write is a new path through the same
-     * data, so the whole request is exercised with the log captured.
-     */
     it('never writes credential material to the log', async () => {
       const captured: unknown[] = [];
       const methods = ['log', 'info', 'warn', 'error', 'debug'] as const;
@@ -426,7 +353,6 @@ describe('Control plane audit (e2e)', () => {
   });
 
   describe('the read surface', () => {
-    /** Enough events that paging has something to page. */
     const seed = async (count: number) => {
       for (let index = 0; index < count; index += 1) {
         await as(harness, superAdmin)
@@ -503,12 +429,6 @@ describe('Control plane audit (e2e)', () => {
       expect((await audit(superAdmin, query)).status).toBe(400);
     });
 
-    /**
-     * `controlPlane:read` and not a permission of its own: the log's contents
-     * are a subset of what that grant already shows, plus who changed them.
-     * Notably `managedSecret:write` is not required — reading that a credential
-     * was rotated is not the same authority as rotating one.
-     */
     it('is refused to anyone without control-plane read', async () => {
       for (const user of [plainUser, plainAdmin]) {
         const response = await audit(user);
@@ -518,11 +438,6 @@ describe('Control plane audit (e2e)', () => {
       }
     });
 
-    /**
-     * Append-only, enforced by the absence of a handler rather than by a grant.
-     * A route that appeared later would make the table's promise false, so the
-     * verbs are probed directly.
-     */
     it.each(['post', 'put', 'del'] as const)(
       'offers no %s on the audit route',
       async (method) => {
@@ -533,14 +448,6 @@ describe('Control plane audit (e2e)', () => {
     );
   });
 
-  /**
-   * The mutation and its audit row commit together.
-   *
-   * Asserted by breaking the audit write and observing that the mutation did
-   * not happen either. Written the other way round it would prove nothing: the
-   * two agreeing on the happy path is what a call in sequence looks like as
-   * well, and the case worth knowing about is a process that died between them.
-   */
   it('does not acknowledge a write whose audit row cannot be stored', async () => {
     await harness.prisma.$executeRawUnsafe(
       `ALTER TABLE "control_plane_audit_event" ADD CONSTRAINT audit_refuses CHECK (false) NOT VALID`,
@@ -554,7 +461,6 @@ describe('Control plane audit (e2e)', () => {
 
       expect(response.status).toBeGreaterThanOrEqual(500);
 
-      // The setting was not changed, because the transaction rolled back.
       expect(
         await harness.prisma.runtimeSetting.count({ where: { key: SETTING } }),
       ).toBe(0);

@@ -17,18 +17,6 @@ import { Link } from '@/i18n/navigation';
 import { OrganizationRoleLabel } from '../components/organization-role-label';
 import { useOrganizationContext } from '../organization-context';
 
-/**
- * What one organization is, at a glance.
- *
- * Everything on this page is a fact the backend already returned — the name,
- * the slug, when it was created, how many members and pending invitations it
- * has, and what the reader is inside it. There are no charts and no metrics,
- * because there is no analytics data behind this product and inventing a
- * sparkline would be inventing a number.
- *
- * The counts double as links, which is most of what an overview is for: it is
- * the page you land on and leave from.
- */
 export function OrganizationOverviewBlock() {
   const t = useTranslations('Organization');
   const format = useFormatter();

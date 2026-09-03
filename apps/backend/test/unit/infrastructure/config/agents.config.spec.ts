@@ -20,12 +20,6 @@ describe('agentsConfig', () => {
     process.env = original;
   });
 
-  /**
-   * Exhaustive rather than `toMatchObject`, so adding a knob to the namespace
-   * without deciding its default here fails instead of shipping silently. The
-   * worker composition root parses this namespace at boot, so an undefaulted
-   * key is a worker that refuses to start.
-   */
   it('boots with no agent variables set at all', () => {
     expect(agentsConfig()).toEqual({
       reconcile: {
@@ -48,12 +42,6 @@ describe('agentsConfig', () => {
     });
   });
 
-  /**
-   * The environment hands over strings; everything downstream does arithmetic
-   * with these — `Date.now() - staleAfterMs` and a Prisma `take` — so a value
-   * left as a string would produce a `NaN` cutoff and a query that silently
-   * matched nothing.
-   */
   it('produces numbers, not the strings the environment supplied', () => {
     process.env.AGENT_RUN_RECONCILE_INTERVAL_MS = '5000';
     process.env.AGENT_RUN_RECONCILE_STALE_AFTER_MS = '30000';
@@ -64,12 +52,6 @@ describe('agentsConfig', () => {
     }
   });
 
-  /**
-   * The reconciler is the only recovery path for a run whose job BullMQ failed
-   * without ever invoking the handler, so its shape is a contract the service
-   * reads by name. A renamed or dropped key would leave the sweep reading
-   * `undefined` and computing an invalid cutoff rather than failing at boot.
-   */
   it('exposes exactly the three reconciler knobs', () => {
     expect(Object.keys(agentsConfig().reconcile)).toEqual([
       'intervalMs',
@@ -79,11 +61,6 @@ describe('agentsConfig', () => {
   });
 
   describe('fail-fast', () => {
-    /**
-     * A sweep faster than a second turns a recovery loop into a poll loop
-     * against PostgreSQL and Redis, for a condition that is rare by
-     * construction.
-     */
     it('rejects a sweep interval below the floor', () => {
       process.env.AGENT_RUN_RECONCILE_INTERVAL_MS = '100';
 
@@ -96,11 +73,6 @@ describe('agentsConfig', () => {
       expect(() => agentsConfig()).toThrow();
     });
 
-    /**
-     * The threshold is a cost bound, not a timeout, but a sub-second one would
-     * put every legitimately in-flight run into the candidate set on every
-     * pass — one Redis read per queued run per interval.
-     */
     it('rejects a staleness threshold below the floor', () => {
       process.env.AGENT_RUN_RECONCILE_STALE_AFTER_MS = '999';
 

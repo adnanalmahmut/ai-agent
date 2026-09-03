@@ -18,13 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@repo/ui';
-import {
-  Ban,
-  CheckCircle2,
-  Shield,
-  UserCheck,
-  UserX,
-} from 'lucide-react';
+import { Ban, CheckCircle2, Shield, UserCheck, UserX } from 'lucide-react';
 import { useTranslations } from 'use-intl';
 
 import { usePlatformSession } from '@/features/auth/use-platform-session';
@@ -77,8 +71,12 @@ export function AdminUsersTable({
   const canSetRole = useGlobalPermission({ user: ['set-role'] });
   const canBan = useGlobalPermission({ user: ['ban'] });
   const canImpersonate = useGlobalPermission({ user: ['impersonate'] });
-  const canImpersonateAdmins = useGlobalPermission({ user: ['impersonate-admins'] });
-  const canDeactivate = useGlobalPermission({ accountLifecycle: ['deactivate'] });
+  const canImpersonateAdmins = useGlobalPermission({
+    user: ['impersonate-admins'],
+  });
+  const canDeactivate = useGlobalPermission({
+    accountLifecycle: ['deactivate'],
+  });
   const canRestore = useGlobalPermission({ accountLifecycle: ['restore'] });
 
   const currentUserId = session.user.id;
@@ -128,11 +126,16 @@ export function AdminUsersTable({
               const roleValue = user.role || 'user';
 
               return (
-                <TableRow key={user.id} className="border-b border-border/30 hover:bg-sidebar-accent/50 transition-colors">
+                <TableRow
+                  key={user.id}
+                  className="border-b border-border/30 hover:bg-sidebar-accent/50 transition-colors"
+                >
                   <TableCell className="py-2.5 px-3">
                     <div className="flex items-center gap-2.5">
                       <Avatar className="size-7 border border-border/50">
-                        {user.image ? <AvatarImage src={user.image} alt="" /> : null}
+                        {user.image ? (
+                          <AvatarImage src={user.image} alt="" />
+                        ) : null}
                         <AvatarFallback className="text-xs font-semibold bg-primary/10 text-primary">
                           {initials}
                         </AvatarFallback>
@@ -152,7 +155,9 @@ export function AdminUsersTable({
                     {canSetRole && !isSelf && !isTargetSuperAdmin ? (
                       <Select
                         value={roleValue}
-                        onValueChange={(val) => onRoleChange(user.id, val as AssignableGlobalRoleName)}
+                        onValueChange={(val) =>
+                          onRoleChange(user.id, val as AssignableGlobalRoleName)
+                        }
                         disabled={isActionPending}
                       >
                         <SelectTrigger className="h-7 w-32 text-2xs border-border/50 bg-background">
@@ -160,14 +165,21 @@ export function AdminUsersTable({
                         </SelectTrigger>
                         <SelectContent>
                           {ASSIGNABLE_GLOBAL_ROLE_NAMES.map((roleKey) => (
-                            <SelectItem key={roleKey} value={roleKey} className="text-xs">
+                            <SelectItem
+                              key={roleKey}
+                              value={roleKey}
+                              className="text-xs"
+                            >
                               {t(`roles.${roleKey}`, { defaultValue: roleKey })}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     ) : (
-                      <Badge variant="outline" className="text-2xs border-border/60">
+                      <Badge
+                        variant="outline"
+                        className="text-2xs border-border/60"
+                      >
                         {t(`roles.${roleValue}`, { defaultValue: roleValue })}
                       </Badge>
                     )}
@@ -176,19 +188,31 @@ export function AdminUsersTable({
                   <TableCell className="py-2.5 px-3">
                     <div className="flex flex-wrap items-center gap-1">
                       {user.banned ? (
-                        <Badge variant="destructive" className="text-2xs rounded px-1.5 py-0.2">
+                        <Badge
+                          variant="destructive"
+                          className="text-2xs rounded px-1.5 py-0.2"
+                        >
                           {t('status.banned')}
                         </Badge>
                       ) : user.deletedAt ? (
-                        <Badge variant="outline" className="text-2xs rounded px-1.5 py-0.2 border-amber-500/40 text-amber-600 dark:text-amber-400">
+                        <Badge
+                          variant="outline"
+                          className="text-2xs rounded px-1.5 py-0.2 border-amber-500/40 text-amber-600 dark:text-amber-400"
+                        >
                           {t('status.deactivated')}
                         </Badge>
                       ) : user.emailVerified ? (
-                        <Badge variant="secondary" className="text-2xs rounded px-1.5 py-0.2">
+                        <Badge
+                          variant="secondary"
+                          className="text-2xs rounded px-1.5 py-0.2"
+                        >
                           {t('status.verified')}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-2xs rounded px-1.5 py-0.2">
+                        <Badge
+                          variant="outline"
+                          className="text-2xs rounded px-1.5 py-0.2"
+                        >
                           {t('status.unverified')}
                         </Badge>
                       )}
@@ -197,7 +221,6 @@ export function AdminUsersTable({
 
                   <TableCell className="py-2.5 px-3 text-end">
                     <div className="flex items-center justify-end gap-1">
-                      {/* Impersonate */}
                       {allowImpersonate ? (
                         <Button
                           variant="ghost"
@@ -211,7 +234,6 @@ export function AdminUsersTable({
                         </Button>
                       ) : null}
 
-                      {/* Ban / Unban */}
                       {canBan && !isSelf ? (
                         user.banned ? (
                           <Button
@@ -238,7 +260,6 @@ export function AdminUsersTable({
                         )
                       ) : null}
 
-                      {/* Deactivate / Restore */}
                       {!isSelf ? (
                         user.deletedAt && canRestore ? (
                           <Button

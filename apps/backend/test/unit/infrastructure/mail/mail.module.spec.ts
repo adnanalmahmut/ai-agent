@@ -17,7 +17,6 @@ import { ResendMailTransport } from '../../../../src/infrastructure/mail/resend-
 import { SesMailTransport } from '../../../../src/infrastructure/mail/ses-mail.transport';
 import { SmtpMailTransport } from '../../../../src/infrastructure/mail/smtp-mail.transport';
 
-/** A feature module doing what feature modules are supposed to do. */
 @Injectable()
 class ConsumerService {
   constructor(readonly mail: MailService) {}
@@ -26,7 +25,6 @@ class ConsumerService {
 @Module({ imports: [MailModule], providers: [ConsumerService] })
 class ConsumerModule {}
 
-/** The same, reaching past `MailService` for the raw transport. */
 @Injectable()
 class LeakyService {
   constructor(@Inject(MAIL_TRANSPORT) readonly transport: MailTransport) {}
@@ -38,11 +36,6 @@ class LeakyModule {}
 const LOG_ENV = {
   MAIL_DRIVER: 'log',
   MAIL_FROM_ADDRESS: 'no-reply@example.com',
-  /**
-   * Present only because this spec loads the whole `configurations` list, which
-   * now includes the control plane's master key. Obviously fake, and never a
-   * value any deployment could hold.
-   */
   APP_ENCRYPTION_KEY: 'dGVzdC1vbmx5LWZha2UtbWFzdGVyLWtleS0zMmJ5dGU=',
   APP_ENCRYPTION_ACTIVE_KEY_VERSION: 'test-v1',
   APP_ENCRYPTION_DECRYPT_KEYS: '',
@@ -104,26 +97,12 @@ describe('MailModule', () => {
     await moduleRef.close();
   });
 
-  /**
-   * The transport is an implementation detail. A consumer able to inject it
-   * could send a message that skipped rendering, locale resolution and the
-   * failure handling in `MailService` — so "not exported" has to be something
-   * the build enforces, not a note in a comment.
-   *
-   * Asserted by trying the injection that must not work: resolution fails at
-   * module compilation, which is where a real mistake would surface too.
-   */
   it('refuses to let an importing module inject the transport', async () => {
     await expect(bootWith(LOG_ENV, LeakyModule)).rejects.toThrow(
       /Nest can't resolve dependencies of the LeakyService/,
     );
   });
 
-  /**
-   * The Laravel-style promise, checked end to end: changing one environment
-   * variable changes the delivery mechanism, and nothing else in the
-   * application knows it happened.
-   */
   describe.each([
     [
       'resend',
@@ -158,10 +137,6 @@ describe('MailModule', () => {
     ).rejects.toThrow(/MAIL_DRIVER must be one of: log, resend, ses, smtp/);
   });
 
-  /**
-   * Selecting a real provider without its credentials must stop the process at
-   * boot, not at the first password reset a user asks for.
-   */
   it('refuses to boot when the active driver is missing its credentials', async () => {
     await expect(
       bootWith({ ...LOG_ENV, MAIL_DRIVER: 'resend' }, ConsumerModule),

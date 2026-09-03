@@ -10,21 +10,6 @@ import {
 const agentIdSchema = z.string().trim().min(1).max(120);
 const configurationSchema = z.record(z.string(), z.unknown());
 
-/**
- * The tools an organization selects, by exact identity.
- *
- * `z.enum` over the code-owned list, so an unknown or misspelled tool is
- * refused at the request boundary rather than reaching a subset check. The
- * length bound is the registry's own size: a request naming more entries than
- * exist can only be duplicates or noise.
- *
- * Omitting the field means no tools, and on a replacement that means the new
- * version revokes whatever the previous one held. That is ordinary PUT
- * semantics — every other field on this body is a full statement of intent —
- * and it fails safe, since the only direction it can move is narrower. It is
- * stated plainly because "optional" reads as "leaves it alone", and here it
- * does not.
- */
 const toolGrantsSchema = z.array(z.enum(TOOL_REFS)).max(TOOL_REFS.length);
 
 export const createOrganizationAgentInstallationSchema = z
@@ -71,7 +56,6 @@ export type OrganizationAgentCatalogEntry = {
   defaultModelId: AgentModelId;
   allowedModelIds: readonly AgentModelId[];
   defaultConfiguration: AgentConfiguration;
-  /** The most this definition revision permits. An organization may narrow it. */
   maxToolGrants: readonly ToolRef[];
 };
 
@@ -85,7 +69,6 @@ export type OrganizationAgentVersion = {
   modelId: AgentModelId | null;
   enabled: boolean;
   configuration: AgentConfiguration;
-  /** The exact tools this immutable version selected. */
   toolGrants: readonly ToolRef[];
   createdByUserId: string | null;
   createdAt: Date;

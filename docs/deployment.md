@@ -1,110 +1,64 @@
 # Deployment
 
-## Current state
+Staging deploys automatically after a merge to `main` passes CI and immutable
+image publishing. Production is not provisioned; its workflow and host
+procedures are inactive. See [deployment state](deployment-state.md).
 
-Staging is provisioned and deploys automatically after a merge to `main`
-passes CI and immutable image publishing. Production is not provisioned. The
-Production workflow and host tooling below define a future contract and must
-not be dispatched or operated until an operator records provisioning evidence
-in [the deployment-state document](deployment-state.md).
+## GitHub Environment contract
 
-## GitHub Environment names
+Staging uses these names:
 
-Staging uses the values below. A future Production Environment must use the
-same names with independent values when it is provisioned.
+| Kind     | Name                  | Purpose                             |
+| -------- | --------------------- | ----------------------------------- |
+| Variable | `VPS_HOST`            | Static IP or hostname               |
+| Variable | `VPS_USER`            | Restricted `deploy` identity        |
+| Variable | `VPS_SSH_KNOWN_HOSTS` | Pinned host-key lines               |
+| Variable | `DEPLOYMENT_URL`      | Public HTTPS origin                 |
+| Secret   | `VPS_SSH_PRIVATE_KEY` | Environment-specific restricted key |
 
-| Kind | Name | Purpose |
-|---|---|---|
-| Variable | `VPS_HOST` | environment static IP/hostname |
-| Variable | `VPS_USER` | must be `deploy` |
-| Variable | `VPS_SSH_KNOWN_HOSTS` | pinned host-key line(s) |
-| Variable | `DEPLOYMENT_URL` | public HTTPS origin |
-| Secret | `VPS_SSH_PRIVATE_KEY` | environment-specific restricted key |
+Any provisioned environment must use independent values and an
+explicit environment allowlist. Production should require reviewers and a main-only
+deployment policy.
 
-`GITHUB_TOKEN` is job-scoped and needs no operator value. Production should
-require reviewers; staging should remain automatic if that is the desired flow.
+## Host contract
 
-## Host bundle
+The host bundle is installed with
+`ops/lightsail/install-host-bundle.sh` and recorded in
+`/etc/ai-agent/host-bundle.manifest`. The wrapper rejects an incompatible or
+modified bundle before migrations. See [host bundle](host-bundle.md).
 
-The compose file, the deploy wrapper, the dispatcher, and both preflights live
-on the host and change with the release they serve, so they are versioned as a
-bundle and installed by `ops/lightsail/install-host-bundle.sh`, which records
-`/etc/ai-agent/host-bundle.manifest`. Every release declares the minimum bundle
-version it can run on, and the wrapper refuses — before migrations — a host that
-does not satisfy it, whose recorded files no longer match, or whose compose file
-does not resolve the pinned digests. See [the host bundle document](host-bundle.md)
-for the inventory, the two version numbers, and the full refusal order.
-
-## VPS runtime names
-
-Install `/etc/ai-agent/runtime.env` as `root:root 0600`. The deploy user cannot
-read it. It contains names for
-PostgreSQL (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `DATABASE_URL`),
-Redis (`REDIS_URL` and bounded connection settings), Better Auth
-(`BETTER_AUTH_SECRET`, URL/origins and optional rate toggle), the control-plane
-master key and its version identity (`APP_ENCRYPTION_KEY`,
-`APP_ENCRYPTION_ACTIVE_KEY_VERSION`, and optional decrypt-only
-`APP_ENCRYPTION_DECRYPT_KEYS`), app URLs/ports and shutdown settings,
-optional Google OAuth, selected mail provider credentials, queue/outbox
-settings, rate-limit settings, and MaxMind updater credentials.
-The authoritative names-only template is
+Install runtime configuration as `root:root` mode `0600` at
+`/etc/ai-agent/runtime.env`. The deploy user cannot read it. The authoritative
+names-only template is
 [`ops/environments/runtime.env.example`](../ops/environments/runtime.env.example).
 
-The wrapper passes this path to Compose for interpolation, but the Compose file
-does not use `env_file`. Each service has an explicit environment allowlist:
-the API receives HTTP/auth/mail/GeoIP/rate-limit settings; the worker receives
-only app/database/Redis/queue/outbox/log settings plus the three
-`APP_ENCRYPTION_*` names, which it needs because a background execution resolves
-the same provider credentials the API does; the migration process receives only `DATABASE_URL`; web, platform, and geoipupdate receive only their
-own settings. Image repositories are fixed in the root wrapper and image
-references are constructed from validated digest hex values, never read from
-`runtime.env`.
+Compose receives that file for interpolation but uses explicit per-service
+environment lists:
 
-Release images are pulled sequentially in the order platform → web → backend →
-migrate. Worker reuses the backend image. This bounds memory and disk-I/O
-pressure on small Lightsail hosts during layer download and extraction instead
-of asking Compose to pull every large image concurrently.
+- API: database, auth, mail, HTTP, GeoIP, control-plane keyring, and rate limits;
+- worker: database, Redis/queue/outbox, agent reconciliation, keyring, and the
+  mail fields required for approved notifications;
+- migration: `DATABASE_URL` only;
+- web, platform, and GeoIP updater: their own settings only.
 
-Before any of that the wrapper refuses outright: bundle integrity, free space
-for extraction, the runtime environment, the release's own image labels against
-the recorded bundle version, the compose file's resolved images, and the running
-database's extension availability. All of it happens ahead of the migration
-step, because a forward-only migration cannot be un-run by a later check.
+Image repositories are fixed in the wrapper. References are constructed from
+validated digest values, never from runtime configuration.
 
-The remaining order is PostgreSQL/Redis/GeoIP bootstrap → migration → API → API
-readiness → worker → worker status → web and platform → complete internal
-health → public HTTPS smoke. Only after success does the wrapper atomically
-rotate root-only `CURRENT_RELEASE.json` and `PREVIOUS_RELEASE.json`, each
-containing the source SHA and four OCI digests. Live operator commands are in
-the staging/production ops docs.
+## Deployment sequence
 
-## One-time operator step before the Knowledge release
+The wrapper enforces:
 
-The PostgreSQL image changed from `postgres:16-alpine` to
-`pgvector/pgvector:pg16`. Knowledge retrieval stores embeddings in a `vector`
-column and the extension is absent from the Alpine image; pgvector publishes no
-Alpine variant, so this is a Debian image where the previous one was musl.
+1. host-bundle integrity and available disk;
+2. runtime configuration validation without printing values;
+3. release labels, minimum bundle, and pinned image resolution;
+4. required PostgreSQL capabilities;
+5. PostgreSQL, Redis, and GeoIP service readiness;
+6. one-shot forward migration;
+7. API readiness, worker, web, and platform rollout;
+8. internal health and public HTTPS smoke checks;
+9. atomic rotation of `CURRENT_RELEASE.json` and `PREVIOUS_RELEASE.json`;
+10. best-effort superseded-image retention.
 
-The data directory is binary-compatible for the same PostgreSQL major, so the
-container starts and serves normally. What is not compatible is text collation:
-musl and glibc order text differently under the same locale name, and musl
-records no collation version — so PostgreSQL emits no mismatch warning, and
-every existing text btree index is silently left in an order the new libc does
-not agree with. The symptom is wrong results from range and equality scans, not
-an error.
-
-On an environment with an existing PostgreSQL volume, an operator must run this
-once against each database after the first start on the new image, before
-traffic is admitted:
-
-```sql
-REINDEX DATABASE <database>;
-ALTER DATABASE <database> REFRESH COLLATION VERSION;
-```
-
-The application does not and must not perform this. It is a privileged,
-long-running, one-time repair on live data, and a service that reindexed its
-own database at boot would do it on every rollback and every restart.
-
-A fresh volume needs nothing: there is no index built under the other libc.
-The `postgres-test` service keeps its data in tmpfs, so it is unaffected.
+Application images are pulled sequentially (platform, web, backend, migration)
+to limit extraction pressure; the worker shares the backend image. A failure
+before release-state rotation leaves the prior recorded release intact.

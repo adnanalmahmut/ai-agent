@@ -14,28 +14,6 @@ import {
 } from '../../../src/features/knowledge';
 import { createHarness, type Harness } from '../../support/auth-harness';
 
-/**
- * Tenant isolation, against real PostgreSQL and real pgvector.
- *
- * This is the one property in the Knowledge domain that cannot be proved
- * anywhere else. A unit test with a fake repository asserts that the service
- * passes an organization id along; it cannot show that the id *scopes*
- * anything, because there is no database to scope. The failure mode being
- * guarded against — a predicate dropped from the ranking query, or applied
- * after it — passes every in-memory test ever written and returns another
- * organization's material in production.
- *
- * The fixtures are built so a broken predicate cannot pass by luck. The other
- * organization's chunk is not merely present; it is a *closer* match than
- * anything the querying organization owns. An unscoped or post-filtered query
- * therefore returns it first, or returns nothing at all where it should return
- * something — either way, loudly.
- */
-
-/**
- * A unit vector along one axis. Two of these are as close or as far apart as
- * embeddings get, which makes "which came back first" unambiguous.
- */
 const axis = (index: number, magnitude = 1): number[] => {
   const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0);
   vector[index] = magnitude;
@@ -43,7 +21,6 @@ const axis = (index: number, magnitude = 1): number[] => {
   return vector;
 };
 
-/** Halfway between two axes: a deliberately worse match than either. */
 const between = (a: number, b: number): number[] => {
   const vector = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0);
   vector[a] = 0.7071;
@@ -75,9 +52,6 @@ describe('knowledge retrieval isolation', () => {
   });
 
   afterEach(async () => {
-    // Chunks and documents cascade from their space; spaces and organizations
-    // do not cascade from anything, so they are removed explicitly and in
-    // order. Nothing here relies on a shared fixture surviving between tests.
     await harness.prisma.knowledgeSpace.deleteMany({
       where: { organizationId: { in: created.organizations } },
     });
@@ -87,7 +61,6 @@ describe('knowledge retrieval isolation', () => {
     created.organizations = [];
   });
 
-  /** One organization holding one space with one embedded chunk. */
   const seed = async (input: {
     name: string;
     spaceSlug: string;
@@ -147,11 +120,6 @@ describe('knowledge retrieval isolation', () => {
     };
   };
 
-  /**
-   * The central assertion. The other organization's chunk is an exact match
-   * for the query and this one's is not, so any query that is not scoped in
-   * the database returns the wrong row first.
-   */
   it('never returns another organization’s chunk, even when it is the closer match', async () => {
     const mine = await seed({
       name: 'mine',
@@ -166,9 +134,6 @@ describe('knowledge retrieval isolation', () => {
       embedding: QUERY,
     });
 
-    // Both spaces are passed so the space predicate alone cannot filter out
-    // the other organization's chunk. The organizationId predicate itself
-    // must be load-bearing.
     const results = await retrieval.search({
       organizationId: mine.organizationId,
       spaceIds: [mine.spaceId, theirs.spaceId],
@@ -179,17 +144,12 @@ describe('knowledge retrieval isolation', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0]?.chunkId).toBe(mine.chunk.id);
-    // Provenance too, not only identity: a citation surface built on these
-    // fields is wrong in a way nothing else here would notice if the mapper
-    // transposed them.
     expect(results[0]?.spaceId).toBe(mine.spaceId);
     expect(results[0]?.documentId).toBe(mine.documentId);
     expect(results.map((match) => match.content)).not.toContain(
       'their material, an exact match',
     );
 
-    // And the same in reverse, so the test cannot pass because one direction
-    // happens to be ordered favourably.
     const other = await retrieval.search({
       organizationId: theirs.organizationId,
       spaceIds: [mine.spaceId, theirs.spaceId],
@@ -201,11 +161,6 @@ describe('knowledge retrieval isolation', () => {
     expect(other.map((match) => match.chunkId)).toEqual([theirs.chunk.id]);
   });
 
-  /**
-   * The other half of scoping. A space id is not a capability: holding one
-   * that belongs elsewhere must not read it, or an agent's context policy
-   * would be enforceable only by whoever remembered to check the owner.
-   */
   it('returns nothing for a space id that belongs to another organization', async () => {
     const mine = await seed({
       name: 'mine',
@@ -231,11 +186,6 @@ describe('knowledge retrieval isolation', () => {
     expect(results).toEqual([]);
   });
 
-  /**
-   * Within one organization, a space the caller was not granted is as
-   * invisible as another tenant's. This is what makes a context policy a
-   * boundary rather than a suggestion.
-   */
   it('reads only the spaces the caller was granted', async () => {
     const granted = await seed({
       name: 'org',
@@ -290,11 +240,6 @@ describe('knowledge retrieval isolation', () => {
     expect(results.map((match) => match.chunkId)).toEqual([granted.chunk.id]);
   });
 
-  /**
-   * Ranking, proved separately from scoping, so a query that returns the right
-   * *set* in the wrong order is still a failure. Retrieval that ignores
-   * distance would satisfy every isolation assertion above.
-   */
   it('returns the closest chunks first', async () => {
     const base = await seed({
       name: 'ranked',
@@ -342,10 +287,6 @@ describe('knowledge retrieval isolation', () => {
     expect(results[0]?.score).toBeGreaterThan(results[1]?.score ?? 1);
   });
 
-  /**
-   * A chunk with no vector is not a zero vector, which would be an
-   * equidistant match to everything and would pollute every result set.
-   */
   it('ignores a chunk that has not been embedded yet', async () => {
     const base = await seed({
       name: 'pending',
@@ -384,17 +325,6 @@ describe('knowledge retrieval isolation', () => {
     expect(results.map((match) => match.content)).toEqual(['embedded']);
   });
 
-  /**
-   * The isolation guarantee, enforced by PostgreSQL rather than by whoever
-   * writes the row.
-   *
-   * `knowledge_chunk.organizationId` *is* the scoping predicate. With three
-   * independent foreign keys, a chunk claiming one organization while sitting
-   * in another's space would insert happily, and the boundary would hold only
-   * as far as every future ingestion path is correct. The composite keys make
-   * that row impossible, so this asserts the constraint exists rather than
-   * trusting the schema comment that says it does.
-   */
   it('refuses a chunk whose organization disagrees with its space', async () => {
     const mine = await seed({
       name: 'mine',
@@ -412,9 +342,7 @@ describe('knowledge retrieval isolation', () => {
     await expect(
       harness.prisma.knowledgeChunk.create({
         data: {
-          // Claims to be mine...
           organizationId: mine.organizationId,
-          // ...while filed in their space and their document.
           spaceId: theirs.spaceId,
           documentId: theirs.documentId,
           ordinal: 99,
@@ -450,11 +378,6 @@ describe('knowledge retrieval isolation', () => {
     ).rejects.toThrow();
   });
 
-  /**
-   * The write side is scoped too. A chunk id from another organization must
-   * not be embeddable, and the caller must be able to tell that nothing
-   * happened rather than assuming success.
-   */
   it('refuses to embed a chunk belonging to another organization', async () => {
     const mine = await seed({
       name: 'mine',
@@ -478,7 +401,6 @@ describe('knowledge retrieval isolation', () => {
 
     expect(wrote).toBe(false);
 
-    // And their chunk still holds what it held.
     const stillTheirs = await retrieval.search({
       organizationId: theirs.organizationId,
       spaceIds: [theirs.spaceId],
@@ -490,17 +412,6 @@ describe('knowledge retrieval isolation', () => {
     expect(stillTheirs[0]?.score).toBeCloseTo(1, 5);
   });
 
-  /**
-   * More than one granted space, against real SQL.
-   *
-   * Every other search here passes a single space id, so `= ANY($n::text[])`
-   * is never exercised with more than one element — and replacing it with
-   * `= $spaceIds[0]` passes the whole suite. The bug that ships is an agent
-   * whose context policy resolves to three spaces reading only the first:
-   * missing context, no error. This is also the only coverage of Prisma's
-   * JS-array-to-`text[]` binding, which is what a driver or Prisma bump would
-   * break.
-   */
   it('reads every granted space, and still only the granted ones', async () => {
     const base = await seed({
       name: 'multi',
@@ -591,13 +502,6 @@ describe('knowledge retrieval isolation', () => {
     ]);
   });
 
-  /**
-   * Two models' embeddings occupy different spaces, and 1536 dimensions was
-   * chosen so one model can replace another *without* a migration that stops
-   * traffic — so the table holds both during re-embedding. Ranking across them
-   * produces confident nonsense with no error, which is why the model is part
-   * of the query rather than metadata.
-   */
   it('ignores a chunk embedded by a different model', async () => {
     const base = await seed({
       name: 'models',
@@ -643,12 +547,6 @@ describe('knowledge retrieval isolation', () => {
     expect(results.map((match) => match.content)).toEqual(['current model']);
   });
 
-  /**
-   * The ceiling has to survive the value an HTTP handler produces for any
-   * non-numeric input. `Math.min(NaN, 12)` is `NaN`, the driver binds it as
-   * SQL `NULL`, and `LIMIT NULL` means no limit — so this is the difference
-   * between twelve chunks and the whole space.
-   */
   it('refuses a limit that is not a whole number instead of dropping the ceiling', async () => {
     const base = await seed({
       name: 'nan',
@@ -714,7 +612,6 @@ describe('knowledge retrieval isolation', () => {
       limit: 1000,
     });
 
-    // The registry default for `knowledge.retrieval_max_chunks`.
     expect(results).toHaveLength(12);
   });
 });

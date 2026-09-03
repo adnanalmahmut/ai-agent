@@ -1,11 +1,3 @@
-/**
- * The queue transport's two pure surfaces: the BullMQ options built from
- * configuration, and the failure classification that decides whether a publish
- * is retried.
- *
- * One suite because both answer the same question from opposite ends — what
- * happens to a job when Redis is unhealthy.
- */
 import { describe, expect, it } from '@jest/globals';
 
 import {
@@ -45,27 +37,15 @@ const queue = {
 describe('buildQueueOptions (producer)', () => {
   const options = buildQueueOptions(redis, queue);
 
-  /**
-   * The supported namespacing mechanism, and the only one that works. BullMQ
-   * computes key names inside its Lua scripts, so a client-side ioredis prefix
-   * would leave the scripts addressing keys nobody wrote.
-   */
   it('namespaces through BullMQ rather than through the client', () => {
     expect(options.prefix).toBe('bmq');
     expect(options.connection).not.toHaveProperty('keyPrefix');
   });
 
   it('publishes over the finite-retry producer connection', () => {
-    // Not the worker's `null`. A publish must be able to fail so the outbox
-    // dispatcher regains control and can retry the event later.
     expect(options.connection).toMatchObject({ maxRetriesPerRequest: 2 });
   });
 
-  /**
-   * Exponential rather than fixed. The failures worth retrying are provider rate
-   * limits and transient outages, and a fixed delay retried in lockstep across a
-   * fleet reproduces the overload it is recovering from.
-   */
   it('retries with exponential backoff', () => {
     expect(options.defaultJobOptions).toMatchObject({
       attempts: 3,
@@ -98,36 +78,16 @@ describe('buildWorkerOptions (consumer)', () => {
     expect(options.concurrency).toBe(4);
   });
 
-  /**
-   * Not started on construction. The shutdown sequence has an order and so does
-   * startup: a worker that begins claiming jobs while the process is still
-   * wiring its dispatcher and readiness state can be asked to stop before it is
-   * ready to.
-   */
   it('does not start fetching until told to', () => {
     expect(options.autorun).toBe(false);
   });
 
-  /**
-   * BullMQ evaluates retention where the job finishes, which is here. A worker
-   * without these keeps every completed and failed job forever — and under the
-   * `noeviction` policy the queue Redis requires, that ends as a Redis at its
-   * memory limit refusing writes rather than as a Redis quietly dropping keys.
-   */
   it('repeats retention on the consumer side, where it is applied', () => {
     expect(options.removeOnComplete).toEqual({ age: 3_600, count: 1_000 });
     expect(options.removeOnFail).toEqual({ age: 604_800, count: 5_000 });
   });
 });
 
-/**
- * The single most consequential line in this file, asserted on both sides.
- *
- * `removeOnFail: true` deletes a job's stack trace, attempt history and exact
- * payload at the moment they become the only record of the incident. It is also
- * the shortest thing to type, which is exactly why it is pinned here rather than
- * left to review.
- */
 describe('retention policy invariants', () => {
   const producer = buildQueueOptions(redis, queue);
   const worker = buildWorkerOptions(redis, queue);
@@ -165,23 +125,7 @@ describe('retention policy invariants', () => {
   });
 });
 
-/**
- * The classification that decides whether durably accepted work survives an
- * outage.
- *
- * The two mistakes are not equally expensive, and the tests are written around
- * that asymmetry. Calling a poison event transient costs one retry per backoff
- * interval and leaves a row visibly stuck. Calling a transport outage permanent
- * destroys work the API has already told a caller it accepted — and does it
- * precisely when the system is under stress and nobody is reading logs closely.
- */
 describe('classifyPublishError', () => {
-  /**
-   * Every one of these is something a real Redis or ioredis emits during an
-   * outage. None of them is enumerated in the implementation — they are all
-   * covered by "unknown means transient" — which is the point: this list can
-   * grow when a driver rewords a message and the classification still holds.
-   */
   describe('transport failures are transient', () => {
     const transportErrors = [
       'connect ECONNREFUSED 127.0.0.1:6379',
@@ -204,10 +148,6 @@ describe('classifyPublishError', () => {
     });
   });
 
-  /**
-   * Only failures whose outcome is a property of the *event* rather than of the
-   * transport. The thousandth attempt fails exactly like the first.
-   */
   describe('deterministic failures are permanent', () => {
     const permanentErrors = [
       'Converting circular structure to JSON',
@@ -220,11 +160,6 @@ describe('classifyPublishError', () => {
     });
   });
 
-  /**
-   * The default, and the safety property. An unrecognised error could be
-   * anything; treating it as transient means the worst case is a retry, whereas
-   * treating it as permanent means the worst case is lost work.
-   */
   describe('the unknown is transient', () => {
     it.each([
       'EPROTO something nobody has seen before',
@@ -243,11 +178,6 @@ describe('classifyPublishError', () => {
 });
 
 describe('QueuePublishError', () => {
-  /**
-   * A timeout is a statement about the transport, never about the event: it says
-   * the queue did not answer in time. Classifying it from a message would be
-   * fragile for no gain.
-   */
   it('is always transient when the publish timed out', () => {
     const error = new QueuePublishError(
       'agent-execution',

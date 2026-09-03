@@ -2,11 +2,6 @@ import { afterEach, beforeEach, describe, expect, it } from '@jest/globals';
 
 import mailConfig from '../../../../src/infrastructure/config/mail.config';
 
-/**
- * The factory reads `process.env` when it is called, and `ConfigModule` calls
- * it during boot — so "does this throw" here is the same question as "does the
- * application start".
- */
 describe('mailConfig', () => {
   const original = process.env;
 
@@ -126,10 +121,6 @@ describe('mailConfig', () => {
       }
     });
 
-    /**
-     * The deployment shape we actually want: an IAM task role, no long-lived
-     * keys anywhere in the environment.
-     */
     it('needs only a region, leaving credentials to the AWS chain', () => {
       process.env.AWS_REGION = 'eu-central-1';
 
@@ -167,10 +158,6 @@ describe('mailConfig', () => {
       expect(() => mailConfig()).toThrow(/AWS_REGION/);
     });
 
-    /**
-     * A key without its secret would otherwise fall through to the credential
-     * chain and appear to work, masking the real misconfiguration.
-     */
     it('rejects a half-configured key pair', () => {
       process.env.AWS_REGION = 'eu-central-1';
       process.env.AWS_ACCESS_KEY_ID = 'AKIAEXAMPLE';
@@ -226,7 +213,6 @@ describe('mailConfig', () => {
       });
     });
 
-    /** Local relays such as MailHog and Mailpit accept anonymous submission. */
     it('allows an unauthenticated relay', () => {
       process.env.SMTP_HOST = 'localhost';
       process.env.SMTP_PORT = '1025';
@@ -246,19 +232,12 @@ describe('mailConfig', () => {
     });
   });
 
-  /**
-   * The reason the factory switches on the driver instead of parsing one flat
-   * schema: whoever runs one provider must never be asked for another's
-   * credentials — and a stale, broken block for an inactive provider must not
-   * be able to stop the process from starting.
-   */
   describe('inactive provider configuration', () => {
     const activeDriverBoots = (driver: string, env: Record<string, string>) => {
       process.env.MAIL_FROM_ADDRESS = 'no-reply@example.com';
       process.env.MAIL_DRIVER = driver;
       Object.assign(process.env, env);
 
-      // Every *other* provider is configured with garbage.
       process.env.RESEND_API_KEY = driver === 'resend' ? 're_key' : '';
       process.env.AWS_REGION = driver === 'ses' ? 'eu-central-1' : '';
       process.env.SMTP_HOST = driver === 'smtp' ? 'smtp.example.com' : '';

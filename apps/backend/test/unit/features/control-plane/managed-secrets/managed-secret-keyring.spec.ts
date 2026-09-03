@@ -114,8 +114,6 @@ describe('ManagedSecretKeyring', () => {
     const sharedMaterialKeyring = new ManagedSecretKeyring({
       masterKey: ACTIVE_KEY,
       activeKeyVersion: 'v3',
-      // Constructed directly to probe the resolver. Boot configuration refuses
-      // this duplicate material before a real process could reach the keyring.
       decryptOnlyKeys: [{ version: 'v2', key: ACTIVE_KEY }],
     });
     const sealed = keyring.seal(SECRET_KEY, CANARY);
@@ -142,18 +140,6 @@ describe('ManagedSecretKeyring', () => {
     );
   });
 
-  /**
-   * The configuration the first version-aware deployment actually runs under.
-   *
-   * Every legacy case above is proven against a keyring that has a decrypt-only
-   * key configured, which is not the shape of the first rollout: there is no
-   * older key yet, so `APP_ENCRYPTION_DECRYPT_KEYS` is empty and the one
-   * configured key is the same material that sealed every existing row. That is
-   * the configuration `docs/operations-runbook.md` instructs an operator to
-   * deploy, so it is the one that has to be asserted — a legacy row must open
-   * with the decrypt-only list empty, or the documented rollout reads every
-   * stored credential as unusable on its first boot.
-   */
   it('opens a pre-version row in the first-rollout configuration, with no decrypt-only keys', () => {
     const firstRollout = new ManagedSecretKeyring({
       masterKey: OLD_KEY,
@@ -165,19 +151,6 @@ describe('ManagedSecretKeyring', () => {
     expect(firstRollout.canDecrypt(legacyCipher())).toBe(true);
   });
 
-  /**
-   * A row the preceding image saved over during a rollback.
-   *
-   * That image writes the cipher columns without touching `keyVersion`, so the
-   * row ends up carrying a version it was not sealed under and no AAD. Rolling
-   * forward, the versioned branch is taken, the fingerprint agrees, AAD is
-   * applied, and GCM refuses — while `canDecrypt`, which sees metadata only,
-   * still answers true. Pinned here because the mismatch between those two
-   * answers is what makes the failure confusing rather than obvious, and the
-   * runbook's rollback guidance is written against exactly this shape. The
-   * remedy is to re-enter the credential; it is deliberately not an AAD-less
-   * retry, which would hand back the downgrade the binding exists to prevent.
-   */
   it('fails closed, but still reports usable, for a versioned row an older image saved over', () => {
     const savedOverWhileRolledBack: StoredManagedSecretCipher = {
       ...sealSecret(CANARY, ACTIVE_KEY),

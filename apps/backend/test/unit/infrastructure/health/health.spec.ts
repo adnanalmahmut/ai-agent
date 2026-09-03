@@ -8,14 +8,6 @@ import type {
 } from '../../../../src/infrastructure/redis';
 import { HealthService } from '../../../../src/infrastructure/health/health.service';
 
-/**
- * Which dependency is allowed to take the service out of rotation.
- *
- * That question has a different answer for each dependency, and getting it
- * wrong is expensive in both directions: too strict and a Redis blip removes a
- * service that is still accepting work; too lax and traffic keeps arriving at a
- * process that cannot serve it.
- */
 describe('HealthService', () => {
   const queryRaw = jest.fn<() => Promise<unknown>>();
   const probe = jest.fn<() => Promise<RedisProbe>>();
@@ -40,12 +32,6 @@ describe('HealthService', () => {
       expect(health.getLiveness()).toMatchObject({ status: 'ok' });
     });
 
-    /**
-     * The property that makes liveness safe to wire to a restart policy. A
-     * liveness probe that consulted a dependency would turn one database outage
-     * into a restart loop across every replica, and they would come back to find
-     * the database still down.
-     */
     it('consults no dependency at all', () => {
       health.getLiveness();
 
@@ -56,8 +42,6 @@ describe('HealthService', () => {
     it('reports ok even while draining', () => {
       readiness.markDraining();
 
-      // Draining is not wedged. Restarting here would abandon the requests the
-      // process is in the middle of finishing.
       expect(health.getLiveness()).toMatchObject({ status: 'ok' });
     });
   });
@@ -74,10 +58,6 @@ describe('HealthService', () => {
       });
     });
 
-    /**
-     * PostgreSQL is the system of record and every request path touches it, so
-     * it is the one dependency whose loss means "send traffic elsewhere".
-     */
     it('is not ready when PostgreSQL is unreachable', async () => {
       queryRaw.mockRejectedValue(new Error('connection terminated'));
 
@@ -87,12 +67,6 @@ describe('HealthService', () => {
       });
     });
 
-    /**
-     * The transactional outbox, visible at the probe. Accepting asynchronous
-     * work is one PostgreSQL transaction and no queue connection, so an
-     * unreachable Redis delays execution rather than refusing work — and
-     * answering 503 would remove a service that is still doing its job.
-     */
     it('stays ready when Redis is unreachable', async () => {
       probe.mockResolvedValue({ status: 'down' });
 
@@ -100,7 +74,6 @@ describe('HealthService', () => {
         status: 'ready',
         dependencies: {
           postgres: { status: 'up' },
-          // Describes this service's ability, which is reduced, not lost.
           redis: { status: 'degraded' },
         },
         capabilities: { queue: 'degraded' },
@@ -121,12 +94,6 @@ describe('HealthService', () => {
       });
     });
 
-    /**
-     * The input no dependency check can supply: the process reporting a decision
-     * about itself. Checked first and alone — a draining instance should leave
-     * rotation as promptly as possible, and nothing a healthy database could say
-     * would change the answer.
-     */
     it('fails while draining, without consulting anything', async () => {
       readiness.markDraining();
 
@@ -140,12 +107,6 @@ describe('HealthService', () => {
       expect(probe).not.toHaveBeenCalled();
     });
 
-    /**
-     * A probe that runs every few seconds on every replica must not call a paid
-     * external API. It would be a standing bill and a standing outage risk, and
-     * a slow provider says nothing about whether this process can accept a
-     * request.
-     */
     it('probes exactly two dependencies, and no provider', async () => {
       await health.getReadiness();
 
@@ -153,11 +114,6 @@ describe('HealthService', () => {
       expect(probe).toHaveBeenCalledTimes(1);
     });
 
-    /**
-     * Concurrently, so the probe's latency is the slower dependency rather than
-     * their sum. A readiness endpoint that takes longer than the probe timeout
-     * is failing the probe, whatever it would eventually have said.
-     */
     it('probes the dependencies concurrently', async () => {
       let resolvePostgres: (() => void) | undefined;
       queryRaw.mockImplementation(
@@ -170,7 +126,6 @@ describe('HealthService', () => {
       const pending = health.getReadiness();
       await Promise.resolve();
 
-      // Redis was asked without waiting for PostgreSQL to answer.
       expect(probe).toHaveBeenCalled();
 
       resolvePostgres?.();

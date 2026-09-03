@@ -172,18 +172,6 @@ function DemoFrame({
   );
 }
 
-/**
- * The design-system showcase.
- *
- * Carried over from before the migration with its markup untouched — it is a
- * reference for what the tokens and primitives look like, and rewriting it
- * would have meant rewriting the reference. Only the i18n calls changed, from
- * next-intl's asynchronous server helpers to `use-intl`'s hooks, which is the
- * same library underneath.
- *
- * It lives inside the protected tree because the platform is private, and it
- * is lazily loaded because it is the largest and least-visited page here.
- */
 export function DesignSystemPage() {
   const requestLocale = useLocale();
   const locale = isAppLocale(requestLocale) ? requestLocale : DEFAULT_LOCALE;
@@ -215,7 +203,6 @@ export function DesignSystemPage() {
         pasted in from somewhere else.
       */}
       <div>
-        {/* Hero */}
         <div className="border-b pb-10">
           <div className="max-w-3xl">
             <h1 className="text-4xl font-bold tracking-tight md:text-5xl">
@@ -229,7 +216,6 @@ export function DesignSystemPage() {
         </div>
 
         <div className="grid items-start gap-12 py-10 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-16">
-          {/* Navigation */}
           <aside className="hidden lg:block">
             <nav className="sticky top-20 space-y-1">
               <div className="mb-3 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -248,9 +234,7 @@ export function DesignSystemPage() {
             </nav>
           </aside>
 
-          {/* Main content */}
           <main className="min-w-0 space-y-20 pb-24">
-            {/* Foundations */}
             <section id="foundations" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tFoundations('title')}
@@ -308,7 +292,6 @@ export function DesignSystemPage() {
               </div>
             </section>
 
-            {/* Colors */}
             <section id="colors" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tColors('title')}
@@ -375,7 +358,6 @@ export function DesignSystemPage() {
               </DemoFrame>
             </section>
 
-            {/* Typography */}
             <section id="typography" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tTypography('title')}
@@ -404,7 +386,6 @@ export function DesignSystemPage() {
               </DemoFrame>
             </section>
 
-            {/* Surfaces */}
             <section id="surfaces" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tSurfaces('title')}
@@ -479,7 +460,6 @@ export function DesignSystemPage() {
               </DemoFrame>
             </section>
 
-            {/* Buttons */}
             <section id="buttons" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tButtons('title')}
@@ -558,7 +538,6 @@ export function DesignSystemPage() {
               </DemoFrame>
             </section>
 
-            {/* Inputs */}
             <section id="inputs" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tInputs('title')}
@@ -657,7 +636,6 @@ export function DesignSystemPage() {
               </DemoFrame>
             </section>
 
-            {/* Cards */}
             <section id="cards" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tCards('title')}
@@ -697,7 +675,6 @@ export function DesignSystemPage() {
               </div>
             </section>
 
-            {/* Dialog */}
             <section id="dialogs" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tDialogs('title')}
@@ -765,7 +742,6 @@ export function DesignSystemPage() {
               </DemoFrame>
             </section>
 
-            {/* Internationalization */}
             <section
               id="internationalization"
               className="scroll-mt-24 space-y-8"
@@ -835,7 +811,6 @@ export function DesignSystemPage() {
               </Card>
             </section>
 
-            {/* Formatting */}
             <section id="formatting" className="scroll-mt-24 space-y-8">
               <SectionHeader
                 title={tFormatting('title')}
@@ -883,7 +858,6 @@ export function DesignSystemPage() {
               </DemoFrame>
             </section>
 
-            {/* Footer */}
             <footer className="border-t pt-8">
               <div className="flex flex-col justify-between gap-2 text-sm text-muted-foreground sm:flex-row">
                 <span>{tShowcase('footerTitle')}</span>

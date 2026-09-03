@@ -1,10 +1,3 @@
-/**
- * Locale resolution, end to end: what an inbound request says, what the Nest
- * resolver makes of it, and which locale an outbound message is written in.
- *
- * One suite because the three are stages of a single decision, and the
- * precedence rules between them are the thing worth protecting.
- */
 import { describe, expect, it } from '@jest/globals';
 import type { ExecutionContext } from '@nestjs/common';
 
@@ -22,11 +15,6 @@ const get = (headers: Record<string, string | string[] | undefined>) =>
   nodeHeaderGetter(headers);
 
 describe('request locale precedence', () => {
-  /**
-   * The ordering that the rest of the system depends on. Each case pins one
-   * step by making every *higher* step absent and every *lower* step present
-   * and different, so a reordering cannot pass by accident.
-   */
   describe('resolveLocaleFromHeaders', () => {
     it('lets X-App-Locale win over every other source', () => {
       expect(
@@ -41,12 +29,6 @@ describe('request locale precedence', () => {
       ).toBe('ar');
     });
 
-    /**
-     * The specific regression this ordering exists to prevent: folding
-     * `X-App-Locale` into the generic "request locale" slot would rank it
-     * *below* the stored preference, and a user with `preferredLanguage=en`
-     * explicitly asking for Arabic would be answered in English.
-     */
     it('lets an explicit header override the stored user preference', () => {
       expect(
         resolveLocaleFromHeaders(get({ 'x-app-locale': 'ar' }), 'en'),
@@ -150,11 +132,6 @@ describe('request locale precedence', () => {
     });
   });
 
-  /**
-   * Better Auth hands its email callbacks a Web-Fetch `Request`, not an
-   * Express one. Both must resolve identically or outbound mail would pick a
-   * different language than the response to the same request.
-   */
   describe('web request adapter', () => {
     const webRequest = (headers: Record<string, string>) =>
       webHeaderGetter({ headers: new Headers(headers) });
@@ -251,8 +228,6 @@ describe('AppLocaleResolver', () => {
     });
 
     it('resolves nothing when the request carries no locale signal', () => {
-      // `undefined` hands control to the configured fallbackLanguage (`ar`)
-      // rather than this resolver hard-coding the default itself.
       expect(resolver.resolve(httpContext({}))).toBeUndefined();
     });
   });
@@ -362,8 +337,6 @@ describe('AppLocaleResolver', () => {
     });
 
     it('ignores a malformed percent-escape instead of throwing', () => {
-      // `decodeURIComponent('%ZZ')` raises URIError; an unreadable preference
-      // cookie must never fail the request.
       const locale = resolver.resolve(
         httpContext({
           headers: { cookie: 'APP_LOCALE=%ZZ', 'accept-language': 'en' },
@@ -435,9 +408,6 @@ describe('resolveOutboundLocale', () => {
   });
 
   it('is deterministic, so a retry resolves the same locale as the first attempt', () => {
-    // The point of resolving *before* enqueueing: the job payload is the only
-    // input, so re-running a failed job cannot pick up a different language
-    // from some other request's context.
     const payloadInputs = { requested: 'en' as const };
 
     const first = resolveOutboundLocale(payloadInputs);

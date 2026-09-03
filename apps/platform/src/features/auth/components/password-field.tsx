@@ -5,19 +5,6 @@ import { useState } from 'react';
 
 import { FormField } from './form-field';
 
-/**
- * Password input with a reveal toggle.
- *
- * `autoComplete` is required rather than defaulted, because getting it wrong
- * is silently harmful: `current-password` on a reset form makes the password
- * manager offer the password being replaced, and `new-password` on sign-in
- * stops it offering the one that would work. Forcing the caller to name it
- * makes the decision visible at every call site.
- *
- * The toggle is a real button with a translated accessible name that changes
- * with the state, so it is reachable by keyboard and announced correctly —
- * an icon-only control with no name is invisible to a screen reader.
- */
 export function PasswordField({
   label,
   autoComplete,

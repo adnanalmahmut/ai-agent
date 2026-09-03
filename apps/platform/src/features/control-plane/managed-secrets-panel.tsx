@@ -24,33 +24,11 @@ import {
 import { PanelState } from './panel-state';
 import { useControlPlaneResource } from './use-control-plane-resource';
 
-/**
- * Provider credentials, which this screen can write and can never read.
- *
- * There is no endpoint that returns a stored secret and no masked preview of
- * one — the first four characters of an API key are a real substring of a real
- * credential, and recognising it is not worth putting any of it on a screen.
- * So the only evidence a credential exists is the metadata beside it: whether
- * a slot is configured, when it was last rotated, and whether it still
- * decrypts.
- *
- * The input is `type="password"` and, more importantly, is cleared the moment
- * the write returns — on failure as well as on success, because a rejected
- * value is still a credential. React mirrors a controlled input's value into
- * the serialized DOM, so anything that reads `outerHTML` sees whatever is
- * still in the field; the unconditional clear is what bounds that window, and
- * it must not become conditional.
- */
 export function ManagedSecretsPanel() {
   const t = useTranslations('ControlPlane');
   const format = useFormatter();
   const canWrite = useGlobalPermission({ managedSecret: ['write'] });
 
-  /**
-   * The module function is passed directly. It is already stable, so wrapping
-   * it in `useCallback` would add a dependency array to keep correct for no
-   * gain — and the hook reloads on identity change.
-   */
   const resource =
     useControlPlaneResource<ManagedSecretDescription>(listManagedSecrets);
 
@@ -72,13 +50,6 @@ export function ManagedSecretsPanel() {
     });
   };
 
-  /**
-   * Rows whose label was refused for holding the credential.
-   *
-   * Local rather than an `actionError`, because it is not the server's answer
-   * and the operator has not sent anything yet — the point is that nothing was
-   * sent.
-   */
   const [labelRefused, setLabelRefused] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -87,14 +58,6 @@ export function ManagedSecretsPanel() {
     const value = values[secret.key] ?? '';
     const label = labels[secret.key]?.trim();
 
-    /**
-     * The label is the one field on this screen that is stored in plaintext
-     * and read back verbatim, and it sits directly under a masked field in the
-     * same narrow column — so a paste that lands one input too low is silent,
-     * and the operator's correction leaves the credential behind in the note.
-     * Sending it would put a live credential in a column AES-256-GCM never
-     * touches, where it would also reach every backup and every listing.
-     */
     if (value !== '' && label !== undefined && label.includes(value)) {
       setLabelRefused((keys) => new Set(keys).add(secret.key));
 
@@ -178,19 +141,22 @@ export function ManagedSecretsPanel() {
                     ) : null}
 
                     {/*
-                      * When it was last rotated is the closest thing to
-                      * evidence this screen can offer that the configured
-                      * credential is the one the operator thinks it is. It is
-                      * the only history available, since nothing records who
-                      * changed it.
-                      */}
+                     * When it was last rotated is the closest thing to
+                     * evidence this screen can offer that the configured
+                     * credential is the one the operator thinks it is. It is
+                     * the only history available, since nothing records who
+                     * changed it.
+                     */}
                     {secret.configured && secret.lastRotatedAt !== undefined ? (
                       <span className="text-xs text-muted-foreground">
                         {t('secrets.lastRotated', {
-                          when: format.dateTime(new Date(secret.lastRotatedAt), {
-                            dateStyle: 'medium',
-                            timeStyle: 'short',
-                          }),
+                          when: format.dateTime(
+                            new Date(secret.lastRotatedAt),
+                            {
+                              dateStyle: 'medium',
+                              timeStyle: 'short',
+                            },
+                          ),
                         })}
                       </span>
                     ) : null}

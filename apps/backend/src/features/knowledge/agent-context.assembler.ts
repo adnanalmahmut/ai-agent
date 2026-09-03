@@ -13,20 +13,6 @@ import type {
 } from '../../ai/agents/agent.types';
 import { isKnowledgeSpaceSlug } from './knowledge-space.registry';
 
-/**
- * Choosing what an agent is allowed to see, in the application.
- *
- * This is deliberately not a runtime concern. Mastra has its own retrieval
- * primitives, and using them would put the tenant predicate, the space policy
- * and the context budget inside a framework — three decisions that are the
- * whole security story of a multi-tenant agent, expressed in something this
- * repository does not own and cannot test the SQL of.
- *
- * Nothing here trusts the definition to be right about the organization. The
- * policy names spaces by slug and the slugs are resolved against the caller's
- * own organization, so a policy naming a slug that belongs to someone else
- * resolves to nothing rather than to their material.
- */
 @Injectable()
 export class AgentContextAssembler implements AgentContextPort {
   constructor(
@@ -52,12 +38,6 @@ export class AgentContextAssembler implements AgentContextPort {
     // that is arbitrary rather than absent, and it would still cost a call.
     if (trimmed.length === 0) return [];
 
-    /**
-     * Through the Knowledge domain's own service, not `prisma` directly. The
-     * knowledge barrel deliberately withholds storage access, and this is the
-     * one query outside that module that would otherwise have to name a table
-     * — which is also where a tenant predicate would go missing unnoticed.
-     */
     const spaces = await this.spaces.resolveSlugs({
       organizationId: input.organizationId,
       slugs: policy.spaceSlugs.filter(isKnowledgeSpaceSlug),
@@ -89,17 +69,6 @@ export class AgentContextAssembler implements AgentContextPort {
   }
 }
 
-/**
- * Takes passages in ranked order until the character budget is spent.
- *
- * Whole passages, never a truncated one. Half a paragraph reads as a complete
- * thought that happens to end early, which is worse than its absence: the
- * model cannot tell that something was cut, and neither can a reader checking
- * why the answer said what it did.
- *
- * A passage over budget on its own is skipped rather than ending the loop —
- * one long document should not hide every shorter passage ranked behind it.
- */
 function withinBudget(
   passages: readonly AgentContextPassage[],
   maxCharacters: number,

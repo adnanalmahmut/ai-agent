@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  buttonVariants,
-} from '@repo/ui';
+import { Badge, Button, Card, CardContent, buttonVariants } from '@repo/ui';
 import { Archive, Building2, Loader2, Plus, RotateCcw } from 'lucide-react';
 import { useTranslations } from 'use-intl';
 
@@ -21,16 +15,15 @@ import type { ArchivedOrganization } from '../organization-types';
 import { OrganizationAvatar } from '../components/organization-avatar';
 import { OrganizationErrorAlert } from '../components/organization-error-alert';
 
-/**
- * Every organization the reader belongs to.
- */
 export function OrganizationsBlock({ data }: { data: OrganizationsListData }) {
   const t = useTranslations('Organization');
 
   const createAction = (
     <Link
       href={PLATFORM_ROUTES.newOrganization}
-      className={buttonVariants({ className: 'gap-2 h-8 text-xs font-semibold' })}
+      className={buttonVariants({
+        className: 'gap-2 h-8 text-xs font-semibold',
+      })}
     >
       <Plus className="size-3.5" />
       {t('list.create')}
@@ -89,9 +82,6 @@ export function OrganizationsBlock({ data }: { data: OrganizationsListData }) {
   );
 }
 
-/**
- * Organizations that are offline but recoverable.
- */
 function ArchivedSection({
   organizations,
 }: {
@@ -132,8 +122,13 @@ function ArchivedRow({ organization }: { organization: ArchivedOrganization }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-xs font-semibold text-foreground">{organization.name}</span>
-            <Badge variant="outline" className="shrink-0 gap-1 text-xs border-border/40">
+            <span className="truncate text-xs font-semibold text-foreground">
+              {organization.name}
+            </span>
+            <Badge
+              variant="outline"
+              className="shrink-0 gap-1 text-xs border-border/40"
+            >
               <Archive className="size-3" />
               {t('list.archivedBadge')}
             </Badge>

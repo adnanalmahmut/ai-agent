@@ -19,9 +19,6 @@ const allows = (
 
 describe('the two domains stay separate', () => {
   it('is built on two different access-control instances', () => {
-    // Structural, not conventional: an organization permission cannot be
-    // passed where a platform one belongs, because they are not the same
-    // catalogue.
     expect(organizationAccessControl).not.toBe(globalAccessControl);
   });
 
@@ -48,8 +45,6 @@ describe('the two domains stay separate', () => {
 
 describe('the global catalogue tracks the installed plugin', () => {
   it('takes user and session statements from Better Auth itself', () => {
-    // Not a hand-copied list: the admin plugin's routes check these exact
-    // strings, so a copy would drift on the next upgrade.
     expect(GLOBAL_PERMISSION_STATEMENTS.user).toEqual(defaultStatements.user);
     expect(GLOBAL_PERMISSION_STATEMENTS.session).toEqual(
       defaultStatements.session,
@@ -93,8 +88,6 @@ describe('global roles', () => {
   });
 
   it('grants user:delete to nobody at all', () => {
-    // Matches the backend, where no role holds it either. Hard deletion is
-    // not an operation this product has, so no button for it may render.
     for (const role of Object.values(globalRoles)) {
       expect(allows(role, { user: ['delete'] })).toBe(false);
     }
@@ -115,7 +108,6 @@ describe('global roles', () => {
   });
 });
 
-/** What an ordinary member may do here. Everything else must be refused. */
 const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
   ['knowledge', 'read'],
   ['contentIdea', 'read'],
@@ -124,16 +116,6 @@ const MEMBER_GRANTS: ReadonlyArray<[string, string]> = [
 ];
 
 describe('organization roles', () => {
-  /**
-   * Stated over the whole catalog with an allow-list, rather than by probing
-   * two resources.
-   *
-   * These gates decide which controls an operator is shown, so a grant added
-   * here but not on the server puts a button on screen that answers 403 —
-   * and probing a sample cannot notice a grant nobody thought to probe. The
-   * backend's own spec is written in this shape for the same reason; the two
-   * lists are maintained together deliberately.
-   */
   it('holds only the grants a member is meant to have', () => {
     for (const [resource, actions] of Object.entries(
       ORGANIZATION_PERMISSION_STATEMENTS,
@@ -179,8 +161,6 @@ describe('organization roles', () => {
   });
 
   it('grants organization:delete to nobody', () => {
-    // In the catalogue because Better Auth's own route checks it; granted to
-    // nobody because the server disables that route entirely.
     expect(ORGANIZATION_PERMISSION_STATEMENTS.organization).toContain('delete');
 
     for (const role of Object.values(organizationRoles)) {
@@ -189,8 +169,6 @@ describe('organization roles', () => {
   });
 
   it('describes no team or dynamic-role statements', () => {
-    // Both are switched off on the server, so their endpoints do not exist
-    // and UI built on them could never work.
     expect(ORGANIZATION_PERMISSION_STATEMENTS).not.toHaveProperty('team');
     expect(ORGANIZATION_PERMISSION_STATEMENTS).not.toHaveProperty('ac');
   });

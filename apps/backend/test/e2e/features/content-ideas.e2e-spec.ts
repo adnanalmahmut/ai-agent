@@ -26,36 +26,7 @@ import {
   type TestUser,
 } from '../../support/auth-harness';
 
-/**
- * The actor recorded on control-plane writes this harness makes.
- *
- * The audit log records who changed a flag, and these setups change flags — so
- * every call has to name somebody. A fixed non-user id rather than a session
- * user: the events are the harness's own, and attributing them to a test member
- * would put rows in the log that read as though a member of the organization
- * had reached the operator surface.
- */
 const CONTROL_PLANE_ACTOR = 'e2e-harness';
-
-/**
- * The content-idea business surface, against the real application.
- *
- * No provider is reached. Requesting ideas accepts work and returns an
- * operation; the run is executed by the worker, which is a different process
- * and a different suite. What is only true end to end is everything around
- * that acceptance: that both feature flags gate it, that the operator's
- * in-flight ceiling is enforced, that the guard answers for the organization
- * in the path, that an idempotency key is bound to the body it arrived with,
- * and that one organization cannot read another's operation.
- *
- * A budget note for whoever adds the next test here. The endpoint is metered
- * at twenty requests per user per five minutes, which is a real production
- * bound on a billed operation and is not raised to fit a suite. This file is
- * already close to it for `owner`, so a new block that posts more than a
- * couple of times should introduce its own member — `spender` and
- * `secondSpender` exist for exactly that, and which session sends a request is
- * not part of what the organization-scoped blocks assert.
- */
 
 type Operation = {
   id: string;
@@ -68,7 +39,6 @@ const dataOf = <T>(body: unknown): T => (body as { data: T }).data;
 
 type Availability = { available: boolean; reason: string | null };
 
-/** Both gates acceptance checks, coarse first. */
 const ENABLED_FLAGS = ['agents.enabled', 'content_ideas.enabled'] as const;
 
 const REQUEST = {
@@ -84,27 +54,8 @@ describe('content ideas', () => {
   let owner: TestUser;
   let orgAdmin: TestUser;
   let member: TestUser;
-  /**
-   * Two more admins of the same organization, so no single user runs into the
-   * controller's per-user budget of 20 requests per five minutes.
-   *
-   * That budget is a real production bound on a billed endpoint and is not
-   * loosened to fit a test suite. It does mean a file that grows past twenty
-   * requests by one user has to spread them, which is what these are for —
-   * and the blocks that use them are about the *organization's* ceiling, so
-   * whose session sends the request is not part of what they assert.
-   */
   let spender: TestUser;
   let secondSpender: TestUser;
-  /**
-   * A third, for the requests that are *refused*.
-   *
-   * A refusal still costs a token against the per-user budget, and the
-   * validation table below sends one per malformed body — so growing that
-   * table would silently spend the owner's allowance and fail a later test with
-   * a 429 that has nothing to do with what it asserts. Whose session sends a
-   * request that is going to be refused is not part of what those cases claim.
-   */
   let rejector: TestUser;
   let outsider: TestUser;
   let superAdmin: TestUser;
@@ -144,7 +95,6 @@ describe('content ideas', () => {
     expect(accept.status).toBe(200);
   };
 
-  /** Every request needs a key; tests that do not care about it get a fresh one. */
   let keySeed = 0;
   const freshKey = () => `e2e-key-${(keySeed += 1)}-${Date.now().toString(36)}`;
 
@@ -185,9 +135,6 @@ describe('content ideas', () => {
     await harness.prisma.organizationAgentInstallation.deleteMany({ where });
   };
 
-  // The real Better Auth flow deliberately creates eight independently signed
-  // in users. Password hashing can exceed Jest's generic five-second hook
-  // budget on a loaded CI worker; this is setup cost, not a product retry.
   beforeAll(async () => {
     harness = await createHarness();
 
@@ -209,20 +156,6 @@ describe('content ideas', () => {
     await addMember(secondSpender, 'admin', organizationId, owner);
     await addMember(rejector, 'admin', organizationId, owner);
 
-    /**
-     * Enabled per organization, not platform-wide.
-     *
-     * A platform override is global state in a database every suite shares:
-     * `control-plane.e2e-spec.ts` counts that table with no predicate and
-     * asserts it is empty, and clears it unscoped for exactly the reason that
-     * an interrupted run must not leave a flag on for the next suite. Scoping
-     * these to the two organizations this file owns means the isolation is a
-     * property of the rows rather than of `maxWorkers: 1` and an `afterAll`
-     * that ran.
-     *
-     * Both flags, because acceptance now checks the coarse agent switch as
-     * well as the feature's own.
-     */
     for (const key of ENABLED_FLAGS) {
       for (const target of [organizationId, otherOrganizationId]) {
         await harness.app.get(FeatureFlagService).setOrganizationOverride({
@@ -257,15 +190,6 @@ describe('content ideas', () => {
 
   beforeEach(clearRuns);
 
-  /**
-   * The runs and the dispatch intents they committed.
-   *
-   * Every accepted request writes an outbox row keyed on the run id in the
-   * same transaction, so deleting only the runs leaves PENDING intents
-   * pointing at rows that no longer exist — accumulating across runs in a
-   * database every suite shares, and waiting for the first suite that starts
-   * a real relay without wiping the table first.
-   */
   async function clearRuns() {
     const runs = await harness.prisma.agentRun.findMany({
       where: { organizationId: { in: [organizationId, otherOrganizationId] } },
@@ -291,7 +215,6 @@ describe('content ideas', () => {
 
       const operation = dataOf<Operation>(response.body);
       expect(operation.status).toBe('QUEUED');
-      // The provider has not been called and must not appear to have been.
       expect(operation.output).toBeNull();
       expect(operation.completedAt).toBeNull();
 
@@ -305,10 +228,6 @@ describe('content ideas', () => {
       expect(run.createdByUserId).toBe(owner.id);
     });
 
-    /**
-     * The accepted work and its delivery intent commit together. Without the
-     * outbox row the run would sit `QUEUED` forever with nothing to notice it.
-     */
     it('commits the queue intent with the run', async () => {
       const operation = dataOf<Operation>((await request(owner)).body);
 
@@ -338,7 +257,6 @@ describe('content ideas', () => {
         where: { id: operation.id },
       });
 
-      // Trimmed, and the default applied — the run executes what was parsed.
       expect(run.input).toEqual({
         topic: 'Kettles',
         goal: 'Book demos',
@@ -392,15 +310,6 @@ describe('content ideas', () => {
       expect(runs).toBe(1);
     });
 
-    /**
-     * The key is bound to the body it was sent with.
-     *
-     * `AgentRunService` returns the stored run for a key it has seen and does
-     * not compare the rest of the request — correct for a retry, wrong for
-     * reuse. A client that recycled one key across two different asks would
-     * otherwise be handed the first answer for the second question, which is
-     * worse than an error because it looks like a result.
-     */
     it('does not hand back the first answer when the request changed', async () => {
       const key = freshKey();
 
@@ -415,14 +324,6 @@ describe('content ideas', () => {
       expect(second.id).not.toBe(first.id);
     });
 
-    /**
-     * The other half of the key, which the body cases do not reach.
-     *
-     * Dropping the caller's key and storing only the digest passes both tests
-     * above — a retry still finds its run, a changed body still gets a new one
-     * — while two members asking the same question at the same time collapse
-     * into one run, and the second one is handed the first one's operation.
-     */
     it('keeps two callers asking the same question apart', async () => {
       const first = dataOf<Operation>(
         (await request(spender, REQUEST, freshKey())).body,
@@ -477,10 +378,6 @@ describe('content ideas', () => {
       expect((await request(orgAdmin)).status).toBe(201);
     });
 
-    /**
-     * Creating spends the platform's provider credential; reading does not.
-     * A member sees the team's results and cannot start new work.
-     */
     it('lets a plain member read but not request', async () => {
       const operation = dataOf<Operation>((await request(owner)).body);
 
@@ -503,11 +400,6 @@ describe('content ideas', () => {
       expect((await request(superAdmin)).status).toBe(404);
     });
 
-    /**
-     * The failure that only appears for someone in two organizations: the
-     * decorator this controller deliberately does not use would authorize
-     * against whichever organization the session has selected.
-     */
     it('answers for the organization in the path, not the one selected', async () => {
       await as(harness, owner).post('/api/auth/organization/set-active', {
         organizationId,
@@ -523,10 +415,6 @@ describe('content ideas', () => {
       expect(response.status).toBe(404);
     });
 
-    /**
-     * Authorization runs before the body is parsed, so an unauthorized caller
-     * cannot learn the request shape from a validation error.
-     */
     it('refuses an outsider before validating their body', async () => {
       const response = await as(harness, outsider)
         .post(base(), { nonsense: true })
@@ -555,10 +443,6 @@ describe('content ideas', () => {
       expect(response.status).toBe(404);
     });
 
-    /**
-     * A run produced by a different agent is not a content-idea operation, and
-     * saying so differently would make this endpoint a way to enumerate runs.
-     */
     it('answers 404 for a run belonging to another agent', async () => {
       const foreign = await harness.prisma.agentRun.create({
         data: {
@@ -613,14 +497,6 @@ describe('content ideas', () => {
   });
 
   describe('feature gating', () => {
-    /**
-     * Sets a flag for the duration of one test and puts it back.
-     *
-     * Restores to `enabled: true` rather than clearing, because this suite's
-     * organizations are enabled by an override of their own — clearing would
-     * drop them to the platform default, which is off, and every test after
-     * this one would fail for a reason belonging to this one.
-     */
     const withFlag = async (
       key: (typeof ENABLED_FLAGS)[number],
       enabled: boolean,
@@ -656,8 +532,6 @@ describe('content ideas', () => {
         expect(refused.status).toBe(403);
         expect(errorBody(refused).errorCode).toBe('FEATURE_DISABLED');
 
-        // Turning the feature off stops new work; it does not retract answers
-        // the organization already has.
         const read = await as(harness, orgAdmin).get(
           `${base()}/${operation.id}`,
         );
@@ -665,14 +539,6 @@ describe('content ideas', () => {
       });
     });
 
-    /**
-     * The coarse switch, which until this feature existed gated nothing.
-     *
-     * It is the one an operator reaches for to stop every agent at once. If
-     * acceptance checked only the per-feature flag, switching agents off would
-     * change nothing observable and the real control would be a flag named
-     * after one feature.
-     */
     it('refuses when the platform-wide agent switch is off', async () => {
       await withFlag('agents.enabled', false, async () => {
         const refused = await request(orgAdmin);
@@ -695,16 +561,6 @@ describe('content ideas', () => {
       });
     });
 
-    /**
-     * The readiness surface the screen loads before it shows a form.
-     *
-     * Without it the only way to learn the feature is off is to fill the form
-     * in and press the button — which is how an operator concludes the product
-     * is broken. What it must *not* be is the control-plane API: an ordinary
-     * member holds no platform permission, and handing them one so a screen can
-     * grey out a button would trade a small UX problem for a large
-     * authorization one.
-     */
     describe('availability', () => {
       const availability = (user: TestUser, target = organizationId) =>
         as(harness, user).get(`${base(target)}/availability`);
@@ -727,11 +583,6 @@ describe('content ideas', () => {
         });
       });
 
-      /**
-       * The coarse switch is named first when both are off, matching the order
-       * acceptance checks them in — so the screen and the refusal agree about
-       * which control an operator has to touch.
-       */
       it('names the coarse switch when it is off', async () => {
         await withFlag('agents.enabled', false, async () => {
           expect(
@@ -826,11 +677,6 @@ describe('content ideas', () => {
         }
       });
 
-      /**
-       * Readable by a member who may not spend. The screen has to explain why
-       * nothing is being generated to everyone looking at it, not only to the
-       * people who could have generated it.
-       */
       it('is readable by a plain member', async () => {
         expect((await availability(member)).status).toBe(200);
       });
@@ -846,13 +692,6 @@ describe('content ideas', () => {
         );
       });
 
-      /**
-       * The route is declared before `:operationId`, and Nest matches in
-       * declaration order — so a parameterised segment moved above it would
-       * swallow this path and answer it as a lookup for an operation called
-       * "availability". Pinned here because the failure is a 404 on a route
-       * that exists, which reads as the feature being missing.
-       */
       it('is not shadowed by the operation lookup', async () => {
         const response = await availability(orgAdmin);
 
@@ -862,12 +701,6 @@ describe('content ideas', () => {
         });
       });
 
-      /**
-       * Availability is advisory and acceptance is authoritative. A flag
-       * switched off between the two must produce a refusal, not a run — the
-       * screen's answer is stale by construction and must never be what
-       * decides.
-       */
       it('does not authorize a request when the flag changes after it was read', async () => {
         expect(
           dataOf<Availability>((await availability(orgAdmin)).body).available,
@@ -883,14 +716,6 @@ describe('content ideas', () => {
     });
   });
 
-  /**
-   * The operator's ceiling on concurrent spend.
-   *
-   * `agents.max_concurrent_runs_per_organization` had been offered to
-   * operators since the control plane landed and enforced by nothing. The
-   * per-user rate limit does not substitute for it: that bounds one member,
-   * and the bill is the organization's.
-   */
   describe('the in-flight ceiling', () => {
     const setCeiling = (value: number) =>
       harness.app.get(RuntimeSettingService).set({
@@ -917,22 +742,6 @@ describe('content ideas', () => {
       expect(errorBody(refused).errorCode).toBe('TOO_MANY_REQUESTS');
     });
 
-    /**
-     * The ceiling is exact, not best-effort.
-     *
-     * Counting in-flight runs and then inserting one is a read-modify-write,
-     * and under PostgreSQL's default isolation two of them interleave freely:
-     * both read one, both see room, both commit, and an organization limited to
-     * one run has two. Nothing about that is visible afterwards — the runs look
-     * ordinary and the bill is simply larger than the operator set.
-     *
-     * Two different members with two different keys, dispatched together, so
-     * neither the idempotency short-circuit nor the per-user limiter can be
-     * what produces the refusal. Exactly one accept and exactly one 429 is the
-     * claim, and the durable row count is checked as well: an assertion on
-     * status codes alone would pass for an implementation that answered 429
-     * *after* committing the second run.
-     */
     it('accepts exactly one of two simultaneous requests at a limit of one', async () => {
       await setCeiling(1);
 
@@ -958,25 +767,6 @@ describe('content ideas', () => {
       ).toBe(1);
     });
 
-    /**
-     * The deterministic proof that the lock exists and is keyed on the
-     * organization.
-     *
-     * Two requests dispatched with `Promise.all` through supertest do not
-     * reliably overlap at the database — the event loop and the connection pool
-     * can finish the first transaction before the second opens one — so the
-     * pair test above is a functional check rather than a proof: it passes with
-     * or without the lock. Removing the lock and watching it stay green is
-     * exactly how that was discovered.
-     *
-     * This holds the lock from outside on a dedicated connection, which is not
-     * probabilistic. Acceptance for this organization cannot proceed while it
-     * is held, acceptance for another proceeds immediately, and releasing it
-     * lets the blocked request through. Together with the counting assertions
-     * above, that is the whole of the exactness claim: the count and the insert
-     * happen inside a lock nothing else for this tenant can hold at the same
-     * time.
-     */
     it('serializes acceptance per organization on an advisory lock', async () => {
       await setCeiling(5);
 
@@ -992,9 +782,6 @@ describe('content ideas', () => {
 
         const blocked = request(spender, REQUEST, freshKey());
 
-        // It must still be waiting. A generous window: the assertion is that it
-        // does *not* settle, so a slow machine makes this more reliable rather
-        // than less.
         const settled = Symbol('settled');
         const raced = await Promise.race([
           blocked.then(() => settled),
@@ -1003,7 +790,6 @@ describe('content ideas', () => {
 
         expect(raced).not.toBe(settled);
 
-        // And the lock is this organization's alone.
         const other = await request(
           outsider,
           REQUEST,
@@ -1022,15 +808,6 @@ describe('content ideas', () => {
       }
     }, 20_000);
 
-    /**
-     * And the lock is per organization, so one tenant's acceptance cannot be
-     * blocked by another's.
-     *
-     * Both are dispatched together at a limit of one each. If the lock were
-     * global rather than keyed on the organization the two would serialize —
-     * which is still correct, so this asserts the outcome rather than the
-     * timing: both are accepted, because neither is part of the other's count.
-     */
     it('does not let one organization ceiling refuse another', async () => {
       await setCeiling(1);
 
@@ -1043,15 +820,6 @@ describe('content ideas', () => {
       expect(theirs.status).toBe(201);
     });
 
-    /**
-     * The retry path, under contention.
-     *
-     * The accepted key is answered with its run even while the organization is
-     * at capacity — and now that the check happens inside a lock, the lookup
-     * that makes that true has to happen inside it too. An implementation that
-     * took the lock and then checked capacity before the key would refuse a
-     * retry it had already been paid for.
-     */
     it('still answers an accepted key while a competing request is refused', async () => {
       await setCeiling(1);
 
@@ -1070,11 +838,6 @@ describe('content ideas', () => {
       expect(competitor.status).toBe(429);
     });
 
-    /**
-     * A caller retrying a request that already succeeded has been accepted and
-     * already paid for. Refusing their retry at a ceiling they are themselves
-     * occupying would strand a run they can no longer reach the id of.
-     */
     it('still answers an honest retry of a run that is already in flight', async () => {
       await setCeiling(1);
 

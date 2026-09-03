@@ -18,16 +18,6 @@ export type SignUpInput = {
   password: string;
 };
 
-/**
- * Registration, and the state it leaves behind.
- *
- * The backend runs with `requireEmailVerification: true` and
- * `autoSignInAfterVerification: false`, so a successful sign-up creates a
- * user and *no session* — it sends a verification mail. This hook therefore
- * reports `registeredEmail` rather than navigating: the caller shows the
- * "check your inbox" state, which is the honest outcome, instead of pushing
- * the user at a dashboard they cannot reach yet.
- */
 export function useSignUp() {
   const locale = useAppLocale();
   const { isPending, error, reset, run } = useAuthAction();

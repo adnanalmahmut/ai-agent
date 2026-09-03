@@ -11,22 +11,6 @@ import {
 } from '../organization-validation';
 import { useOrganizationAction } from './use-organization-action';
 
-/**
- * Inviting someone to an organization.
- *
- * `resend: true` is passed on every call, and it is what makes "invite again"
- * work without a second endpoint. Better Auth has no resend route; re-inviting
- * an address that already has a pending invitation is the resend, and the
- * backend is configured with `cancelPendingInvitationsOnReInvite` so the old
- * one stops working the moment a new one is sent. Inventing a `resend`
- * endpoint to match a nicer-sounding UI would have meant calling something
- * that does not exist.
- *
- * What the reader is told afterwards is deliberately thin. The invitation is
- * created whether or not the address belongs to an account, and the backend
- * does not restore a deactivated one — so the confirmation says an invitation
- * was sent and nothing about who, if anyone, is on the other end.
- */
 export function useInviteMember(organizationId: string) {
   const revalidate = useRevalidate();
   const { isPending, error, reset, run } = useOrganizationAction();
@@ -71,14 +55,6 @@ export function useInviteMember(organizationId: string) {
   return { submit, issues, error, isPending, invitedEmail, reset: clear };
 }
 
-/**
- * Withdrawing an invitation that has not been accepted.
- *
- * The row disappears from the pending list, but the invitation is *cancelled*
- * rather than deleted — the backend keeps the history of who was invited, and
- * the invitations page shows it. That is why the copy says withdrawn and not
- * removed.
- */
 export function useCancelInvitation() {
   const revalidate = useRevalidate();
   const { error, reset, run } = useOrganizationAction();

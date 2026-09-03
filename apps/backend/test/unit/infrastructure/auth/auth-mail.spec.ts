@@ -9,7 +9,6 @@ import {
 
 const RESET_TOKEN = 'SUPER_SECRET_RESET_TOKEN';
 
-/** Captures the jobs the adapter produces without delivering anything. */
 function recordingMail() {
   const jobs: MailJob[] = [];
 
@@ -30,10 +29,6 @@ const request = (headers: Record<string, string>) => ({
   headers: new Headers(headers),
 });
 
-/**
- * Stands in for the invitee lookup. Keyed by address so a test can express
- * "this invitee has an account and prefers English" without a database.
- */
 const preferences: Record<string, unknown> = {};
 
 const options = (
@@ -154,11 +149,6 @@ describe('auth mail callbacks', () => {
       });
     });
 
-    /**
-     * Better Auth generates no invitation URL, so the origin comes from
-     * configuration — never from a request header, which an attacker could
-     * set to point the accept link at a host they control.
-     */
     it('builds the accept URL from configuration, not from the request', async () => {
       const custom = createAuthMailCallbacks(
         mail.service,
@@ -199,12 +189,6 @@ describe('auth mail callbacks', () => {
       expect(mail.last().locale).toBe('en');
     });
 
-    /**
-     * The single most important assertion in this block. `X-App-Locale` on the
-     * request belongs to the *inviter*; letting it win would mean an
-     * Arabic-speaking admin overrides the saved English preference of the
-     * person who actually receives the mail.
-     */
     it("does not let the inviter's X-App-Locale override the invitee's preference", async () => {
       preferences['invitee@example.com'] = 'en';
 
@@ -256,11 +240,6 @@ describe('auth mail callbacks', () => {
     });
   });
 
-  /**
-   * The documented chain, applied at the moment the mail is created. Getting
-   * the ordering wrong here is invisible in production: the email simply
-   * arrives in the wrong language.
-   */
   describe('locale precedence', () => {
     const send = async (
       userOverrides: Record<string, unknown>,
@@ -328,10 +307,6 @@ describe('auth mail callbacks', () => {
       ).resolves.toBe('ar');
     });
 
-    /**
-     * Better Auth omits the request for server-initiated calls. That must
-     * degrade to the account's own preference, not throw.
-     */
     it('works when Better Auth supplies no request', async () => {
       await callbacks.sendVerificationEmail(
         {

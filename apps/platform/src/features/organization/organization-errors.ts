@@ -1,23 +1,5 @@
 import { ApiError, ApiUnavailableError } from '@/lib/application-api';
 
-/**
- * Every way an organization operation can fail, as a closed set of states the
- * UI knows how to render.
- *
- * Same two rules as the authentication errors, for the same reasons. **Never
- * branch on a message** — Better Auth's English strings are copy, not
- * contract. **Never invent a code** — every constant on the left of the map
- * below is in `plugins/organization/error-codes.mjs` of the installed 1.6.27,
- * or is emitted by this project's own backend.
- *
- * Kept separate from `invitation-state.ts` deliberately. That module models
- * the *recipient's* view of one invitation, where "expired, cancelled or
- * already accepted" is a single indistinguishable state and the remedies are
- * about identity. This one models an *administrator* acting on an
- * organization, where the interesting distinctions are permission, uniqueness
- * and limits. Merging them would produce a union where half the members are
- * unreachable from either caller.
- */
 export const ORGANIZATION_ERRORS = [
   'FORBIDDEN',
   'NOT_A_MEMBER',
@@ -96,13 +78,6 @@ const CODE_MAP: Readonly<Record<string, OrganizationError>> = {
   CONFLICT: 'PROFILE_CONFLICT',
 };
 
-/**
- * Reads a failure without trusting its shape.
- *
- * Three kinds arrive here: the `{ error }` half of a Better Auth response, an
- * `ApiError` from this application's own endpoints, and a thrown transport
- * failure. `unknown` in, a closed union out.
- */
 export function organizationErrorFrom(input: unknown): OrganizationError {
   if (input instanceof ApiUnavailableError) return 'NETWORK_ERROR';
 
@@ -145,7 +120,6 @@ function fromCodeAndStatus(
   return 'UNKNOWN';
 }
 
-/** Translation key for a failure, under `Organization.errors`. */
 export function organizationErrorKey(error: OrganizationError): string {
   return `errors.${error}`;
 }

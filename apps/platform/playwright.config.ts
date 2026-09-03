@@ -3,42 +3,6 @@ import { fileURLToPath } from 'node:url';
 
 import { PLATFORM_BASE_PATH } from './src/config/paths.js';
 
-/**
- * A deliberately small browser smoke harness.
- *
- * ## What it is for
- *
- * The component suite runs in jsdom, which is a good enough DOM to assert
- * behaviour against and is not a browser. Four things this application depends
- * on are simply absent there: real navigation and history, `sessionStorage`
- * with its real lifetime, the `crypto` subtle and `randomUUID` APIs in a secure
- * context, and the bundle actually being buildable and bootable. Every one of
- * them is load-bearing for the content-idea flow — the operation lives in the
- * URL, the idempotency key lives in session storage, the key is minted with
- * `randomUUID`, and what is stored beside it is a `crypto.subtle` digest of the
- * request rather than the request.
- *
- * ## What it is not
- *
- * Not a second functional suite. Everything about *logic* is asserted in the
- * component tests, which are faster and can see inside the component; the cases
- * here are the ones that need a browser to mean anything. There is one spec
- * file, and it should stay that way.
- *
- * ## Why one browser
- *
- * Chromium only. This is a smoke harness for behaviour the application owns,
- * not a compatibility matrix — and three browsers would triple the CI time to
- * re-assert the same assertions against the same code.
- *
- * ## No provider, no backend
- *
- * Every network call is fulfilled by `page.route` from fixtures in the spec.
- * That is what keeps the suite deterministic and keeps a browser test from
- * needing a database, a queue, and a credential — which is the reason browser
- * suites get deleted.
- */
-
 const PORT = Number(process.env.PLATFORM_E2E_PORT ?? 4173);
 const API_PORT = Number(process.env.PLATFORM_E2E_API_PORT ?? 4174);
 const PLATFORM_ROOT = fileURLToPath(new URL('.', import.meta.url));
@@ -46,16 +10,8 @@ const USE_EXTERNAL_SERVER = process.env.PLATFORM_E2E_EXTERNAL_SERVER === 'true';
 
 export default defineConfig({
   testDir: './e2e',
-  /**
-   * Fully serial. The suite is small, the cases share no state, and a parallel
-   * run buys seconds while making a flake harder to reproduce.
-   */
   workers: 1,
   fullyParallel: false,
-  /**
-   * No retries. A browser test that passes on the second attempt is a test
-   * nobody can trust, and retries are how that becomes invisible.
-   */
   retries: 0,
   timeout: 30_000,
   expect: { timeout: 10_000 },
@@ -64,38 +20,29 @@ export default defineConfig({
     baseURL: `http://127.0.0.1:${PORT}${PLATFORM_BASE_PATH}/`,
     trace: 'retain-on-failure',
   },
-  projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-  ],
-  /**
-   * The built application, served the way production serves it.
-   *
- * The generated standalone server rather than the dev server, because the
- * thing worth knowing is that the deployable runtime boots and honours the
- * configured base path.
- * A small HTTP fixture answers the Server Component session and organization
- * reads; browser-side API traffic remains intercepted inside the spec.
-   */
-  webServer: USE_EXTERNAL_SERVER ? undefined : [
-    {
-      command: `node e2e/fixture-server.mjs`,
-      cwd: PLATFORM_ROOT,
-      env: { PLATFORM_E2E_API_PORT: String(API_PORT) },
-      url: `http://127.0.0.1:${API_PORT}/health`,
-      reuseExistingServer: process.env.CI === undefined,
-      timeout: 30_000,
-    },
-    {
-      command: 'node .next/standalone/apps/platform/server.js',
-      cwd: PLATFORM_ROOT,
-      env: {
-        HOSTNAME: '127.0.0.1',
-        PORT: String(PORT),
-        PLATFORM_API_ORIGIN: `http://127.0.0.1:${API_PORT}`,
-      },
-      url: `http://127.0.0.1:${PORT}${PLATFORM_BASE_PATH}/health`,
-      reuseExistingServer: process.env.CI === undefined,
-      timeout: 120_000,
-    },
-  ],
+  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  webServer: USE_EXTERNAL_SERVER
+    ? undefined
+    : [
+        {
+          command: `node e2e/fixture-server.mjs`,
+          cwd: PLATFORM_ROOT,
+          env: { PLATFORM_E2E_API_PORT: String(API_PORT) },
+          url: `http://127.0.0.1:${API_PORT}/health`,
+          reuseExistingServer: process.env.CI === undefined,
+          timeout: 30_000,
+        },
+        {
+          command: 'node .next/standalone/apps/platform/server.js',
+          cwd: PLATFORM_ROOT,
+          env: {
+            HOSTNAME: '127.0.0.1',
+            PORT: String(PORT),
+            PLATFORM_API_ORIGIN: `http://127.0.0.1:${API_PORT}`,
+          },
+          url: `http://127.0.0.1:${PORT}${PLATFORM_BASE_PATH}/health`,
+          reuseExistingServer: process.env.CI === undefined,
+          timeout: 120_000,
+        },
+      ],
 });

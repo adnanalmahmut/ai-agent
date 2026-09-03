@@ -10,24 +10,6 @@ import type { MailDeliveryResult, OutboundMail } from './mail.types';
 
 const DUMP_DIRECTORY = '.tmp/mail';
 
-/**
- * The development driver — Laravel's `MAIL_DRIVER=log`, with the safety rules
- * written down.
- *
- * A mail transport is an unusually easy place to leak credentials, because the
- * thing it handles *is* a credential: `actionUrl` carries a single-use
- * verification or password-reset token, and anyone who reads it from a log can
- * take over the account. So this class logs an explicit whitelist and never a
- * spread, an error object, or the message body.
- *
- * Logged:   event, provider, template, locale, direction, masked recipient,
- *           subject, html byte count.
- * Never:    the rendered HTML, `actionUrl`, any token, any job variable.
- *
- * The subject is safe because subjects are static translated strings — no
- * template interpolates a variable into one. If that ever changes, this
- * comment is the thing that should stop it.
- */
 @Injectable()
 export class LogMailTransport implements MailTransport {
   constructor(
@@ -78,7 +60,6 @@ export class LogMailTransport implements MailTransport {
   }
 }
 
-/** Template and locale are closed sets, but the filename is still built from data. */
 function sanitize(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, '_');
 }

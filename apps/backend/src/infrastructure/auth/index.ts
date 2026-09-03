@@ -1,14 +1,3 @@
-/**
- * Public surface of the auth module.
- *
- * The Better Auth instance itself is not exported: it is constructed inside
- * the dynamic module and reached through the library's `AuthService`, so
- * nothing here needs — or should have — a second way to get at it.
- *
- * Both access-control definitions *are* exported, so tests can evaluate the
- * real role objects rather than a copy, and so the separation between the two
- * authorization domains is assertable from outside this folder.
- */
 export { AppAuthModule } from './auth.module';
 export { createAuthMailCallbacks } from './auth-mail';
 export type { AppAuth } from './auth.factory';

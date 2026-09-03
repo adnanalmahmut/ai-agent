@@ -1,26 +1,10 @@
 #!/bin/sh
 set -eu
 
-# Installed as /usr/local/sbin/ai-agent-release-retention.
-#
-# Reclaims disk by removing superseded application release images, and by
-# nothing else. This automates, exactly, the manual remediation an operator
-# performed on 2026-08-26 after the OPS-01 disk gate refused a deployment at
-# 2963MiB free against the required 4096MiB: the host was at 95% used with
-# 52.28GB of images, and the fix was a protected digest allowlist rather than a
-# blanket reclaim.
-#
-# The retained set is CURRENT_RELEASE and PREVIOUS_RELEASE, which is exactly
-# what `ai-agent-deploy rollback` can reach. Keeping a third generation would be
-# disk that nothing can use.
-#
-# Nothing here is a blanket reclaim. There is no image, container, volume, or
-# build-cache sweep, and no forced removal, anywhere in this script. Removal is
-# always an explicit repository@digest reference for one candidate at a time.
-#
-# Every path is a fixed absolute literal. Like ai-agent-host-preflight this runs
-# as root, so a path that could be steered from the environment would be a
-# privilege boundary rather than a convenience. Tests rewrite these literals.
+# Removes only superseded application images outside the CURRENT and PREVIOUS
+# release records. Each removal names one repository digest; infrastructure
+# images, volumes, containers, and build cache are outside this script's scope.
+# Paths are fixed literals because the installed command runs as root.
 
 state_dir=/var/lib/ai-agent
 current_release=$state_dir/CURRENT_RELEASE.json
@@ -29,10 +13,7 @@ deploy_lock=$state_dir/deploy.lock
 host_preflight=/usr/local/sbin/ai-agent-host-preflight
 registry=ghcr.io/adnanalmahmut/ai-agent
 
-# The only repositories this script may ever consider. Infrastructure images the
-# compose file needs — postgres, redis, geoipupdate — are not listed and can
-# therefore never become candidates. The manual remediation also removed two
-# obsolete base images by hand; that is deliberately not automated here.
+# Infrastructure repositories are deliberately absent from this allowlist.
 application_repositories='backend backend-migration web platform'
 
 # Release-record field name to repository name. `migration` is recorded under a
@@ -63,25 +44,9 @@ candidates=$work_dir/candidates
 # Serialization
 # ---------------------------------------------------------------------------
 
-# A deployment between the image pull and the CURRENT rotation has its new
-# images on disk but not yet recorded, so they would be unprotected candidates.
-# Holding the deployment lock makes that window unreachable. Non-blocking: a
-# retention sweep is never worth waiting behind a release for.
-#
-# There are two ways to hold it, because ai-agent-deploy already holds it for the
-# whole deployment and retention runs inside that deployment. flock locks belong
-# to an open file description rather than to a process, which is what makes both
-# safe:
-#
-#   - Opening the file here creates a new description, so it is refused while a
-#     deployment holds the lock. That is standalone mode.
-#   - Re-locking a description that is already held is a no-op that returns
-#     immediately, never a deadlock. That is what internal mode does with the
-#     descriptor ai-agent-deploy passes down.
-#
-# Both paths perform the same unconditional flock. Neither reads anything from
-# the environment: an environment variable asserting "the lock is already held"
-# would be a claim, not a lock.
+# The deployment lock prevents newly pulled, not-yet-recorded images from
+# becoming retention candidates. Standalone mode opens it; internal mode adopts
+# the descriptor already held by ai-agent-deploy. Both are non-blocking.
 
 # Standalone. A fresh description, so an active deployment refuses it.
 lock_retention() {
@@ -90,19 +55,12 @@ lock_retention() {
   flock -n 9 || die 'a deployment is active; retention will not run alongside one'
 }
 
-# Internal. The lock file is deliberately never opened here: opening it would
-# create a second description and lose the caller's lock, turning the guarantee
-# into its opposite. Descriptor 9 must already be open on exactly the deployment
-# lock, which is checked rather than assumed — a caller that forgot the
-# redirection, or whose descriptor 9 points at something else, must refuse before
-# any Docker call rather than sweep under a serialization that does not exist.
+# Opening the file here would create a different open-file description, so the
+# inherited descriptor must point to the deployment lock before any Docker call.
 adopt_deployment_lock() {
   target=$(readlink "/proc/$$/fd/9" 2>/dev/null || true)
   [ "$target" = "$deploy_lock" ] || die \
     "internal retention requires the deployment lock on descriptor 9; found ${target:-nothing}"
-  # Unconditional, exactly as in standalone mode. On the descriptor
-  # ai-agent-deploy holds this returns immediately; on any other description of
-  # the same file it refuses while a deployment is running.
   flock -n 9 || die 'a deployment is active; retention will not run alongside one'
 }
 

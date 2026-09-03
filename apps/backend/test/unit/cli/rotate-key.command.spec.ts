@@ -13,16 +13,6 @@ import {
 } from '../../../src/cli/rotate-key.command';
 import type { CommandIo } from '../../../src/cli/super-admin.command';
 
-/**
- * The operator's half of the rotation command.
- *
- * What matters here is not the cryptography — that is the service's spec — but
- * what an operator and a script can conclude from a run: an exit code that
- * distinguishes "nothing left to do" from "some rows did not rotate", a report
- * naming the rows that need attention, and no credential anywhere in either
- * stream.
- */
-
 class CaptureStream extends Writable {
   private readonly parts: string[] = [];
 
@@ -79,11 +69,6 @@ describe('parseRotateArgs', () => {
     });
   });
 
-  /**
-   * Parsed strictly. `Number` would accept every one of these and resolve it to
-   * something the operator did not type — and a batch size silently becoming
-   * 1000 is the kind of surprise that only shows up under load.
-   */
   it.each(['1e3', '0x10', ' 12', '12.5', '-1', ''])(
     'refuses the non-integer batch size %p',
     (value) => {
@@ -100,7 +85,6 @@ describe('parseRotateArgs', () => {
     });
   });
 
-  /** A missing value must not silently consume the next flag. */
   it('refuses --batch-size with no value', () => {
     expect(parseRotateArgs(['--batch-size'])).toMatchObject({ ok: false });
     expect(parseRotateArgs(['--batch-size', '--dry-run'])).toMatchObject({
@@ -130,8 +114,6 @@ describe('runRotateKey', () => {
     const code = await runRotateKey(['--nope'], streams, resolve);
 
     expect(code).toBe(ROTATE_EXIT.usage);
-    // The whole point of resolving lazily: a typo must not open a database
-    // connection, least of all on a host where the database is what is broken.
     expect(resolve).not.toHaveBeenCalled();
     expect(streams.error.text).toContain('Unexpected argument: --nope');
   });
@@ -168,11 +150,6 @@ describe('runRotateKey', () => {
     expect(streams.output.text).toContain('1 rotated');
   });
 
-  /**
-   * The distinction a script branches on. A sweep that ran correctly and left
-   * rows behind is not success: an operator who read exit 0 would retire the
-   * old key and make those rows permanently unreadable.
-   */
   it.each([
     ['an unreadable row', report({ examined: 1, unreadable: 1 })],
     [
@@ -220,15 +197,6 @@ describe('runRotateKey', () => {
     expect(streams.output.text).toContain('1 would rotate');
   });
 
-  /**
-   * The exit code an operator reads before deleting a key permanently.
-   *
-   * A dry run that found rows still on an old key has answered "no, not yet",
-   * and it has to say so in the one channel a script can branch on. Exiting 0
-   * there would make the runbook's retirement gate read "all clear" over a
-   * report that says the opposite — the difference between a rollout and an
-   * unrecoverable credential.
-   */
   it('exits non-zero on a dry run that still has rows to rotate', async () => {
     rotateAll.mockResolvedValue(report({ examined: 1, wouldRotate: 1 }));
 
@@ -237,7 +205,6 @@ describe('runRotateKey', () => {
     );
   });
 
-  /** And exits 0 when the dry run genuinely finds nothing left to do. */
   it('exits 0 on a dry run over an already-current table', async () => {
     rotateAll.mockResolvedValue(report({ examined: 2, alreadyActive: 2 }));
 
@@ -246,17 +213,6 @@ describe('runRotateKey', () => {
     );
   });
 
-  /**
-   * The wrong-database case, which every disposition-based check reads as
-   * success.
-   *
-   * An operator who runs the command against a development database -- or
-   * against a deployment whose table is empty for any other reason -- gets
-   * every counter at zero, which is indistinguishable from "fully current"
-   * unless the sweep size itself is checked. Step D of the runbook treats exit
-   * 0 as permission to delete the old key, so this is the one place where
-   * "no errors" must not be allowed to mean "nothing depends on that key".
-   */
   it.each([
     ['a dry run', ['--dry-run']],
     ['a live run', []],
@@ -273,22 +229,12 @@ describe('runRotateKey', () => {
     },
   );
 
-  /**
-   * `rotated` is not outstanding, and this is the pair that pins the asymmetry:
-   * on a live run the rows that moved are the success, while on a dry run the
-   * rows that *would* move are the reason to stop.
-   */
   it('exits 0 on a live run that rotated everything it found', async () => {
     rotateAll.mockResolvedValue(report({ examined: 3, rotated: 3 }));
 
     expect(await runRotateKey([], io(), resolve)).toBe(ROTATE_EXIT.ok);
   });
 
-  /**
-   * A failure mid-sweep says nothing reliable about the table, so it is its own
-   * exit code — and the message only, never the stack, on a path that has just
-   * held a plaintext.
-   */
   it('reports a thrown failure without a stack and exits distinctly', async () => {
     rotateAll.mockRejectedValue(new Error('connection terminated'));
     const streams = io();

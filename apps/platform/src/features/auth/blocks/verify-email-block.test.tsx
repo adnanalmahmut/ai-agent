@@ -28,20 +28,19 @@ describe('arriving from the emailed link', () => {
   });
 
   it('says plainly that confirming does not sign you in', async () => {
-    // The backend runs with `autoSignInAfterVerification: false`, so telling
-    // the user otherwise would leave them wondering why they are still out.
     renderWithProviders(<VerifyEmailBlock isVerified />);
 
-    expect(
-      await screen.findByText(/does not sign you in/),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Go to sign in' }),
-    ).toHaveAttribute('href', '/en/sign-in');
+    expect(await screen.findByText(/does not sign you in/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to sign in' })).toHaveAttribute(
+      'href',
+      '/en/sign-in',
+    );
   });
 
   it('explains an expired link and keeps the resend form', async () => {
-    renderWithProviders(<VerifyEmailBlock isVerified callbackError="TOKEN_EXPIRED" />);
+    renderWithProviders(
+      <VerifyEmailBlock isVerified callbackError="TOKEN_EXPIRED" />,
+    );
 
     expect(
       await screen.findByText('This link has expired.'),
@@ -55,12 +54,17 @@ describe('arriving from the emailed link', () => {
     );
 
     expect(screen.queryByText('Email confirmed')).not.toBeInTheDocument();
-    expect(await screen.findByText('That link did not work')).toBeInTheDocument();
+    expect(
+      await screen.findByText('That link did not work'),
+    ).toBeInTheDocument();
   });
 
   it('recognises an address that is already confirmed', async () => {
     renderWithProviders(
-      <VerifyEmailBlock isVerified={false} callbackError="EMAIL_ALREADY_VERIFIED" />,
+      <VerifyEmailBlock
+        isVerified={false}
+        callbackError="EMAIL_ALREADY_VERIFIED"
+      />,
     );
 
     expect(
@@ -72,7 +76,9 @@ describe('arriving from the emailed link', () => {
 describe('asking for a new link', () => {
   it('sends one with a callback that returns here', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<VerifyEmailBlock isVerified={false} />, { locale: 'en' });
+    renderWithProviders(<VerifyEmailBlock isVerified={false} />, {
+      locale: 'en',
+    });
 
     await user.type(screen.getByLabelText('Email address'), 'sara@example.com');
     await user.click(
@@ -89,7 +95,6 @@ describe('asking for a new link', () => {
   });
 
   it('replaces the form with a neutral confirmation', async () => {
-    // Worded so it says nothing about whether that address needs confirming.
     const user = userEvent.setup();
     renderWithProviders(<VerifyEmailBlock isVerified={false} />);
 

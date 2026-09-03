@@ -8,7 +8,11 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import { renderWithProviders } from '@/test/render';
-import { navigateSpy, resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import {
+  navigateSpy,
+  resetNavigationStub,
+  revalidateSpy,
+} from '@/test/navigation-stub';
 
 vi.mock('@/features/auth/auth-client', async () => {
   const { authClientStub } = await import('@/test/auth-client-stub');
@@ -67,13 +71,13 @@ describe('signing in', () => {
     await fillAndSubmit();
 
     await waitFor(() => {
-      expect(navigateSpy).toHaveBeenCalledWith('/reports?filter=x', { replace: true });
+      expect(navigateSpy).toHaveBeenCalledWith('/reports?filter=x', {
+        replace: true,
+      });
     });
   });
 
   it('refuses to be redirected off-site', async () => {
-    // The block hands `returnTo` to the same validator the proxy uses, so an
-    // injected absolute URL degrades to the dashboard rather than navigating.
     renderWithProviders(<SignInBlock returnTo="https://evil.example" />);
 
     await fillAndSubmit();
@@ -84,8 +88,6 @@ describe('signing in', () => {
   });
 
   it('revalidates the server-rendered tree after signing in', async () => {
-    // The shell reads the session on the server; without this it could paint
-    // the pre-sign-in payload for one navigation.
     renderWithProviders(<SignInBlock />);
 
     await fillAndSubmit();
@@ -164,7 +166,6 @@ describe('failures', () => {
 
     await user.click(screen.getByRole('button', { name: 'Send it again' }));
 
-    // Reuses the address that was just typed — no second form, no URL.
     await waitFor(() => {
       expect(authClientStub.sendVerificationEmail).toHaveBeenCalledWith(
         expect.objectContaining({ email: 'sara@example.com' }),
@@ -199,8 +200,6 @@ describe('failures', () => {
   });
 
   it('shows the failure of a Google attempt that never got here', async () => {
-    // Better Auth redirects to `errorCallbackURL?error=CODE` when the
-    // provider round trip fails before this page loads.
     renderWithProviders(<SignInBlock providerError="PROVIDER_NOT_FOUND" />);
 
     expect(
@@ -233,7 +232,8 @@ describe('loading state', () => {
     let release: () => void = () => {};
     authClientStub.signIn.email.mockReturnValue(
       new Promise((resolve) => {
-        release = () => resolve({ data: { redirect: false }, error: undefined });
+        release = () =>
+          resolve({ data: { redirect: false }, error: undefined });
       }),
     );
 
@@ -262,10 +262,6 @@ describe('Google', () => {
     await waitFor(() => {
       expect(authClientStub.signIn.social).toHaveBeenCalledWith({
         provider: 'google',
-        // Absolute, and carrying both prefixes. The backend redirects here
-        // after Google, and neither Google nor an email client knows that
-        // this application is mounted at /platform or that its locale is in
-        // the path — a relative value would land on the API host.
         callbackURL: 'http://localhost:3000/platform/en/reports',
         errorCallbackURL: 'http://localhost:3000/platform/en/sign-in',
       });
@@ -282,7 +278,6 @@ describe('Google', () => {
 
     await waitFor(() => {
       expect(authClientStub.signIn.social).toHaveBeenCalledWith(
-        // Every locale is prefixed: the router matches on a real segment.
         expect.objectContaining({
           callbackURL: 'http://localhost:3000/platform/ar',
         }),

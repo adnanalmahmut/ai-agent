@@ -7,16 +7,6 @@ import type { OrganizationAccess } from '../../../../src/infrastructure/auth/org
 import { OrganizationPermissionGuard } from '../../../../src/infrastructure/auth/organization-permission.guard';
 import type { OrganizationPermissionRequest } from '../../../../src/infrastructure/auth/permissions';
 
-/**
- * The guard's own decisions, including the one no route can reach.
- *
- * Every guarded route carries `@RequiresOrganizationPermission`, so the
- * unmarked-route branch is unreachable end to end — and that is exactly why it
- * is tested here. It is the branch that decides what happens to a route someone adds
- * next year and forgets to mark, and if it ever became `return true` no
- * existing test would notice while the new route stood open.
- */
-
 const contextFor = (input: {
   organizationId?: string;
   userId?: unknown;
@@ -76,7 +66,6 @@ describe('OrganizationPermissionGuard', () => {
       ),
     ).rejects.toBeInstanceOf(AppException);
 
-    // And it did not fall through to an authorization question either.
     expect(calls).toHaveLength(0);
   });
 

@@ -1,177 +1,75 @@
 # Architecture
 
-The system separates public ingress, application execution, durable state, and
-ephemeral coordination. That separation is a security and failure-containment
-boundary, not merely deployment layout.
-
-```mermaid
-flowchart TB
-  I[Internet] -->|80/443| N[Host Nginx]
-  N -->|127.0.0.1:3000| W[Next.js web]
-  N -->|127.0.0.1:3001| P[Next.js platform]
-  N -->|127.0.0.1:3002| A[Nest API]
-  A --> D[(PostgreSQL)]
-  A --> R[(Redis)]
-  X[Nest worker] --> D
-  X --> R
-  G[geoipupdate] --> M[(GeoIP volume)]
-  A -->|read only| M
-```
-
-The deployment control plane is intentionally narrower than the runtime data
-plane:
+The system separates public ingress, interactive applications, asynchronous
+execution, durable state, and transport coordination.
 
 ```mermaid
 flowchart LR
-  C[Coding agent] -->|architecture + secret names only| G[GitHub Actions]
-  G -->|restricted SSH key + SHA + 4 digests| D[deploy user]
-  D -->|ForcedCommand allowlist| W[root deployment wrapper]
-  W -->|explicit service allowlists| K[containers]
-  E[/etc/ai-agent/runtime.env\nroot:root 0600/] --> W
-  C -. denied .-> E
-  D -. denied .-> E
+  B[Browser] --> N[Host Nginx :80/:443]
+  N --> W[Next.js web :3000]
+  N --> P[Next.js platform :3001]
+  N --> A[NestJS API :3002]
+  A --> PG[(PostgreSQL)]
+  A --> R[(Redis rate limits)]
+  A --> E[External auth/mail providers]
+  PG --> O[Outbox events]
+  O --> K[NestJS worker]
+  K --> Q[(Redis / BullMQ)]
+  K --> PG
+  K --> M[Model and mail providers]
 ```
 
-Agent tool execution has one authority, and the runtimes and protocols around
-it are adapters into it rather than peers of it:
+Only Nginx accepts public traffic. Application ports bind to loopback on the
+host; PostgreSQL and Redis remain on private Docker networks. The worker has no
+HTTP listener.
 
-```mermaid
-flowchart LR
-  M[Mastra runtime] --> G[ToolGateway]
-  C[External MCP client] --> S[MCP adapter] --> G
-  G --> R[Code-owned ToolRegistry]
-  G --> V[Pinned OrganizationAgentVersion grants]
-  G --> E[(ToolExecution)]
-  G -->|side effect| H[Human approval] --> O[(Outbox)] --> Q[BullMQ] --> K[Side-effect worker] --> P[Provider]
-```
+## Application boundaries
 
-Neither adapter holds authority. Each receives only the bound closures the
-gateway returns for one accepted run, so neither can name an organization,
-widen a grant, or reach a provider.
+- `apps/web` serves the public localized site.
+- `apps/platform` serves authenticated account, organization, content, and
+  platform-administration screens under `/platform`.
+- `apps/backend` has separate API, worker, and CLI composition roots. The API
+  accepts requests and commits state. The worker dispatches the outbox and
+  consumes BullMQ jobs. The CLI performs host-authorized operator actions.
+- `packages/ui` and `packages/i18n-core` contain shared presentation and
+  locale contracts. They do not own business behavior.
 
-## Backend source boundaries
-
-The backend is organized around responsibility rather than framework type. The
-target source topology is:
+The backend source dependency direction is:
 
 ```text
-apps/backend/src/
-├── core/             generic application-independent primitives
-├── infrastructure/   technical adapters and application infrastructure
-├── ai/               the generic internal AI platform
-├── features/         product and business capabilities
-├── workers/          worker-process composition and job handlers
-├── api/              the HTTP API composition root
-├── cli/              operator-command composition
-├── generated/        generated artifacts such as the Prisma client
-└── i18n/             translation resources
+core <- ai <- features
+  ^      ^       ^
+  +-- infrastructure --+
 ```
 
-This structure is intended to make rapid product experimentation safe: a new
-business capability has an obvious home and can use stable technical and AI
-machinery without turning that machinery into a product-specific dependency.
-It is not an attempt to build a reusable framework, introduce speculative
-packages, or abstract every dependency behind an interface.
+`core` contains application-independent primitives. `ai` owns agent,
+runtime, model, and tool contracts without product-specific knowledge.
+`features` owns organization capabilities. `infrastructure` supplies
+technical adapters and is assembled only at composition roots.
 
-The boundaries have the following responsibilities:
+## Durable invariants
 
-- `core` stays deliberately small. It owns only genuinely generic errors,
-  types, and small utilities. Where practical it has no dependency on NestJS,
-  Prisma, BullMQ, Redis, Mastra, Better Auth, or any composition root or
-  product feature.
-- `infrastructure` owns technical application concerns: configuration,
-  authentication, Prisma/database access, HTTP middleware and contracts,
-  documentation, logging and observability, Redis, BullMQ transport, outbox,
-  mail, i18n integration, GeoIP, rate limiting, health, lifecycle, and
-  technical providers. It does not own business capabilities.
-- `ai` owns the generic internal AI platform: agent contracts and registries,
-  context and run execution, reconciliation, tool definitions and execution,
-  model catalog, and runtime adapters such as Mastra. Product-specific agent
-  behavior remains with its owning feature.
-- `features` owns business capabilities such as content, knowledge,
-  organizations, the control plane, and agent management. Feature controllers
-  stay with the feature; `api` is not a controller bucket.
-- `workers` owns what the worker process executes: its entrypoint, composition
-  module, handler registry, job handlers, and worker-only background services.
-  Generic BullMQ and Redis transport remains in `infrastructure`.
-- `api` owns only the Nest HTTP composition root and entrypoint. `cli` owns the
-  operator-command entrypoint and command composition. These roots may depend
-  inward on features, AI, and infrastructure; those layers do not depend back
-  on the roots.
-- `generated` remains generated and is not moved merely for symmetry. `i18n`
-  remains the source translation tree consumed by the i18n infrastructure.
+- PostgreSQL is authoritative for accepted work and business lifecycle. Redis
+  may be rebuilt without losing accepted work.
+- An API transaction writes the business record and its outbox event together.
+  Queue delivery is at least once, so handlers use PostgreSQL constraints and
+  conditional writes for idempotency.
+- Agent runs pin their code-owned definition, organization-owned configuration,
+  model policy, model, and pricing revision when accepted.
+- Organization-owned rows carry organization identity through their durable
+  relationships. Authorization uses the organization in the request path, not
+  a session's selected organization.
+- Platform roles and organization roles are separate. Browser gates never
+  replace backend authorization.
+- API, worker, and migration modes are separate. Migrations are deployment
+  gates, not application startup work.
+- Provider inputs and outputs are parsed at application boundaries. Raw
+  provider errors, prompts, credentials, and responses are not persisted as
+  run diagnostics.
+- Releases are immutable image sets. The host checks release identity and
+  minimum host-bundle compatibility before migration or replacement.
 
-The intended dependency direction is toward generic policy and technical
-mechanisms, never toward process composition:
-
-```text
-api / workers / cli  ──►  features  ──►  ai (when needed)
-        │                    │               │
-        └────────────────────┴───────────────┴──► infrastructure
-                                                     │
-                                                     └──► core
-```
-
-This is a responsibility guide, not permission for cycles. In particular,
-`core` does not import `infrastructure`, `ai`, or `features`;
-`infrastructure` does not import product features; and generic `ai` code does
-not import feature internals. A feature may own a product-specific agent
-definition while depending on generic contracts from `ai`.
-
-These source-level directions are enforced by scoped `no-restricted-imports`
-rules in `apps/backend/eslint.config.mjs`. Composition roots remain free to wire
-the layers together; lower layers cannot import those roots.
-
-Backend tests mirror the boundary they exercise rather than where they happen
-to be authored:
-
-```text
-apps/backend/test/
-├── unit/          isolated core, infrastructure, AI, feature, and worker tests
-├── integration/   collaborations with technical or application boundaries
-├── e2e/           process-level API, AI, and feature behavior
-└── support/       shared test harnesses and fixtures
-```
-
-Only populated categories are created. Moving a test must not change its
-assertions or convert an integration contract into a mock-heavy unit test.
-
-Structural changes follow a narrow rule: move files with history, correct
-imports and module paths, remove obsolete exports, and keep every intermediate
-revision buildable. They preserve behavior, API and database contracts,
-authorization and tenant semantics, durable execution guarantees, and the
-separate API and worker roots. This restructuring does not replace Prisma,
-NestJS, BullMQ, or Mastra; rename Tool to Capability; generalize AgentRun;
-redesign schemas or authorization; add Cloudflare, Temporal, or Restate
-execution; create speculative workspace packages; or add unrelated product
-features.
-
-## Invariants
-
-- PostgreSQL is authoritative. Redis is coordination and may be lost without
-  losing accepted business work.
-- API and worker use the same backend image but separate composition roots and
-  commands. Migrations are a one-shot image mode, never container startup work.
-- The API transaction commits a business row and outbox event together. Worker
-  delivery is at-least-once, so handlers require durable idempotency.
-- Nginx is the only trusted proxy. Exactly one proxy hop is trusted in staging
-  and production; local/test trust zero.
-- Staging is live. The target Production environment will share artifacts with
-  Staging but not databases, Redis, volumes, runtime.env, deploy keys, or hosts.
-- Prepared Production workflows and scripts are architecture, not evidence of
-  a provisioned Production environment.
-- GitHub may know architecture and secret names. It never receives VPS runtime
-  application secret values.
-- The deploy identity cannot read `runtime.env`, use Docker directly, or run an
-  arbitrary shell. The root wrapper validates the file and passes only each
-  process's allowlisted settings to Compose.
-- `ToolGateway` is the only authority over what an agent may do. A runtime or
-  protocol adapter receives bound closures for one accepted run and never the
-  gateway, the registry, grant state, or a tenant id. Adding an adapter must
-  never add a second registry, grant model, `ToolExecution` writer, or approval
-  path.
-- An external side effect is proposed by a model and performed by nobody until
-  an authorized person decides. The API may execute read-only and proposing
-  tool calls in-process; only the worker performs the effect.
-
-See the focused documents for enforcement and failure behavior.
+Implementation detail belongs in [backend](backend.md), [database](database.md),
+[queue/outbox](redis-queue-outbox.md), [authentication and RBAC](authentication-rbac.md),
+and [security](security.md). Current environment state belongs only in
+[deployment state](deployment-state.md).

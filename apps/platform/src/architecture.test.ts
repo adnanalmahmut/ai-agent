@@ -3,36 +3,14 @@ import { join, relative, sep } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-/**
- * Executable architecture rules.
- *
- * Every constraint below is one a reviewer would otherwise have to remember on
- * every pull request: thin routes, no scattered fetches, no role strings in
- * components, no magic colours, logical spacing, and explicit Next.js
- * boundaries. Written as tests because a rule that is only in a
- * document is a rule that decays.
- *
- * Each exemption names a file and says why. An exemption list that grows
- * without reasons is how these rules die quietly.
- */
-
 const SRC = join(process.cwd(), 'src');
 
-/** The showcase predates this work and is a reference, not a page. */
 const DESIGN_SYSTEM_PAGE = join(
   'features',
   'design-system',
   'design-system-page.tsx',
 );
 
-/**
- * Code this migration owns.
- *
- * The visual rules below are scoped to it rather than to all of `src`. The
- * showcase, the language switcher and the theme toggle predate this work and
- * were not in its brief; policing them here would either force unrelated edits
- * or produce an exemption list long enough to make the rule meaningless.
- */
 const OWNED_DIRECTORIES = [
   join('src', 'app'),
   join('src', 'features'),
@@ -62,12 +40,10 @@ const isTest = (path: string) => /\.test\.tsx?$/.test(path);
 const isTestSupport = (path: string) => path.includes(`${sep}test${sep}`);
 const isDesignSystemPage = (path: string) => path.includes(DESIGN_SYSTEM_PAGE);
 
-/** Application source: excludes tests, their helpers and the showcase. */
 const SOURCE_FILES = ALL_FILES.filter(
   (path) => !isTest(path) && !isTestSupport(path) && !isDesignSystemPage(path),
 );
 
-/** The subset of application source this migration is responsible for. */
 const OWNED_FILES = SOURCE_FILES.filter((path) =>
   OWNED_DIRECTORIES.some((directory) =>
     relative(process.cwd(), path).startsWith(directory),
@@ -77,7 +53,6 @@ const OWNED_FILES = SOURCE_FILES.filter((path) =>
 const read = (path: string) => readFileSync(path, 'utf8');
 const label = (path: string) => relative(process.cwd(), path);
 
-/** Strips comments so prose about a rule does not trip the rule. */
 function withoutComments(source: string): string {
   return source
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -86,8 +61,10 @@ function withoutComments(source: string): string {
 
 describe('Next.js boundaries are explicit', () => {
   it('declares the framework packages directly', () => {
-    const manifest: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } =
-      JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+    const manifest: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    } = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
 
     const installed = Object.keys({
       ...manifest.dependencies,
@@ -105,8 +82,10 @@ describe('Next.js boundaries are explicit', () => {
   });
 
   it('does not retain the legacy router package or source imports', () => {
-    const manifest: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } =
-      JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+    const manifest: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    } = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
 
     expect({
       ...manifest.dependencies,
@@ -119,8 +98,10 @@ describe('Next.js boundaries are explicit', () => {
   });
 
   it('does not retain the legacy SPA toolchain or static runtime', () => {
-    const manifest: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } =
-      JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+    const manifest: {
+      dependencies?: Record<string, string>;
+      devDependencies?: Record<string, string>;
+    } = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
     const installed = {
       ...manifest.dependencies,
       ...manifest.devDependencies,
@@ -130,11 +111,7 @@ describe('Next.js boundaries are explicit', () => {
     expect(installed).not.toHaveProperty('@vitejs/plugin-react');
     expect(installed).not.toHaveProperty('@tailwindcss/vite');
 
-    for (const obsoletePath of [
-      'index.html',
-      'vite.config.ts',
-      'nginx.conf',
-    ]) {
+    for (const obsoletePath of ['index.html', 'vite.config.ts', 'nginx.conf']) {
       expect(() => statSync(join(process.cwd(), obsoletePath))).toThrow();
     }
   });
@@ -157,8 +134,6 @@ describe('routes stay thin', () => {
   const pages = ROUTE_FILES.filter((path) => path.endsWith(`${sep}page.tsx`));
 
   it('finds the routes it is meant to be checking', () => {
-    // A refactor that moved the routes directory must not silently disarm
-    // this into a test that passes because it looks at nothing.
     expect(pages.length).toBeGreaterThan(20);
   });
 
@@ -167,11 +142,6 @@ describe('routes stay thin', () => {
     (_name, path) => {
       const source = withoutComments(read(path));
 
-      // A route may receive its server data, read the query string, and render a
-      // block. Anything longer is a page that has grown a feature inside it.
-      // The budget grew from 90 to 100 when the organization gained its ninth
-      // tab: one export per tab is composition, and the four assertions below
-      // are what actually catch a feature growing in here.
       expect(source.split('\n').length).toBeLessThan(100);
 
       expect(source).not.toMatch(/\buseState\b/);
@@ -182,8 +152,6 @@ describe('routes stay thin', () => {
   );
 
   it('never lets a route talk to Better Auth directly', () => {
-    // Routes reach the protocol through the auth feature, so there is one
-    // place to change when the protocol does.
     for (const path of ROUTE_FILES) {
       expect(read(path), label(path)).not.toMatch(/from ['"]better-auth/);
     }
@@ -209,8 +177,6 @@ describe('no scattered network calls', () => {
       read(path).includes('createAuthClient'),
     );
 
-    // One instance: the client owns a session atom and a cross-tab broadcast
-    // channel, and a second would mean two of each, quietly disagreeing.
     expect(creators.map(label)).toEqual(['src/features/auth/auth-client.ts']);
   });
 
@@ -223,10 +189,6 @@ describe('no scattered network calls', () => {
 
 describe('authentication is a router boundary, not an effect', () => {
   it('protects nothing with a redirect inside useEffect', () => {
-    // The failure this prevents is specific: an effect runs *after* the
-    // component rendered, so a private page guarded that way has already
-    // painted — and already asked for data — before it discovers there is no
-    // session.
     const offenders = SOURCE_FILES.filter((path) => {
       const source = withoutComments(read(path));
 
@@ -273,11 +235,7 @@ describe('authorization is asked about permissions, not roles', () => {
   const ROLE_DEFINITIONS = join('features', 'authorization', 'permissions.ts');
 
   it('compares a role name nowhere in the application', () => {
-    // `role === 'admin'` scattered through components is what makes a
-    // permission change a search-and-replace. The gates ask "may this?".
     const offenders = SOURCE_FILES.filter((path) =>
-      // `typeof role === 'string'` is a shape check before handing the value
-      // to the evaluator, not a decision about what the role means.
       /(?<!typeof\s)\brole\w*\s*[=!]==?\s*['"]/.test(
         withoutComments(read(path)),
       ),
@@ -299,8 +257,6 @@ describe('authorization is asked about permissions, not roles', () => {
   });
 
   it('treats an active organization as context, never as access', () => {
-    // The backend's invariant, mirrored: no component may gate on the mere
-    // presence of an active organization.
     const offenders = SOURCE_FILES.filter((path) =>
       /if\s*\(\s*[\w.?]*activeOrganizationId\s*\)/.test(
         withoutComments(read(path)),
@@ -311,8 +267,6 @@ describe('authorization is asked about permissions, not roles', () => {
   });
 
   it('offers no hard delete for a user or an organization', () => {
-    // Both are absent from the backend by two independent mechanisms. A call
-    // site here would be a button that can only ever produce a 404.
     for (const path of SOURCE_FILES) {
       const source = withoutComments(read(path));
 
@@ -324,12 +278,9 @@ describe('authorization is asked about permissions, not roles', () => {
 
 describe('the design system is consumed, not re-created', () => {
   it('has files to check', () => {
-    // A path change that emptied this list would turn every rule below into
-    // a test that passes because it looks at nothing.
     expect(OWNED_FILES.length).toBeGreaterThan(40);
   });
 
-  /** Google's mark is a trademark; its colours are the identity, not a theme. */
   const BRAND_ASSET = join(
     'features',
     'auth',
@@ -361,7 +312,6 @@ describe('the design system is consumed, not re-created', () => {
   });
 
   it('redefines no primitive the package already ships', () => {
-    // Duplicating Button or Card is how a second visual language starts.
     const duplicates = SOURCE_FILES.filter((path) =>
       /export function (Button|Input|Card|Badge|Avatar|Skeleton|Separator|Alert|Label|Table|Dialog|Sheet|Sidebar|Select|Tabs|Tooltip)\b/.test(
         read(path),
@@ -376,7 +326,6 @@ describe('direction is handled logically', () => {
   const layoutFiles = OWNED_FILES.filter((path) => path.endsWith('.tsx'));
 
   it('uses logical spacing rather than physical', () => {
-    // `ms`/`me`/`ps`/`pe`/`start`/`end` mirror for free; `ml`/`mr` do not.
     for (const path of layoutFiles) {
       const source = withoutComments(read(path));
 
@@ -393,8 +342,6 @@ describe('direction is handled logically', () => {
   });
 
   it('writes a literal direction nowhere', () => {
-    // Direction comes from `LOCALE_META`. The locale route assigns it to the
-    // document element; nothing else states one.
     const offenders = SOURCE_FILES.filter((path) =>
       /dir=["'](rtl|ltr)["']/.test(withoutComments(read(path))),
     ).map(label);
@@ -403,8 +350,6 @@ describe('direction is handled logically', () => {
   });
 
   it('branches on a locale name nowhere', () => {
-    // A `locale === 'ar'` in a component is a rule that a third locale would
-    // silently break.
     const offenders = SOURCE_FILES.filter((path) =>
       /locale\s*[=!]==?\s*['"](ar|en)['"]/.test(withoutComments(read(path))),
     ).map(label);
@@ -437,8 +382,6 @@ describe('no user-facing string is hard-coded', () => {
       .filter((text) => /[A-Za-z]{2,}/.test(text));
 
   it('has a detector that actually detects', () => {
-    // Without this, a regex that stopped matching would read as every file
-    // being clean.
     expect(jsxLiterals('<p>Sign in to continue</p>')).toEqual([
       'Sign in to continue',
     ]);
@@ -449,9 +392,6 @@ describe('no user-facing string is hard-coded', () => {
     for (const path of componentFiles) {
       const source = withoutComments(read(path));
 
-      // Anything that came from `t(...)` sits inside braces and is skipped by
-      // the character class; what is left is a literal a translator will
-      // never see.
       expect(jsxLiterals(source), label(path)).toEqual([]);
     }
   });

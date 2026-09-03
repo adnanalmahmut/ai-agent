@@ -13,13 +13,6 @@ export const AGENT_ACTION_APPROVAL_STATUSES = [
 export type AgentActionApprovalStatus =
   (typeof AGENT_ACTION_APPROVAL_STATUSES)[number];
 
-/**
- * What a human may attach to a decision: a bounded note, or nothing.
- *
- * `.strict()` so the body cannot carry an execution id, a recipient, a payload
- * or anything else that would let a caller decide *about* something other
- * than the proposal named in the path.
- */
 export const agentActionDecisionInput = z
   .object({
     note: z.string().trim().min(1).max(500).optional(),
@@ -36,15 +29,6 @@ export const agentActionApprovalQuery = z
   })
   .strict();
 
-/**
- * The proposal, as a reader may see it.
- *
- * One shape per side-effect tool, discriminated on `kind`. The recipient is
- * resolved at read time against the organization: a member who has since left
- * is `null` here rather than a stale name, because the reader is deciding
- * whether to send to a person, and the person the row named may no longer be
- * one.
- */
 export type AgentActionProposalView = {
   kind: 'notification.send@1';
   recipient: { memberId: string; name: string; email: string } | null;
@@ -60,7 +44,6 @@ export type AgentActionApprovalView = {
   agentVersion: number;
   toolId: string;
   toolVersion: number;
-  /** The execution's own lifecycle state, which is where the effect lives. */
   executionStatus: ToolExecutionStatus;
   approval: {
     status: AgentActionApprovalStatus;
@@ -83,20 +66,11 @@ export type AgentActionApprovalPage = {
   nextCursor: string | null;
 };
 
-/** The default page, and the ceiling a caller cannot raise. */
 export const AGENT_ACTION_APPROVAL_PAGE_SIZE = 25;
 export const MAX_AGENT_ACTION_APPROVAL_PAGE_SIZE = 100;
 
 export type ApprovalCursor = { requestedAt: Date; id: string };
 
-/**
- * Keyset pagination over `(requestedAt, id)`, newest first.
- *
- * The same shape the content-project and knowledge listings use, and for the
- * same reason a cursor is base64 rather than signed: it carries no
- * organization and no authority, and the query it is spliced into keeps its
- * own tenant predicate.
- */
 export function pageSize(requested: number | undefined): number {
   if (requested === undefined) return AGENT_ACTION_APPROVAL_PAGE_SIZE;
 

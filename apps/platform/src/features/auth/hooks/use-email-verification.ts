@@ -13,15 +13,6 @@ import { useAuthAction } from './use-auth-action';
 
 type ResendValues = { email: string };
 
-/**
- * Re-sends the verification email.
- *
- * `callbackURL` is what makes the emailed link come back *here* rather than
- * to the API host: Better Auth builds the link as
- * `<api>/verify-email?token=…&callbackURL=…` and redirects to that callback
- * once the token checks out — or to the same callback with `?error=CODE` when
- * it does not.
- */
 export function useResendVerification(initialEmail = '') {
   const locale = useAppLocale();
   const { isPending, error, reset, run } = useAuthAction();

@@ -28,14 +28,6 @@ export const ORGANIZATION_AUDIT_SUBJECTS = [
 export type OrganizationAuditSubject =
   (typeof ORGANIZATION_AUDIT_SUBJECTS)[number];
 
-/**
- * The only state the initial product-audit writer can persist.
- *
- * This is intentionally a closed projection rather than metadata or a request
- * body. Every field is application-owned, validated, and bounded by ORG-01;
- * there is nowhere for headers, credentials, cookies, or arbitrary caller data
- * to enter the row.
- */
 export type OrganizationBusinessProfileAuditState = {
   kind: 'organizationBusinessProfile';
   version: number;
@@ -48,30 +40,6 @@ export type OrganizationBusinessProfileAuditState = {
   businessDescription: string | null;
 };
 
-/**
- * What promoting an idea records, and deliberately nothing more.
- *
- * Identifiers and closed vocabularies only. The temptation is to copy the
- * idea's title so the log reads nicely, and it is refused: the title, hook,
- * angle and summary are free-form text a language model produced, and the
- * audit table is neither the place to keep a second copy of them nor a surface
- * that should grow prose whose length nothing here bounds. Anyone entitled to
- * read the log can follow `projectId` to the project itself.
- *
- * Absent for the same reason, and worth naming because they were available at
- * the call site: the caller's `Idempotency-Key`, the request body, and the
- * brief. The first is the caller's own header, the second is exactly the
- * "generic metadata" this domain promises never to accept, and the third is
- * operator-authored prose that adds nothing an identifier does not.
- *
- * `suggestedFormat` and `language` are here because they are code-owned enums
- * with three and two members — a reader can tell what kind of work was started
- * without following anything, and neither can carry an arbitrary string. They
- * are typed as those enums rather than as `string`, so that last clause is
- * enforced here rather than merely true upstream; the cost is a type-only
- * import from the agent definitions, which this domain already accepts for the
- * business profile.
- */
 export type ContentProjectAuditState = {
   kind: 'contentProject';
   projectId: string;
@@ -82,29 +50,6 @@ export type ContentProjectAuditState = {
   draftRevision: number;
 };
 
-/**
- * Every member carries a distinct literal `kind`, and that is load-bearing.
- *
- * TypeScript narrows a union target to one member — and so rejects a field
- * belonging to a sibling — only when a literal discriminant selects it. A
- * future variant without one would silently relax the excess-property check
- * that keeps each projection closed.
- */
-/**
- * What a human decision on a proposed agent action records.
- *
- * Identifiers and two closed vocabularies. The proposal itself — the subject
- * and body the agent wrote, the recipient — stays on the `ToolExecution` row,
- * which the reader can follow by `toolExecutionId`; copying it here would put
- * model-written prose into a table that promises to hold none. The decision
- * note is absent for the same reason: it is human free text, bounded on its
- * own row, and an identifier is enough to find it.
- *
- * The provider outcome is deliberately not an audit action. Whether the
- * message was accepted is a durable fact on the execution (`status`,
- * `providerMessageId`, `completedAt`), and a second copy of it here would be
- * two places for one truth.
- */
 export type AgentActionApprovalAuditState = {
   kind: 'agentActionApproval';
   toolExecutionId: string;
@@ -134,16 +79,8 @@ export type OrganizationAuditEntry = {
 export const ORGANIZATION_AUDIT_PAGE_SIZE = 25;
 export const MAX_ORGANIZATION_AUDIT_PAGE_SIZE = 100;
 
-/** Just enough Prisma surface to append inside the caller's transaction. */
 type OrganizationAuditWriter = Pick<PrismaService, 'organizationAuditEvent'>;
 
-/**
- * Organization-owned product history.
- *
- * The write API is action-specific and takes a transaction client. There is no
- * generic `record(action, metadata)` escape hatch and no way to append outside
- * the mutation transaction. No method updates or deletes history.
- */
 @Injectable()
 export class OrganizationAuditService {
   constructor(private readonly prisma: PrismaService) {}
@@ -170,18 +107,6 @@ export class OrganizationAuditService {
     });
   }
 
-  /**
-   * One promoted idea, appended inside the transaction that created it.
-   *
-   * `before` is null because nothing preceded the project — this is a creation,
-   * not a replacement, and a fabricated empty "before" would suggest a prior
-   * state that never existed.
-   *
-   * Takes the transaction client rather than the injected one, so an append
-   * that fails takes the project and its draft with it. A record of a decision
-   * that did not happen is worse than no record: the log is the thing later
-   * readers are meant to trust.
-   */
   async recordContentProjectCreation(
     tx: OrganizationAuditWriter,
     input: {
@@ -216,15 +141,6 @@ export class OrganizationAuditService {
     });
   }
 
-  /**
-   * One human decision on one proposed agent action.
-   *
-   * Appended inside the transaction that records the decision and, for an
-   * approval, the outbox event that will perform it — so the three commit or
-   * roll back together. An audit row for an approval that never took effect,
-   * or an effect with no decision behind it, is the kind of history this
-   * table exists not to hold.
-   */
   async recordAgentActionDecision(
     tx: OrganizationAuditWriter,
     input: {
@@ -262,7 +178,6 @@ export class OrganizationAuditService {
     });
   }
 
-  /** One tenant-rooted, bounded, newest-first page of immutable history. */
   async list(input: {
     organizationId: string;
     cursor?: string;

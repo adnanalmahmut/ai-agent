@@ -28,14 +28,6 @@ type StoredKeyMetadata = Pick<
   'algorithm' | 'keyFingerprint' | 'keyVersion'
 >;
 
-/**
- * The application-owned key resolver for managed-secret ciphertext.
- *
- * It is intentionally narrow rather than a generic cryptography registry. The
- * only consumers are managed secrets, the only algorithm remains AES-256-GCM,
- * and the only compatibility shape is the null version written by the
- * preceding image.
- */
 @Injectable()
 export class ManagedSecretKeyring {
   private readonly keysByVersion: ReadonlyMap<string, Buffer>;
@@ -52,14 +44,6 @@ export class ManagedSecretKeyring {
     ]);
   }
 
-  /**
-   * The version new writes are sealed under.
-   *
-   * Exposed because rotation has to ask "is this row already current?" without
-   * decrypting it, and answering that from the row's own metadata is what the
-   * version column is for. This is a non-secret identifier; the key material it
-   * names stays private to this class.
-   */
   get activeKeyVersion(): string {
     return this.encryption.activeKeyVersion;
   }
@@ -89,7 +73,6 @@ export class ManagedSecretKeyring {
     );
   }
 
-  /** Metadata-only usability check for list responses; never fetches a cipher. */
   canDecrypt(metadata: StoredKeyMetadata): boolean {
     if (metadata.algorithm !== SECRET_ALGORITHM) return false;
 

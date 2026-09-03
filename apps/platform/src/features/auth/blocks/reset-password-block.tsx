@@ -16,20 +16,6 @@ import { useResetPassword } from '../hooks/use-password-reset';
 import { AUTH_ROUTES } from '../routes';
 import { PASSWORD_MIN_LENGTH } from '../validation';
 
-/**
- * Sets a new password against a token from an email.
- *
- * The token is a credential. It arrives in the query string because that is
- * where Better Auth's redirect puts it, and from there it goes exactly one
- * place — back to `/reset-password`. It is never rendered, never written to a
- * log, and never included in an error message; the error states below are
- * chosen by code, so no path exists that could interpolate it into text.
- *
- * Three arrivals are possible and each needs its own screen: a good token, no
- * token at all (someone opened the URL by hand), and a token the backend
- * already rejected — it redirects here with `?error=INVALID_TOKEN` rather
- * than letting the user type a password that cannot be saved.
- */
 export function ResetPasswordBlock({
   token,
   callbackError,
@@ -80,7 +66,10 @@ export function ResetPasswordBlock({
 
         <Link
           href={AUTH_ROUTES.forgotPassword}
-          className={buttonVariants({ variant: 'outline', className: 'w-full' })}
+          className={buttonVariants({
+            variant: 'outline',
+            className: 'w-full',
+          })}
         >
           {t('resetPassword.requestNew')}
         </Link>

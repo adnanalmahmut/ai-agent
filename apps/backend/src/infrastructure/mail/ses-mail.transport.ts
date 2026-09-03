@@ -9,22 +9,6 @@ import {
 } from './mail-transport';
 import type { MailDeliveryResult, OutboundMail } from './mail.types';
 
-/**
- * Delivery through Amazon SES v2.
- *
- * Credentials are handled by omission wherever possible: when the
- * configuration carries none, the client is constructed without a
- * `credentials` key and the SDK resolves them through its own chain —
- * environment, SSO, shared config, then the ECS/EC2 metadata service. That is
- * what lets a deployment run on a task role with short-lived credentials
- * instead of long-lived keys, and it is the reason this class never reads
- * `process.env` itself.
- *
- * Unlike Resend, the AWS SDK signals failure by throwing. Those exceptions
- * carry the full signed request in `$metadata` and `$response`, so none of the
- * original error reaches the message — only the SES error *name* and HTTP
- * status, both of which are stable and non-sensitive.
- */
 @Injectable()
 export class SesMailTransport implements MailTransport {
   private readonly client: SESv2Client;
@@ -73,14 +57,6 @@ export class SesMailTransport implements MailTransport {
   }
 }
 
-/**
- * A safe, actionable summary of an AWS failure.
- *
- * Reads only the two stable identifiers — the exception name (`MessageRejected`,
- * `AccountSuspendedException`, `Throttling`) and the HTTP status. The SDK's own
- * `message` is skipped because it interpolates request details, and the whole
- * error object is preserved on `cause` for debugging without ever being logged.
- */
 function describe(error: unknown): string {
   const named = error as {
     name?: unknown;

@@ -792,16 +792,10 @@ fi
 mv "$tmp_dir/retention.absent" "$tmp_dir/sbin/ai-agent-release-retention"
 probe_wrapper_done
 
-# A host still on bundle 4, which MIN_VERSION=4 explicitly permits: its wrapper
-# has no rotation verb. It must go on deploying a bundle-5 release normally and
-# must refuse the verb, which is the entire justification for not raising the
-# minimum. Renaming the case label is how a bundle-4 wrapper differs.
+# The declared minimum permits a host whose wrapper lacks the rotation verb.
+# That host must still deploy and must refuse only the unsupported operation.
 probe_wrapper '  rotate-managed-secret-keys)=>  rotate-managed-secret-keys-is-not-in-bundle-4)'
-# Recorded at the declared minimum too, so this is a whole bundle-4 host rather
-# than a bundle-5 host wearing an older wrapper. Both halves were previously
-# asserted separately -- the version arithmetic in one case, the verb-less
-# wrapper in another -- and never in the combination the split rollout actually
-# promises to serve.
+# Record the declared minimum as well as using its verb-limited wrapper.
 set_recorded_version "$bundle_minimum"
 if "$deploy" rotate-managed-secret-keys staging --dry-run >"$tmp_dir/out" 2>&1; then
   probe_wrapper_done

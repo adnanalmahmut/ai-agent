@@ -15,34 +15,21 @@ import {
 } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
 
-/**
- * One content project and the draft it is aiming at.
- *
- * The idea half is immutable by construction — it is a snapshot of what the
- * agent produced — so nothing here is editable. The draft half is where a
- * writer will eventually put something; until then it shows the target rather
- * than pretending to hold content.
- */
-
 type LoadState = 'loading' | 'loaded' | 'missing' | 'error';
 
-export function OrganizationContentProjectBlock({ projectId }: { projectId: string }) {
+export function OrganizationContentProjectBlock({
+  projectId,
+}: {
+  projectId: string;
+}) {
   const t = useTranslations('ContentProjects');
   const { organization } = useOrganizationContext();
   const organizationId = organization.id;
 
   const [project, setProject] = useState<ContentProjectDetail | null>(null);
   const [state, setState] = useState<LoadState>('loading');
-  /** Bumped to retry; the effect owns the abort controller. */
   const [reloadToken, setReloadToken] = useState(0);
 
-  /**
-   * Derived rather than stored.
-   *
-   * The route is `content-projects/:projectId`, so this is never actually
-   * undefined — but narrowing it here keeps the impossible case honest without
-   * writing state from an effect for a value that was already known at render.
-   */
   const resolved: LoadState = projectId === undefined ? 'missing' : state;
 
   useEffect(() => {
@@ -61,12 +48,6 @@ export function OrganizationContentProjectBlock({ projectId }: { projectId: stri
       .catch((error: unknown) => {
         if (!current) return;
 
-        /**
-         * A project that is absent and one that belongs to another
-         * organization are the same answer from the API, and the same answer
-         * here. Anything else would turn this screen into a way to probe for
-         * ids.
-         */
         const status = (error as { status?: number } | null)?.status;
 
         setState(status === 404 ? 'missing' : 'error');

@@ -28,25 +28,6 @@ import { useMemberActions } from '../hooks/use-member-actions';
 import { useOrganizationContext } from '../organization-context';
 import type { OrganizationMember } from '../organization-types';
 
-/**
- * Who is in this organization, and what can be done about it.
- *
- * The two permissions are asked separately — changing a role and removing
- * someone are different capabilities, and an installation could grant one
- * without the other — and both are asked against the reader's membership *in
- * this organization*, not in whichever one is active.
- *
- * Neither answer is a security boundary. Every control here calls an endpoint
- * that re-derives the same decision from the database; hiding a button only
- * stops a reader from being shown a door that opens onto a 403.
- *
- * Two layouts, one set of controls: a table from `lg` up, cards below it.
- * The breakpoint is `lg` rather than `md` because the sidebar takes 16rem of
- * the width — at 834px that leaves the table under 600px, and it was measured
- * overflowing by 163px. The usual compromise, letting it scroll sideways,
- * pushes the row's actions off-screen, which is the one thing the reader came
- * for.
- */
 export function OrganizationMembersBlock() {
   const t = useTranslations('Organization');
   const { organization, viewer } = useOrganizationContext();
@@ -83,9 +64,15 @@ export function OrganizationMembersBlock() {
           <Table>
             <TableHeader className="ds-table-header">
               <TableRow className="hover:bg-transparent">
-                <TableHead className="ds-table-head">{t('members.columnMember')}</TableHead>
-                <TableHead className="ds-table-head">{t('members.columnRole')}</TableHead>
-                <TableHead className="ds-table-head">{t('members.columnJoined')}</TableHead>
+                <TableHead className="ds-table-head">
+                  {t('members.columnMember')}
+                </TableHead>
+                <TableHead className="ds-table-head">
+                  {t('members.columnRole')}
+                </TableHead>
+                <TableHead className="ds-table-head">
+                  {t('members.columnJoined')}
+                </TableHead>
                 <TableHead className="py-2.5 px-3">
                   <span className="sr-only">{t('members.columnActions')}</span>
                 </TableHead>
@@ -94,7 +81,10 @@ export function OrganizationMembersBlock() {
 
             <TableBody>
               {members.map((member) => (
-                <TableRow key={member.id} className="border-b border-border/30 hover:bg-sidebar-accent/50 transition-colors">
+                <TableRow
+                  key={member.id}
+                  className="border-b border-border/30 hover:bg-sidebar-accent/50 transition-colors"
+                >
                   <TableCell className="py-2.5 px-3">
                     <PersonIdentity
                       name={member.user.name}
@@ -149,7 +139,9 @@ export function OrganizationMembersBlock() {
                     member={member}
                     canUpdate={canUpdateRole}
                     isPending={actions.pendingMemberId === member.id}
-                    onChange={(role) => void actions.updateRole(member.id, role)}
+                    onChange={(role) =>
+                      void actions.updateRole(member.id, role)
+                    }
                   />
                 </div>
 
@@ -186,7 +178,8 @@ export function OrganizationMembersBlock() {
           pendingRemoval?.userId === viewer.userId
             ? t('members.leaveDescription', { organization: organization.name })
             : t('members.removeDescription', {
-                person: pendingRemoval?.user.name ?? pendingRemoval?.user.email ?? '',
+                person:
+                  pendingRemoval?.user.name ?? pendingRemoval?.user.email ?? '',
               })
         }
         confirmLabel={
@@ -210,13 +203,6 @@ export function OrganizationMembersBlock() {
   );
 }
 
-/**
- * A member's role: editable when permitted, a plain badge when not.
- *
- * The read-only form is a `Badge` rather than a disabled select, because a
- * disabled control invites a reader to work out why they cannot use it. There
- * is nothing to work out — the role is simply information here.
- */
 function RoleControl({
   member,
   canUpdate,
@@ -277,7 +263,6 @@ function RemoveButton({
   );
 }
 
-/** Membership dates come back as ISO strings over the wire. */
 function JoinedAt({ value }: { value: string | Date }) {
   const format = useFormatter();
 

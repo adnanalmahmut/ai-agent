@@ -25,15 +25,6 @@ import { displayableKeyVersion, recordsKeyVersion } from './audit-state';
 
 type LoadFailure = 'unavailable' | 'unauthenticated' | 'forbidden' | 'failed';
 
-/**
- * The readable half of the append-only audit contract.
- *
- * This intentionally does not stringify arbitrary `before`/`after` JSON. The
- * backend only writes safe projections, but rendering an arbitrary new shape
- * would turn an accidental server-side containment regression into a DOM leak.
- * Known state is summarised; an unknown future state is simply described as a
- * change until the client deliberately learns how to present it.
- */
 function stateSummary(state: unknown, t: ReturnType<typeof useTranslations>) {
   if (state === null) return t('audit.state.none');
   if (typeof state !== 'object' || state === null)
@@ -57,21 +48,6 @@ function stateSummary(state: unknown, t: ReturnType<typeof useTranslations>) {
   if (value.kind === 'managedSecretSlot') {
     if (value.configured !== true) return t('audit.state.notConfigured');
 
-    /**
-     * The key version, and the one deliberate exception in this function.
-     *
-     * Re-encryption is the single action whose entire content is this field
-     * changing, so without it both sides read "Configured" and the panel shows a
-     * change with no visible difference. Everything else here is projected to a
-     * term the client chose; this renders a server-supplied string, which is a
-     * real widening of the rule and is treated as one.
-     *
-     * The boundaries are in `displayableKeyVersion`, not in a `typeof` check
-     * here, so they can be tested directly and so the reasoning has one home.
-     * Read that module before widening this: the gate bounds the value's shape,
-     * not its meaning, and what keeps a credential out of the column is upstream
-     * of the browser.
-     */
     const keyVersion = displayableKeyVersion(value.keyVersion);
 
     if (keyVersion !== null) {
@@ -89,19 +65,8 @@ function stateSummary(state: unknown, t: ReturnType<typeof useTranslations>) {
   return t('audit.state.changed');
 }
 
-/** The actions this build has copy for, as a set, for the recognition check. */
 const KNOWN_ACTIONS: ReadonlySet<string> = new Set(CONTROL_PLANE_AUDIT_ACTIONS);
 
-/**
- * The action, named from the client's own vocabulary or not at all.
- *
- * `t()` does not throw on a missing key: `use-intl` reports it and falls back to
- * the key *path*, which for a server-supplied action means rendering that string
- * verbatim. The action is a closed union on the wire and every member is a
- * literal in this repository, so this can only fire after a backend adds one —
- * but the whole point of the panel is that a widened server projection must not
- * become a DOM write. Recognised first, translated second.
- */
 function actionLabel(
   action: string,
   t: ReturnType<typeof useTranslations>,
@@ -111,15 +76,6 @@ function actionLabel(
   return t(`audit.action.${action}`);
 }
 
-/**
- * The timestamp, or a dash.
- *
- * `Intl.DateTimeFormat.prototype.format` throws `RangeError` on an invalid
- * date, and this call sits in the render body inside `items.map` — so one
- * unparseable `occurredAt` would take down the entire control-plane screen
- * through the route error boundary rather than blanking one cell. The column is
- * a convenience; the rest of the row is the audit record.
- */
 function occurredAtLabel(
   occurredAt: string,
   formatter: Intl.DateTimeFormat,
@@ -137,7 +93,6 @@ function failureOf(error: unknown): LoadFailure {
   return 'failed';
 }
 
-/** A bounded, append-only event history for control-plane operators. */
 export function AuditPanel() {
   const t = useTranslations('ControlPlane');
   const locale = useLocale();

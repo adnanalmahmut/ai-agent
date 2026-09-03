@@ -46,11 +46,6 @@ const context = (definition: AgentDefinition) => ({
 });
 
 describe('knowledge.search@1 input', () => {
-  /**
-   * The tenancy property, stated as a schema rather than as a check: there is
-   * no field for an organization, a space, a model, or a limit, so a caller
-   * has no way to express one.
-   */
   it.each([
     ['organizationId', { query: 'a', organizationId: 'org_2' }],
     ['spaceIds', { query: 'a', spaceIds: ['space_1'] }],
@@ -92,11 +87,6 @@ describe('KnowledgeSearchTool', () => {
     });
   });
 
-  /**
-   * An agent permitted to read nothing searches nothing. The assembler already
-   * treats an absent policy as no context rather than as every space; this
-   * asserts the tool does not smuggle a default past it.
-   */
   it('passes no policy for an agent that may read nothing', async () => {
     const { tool, assemble } = toolWith();
     const definition = definitionWith();

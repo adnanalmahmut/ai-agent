@@ -4,18 +4,6 @@ import type { AppErrorCode } from '../../core/errors';
 import type { ValidationIssueCode } from '../http/validation';
 import type { I18nPath } from '../../generated/i18n.generated';
 
-/**
- * HTTP-boundary knowledge about domain error codes.
- *
- * Both maps live here so the domain never has to know either half: business
- * code throws `AppException('USER_NOT_FOUND')` and remains ignorant of the
- * translation key `errors.USER_NOT_FOUND` and of the 404 status.
- *
- * Adding a code to `APP_ERROR_CODES` without adding it here is a compile
- * error — `Record<AppErrorCode, …>` is exhaustive on purpose — and the value
- * side is checked against `I18nPath`, so a key that no translation file
- * defines fails to compile rather than surfacing to a user as raw text.
- */
 export const ERROR_TRANSLATION_KEYS = {
   USER_NOT_FOUND: 'errors.USER_NOT_FOUND',
   EMAIL_ALREADY_EXISTS: 'errors.EMAIL_ALREADY_EXISTS',
@@ -78,14 +66,6 @@ export const ERROR_STATUS_CODES = {
   RESOURCE_CONFLICT: HttpStatus.CONFLICT,
 } as const satisfies Record<AppErrorCode, HttpStatus>;
 
-/**
- * Field-level counterpart of `ERROR_TRANSLATION_KEYS`, and the *only* route
- * from a validation code to a translation key.
- *
- * Exhaustive in both directions: adding a code to `VALIDATION_ISSUE_CODES`
- * without a key here fails to compile, and a key that no translation file
- * defines fails against `I18nPath`.
- */
 export const VALIDATION_TRANSLATION_KEYS = {
   REQUIRED: 'validation.REQUIRED',
   INVALID_STRING: 'validation.INVALID_STRING',

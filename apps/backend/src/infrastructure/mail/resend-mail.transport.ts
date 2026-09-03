@@ -10,17 +10,6 @@ import {
 } from './mail-transport';
 import type { MailDeliveryResult, OutboundMail } from './mail.types';
 
-/**
- * Delivery through Resend's HTTP API.
- *
- * Two things about this SDK shape the implementation:
- *
- * 1. it does **not** throw on API errors — it resolves `{ data, error }`, so a
- *    `try`/`catch` alone would treat a rejected send as a success. The error
- *    branch is checked explicitly, and `catch` is left to cover transport-level
- *    failures (DNS, TLS, socket) which do still throw;
- * 2. it exposes no request timeout, so one is imposed around the call.
- */
 @Injectable()
 export class ResendMailTransport implements MailTransport {
   private readonly client: Resend;

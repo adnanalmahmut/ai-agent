@@ -226,8 +226,6 @@ describe('the business defaults form', () => {
 
 describe('the danger zone', () => {
   it('is absent without the archive permission', () => {
-    // An organization admin holds `organization:update` but not
-    // `organization:archive` — the backend withholds it, and so does this.
     allow('organization:update');
     renderInOrganization(<OrganizationSettingsBlock />, context());
 
@@ -242,8 +240,6 @@ describe('the danger zone', () => {
   });
 
   it('offers no hard delete', () => {
-    // The backend disables organization deletion outright; a button here
-    // could only ever produce a 404.
     allow('organization:archive', 'organization:update');
     renderInOrganization(<OrganizationSettingsBlock />, context());
 
@@ -267,8 +263,6 @@ describe('archiving', () => {
   });
 
   it('spells out that nothing is deleted', async () => {
-    // The honest description is the reassuring one. A generic "this cannot be
-    // undone" would be both scarier and false.
     const user = userEvent.setup();
     renderInOrganization(<OrganizationSettingsBlock />, context());
 

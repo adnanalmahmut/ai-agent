@@ -5,15 +5,6 @@ import { EMBEDDING_DIMENSIONS } from '../../../../src/features/knowledge/knowled
 import type { RetrievalPort } from '../../../../src/features/knowledge/ports/retrieval.port';
 import type { RetrievalQuery } from '../../../../src/features/knowledge/knowledge.types';
 
-/**
- * The two decisions this service exists to make, and one it must not make.
- *
- * Everything else about retrieval is the adapter's. What is here is the
- * operator's ceiling on how much may be returned and the rule that "no spaces"
- * means nothing rather than everything — both of which would be silently wrong
- * rather than loudly broken if they regressed.
- */
-
 const embedding = Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.1);
 const MODEL = 'test-embedding-model';
 
@@ -54,11 +45,6 @@ describe('KnowledgeRetrievalService', () => {
     expect(calls[0]?.spaceIds).toEqual(['space_1', 'space_2']);
   });
 
-  /**
-   * How much context a run may pull is an operational cost decision. A caller
-   * that could exceed it would make the setting advisory, and the operator who
-   * lowered it because of a provider bill would find it had no effect.
-   */
   it('clamps a request to the operator ceiling', async () => {
     const { port, calls } = portRecording();
     const service = new KnowledgeRetrievalService(port, resolverWithCeiling(5));
@@ -124,14 +110,6 @@ describe('KnowledgeRetrievalService', () => {
     expect(calls[0]?.limit).toBe(0);
   });
 
-  /**
-   * The one clamp that cannot be a clamp.
-   *
-   * `Math.min(NaN, ceiling)` is `NaN`, the driver binds `NaN` as SQL `NULL`,
-   * and `LIMIT NULL` in PostgreSQL means *no limit* — so the ceiling this
-   * service exists to enforce would be bypassed by the value an HTTP handler
-   * produces for any non-numeric query string. Refused, not clamped.
-   */
   it.each([NaN, Infinity, -Infinity, 2.5])(
     'refuses a limit of %p rather than clamping it',
     async (limit) => {
@@ -155,12 +133,6 @@ describe('KnowledgeRetrievalService', () => {
     },
   );
 
-  /**
-   * The rule belongs to the application, not to whichever adapter happens to
-   * be bound: a second `RetrievalPort` that satisfied the port's documented
-   * obligations while dropping an empty list from its predicate would read the
-   * whole organization.
-   */
   it('asks nothing when no space was granted', async () => {
     const { port, calls } = portRecording();
     const service = new KnowledgeRetrievalService(
@@ -197,11 +169,6 @@ describe('KnowledgeRetrievalService', () => {
     expect(calls[0]?.embeddingModel).toBe('text-embedding-3-large');
   });
 
-  /**
-   * The setting is read per search rather than cached, for the same reason
-   * nothing else in the control plane is cached: an operator who lowers a
-   * limit expects the next run to respect it.
-   */
   it('reads the ceiling on every search', async () => {
     const { port } = portRecording();
     const resolver = resolverWithCeiling(12);

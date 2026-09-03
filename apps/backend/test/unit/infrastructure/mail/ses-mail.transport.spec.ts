@@ -24,7 +24,6 @@ const mail = (overrides: Partial<OutboundMail> = {}): OutboundMail => ({
   ...overrides,
 });
 
-/** Replaces the signed HTTP call, leaving command construction under test. */
 function stubSend(
   transport: SesMailTransport,
   send: (...args: unknown[]) => unknown,
@@ -32,7 +31,6 @@ function stubSend(
   (transport as unknown as { client: { send: unknown } }).client.send = send;
 }
 
-/** Shaped like a real AWS SDK service exception. */
 const awsError = (name: string, httpStatusCode: number, message: string) =>
   Object.assign(new Error(message), { name, $metadata: { httpStatusCode } });
 
@@ -71,10 +69,6 @@ describe('SesMailTransport', () => {
       });
     });
 
-    /**
-     * Without an explicit charset SES would not transmit the Arabic templates
-     * intact, which is the kind of failure that only shows up in a real inbox.
-     */
     it('declares UTF-8 for both subject and body', async () => {
       const send = jest.fn<(command: unknown) => Promise<unknown>>(() =>
         Promise.resolve({ MessageId: 'id' }),
@@ -105,11 +99,6 @@ describe('SesMailTransport', () => {
   });
 
   describe('credential resolution', () => {
-    /**
-     * Omitting the key entirely — rather than passing `undefined` — is what
-     * lets the SDK fall through to its own chain, so an IAM task role works
-     * without static keys in the environment.
-     */
     const resolvedCredentials = async (transport: SesMailTransport) => {
       const client = (
         transport as unknown as {
@@ -120,17 +109,9 @@ describe('SesMailTransport', () => {
       return client.config.credentials();
     };
 
-    /**
-     * The SDK always exposes a credential *provider*; what matters is which
-     * one. With nothing configured it must be the default chain, so an IAM
-     * task role supplies short-lived credentials and no static keys are needed.
-     */
     it('resolves through the AWS chain when none are configured', async () => {
       const transport = new SesMailTransport(config());
 
-      // The chain finds whatever this environment offers — commonly nothing on
-      // a developer machine, in which case it rejects. Either outcome proves
-      // the point: no static credentials of ours were injected.
       const resolved = (await resolvedCredentials(transport).catch(
         () => undefined,
       )) as { accessKeyId?: string } | undefined;
@@ -209,10 +190,6 @@ describe('SesMailTransport', () => {
       );
     });
 
-    /**
-     * AWS exceptions carry the signed request. None of it may reach the
-     * message that gets logged; the whole error stays on `cause`.
-     */
     it('keeps AWS error prose and credentials out of the message', async () => {
       const raw = Object.assign(
         awsError('InvalidClientTokenId', 403, `key rejected: ${SECRET}`),

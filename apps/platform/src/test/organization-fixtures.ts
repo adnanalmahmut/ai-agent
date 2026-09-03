@@ -5,14 +5,6 @@ import type {
   OrganizationMember,
 } from '@/features/organization/organization-types';
 
-/**
- * Shared fixtures for the organization tests.
- *
- * One place, because the same organization is rendered by four blocks and a
- * layout: keeping five copies of it would mean five chances for a test to be
- * asserting about a shape the others do not have.
- */
-
 export const VIEWER_ID = 'user_owner';
 
 export function member(
@@ -64,7 +56,6 @@ export function organization(
   };
 }
 
-/** The reader, as the tabs see them. Defaults to the organization's owner. */
 export function context(
   overrides: Partial<OrganizationContext> = {},
 ): OrganizationContext {

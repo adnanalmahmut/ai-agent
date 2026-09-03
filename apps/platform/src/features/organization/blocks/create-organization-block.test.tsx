@@ -52,8 +52,6 @@ describe('the form', () => {
   });
 
   it('stops suggesting once the reader edits the address', async () => {
-    // Overwriting an edited slug on every keystroke of the name is the
-    // version of this form people fight with.
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = await fill('Acme', 'my-own-choice');
@@ -63,8 +61,6 @@ describe('the form', () => {
   });
 
   it('suggests nothing for a name in a non-Latin script', async () => {
-    // An Arabic organization name is the normal case here. An empty
-    // suggestion is honest; transliterated noise would not be.
     renderWithProviders(<CreateOrganizationBlock />, { locale: 'ar' });
 
     const user = userEvent.setup();
@@ -79,7 +75,9 @@ describe('validation', () => {
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Create organization' }),
+    );
 
     expect(
       await screen.findByText('Enter a name for the organization.'),
@@ -91,7 +89,9 @@ describe('validation', () => {
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = await fill('Acme', 'Not A Slug!');
-    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Create organization' }),
+    );
 
     expect(
       await screen.findByText(
@@ -114,7 +114,9 @@ describe('availability', () => {
   });
 
   it('says when it is taken', async () => {
-    authClientStub.organization.checkSlug.mockResolvedValue(ok({ status: false }));
+    authClientStub.organization.checkSlug.mockResolvedValue(
+      ok({ status: false }),
+    );
     renderWithProviders(<CreateOrganizationBlock />);
 
     await fill('Acme Research');
@@ -125,9 +127,9 @@ describe('availability', () => {
   });
 
   it('says nothing when the check itself fails', async () => {
-    // A failed check is not a taken slug, and claiming otherwise would stop a
-    // reader from submitting a perfectly good name.
-    authClientStub.organization.checkSlug.mockRejectedValue(new Error('offline'));
+    authClientStub.organization.checkSlug.mockRejectedValue(
+      new Error('offline'),
+    );
     renderWithProviders(<CreateOrganizationBlock />);
 
     await fill('Acme Research');
@@ -144,7 +146,9 @@ describe('creating', () => {
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = await fill('Acme Research');
-    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Create organization' }),
+    );
 
     await waitFor(() =>
       expect(authClientStub.organization.create).toHaveBeenCalledWith({
@@ -156,13 +160,13 @@ describe('creating', () => {
   });
 
   it('goes into the new organization, after revalidating', async () => {
-    // Order matters: navigating first would land on a page whose loader had
-    // not yet been told the organization exists.
     authClientStub.organization.create.mockResolvedValue(ok({ id: 'org_7' }));
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = await fill('Acme Research');
-    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Create organization' }),
+    );
 
     await waitFor(() =>
       expect(navigateSpy).toHaveBeenCalledWith('/organizations/org_7', {
@@ -179,10 +183,14 @@ describe('creating', () => {
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = await fill('Acme Research');
-    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Create organization' }),
+    );
 
     expect(
-      await screen.findByText('That address is already taken. Try another one.'),
+      await screen.findByText(
+        'That address is already taken. Try another one.',
+      ),
     ).toBeInTheDocument();
     expect(navigateSpy).not.toHaveBeenCalled();
   });
@@ -194,7 +202,9 @@ describe('creating', () => {
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = await fill('Acme Research');
-    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Create organization' }),
+    );
 
     expect(
       await screen.findByText(
@@ -204,11 +214,15 @@ describe('creating', () => {
   });
 
   it('reports an unreachable server as a network problem', async () => {
-    authClientStub.organization.create.mockRejectedValue(new TypeError('fetch failed'));
+    authClientStub.organization.create.mockRejectedValue(
+      new TypeError('fetch failed'),
+    );
     renderWithProviders(<CreateOrganizationBlock />);
 
     const user = await fill('Acme Research');
-    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    await user.click(
+      screen.getByRole('button', { name: 'Create organization' }),
+    );
 
     expect(
       await screen.findByText(

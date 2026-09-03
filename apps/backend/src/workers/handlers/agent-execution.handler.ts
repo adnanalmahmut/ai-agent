@@ -43,36 +43,12 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
     try {
       result = await this.runner.run(run);
     } catch (error) {
-      /**
-       * The one thing read from the caught value, and only its identity.
-       *
-       * `AgentConfigurationError` can be constructed by nothing but this
-       * repository, so a failing provider cannot talk the worker out of its
-       * retries by choosing an error name or message. Everything else about the
-       * error — text, cause, stack — stays unread.
-       */
       const deterministic = isAgentConfigurationError(error);
 
-      /**
-       * Read for the log line and nothing else.
-       *
-       * A contract violation is retried exactly like any other provider failure
-       * — it is deliberately not an `AgentConfigurationError` — so this does not
-       * appear in `deterministic` above. What it changes is the word an operator
-       * reads: every attempt persists and rethrows the same constant, so without
-       * this a model that has started miscounting looks identical to a provider
-       * outage, and only one of the two is fixed by switching the feature off.
-       */
       const contractViolation = isAgentOutputContractError(error);
 
       const attempts = job.opts.attempts ?? 1;
 
-      /**
-       * A deterministic failure is final on first sight. The budget exists for
-       * conditions that change on their own, and a definition this deployment
-       * does not carry is not one — spending two more attempts with exponential
-       * backoff only delays the report.
-       */
       const final = deterministic || job.attemptsMade + 1 >= attempts;
 
       const recorded = await this.runs.recordExecutionFailure(
@@ -82,13 +58,6 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
         final,
       );
 
-      /**
-       * Everything persisted and rethrown is the same constant, so without this
-       * line a missing definition, a runtime mismatch and a provider timeout are
-       * indistinguishable to an operator. The code is chosen here, at the throw
-       * site, and the identifying fields are application-owned columns rather
-       * than anything derived from the error.
-       */
       this.logger.warn(
         {
           runId: run.id,
@@ -102,23 +71,6 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
         'Agent execution attempt failed',
       );
 
-      /**
-       * `UnrecoverableError` only when this delivery actually wrote the terminal
-       * outcome, which it can only have done while holding the claim: the write
-       * matches on `status = RUNNING` and the exact `attemptCount`, and it sets
-       * the run `FAILED`.
-       *
-       * From a delivery that has lost its claim the same throw would be
-       * actively harmful. A newer delivery of this job is executing right now,
-       * and terminally failing the job on its behalf would end work that is
-       * still running and still owns the run. A stale delivery therefore rejects
-       * like any other failure and lets BullMQ's own lock arbitrate.
-       *
-       * Pairing the two is what makes stopping the retries safe. Making this
-       * unrecoverable without forcing the durable failure final would stop the
-       * job while leaving the run `RUNNING` — trading a wasted retry budget for
-       * a stranded row.
-       */
       if (deterministic && recorded) throw new UnrecoverableError(diagnostic);
 
       // BullMQ must see a rejection to preserve retries, but provider messages
@@ -126,20 +78,6 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
       throw new Error(diagnostic);
     }
 
-    /**
-     * Wrapped, even though it is the success path.
-     *
-     * This call carries the model's output as an argument, and Prisma renders a
-     * rejected invocation's arguments into its message — so a value the adapter
-     * cannot persist would put the model's output into the error, into BullMQ's
-     * `failedReason` in Redis, and into the queue's failure log, all outside
-     * every piece of containment above. Unreachable while a runtime returns a
-     * string, which is exactly why it is worth closing before one returns
-     * anything else.
-     *
-     * Rethrown rather than swallowed: the durable write did not happen, so
-     * BullMQ must see a failure and retry.
-     */
     let recorded: boolean;
 
     try {
@@ -182,23 +120,6 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
   }
 }
 
-/**
- * The fixed operator vocabulary for a failed attempt.
- *
- * A failed durable write outranks the classification: whatever went wrong with
- * the execution, the fact worth reporting is that this delivery no longer owns
- * the run and its outcome belongs to somebody else.
- *
- * `contract_violation` is a *retryable* failure that happens to be nameable, so
- * it sits beside `runtime_error` rather than beside `configuration_error`. The
- * distinction is worth a word because the remedy differs: a provider outage
- * comes right on its own, while an answer that keeps failing its declared
- * contract spends the whole attempt budget on paid calls and delivers nothing.
- *
- * Every value here is a literal chosen at this call site from
- * application-owned booleans. Nothing about the caught error is read except its
- * class, so a failing provider cannot choose the word an operator sees.
- */
 function reasonFor(
   deterministic: boolean,
   contractViolation: boolean,

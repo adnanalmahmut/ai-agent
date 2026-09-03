@@ -10,21 +10,9 @@ import {
   type Harness,
 } from '../../support/auth-harness';
 
-/**
- * Google sign-in.
- *
- * No real credentials are used or invented. The provider is configured with
- * obviously fake local values, which is enough to exercise everything that
- * matters on our side: whether the provider is registered at all, what the
- * authorization URL contains, where the callback points, and that nothing
- * secret reaches a log. Live delivery to Google is not attempted.
- */
-
-/** Sentinel: asserted absent from every captured byte of output. */
 const FAKE_SECRET = 'LEAKY_GOOGLE_SECRET';
 const FAKE_CLIENT_ID = 'fake-client-id.apps.googleusercontent.com';
 
-/** The slice of Better Auth's options these assertions read. */
 type AuthOptions = {
   account?: {
     encryptOAuthTokens?: boolean;
@@ -97,11 +85,6 @@ describe('Google OAuth configuration', () => {
     ).toThrow(/GOOGLE_CLIENT_ID/);
   });
 
-  /**
-   * An emptied `.env` line leaves the variable present and blank, which is the
-   * failure mode a bare `z.string()` would let through — straight to a silent
-   * authentication failure at the first sign-in.
-   */
   it('fails at boot when the secret is present but empty', () => {
     expect(() =>
       withEnv({
@@ -197,11 +180,6 @@ describe('Google OAuth enabled (e2e)', () => {
     expect(url.searchParams.get('client_id')).toBe(FAKE_CLIENT_ID);
   });
 
-  /**
-   * Derived from `BETTER_AUTH_URL`, never hard-coded — which is why the same
-   * build works in every environment and why the value has to be registered
-   * in the Google Cloud Console per environment.
-   */
   it('derives the redirect URI from the configured base URL', async () => {
     const response = await initiate();
     const url = new URL((response.body as { url: string }).url);
@@ -236,7 +214,6 @@ describe('Google OAuth enabled (e2e)', () => {
       '/api/auth/callback/google?code=fake-code&state=forged-state',
     );
 
-    // A redirect to the error page or an outright rejection; never a session.
     expect(response.headers['set-cookie']).toBeUndefined();
   });
 
@@ -248,11 +225,6 @@ describe('Google OAuth enabled (e2e)', () => {
     expect(options.account?.encryptOAuthTokens).toBe(true);
   });
 
-  /**
-   * Account linking runs on Better Auth's verified defaults. Setting
-   * `trustedProviders` would only weaken the `userInfo.emailVerified` clause,
-   * and `allowDifferentEmails` is a documented takeover risk.
-   */
   it('leaves account linking on the safe defaults', () => {
     const auth = harness.app.get(AuthService, { strict: false });
     const options = (auth.instance as unknown as { options: AuthOptions })
@@ -265,7 +237,6 @@ describe('Google OAuth enabled (e2e)', () => {
     expect(options.account?.accountLinking?.enabled).not.toBe(false);
   });
 
-  /** No session cache is configured anywhere in this build. */
   it('configures no session cookie cache', () => {
     const auth = harness.app.get(AuthService, { strict: false });
     const options = (auth.instance as unknown as { options: AuthOptions })
@@ -274,11 +245,6 @@ describe('Google OAuth enabled (e2e)', () => {
     expect(options.session?.cookieCache).toBeUndefined();
   });
 
-  /**
-   * Enforcement lives in `databaseHooks.session.create.before`, which every
-   * sign-in path reaches. That is what makes this hold for Google without a
-   * Google-specific check anywhere.
-   */
   it('cannot create a session for a deactivated account', async () => {
     const superAdmin = await createUser(harness, { role: 'super_admin' });
     const victim = await createUser(harness);

@@ -40,22 +40,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'off',
     },
   },
-  /**
-   * `createUser` is reachable without authorization, and only the CLI may use
-   * it.
-   *
-   * Verified against better-auth 1.6.27: the admin plugin's `createUser` route
-   * skips the `user:create`, `user:set-role` and `user:ban` permission checks
-   * entirely when invoked with neither a request nor headers — the in-process
-   * form. That is precisely what makes it usable for first-run bootstrap, when
-   * no session can exist, and precisely what makes it dangerous anywhere else:
-   * a request-handling service that called it without forwarding headers would
-   * mint a super administrator with no authorization at all, silently.
-   *
-   * The CLI composition root is the only place that provides it, so today the
-   * boundary holds by wiring. This makes it hold by rule, because `AuthService`
-   * is injectable throughout `AppModule` and the pattern is now documented.
-   */
+  // In-process Better Auth createUser bypasses request authorization; only the
+  // bootstrap CLI may use it before a session exists.
   {
     files: ['src/**/*.ts'],
     ignores: ['src/cli/**', '**/*.spec.ts'],

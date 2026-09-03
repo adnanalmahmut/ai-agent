@@ -1,20 +1,3 @@
-/**
- * Turns whatever an auth call failed with into one of a small, closed set of
- * states the UI knows how to render.
- *
- * Two rules hold this together.
- *
- * **Never branch on a message.** Better Auth's English strings are copy, not
- * contract: they change between versions and they are the wrong language for
- * half our users. Every branch below reads a machine-readable `code` or an
- * HTTP status.
- *
- * **Never invent a code.** Every constant on the left of the map below exists
- * in the installed Better Auth 1.6.27 (`BASE_ERROR_CODES`, the admin plugin's
- * and the organization plugin's error codes) or is emitted by this project's
- * own backend hooks. Nothing here is aspirational.
- */
-
 export const AUTH_ERROR_CODES = [
   'INVALID_CREDENTIALS',
   'EMAIL_NOT_VERIFIED',
@@ -36,26 +19,11 @@ export const AUTH_ERROR_CODES = [
 
 export type AuthErrorCode = (typeof AUTH_ERROR_CODES)[number];
 
-/**
- * Codes emitted by this project's backend, outside Better Auth's own set.
- *
- * `ACCOUNT_DEACTIVATED` comes from `databaseHooks.session.create.before`;
- * `ORGANIZATION_ARCHIVED` from the archived-organization request hook. Both
- * are string constants in `apps/backend/src/core/auth/auth-hooks.ts` and are
- * part of the contract between the two applications.
- */
 export const BACKEND_ERROR_CODES = {
   accountDeactivated: 'ACCOUNT_DEACTIVATED',
   organizationArchived: 'ORGANIZATION_ARCHIVED',
 } as const;
 
-/**
- * Every credential-shaped failure collapses to one state.
- *
- * Distinguishing "no such user" from "wrong password" would turn the sign-in
- * form into an account-existence oracle. The backend already refuses to make
- * that distinction; this keeps the UI from re-introducing it.
- */
 const CODE_MAP: Readonly<Record<string, AuthErrorCode>> = {
   INVALID_EMAIL_OR_PASSWORD: 'INVALID_CREDENTIALS',
   INVALID_PASSWORD: 'INVALID_CREDENTIALS',
@@ -91,19 +59,11 @@ const CODE_MAP: Readonly<Record<string, AuthErrorCode>> = {
   SESSION_EXPIRED: 'UNAUTHENTICATED',
 };
 
-/** The slice of a Better Auth / better-fetch failure that is worth reading. */
 type AuthFailure = {
   code?: string | null;
   status?: number | null;
 };
 
-/**
- * Reads a failure without trusting its shape.
- *
- * A rejected call can hand back a `BetterFetchError`, the `{ error }` half of
- * a `{ data, error }` response, or — when the network itself failed — a plain
- * `TypeError` with no status at all. `unknown` in, a closed union out.
- */
 export function normalizeAuthError(input: unknown): AuthErrorCode {
   if (input === null || input === undefined) return 'UNKNOWN';
 
@@ -119,12 +79,6 @@ export function normalizeAuthError(input: unknown): AuthErrorCode {
   return fromStatus(failure.status);
 }
 
-/**
- * `null` means "this never reached the server": no status and no code is the
- * signature of a fetch rejection — DNS failure, the API being down, an
- * offline browser — which is a different message and a different remedy from
- * anything the server could have said.
- */
 function readFailure(input: unknown): AuthFailure | null {
   if (typeof input !== 'object' || input === null) return null;
 
@@ -133,16 +87,19 @@ function readFailure(input: unknown): AuthFailure | null {
 
   let code = typeof source.code === 'string' ? source.code : undefined;
   const status = typeof source.status === 'number' ? source.status : undefined;
-  const message = typeof source.message === 'string' ? source.message : undefined;
+  const message =
+    typeof source.message === 'string' ? source.message : undefined;
 
   if (!code && message) {
     if (/invalid password/i.test(message)) code = 'INVALID_PASSWORD';
-    else if (/invalid email or password/i.test(message)) code = 'INVALID_EMAIL_OR_PASSWORD';
+    else if (/invalid email or password/i.test(message))
+      code = 'INVALID_EMAIL_OR_PASSWORD';
     else if (/user not found/i.test(message)) code = 'USER_NOT_FOUND';
     else if (/email not verified/i.test(message)) code = 'EMAIL_NOT_VERIFIED';
     else if (/account deactivated/i.test(message)) code = 'ACCOUNT_DEACTIVATED';
     else if (/banned/i.test(message)) code = 'BANNED_USER';
-    else if (/already registered|already exists/i.test(message)) code = 'USER_ALREADY_EXISTS';
+    else if (/already registered|already exists/i.test(message))
+      code = 'USER_ALREADY_EXISTS';
   }
 
   if (code === undefined && status === undefined) return null;
@@ -162,14 +119,6 @@ function fromStatus(status: number | null | undefined): AuthErrorCode {
   return 'UNKNOWN';
 }
 
-/**
- * Reads the `?error=` a Better Auth redirect leaves behind.
- *
- * The value is one of its own codes — `TOKEN_EXPIRED`, `INVALID_TOKEN`,
- * `EMAIL_ALREADY_VERIFIED` — appended when a callback URL is reached after a
- * failure. `null` in means "no failure", not "unknown failure", so the caller
- * can tell an ordinary arrival from a rejected one.
- */
 export function authErrorFromCallback(
   code: string | null | undefined,
 ): AuthErrorCode | null {
@@ -178,12 +127,6 @@ export function authErrorFromCallback(
   return normalizeAuthError({ code });
 }
 
-/**
- * The translation key for an error state.
- *
- * Kept next to the mapping rather than inside a component so that adding a
- * state is one edit in one file, and so no component ever holds a string.
- */
 export function authErrorMessageKey(code: AuthErrorCode): string {
   return `errors.${code}`;
 }

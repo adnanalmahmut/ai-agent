@@ -49,13 +49,6 @@ describe('queueConfig', () => {
     });
   });
 
-  /**
-   * The two retention windows are asymmetric on purpose, and the asymmetry is
-   * the policy rather than an accident of tuning: a completed job's durable
-   * record already exists in PostgreSQL, whereas a failed job is the only place
-   * the stack trace, the attempt history and the exact payload survive
-   * together. Discarding a failed job discards the incident.
-   */
   it('retains failures far longer than completions', () => {
     const { retention } = queueConfig();
 
@@ -101,11 +94,6 @@ describe('queueConfig', () => {
   });
 
   describe('fail-fast', () => {
-    /**
-     * The prefix is concatenated into Redis key names by BullMQ's Lua scripts.
-     * A `{}` hash tag or a glob character would redirect the keyspace rather
-     * than merely look wrong.
-     */
     it('rejects a namespace containing pattern or hash-tag characters', () => {
       process.env.QUEUE_PREFIX = 'bmq{1}';
 
@@ -136,11 +124,6 @@ describe('queueConfig', () => {
       expect(() => queueConfig()).toThrow();
     });
 
-    /**
-     * A lease shorter than a second guarantees duplicate publication under any
-     * ordinary scheduling delay, which turns the at-least-once contract into a
-     * routine double delivery instead of a rare one.
-     */
     it('rejects a lease too short to survive scheduling jitter', () => {
       process.env.OUTBOX_LEASE_MS = '10';
 
@@ -160,16 +143,6 @@ describe('queueConfig', () => {
     });
   });
 
-  /**
-   * `OUTBOX_WARN_AFTER_ATTEMPTS` replaced `OUTBOX_MAX_ATTEMPTS`, and the rename
-   * is the behaviour change rather than a tidy-up.
-   *
-   * As a terminal budget it contradicted the readiness contract: the API stays
-   * ready while Redis is down *because* accepted work is durable in PostgreSQL,
-   * so an outage lasting more than ten poll intervals would have parked every
-   * event the API had promised to deliver. A transport outage is not poison
-   * data, and no counter should be able to turn one into the other.
-   */
   describe('the retry budget is an observability threshold, not a limit', () => {
     it('exposes no terminal attempt limit at all', () => {
       expect(queueConfig().outbox).not.toHaveProperty('maxAttempts');
@@ -184,7 +157,6 @@ describe('queueConfig', () => {
     it('no longer answers to the old variable name', () => {
       process.env.OUTBOX_MAX_ATTEMPTS = '2';
 
-      // Silently ignored rather than quietly re-imposing a delivery limit.
       expect(queueConfig().outbox.warnAfterAttempts).toBe(10);
     });
   });

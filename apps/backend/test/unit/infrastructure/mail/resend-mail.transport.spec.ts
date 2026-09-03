@@ -26,7 +26,6 @@ const mail = (overrides: Partial<OutboundMail> = {}): OutboundMail => ({
   ...overrides,
 });
 
-/** Replaces the SDK's HTTP call while leaving the transport's logic intact. */
 function stubClient(
   transport: ResendMailTransport,
   send: (...args: unknown[]) => unknown,
@@ -72,11 +71,6 @@ describe('ResendMailTransport', () => {
       });
     });
 
-    /**
-     * The sender travels on the envelope that `MailService` builds, not on the
-     * transport's own config — so this is what an operator-configured display
-     * name actually does to the header.
-     */
     it('quotes a display name that would otherwise break the header', async () => {
       const send = jest.fn<(payload: unknown) => Promise<unknown>>(() =>
         Promise.resolve({ data: { id: 're_1' }, error: null }),
@@ -93,11 +87,6 @@ describe('ResendMailTransport', () => {
     });
   });
 
-  /**
-   * The SDK resolves `{ data, error }` rather than throwing, so an
-   * implementation that only wrapped the call in try/catch would report every
-   * rejected send as a success. These are the cases that catch that.
-   */
   describe('provider rejection', () => {
     const rejection = (name: string, statusCode: number, message: string) => ({
       data: null,
@@ -148,12 +137,6 @@ describe('ResendMailTransport', () => {
       );
     });
 
-    /**
-     * Resend's prose can quote the payload it rejected, including the
-     * recipient. The thrown message is built from the stable code instead, and
-     * the raw error is parked on `cause` — which the logging policy never
-     * serializes.
-     */
     it('keeps provider prose out of the error message', async () => {
       stubClient(transport, () =>
         Promise.resolve(

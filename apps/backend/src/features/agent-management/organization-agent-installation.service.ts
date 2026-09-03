@@ -374,20 +374,6 @@ export class OrganizationAgentInstallationService {
     };
   }
 
-  /**
-   * The organization's selection, narrowed to what the definition permits.
-   *
-   * Narrowed, never widened: the maximum belongs to the code-owned revision,
-   * and a tenant that could add to it would be granting itself capability. A
-   * request naming a tool outside the maximum is refused rather than trimmed,
-   * because silently dropping it would report success for a selection that was
-   * not honoured.
-   *
-   * Omitted means none. That is what makes the whole feature additive: an
-   * existing client that has never heard of tools keeps creating versions with
-   * no grants, which is exactly what every version created before this existed
-   * already means.
-   */
   private selectToolGrants(
     agentId: string,
     definitionVersion: number,
@@ -419,14 +405,6 @@ export class OrganizationAgentInstallationService {
       selected.add(ref);
     }
 
-    /**
-     * Sorted, so the stored value is canonical.
-     *
-     * Grant identity is a set, but the column is an array. Without a canonical
-     * order, the same selection sent in a different order would compare
-     * unequal to the active version and publish a new immutable revision that
-     * differs from its predecessor in nothing but ordering.
-     */
     return [...selected].sort();
   }
 }

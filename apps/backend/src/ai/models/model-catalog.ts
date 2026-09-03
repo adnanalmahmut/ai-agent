@@ -1,11 +1,3 @@
-/**
- * The provider and model vocabulary this application is prepared to use.
- *
- * This is operational application policy, not provider discovery. A provider
- * publishing a new model or changing a price does not change what this build
- * can select; both require a reviewed code revision.
- */
-
 export const MODEL_PROVIDER_IDS = {
   openai: 'openai',
 } as const;
@@ -27,10 +19,8 @@ export type AgentModelId = typeof MODEL_IDS.openAiGpt4oMini;
 export type EmbeddingModelId = typeof MODEL_IDS.openAiTextEmbedding3Small;
 
 type ModelIdentity = {
-  /** Stable application identity. Never silently aliases another entry. */
   readonly id: ModelId;
   readonly providerId: ModelProviderId;
-  /** Exact identifier sent to the provider API. */
   readonly providerModelId: string;
   readonly source: {
     readonly url: string;
@@ -40,7 +30,6 @@ type ModelIdentity = {
 
 export type GenerationModelDefinition = ModelIdentity & {
   readonly kind: 'generation';
-  /** Capabilities the current application actually exposes and enforces. */
   readonly capabilities: {
     readonly inputModalities: readonly ['text'];
     readonly outputModalities: readonly ['text'];
@@ -49,7 +38,6 @@ export type GenerationModelDefinition = ModelIdentity & {
     readonly structuredOutput: true;
     readonly runtimeCompatibility: readonly ['mastra'];
   };
-  /** Exact model-router identity handed to the replaceable Mastra adapter. */
   readonly mastraModelId: `${ModelProviderId}/${string}`;
 };
 
@@ -77,12 +65,9 @@ export type EmbeddingTokenRates = {
 };
 
 type PricingRevisionBase = {
-  /** Stable historical identity pinned by later lifecycle work. */
   readonly id: string;
   readonly modelId: ModelId;
-  /** Inclusive ISO instant. */
   readonly effectiveFrom: string;
-  /** Exclusive ISO instant; null means the revision remains current. */
   readonly effectiveTo: string | null;
   readonly currency: 'USD';
   readonly unit: 'USD_MICROS_PER_MILLION_TOKENS';
@@ -112,13 +97,6 @@ export class ModelCatalogError extends Error {
   }
 }
 
-/**
- * A bounded, in-memory code catalog with exact lookup and interval validation.
- *
- * The constructor is public so focused tests can prove malformed application
- * policy is refused. It is not a dynamic registration surface: production
- * constructs exactly one instance from the constants below at module load.
- */
 export class ModelCatalog {
   private readonly modelsById: ReadonlyMap<string, ModelDefinition>;
   private readonly modelsByProviderIdentity: ReadonlyMap<
@@ -222,7 +200,6 @@ export class ModelCatalog {
     return model;
   }
 
-  /** The exact capability contract every current AgentDefinition requires. */
   agentModel(id: string): GenerationModelDefinition {
     const model = this.model(id);
     if (
@@ -239,7 +216,6 @@ export class ModelCatalog {
     return model;
   }
 
-  /** The exact capability contract the deployed knowledge adapter requires. */
   embeddingModel(id: string): EmbeddingModelDefinition {
     const model = this.model(id);
     if (
@@ -257,7 +233,6 @@ export class ModelCatalog {
     return model;
   }
 
-  /** Resolves the one half-open pricing interval containing `at`. */
   pricingRevision(modelId: string, at: Date): ModelPricingRevision {
     const model = this.model(modelId);
     const atInstant = at.getTime();

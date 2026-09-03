@@ -2,8 +2,16 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { authClientStub, fail, resetAuthClientStub } from '@/test/auth-client-stub';
-import { navigateSpy, resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import {
+  authClientStub,
+  fail,
+  resetAuthClientStub,
+} from '@/test/auth-client-stub';
+import {
+  navigateSpy,
+  resetNavigationStub,
+  revalidateSpy,
+} from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
@@ -26,7 +34,9 @@ beforeEach(() => {
 
 const open = async () => {
   const user = userEvent.setup();
-  await user.click(screen.getByRole('button', { name: 'Open the account menu' }));
+  await user.click(
+    screen.getByRole('button', { name: 'Open the account menu' }),
+  );
   return user;
 };
 
@@ -86,8 +96,6 @@ describe('administration entry', () => {
 
 describe('signing out', () => {
   it('asks the server to end the session', async () => {
-    // The cookie is deleted by the server. Clearing it here would leave the
-    // session row alive, which is the opposite of signing out.
     renderWithProviders(<Menu />);
     const user = await open();
 
@@ -109,8 +117,6 @@ describe('signing out', () => {
   });
 
   it('stays put when the server refuses', async () => {
-    // Navigating anyway would bounce the user straight back in — the cookie
-    // is still valid — and present as a page that flickered.
     authClientStub.signOut.mockResolvedValue(fail('UNKNOWN', 500));
 
     renderWithProviders(<Menu />);

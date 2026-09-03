@@ -39,17 +39,12 @@ describe('AgentDefinition maximum tool grants', () => {
     ).toThrow('grants unknown tool "invented@1"');
   });
 
-  /** The version is part of the identity, so the wrong one is unknown. */
   it('refuses a grant naming the wrong version of a real tool', () => {
     expect(
       () => new AgentDefinitionRegistry([definition(['knowledge.search@2'])]),
     ).toThrow('grants unknown tool "knowledge.search@2"');
   });
 
-  /**
-   * A duplicate type-checks perfectly and would make the "maximum" a multiset
-   * whose size no longer means what a subset check assumes.
-   */
   it('refuses a duplicated grant', () => {
     expect(
       () =>
@@ -77,10 +72,6 @@ describe('AgentDefinition maximum tool grants', () => {
     expect(Object.hasOwn(resolved, 'maxToolGrants')).toBe(false);
   });
 
-  /**
-   * TOOL-01 must not change what a published agent can do. `content-idea@1`
-   * keeps its automatic retrieval path and gains no tools.
-   */
   it('grants nothing to any production agent', () => {
     for (const production of PRODUCTION_AGENT_DEFINITIONS) {
       expect(production.maxToolGrants).toBeUndefined();

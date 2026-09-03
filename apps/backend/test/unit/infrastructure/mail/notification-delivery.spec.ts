@@ -5,14 +5,6 @@ import { createNotificationDelivery } from '../../../../src/infrastructure/mail/
 const from = { address: 'no-reply@example.test', name: 'Acme' };
 const logger = { setContext: () => undefined, info: () => undefined } as never;
 
-/**
- * Which drivers may perform the governed effect, decided at composition.
- *
- * The worker boots under every driver the API accepts — a worker that could
- * not start under `ses` would take agent execution down with it — and the
- * drivers without a request-level idempotency key answer that they cannot
- * honour the retry contract rather than sending best-effort.
- */
 describe('createNotificationDelivery', () => {
   it('is idempotent under the log driver', () => {
     const delivery = createNotificationDelivery(

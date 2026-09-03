@@ -1,11 +1,4 @@
-// The server entry, imported *only* here: this suite exists to check the
-// mapping against the codes the installed package really ships, and reading
-// them from the source of truth is the whole point. No application module
-// imports it — an architecture test enforces that.
 //
-// Each entry is `{ code, message }`, so `.code` is the machine-readable half
-// — the same value that reaches the browser on an error body, and the only
-// half this application is allowed to branch on.
 import { BASE_ERROR_CODES } from 'better-auth';
 import { ADMIN_ERROR_CODES } from 'better-auth/client/plugins';
 import { describe, expect, it } from 'vitest';
@@ -19,18 +12,8 @@ import {
   normalizeAuthError,
 } from './auth-errors';
 
-/**
- * Error normalisation.
- *
- * The codes on the left of every case below are read from the *installed*
- * Better Auth rather than typed from memory — so a rename in a future version
- * fails here instead of silently degrading every message to "something went
- * wrong".
- */
 describe('normalizeAuthError', () => {
   it('collapses every credential failure into one state', () => {
-    // Distinguishing them would make the sign-in form an oracle for whether
-    // an address is registered.
     for (const code of [
       BASE_ERROR_CODES.INVALID_EMAIL_OR_PASSWORD.code,
       BASE_ERROR_CODES.INVALID_PASSWORD.code,
@@ -53,7 +36,10 @@ describe('normalizeAuthError', () => {
     [BASE_ERROR_CODES.INVALID_TOKEN.code, 'INVALID_TOKEN'],
     [BASE_ERROR_CODES.TOKEN_EXPIRED.code, 'TOKEN_EXPIRED'],
     [BASE_ERROR_CODES.PROVIDER_NOT_FOUND.code, 'PROVIDER_UNAVAILABLE'],
-    [BASE_ERROR_CODES.SOCIAL_ACCOUNT_ALREADY_LINKED.code, 'ACCOUNT_LINK_CONFLICT'],
+    [
+      BASE_ERROR_CODES.SOCIAL_ACCOUNT_ALREADY_LINKED.code,
+      'ACCOUNT_LINK_CONFLICT',
+    ],
     [BASE_ERROR_CODES.SESSION_EXPIRED.code, 'UNAUTHENTICATED'],
     [ADMIN_ERROR_CODES.BANNED_USER.code, 'ACCOUNT_BANNED'],
   ])('maps %s', (code, expected) => {
@@ -61,8 +47,6 @@ describe('normalizeAuthError', () => {
   });
 
   it('recognises this project own backend codes', () => {
-    // Emitted by `databaseHooks.session.create.before` in the backend, so a
-    // deactivated account gets its own message rather than "invalid password".
     expect(
       normalizeAuthError({
         code: BACKEND_ERROR_CODES.accountDeactivated,
@@ -92,8 +76,6 @@ describe('normalizeAuthError', () => {
   });
 
   it('reports a request that never reached the server', () => {
-    // A fetch rejection: no status, no code. "Check your connection" is a
-    // different remedy from anything the server could have said.
     expect(normalizeAuthError(new TypeError('Failed to fetch'))).toBe(
       'NETWORK_ERROR',
     );

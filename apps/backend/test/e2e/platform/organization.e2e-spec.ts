@@ -15,14 +15,6 @@ import {
   type TestUser,
 } from '../../support/auth-harness';
 
-/**
- * Probes for the organization authorization rules.
- *
- * `activeOrgOnly` is deliberately written the *wrong* way — it carries
- * `@RequireActiveOrg()` and nothing else. It exists only so a test can prove
- * that the precondition is not authorization. It lives here rather than in
- * `src/`, where the architecture test forbids exactly this shape.
- */
 @Controller('probe/org')
 class OrganizationProbeController {
   @Get('active-org-only')
@@ -51,7 +43,6 @@ class OrganizationProbeController {
   }
 }
 
-/** Stands in for a business resource that must outlive membership changes. */
 type ResourceFixture = { organizationId: string; createdByUserId: string };
 const resources: ResourceFixture[] = [];
 
@@ -64,7 +55,6 @@ describe('Organizations (e2e)', () => {
   let superAdmin: TestUser;
   let organizationId: string;
 
-  /** Creates an organization owned by `user` and returns its id. */
   const createOrganization = async (user: TestUser, name: string) => {
     const response = await as(harness, user).post(
       '/api/auth/organization/create',
@@ -80,14 +70,6 @@ describe('Organizations (e2e)', () => {
     return (response.body as { id: string }).id;
   };
 
-  /**
-   * Invites, accepts, and returns once the member row exists.
-   *
-   * The organization is always named explicitly rather than inherited from the
-   * inviter's session: Better Auth *clears* `activeOrganizationId` when a
-   * `set-active` membership check fails, so a suite that exercises that path
-   * would otherwise leave later invitations pointing at nothing.
-   */
   const addMember = async (
     inviter: TestUser,
     invitee: TestUser,
@@ -139,7 +121,6 @@ describe('Organizations (e2e)', () => {
     await selectOrganization(orgAdmin, organizationId);
     await selectOrganization(member, organizationId);
 
-    // A business resource owned by the organization and created by a member.
     resources.push({ organizationId, createdByUserId: member.id });
   }, 120_000);
 
@@ -187,25 +168,17 @@ describe('Organizations (e2e)', () => {
     });
   });
 
-  /**
-   * The architectural rule this feature turns on, proven rather than asserted
-   * in prose. A session can carry `activeOrganizationId` without the caller
-   * being a member at all.
-   */
   describe('@RequireActiveOrg is a precondition, not authorization', () => {
     it('fails the precondition with no organization selected', async () => {
       await as(harness, outsider).get('/probe/org/active-org-only').expect(403);
     });
 
     it('PASSES the precondition for a non-member with a stale selection', async () => {
-      // Point a non-member's session at the organization directly. This is the
-      // shape an attacker or a stale client would produce.
       await harness.prisma.session.updateMany({
         where: { userId: outsider.id },
         data: { activeOrganizationId: organizationId },
       });
 
-      // The precondition is satisfied — which is exactly the problem.
       await as(harness, outsider).get('/probe/org/active-org-only').expect(200);
     });
 
@@ -249,7 +222,6 @@ describe('Organizations (e2e)', () => {
     });
   });
 
-  /** The two domains do not leak into each other in either direction. */
   describe('separation from global RBAC', () => {
     it('a global super_admin gains no organization permission', async () => {
       await harness.prisma.session.updateMany({
@@ -304,11 +276,6 @@ describe('Organizations (e2e)', () => {
     });
   });
 
-  /**
-   * Membership is current access state: the row exists or it does not. Better
-   * Auth reads existence, so a `deletedAt` column on `member` would still look
-   * like membership to it.
-   */
   describe('membership lifecycle', () => {
     it('removes the row, and access with it, while preserving resources', async () => {
       const transient = await createUser(harness);
@@ -333,16 +300,13 @@ describe('Organizations (e2e)', () => {
         }),
       ).resolves.toBe(0);
 
-      // Immediately, with no cache in the way.
       await as(harness, transient).get('/probe/org/read').expect(403);
 
-      // Nothing the user created disappeared with the membership.
       expect(resources).toHaveLength(resourcesBefore);
       expect(resources.some((r) => r.createdByUserId === transient.id)).toBe(
         true,
       );
 
-      // And the identity itself is untouched.
       await expect(
         harness.prisma.user.count({ where: { id: transient.id } }),
       ).resolves.toBe(1);
@@ -367,7 +331,6 @@ describe('Organizations (e2e)', () => {
       });
 
       expect(row?.userId).toBe(returning.id);
-      // The new role, not the old one — reactivation is a fresh grant.
       expect(row?.role).toBe('member');
     });
   });
@@ -425,11 +388,6 @@ describe('Organizations (e2e)', () => {
     });
   });
 
-  /**
-   * The strict security boundary: organization authority is not platform
-   * authority. An owner must not be able to reactivate a globally
-   * deactivated account by inviting it.
-   */
   describe('a soft-deleted account cannot be revived by an invitation', () => {
     it('leaves the account deactivated and unusable', async () => {
       const victim = await createUser(harness);
@@ -438,8 +396,6 @@ describe('Organizations (e2e)', () => {
         .post(`/admin/users/${victim.id}/deactivate`)
         .expect(201);
 
-      // The owner may still create the invitation — the organization knows
-      // nothing about platform account state, and refusing here would leak it.
       const invite = await as(harness, owner).post(
         '/api/auth/organization/invite-member',
         { email: victim.email, role: 'member', organizationId },
@@ -447,27 +403,22 @@ describe('Organizations (e2e)', () => {
       expect(invite.status).toBe(200);
       const invitationId = (invite.body as { id: string }).id;
 
-      // But the account is still deactivated...
       const row = await harness.prisma.user.findUnique({
         where: { id: victim.id },
         select: { deletedAt: true },
       });
       expect(row?.deletedAt).not.toBeNull();
 
-      // ...and cannot obtain a session, so the invitation cannot be accepted.
       await expect(
         harness.prisma.session.count({ where: { userId: victim.id } }),
       ).resolves.toBe(0);
 
-      // The invitation stays pending, waiting for a platform-level restore.
       const invitation = await harness.prisma.invitation.findUnique({
         where: { id: invitationId },
         select: { status: true },
       });
       expect(invitation?.status).toBe('pending');
 
-      // After a super_admin restores the account, the same pending invitation
-      // works — restore reopens the platform gate and nothing more.
       await as(harness, superAdmin)
         .post(`/admin/users/${victim.id}/restore`)
         .expect(201);
@@ -486,10 +437,6 @@ describe('Organizations (e2e)', () => {
     });
   });
 
-  /**
-   * Archive is the organization lifecycle. Hard deletion is disabled twice
-   * over — no role holds `organization:delete`, and the route itself is off.
-   */
   describe('archive and restore', () => {
     let archivedOrg: string;
     let archiveOwner: TestUser;
@@ -534,8 +481,6 @@ describe('Organizations (e2e)', () => {
         { organizationId: archivedOrg },
       );
 
-      // `disableOrganizationDeletion: true` answers 404 rather than 403 — the
-      // route is not merely forbidden, it is not there.
       expect(response.status).toBe(404);
 
       await expect(
@@ -639,16 +584,9 @@ describe('Organizations (e2e)', () => {
         expect(response.status).toBe(403);
       });
 
-      /**
-       * An invitation issued *before* the archive must not become a way in.
-       * The hook resolves the organization from the invitation for exactly
-       * this case.
-       */
       it('cannot have a pre-existing invitation accepted', async () => {
         const invitee = await createUser(harness);
 
-        // Re-open the canceled invitation directly, simulating a link that was
-        // already in someone's inbox when the archive happened.
         const revived = await harness.prisma.invitation.create({
           data: {
             organizationId: archivedOrg,
@@ -683,11 +621,6 @@ describe('Organizations (e2e)', () => {
         expect(response.status).toBe(403);
       });
 
-      /**
-       * The point of putting enforcement in one Better Auth hook: application
-       * routes authorize through `/organization/has-permission`, so they become
-       * inert too without a single check of their own.
-       */
       it('denies application resource access', async () => {
         await harness.prisma.session.updateMany({
           where: { userId: archiveAdmin.id },
@@ -709,15 +642,6 @@ describe('Organizations (e2e)', () => {
       });
     });
 
-    /**
-     * The read that exists because `/organization/list` cannot answer it.
-     *
-     * Archived organizations are filtered out of Better Auth's list on
-     * purpose, which is correct and leaves one gap: without this endpoint an
-     * owner who archived an organization would have no way to find it again.
-     * Every assertion below is about who may see what, because that is the
-     * only thing the endpoint decides.
-     */
     describe('listing archived organizations', () => {
       type ArchivedRow = { id: string; canRestore: boolean };
 
@@ -747,9 +671,6 @@ describe('Organizations (e2e)', () => {
       });
 
       it('hides it from an org admin, who cannot restore it', async () => {
-        // Admins run the organization day to day; archiving and restoring are
-        // withheld from them, so an entry they could not act on would be an
-        // offer of a 403.
         const response = await as(harness, archiveAdmin).get(
           '/organizations/archived',
         );
@@ -775,8 +696,6 @@ describe('Organizations (e2e)', () => {
       });
 
       it('shows it to a platform recoverer who is not a member', async () => {
-        // `organizationLifecycle:restore` is the platform authority, and it
-        // is the reason this row is visible without a membership.
         const response = await as(harness, superAdmin).get(
           '/organizations/archived',
         );

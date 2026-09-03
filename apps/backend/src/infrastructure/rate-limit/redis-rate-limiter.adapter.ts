@@ -6,7 +6,6 @@ import type {
   RateLimitDecision,
 } from './rate-limit.types';
 
-/** Atomic exact sliding window. Rejections neither add members nor extend TTL. */
 export const SLIDING_WINDOW_SCRIPT = `
 local key = KEYS[1]
 local now = tonumber(ARGV[1])

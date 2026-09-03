@@ -50,9 +50,6 @@ type NavItem = {
   shortcut?: string;
 };
 
-/**
- * The platform's primary navigation drawer with collapsible icon-only mode and centered icons.
- */
 export function PlatformSidebar() {
   const t = useTranslations('Platform');
   const { pathname } = useAppLocation();
@@ -156,7 +153,6 @@ export function PlatformSidebar() {
       mobileDescription={t('nav.mobileDescription')}
       className="border-none bg-transparent font-sans"
     >
-      {/* Navigation Drawer Header */}
       <SidebarHeader className="gap-2 p-3 pb-2 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:items-center">
         <div className="flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-1 group-data-[collapsible=icon]:items-center">
           <Link
@@ -175,10 +171,8 @@ export function PlatformSidebar() {
           />
         </div>
 
-        {/* Workspace Switcher */}
         <OrganizationSwitcher />
 
-        {/* Quick Search Trigger Input */}
         <button
           type="button"
           aria-label={t('nav.search')}
@@ -204,7 +198,6 @@ export function PlatformSidebar() {
 
       <SidebarSeparator className="my-1 opacity-60" />
 
-      {/* Navigation Drawer Content */}
       <SidebarContent className="px-2 group-data-[collapsible=icon]:px-1">
         <SidebarGroup className="p-1 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:items-center">
           <SidebarGroupLabel className="px-2 py-1 text-xs uppercase tracking-wider text-sidebar-section-title group-data-[collapsible=icon]:hidden">
@@ -309,7 +302,6 @@ export function PlatformSidebar() {
 
       <SidebarSeparator className="my-1 opacity-60" />
 
-      {/* Navigation Drawer Footer */}
       <SidebarFooter className="p-2 pt-1 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:items-center">
         <div className="flex items-center justify-between gap-1 rounded-md bg-secondary p-1.5 border border-border/40 group-data-[collapsible=icon]:bg-transparent group-data-[collapsible=icon]:border-none group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center">
           <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">

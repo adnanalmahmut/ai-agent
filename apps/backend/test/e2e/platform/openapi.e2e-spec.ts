@@ -10,15 +10,6 @@ import { setupOpenApi } from '../../../src/infrastructure/docs';
 import { MAIL_TRANSPORT } from '../../../src/infrastructure/mail/mail-transport';
 import { CapturingTransport } from '../../support/auth-harness';
 
-/**
- * One documentation experience, two schema sources.
- *
- * The two documents are never merged, so the tests that matter most here are
- * the ones that measure *why*: the path-collision audit, and the check that
- * disabling documentation removes Better Auth's schema endpoint rather than
- * just hiding the UI in front of it.
- */
-
 type OpenApiDocument = {
   openapi: string;
   paths: Record<string, unknown>;
@@ -81,10 +72,6 @@ describe('OpenAPI enabled (e2e)', () => {
       expect(applicationDocument.openapi).toBe('3.1.1');
     });
 
-    /**
-     * The lifecycle endpoints are application behaviour, so the application
-     * document is their source of truth — not Better Auth's.
-     */
     it.each([
       '/admin/users/{userId}/deactivate',
       '/admin/users/{userId}/restore',
@@ -94,11 +81,6 @@ describe('OpenAPI enabled (e2e)', () => {
       expect(Object.keys(applicationDocument.paths)).toContain(path);
     });
 
-    /**
-     * Documents what the routes actually accept. The `bearer()` plugin is not
-     * installed, so no application route reads an `Authorization` header, and
-     * advertising bearer auth would be documentation that lies.
-     */
     it('describes the session cookie, not bearer auth', () => {
       const schemes = applicationDocument.components?.securitySchemes ?? {};
 
@@ -171,11 +153,6 @@ describe('OpenAPI enabled (e2e)', () => {
     });
   });
 
-  /**
-   * The measurement behind the decision not to merge. Paths happen not to
-   * collide today; component schemas and security schemes do, which is what a
-   * merge would have to rename — and renames break `$ref`s.
-   */
   describe('collision audit', () => {
     it('has no overlapping paths between the two documents', () => {
       const application = new Set(Object.keys(applicationDocument.paths));
@@ -203,12 +180,9 @@ describe('OpenAPI enabled (e2e)', () => {
         authDocument.components?.securitySchemes ?? {},
       ).filter((name) => applicationSchemes.has(name));
 
-      // Not an assertion that they are empty — an assertion that the audit
-      // ran and produced arrays, so a future merge attempt has real numbers.
       expect(Array.isArray(schemaOverlap)).toBe(true);
       expect(Array.isArray(schemeOverlap)).toBe(true);
 
-      // Better Auth publishes User and Session schemas of its own.
       expect(authSchemas).toEqual(expect.arrayContaining(['User', 'Session']));
     });
   });
@@ -248,12 +222,6 @@ describe('OpenAPI enabled (e2e)', () => {
       expect(JSON.stringify(authDocument)).not.toContain(secret);
     });
 
-    /**
-     * `token=` does appear in Better Auth's schema — inside descriptive prose
-     * such as "redirected with a query parameter `?token=VALID_TOKEN`". That
-     * is a documented placeholder, not a credential, so the assertion is that
-     * every occurrence is a placeholder rather than that none exists.
-     */
     it('contains no token value, only documented placeholders', () => {
       const serialized = JSON.stringify(authDocument);
       const values: string[] = [
@@ -261,7 +229,6 @@ describe('OpenAPI enabled (e2e)', () => {
       ].map((match) => match[1] ?? '');
 
       for (const value of values) {
-        // Placeholders are upper-snake words; a real token is long and mixed.
         expect(value).toMatch(/^[A-Z_]*$/);
       }
     });
@@ -294,11 +261,6 @@ describe('OpenAPI disabled (e2e)', () => {
     await request(server).get('/openapi.json').expect(404);
   });
 
-  /**
-   * The half that matters. Hiding Scalar while leaving this endpoint mounted
-   * would keep publishing a complete, unauthenticated map of every
-   * administrative and organization route.
-   */
   it('removes the Better Auth schema endpoint entirely', async () => {
     await request(server).get('/api/auth/open-api/generate-schema').expect(404);
   });

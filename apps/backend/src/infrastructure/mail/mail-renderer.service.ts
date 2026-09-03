@@ -37,15 +37,6 @@ const TEMPLATE_KEYS = {
   },
 } as const satisfies Record<MailTemplate, TemplateKeys>;
 
-/**
- * Renders a queued mail job into a localized document.
- *
- * Every lookup goes through `translateFor(job.locale, …)`. This service must
- * never call `I18nContext.current()` or read a request header: by the time a
- * worker runs it, the originating request is long gone, and reaching for
- * ambient context is how a retry ends up sending a different language than
- * the original attempt.
- */
 @Injectable()
 export class MailRendererService {
   constructor(private readonly i18n: AppI18nService) {}

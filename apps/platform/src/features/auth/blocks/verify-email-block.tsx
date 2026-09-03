@@ -15,19 +15,6 @@ import { SubmitButton } from '../components/submit-button';
 import { useResendVerification } from '../hooks/use-email-verification';
 import { AUTH_ROUTES } from '../routes';
 
-/**
- * The landing point of the emailed verification link, and the place to ask
- * for another one.
- *
- * One page rather than two because the user cannot tell them apart: the link
- * in their inbox comes here whether the token worked or not — Better Auth
- * appends `?error=CODE` when it did not — and someone who never received the
- * mail arrives here too. Splitting them would mean a dead end for two of the
- * three arrivals.
- *
- * The token itself is verified by the backend before the browser ever gets
- * here. This page never sees it, which is why nothing on it can leak it.
- */
 export function VerifyEmailBlock({
   isVerified,
   callbackError,

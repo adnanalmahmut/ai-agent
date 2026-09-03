@@ -12,11 +12,6 @@ import {
 } from './notification-delivery.port';
 import { ResendNotificationDelivery } from './resend-notification.delivery';
 
-/**
- * A driver this application knows how to send *auth* mail through but cannot
- * make idempotent. SES and SMTP have no request-level idempotency key, so the
- * governed effect is unavailable rather than best-effort.
- */
 class UnsupportedNotificationDelivery implements NotificationDelivery {
   readonly idempotent = false;
   readonly sender: string;
@@ -49,15 +44,6 @@ export function createNotificationDelivery(
   }
 }
 
-/**
- * The delivery port for governed side effects, composed from the mail driver.
- *
- * Its own module rather than a provider on `MailModule`, because it is needed
- * by the worker and `MailModule` is not: the renderer there depends on the
- * request-scoped i18n stack the worker deliberately does not carry. This
- * module needs only the mail configuration and a logger, so both composition
- * roots can import it.
- */
 @Module({
   providers: [
     {

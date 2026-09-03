@@ -14,18 +14,6 @@ import { SubmitButton } from '../components/submit-button';
 import { useRequestPasswordReset } from '../hooks/use-password-reset';
 import { AUTH_ROUTES } from '../routes';
 
-/**
- * Requests a reset link.
- *
- * The success state deliberately says nothing about whether the address is
- * registered. The backend is careful about this — it does the same work on a
- * miss so the response time does not give the answer away — and a UI that
- * said "no such account" would hand back the account-existence oracle the
- * backend just refused to be.
- *
- * Which means the confirmation is worded as a conditional, and the same
- * screen appears either way.
- */
 export function ForgotPasswordBlock() {
   const t = useTranslations('Auth');
   const [email, setEmail] = useState('');

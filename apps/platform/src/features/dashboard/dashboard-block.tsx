@@ -9,7 +9,13 @@ import {
   CardTitle,
   buttonVariants,
 } from '@repo/ui';
-import { ArrowRight, Building2, MailCheck, MailWarning, Plus } from 'lucide-react';
+import {
+  ArrowRight,
+  Building2,
+  MailCheck,
+  MailWarning,
+  Plus,
+} from 'lucide-react';
 import { useTranslations } from 'use-intl';
 
 import { MIRRORED_ICON } from '@/components/directional-icon';
@@ -21,9 +27,6 @@ import { ActiveOrganization } from '@/features/organization/components/active-or
 import type { OrganizationsListData } from '@/features/organization/route-data';
 import { Link } from '@/i18n/navigation';
 
-/**
- * The authenticated landing page.
- */
 export function DashboardBlock({ data }: { data: OrganizationsListData }) {
   const t = useTranslations('Platform');
   const session = usePlatformSession();
@@ -55,7 +58,9 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
               <span className="text-muted-foreground">
                 {t('dashboard.account.email')}
               </span>
-              <bdi className="font-semibold text-foreground">{session.user.email}</bdi>
+              <bdi className="font-semibold text-foreground">
+                {session.user.email}
+              </bdi>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -64,12 +69,18 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
               </span>
 
               {session.user.emailVerified ? (
-                <Badge variant="secondary" className="gap-1.5 rounded px-2 py-0.5 text-xs font-medium border border-border/40">
+                <Badge
+                  variant="secondary"
+                  className="gap-1.5 rounded px-2 py-0.5 text-xs font-medium border border-border/40"
+                >
                   <MailCheck className="size-3.5 text-primary" />
                   {t('dashboard.account.verified')}
                 </Badge>
               ) : (
-                <Badge variant="outline" className="gap-1.5 rounded px-2 py-0.5 text-xs font-medium border border-border/40">
+                <Badge
+                  variant="outline"
+                  className="gap-1.5 rounded px-2 py-0.5 text-xs font-medium border border-border/40"
+                >
                   <MailWarning className="size-3.5 text-destructive" />
                   {t('dashboard.account.unverified')}
                 </Badge>
@@ -107,7 +118,12 @@ export function DashboardBlock({ data }: { data: OrganizationsListData }) {
           {hasOrganizations ? (
             <Link
               href={PLATFORM_ROUTES.organizations}
-              className={buttonVariants({ variant: 'outline', size: 'sm', className: 'h-7 text-xs border border-border/50 hover:bg-sidebar-accent' })}
+              className={buttonVariants({
+                variant: 'outline',
+                size: 'sm',
+                className:
+                  'h-7 text-xs border border-border/50 hover:bg-sidebar-accent',
+              })}
             >
               {t('dashboard.organizations.viewAll')}
               <ArrowRight className={MIRRORED_ICON} />

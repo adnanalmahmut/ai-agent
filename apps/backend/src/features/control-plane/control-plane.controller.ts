@@ -40,34 +40,11 @@ import {
 } from './runtime-settings/runtime-setting.registry';
 import { RuntimeSettingService } from './runtime-settings/runtime-setting.service';
 
-/**
- * The control plane's HTTP surface.
- *
- * Thin by the same rule as the lifecycle controllers: authorization is a
- * decorator, validation is a Zod DTO, and the work is a service call. What is
- * specific to this controller is the key handling — every registry key is
- * checked here before it reaches a service, so an unknown key is a 404 at the
- * boundary rather than a row nothing reads. `organizationId` cannot be checked
- * against a registry, so the service verifies it exists and answers 404 the
- * same way.
- *
- * Organization-scoped flag overrides live here, on a platform route guarded by
- * a platform permission, rather than under `/organizations/:id`. They are an
- * operator's rollout tool, not something an organization administers for
- * itself; putting them on an organization route would invite exactly that
- * confusion.
- */
-
 const enabledSchema = z.object({ enabled: z.boolean() }).strict();
 class FeatureFlagOverrideDto extends createZodDto(enabledSchema) {}
 
 const settingValueSchema = z
   .object({
-    /**
-     * `unknown`, on purpose. The registry entry's own schema is the validator,
-     * and restating a type here would be a second opinion that drifts. What
-     * this DTO enforces is only the envelope.
-     */
     value: z.unknown(),
   })
   .strict();
@@ -76,19 +53,11 @@ class RuntimeSettingValueDto extends createZodDto(settingValueSchema) {}
 const secretSchema = z
   .object({
     value: z.string().min(1),
-    /** A recognisable hint, never a fragment of the credential. */
     label: z.string().trim().min(1).max(120).optional(),
   })
   .strict();
 class ManagedSecretDto extends createZodDto(secretSchema) {}
 
-/**
- * The audit listing's query, bounded on every field.
- *
- * The filters are the two questions the history is actually asked — what
- * happened to this key, and what happened to this organization — rather than a
- * general query language over a log table.
- */
 const auditQuerySchema = z
   .object({
     cursor: z.string().trim().min(1).max(512).optional(),
@@ -100,13 +69,6 @@ const auditQuerySchema = z
   .strict();
 class AuditQueryDto extends createZodDto(auditQuerySchema) {}
 
-/**
- * Turns an unrecognised key into a 404 before any service sees it.
- *
- * A shared helper so all three resources answer the same way. The key is echoed
- * back as internal context only — control-plane keys are not secret, but a
- * response that repeats arbitrary caller input is a habit worth not forming.
- */
 function assertKnown<T extends string>(
   value: string,
   guard: (candidate: string) => candidate is T,
@@ -175,11 +137,6 @@ export class ControlPlaneController {
     });
   }
 
-  /**
-   * Clearing is not the same as setting the current default, and both are
-   * offered: a cleared flag follows the code default when it changes, a pinned
-   * one does not.
-   */
   @Delete('feature-flags/:key')
   @UserHasPermission({ permissions: { controlPlane: ['write'] } })
   @ApiOperation({
@@ -291,10 +248,6 @@ export class ControlPlaneController {
 
   // --- Managed secrets -----------------------------------------------------
 
-  /**
-   * Metadata only. There is no endpoint that returns a credential, and adding
-   * one would defeat the point of encrypting them.
-   */
   @Get('secrets')
   @UserHasPermission({ permissions: { controlPlane: ['read'] } })
   @ApiOperation({
@@ -341,22 +294,6 @@ export class ControlPlaneController {
 
   // --- Audit ---------------------------------------------------------------
 
-  /**
-   * The history of every control-plane mutation, newest first.
-   *
-   * `controlPlane:read` and not a permission of its own. The log's contents are
-   * a subset of what that grant already shows — which flags exist, how the
-   * platform is tuned, which credential slots are configured — plus who changed
-   * them and when. Inventing a fourth statement for strictly less exposure
-   * would be a permission an operator has to be granted twice to see one
-   * screen. Notably `managedSecret:write` is *not* required: reading that a
-   * credential was rotated is not the same authority as rotating one, and the
-   * entries carry no credential material to protect.
-   *
-   * There is no write, update or delete route here, and that is the append-only
-   * guarantee — enforced by the absence of a handler rather than by a grant
-   * somebody could widen.
-   */
   @Get('audit')
   @UserHasPermission({ permissions: { controlPlane: ['read'] } })
   @ApiOperation({

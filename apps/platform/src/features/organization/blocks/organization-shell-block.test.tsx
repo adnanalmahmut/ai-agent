@@ -36,10 +36,6 @@ const SESSION = {
   session: { id: 'session_1', token: 'token', userId: 'user_owner' },
 };
 
-/**
- * The protected layout passes its server-resolved session through the same
- * provider mounted by this test helper.
- */
 function renderShell(data: OrganizationData, tab = <span>tab</span>) {
   return renderWithProviders(
     <OrganizationShellBlock data={data}>{tab}</OrganizationShellBlock>,
@@ -54,7 +50,10 @@ beforeEach(() => {
 });
 
 describe('a loaded organization', () => {
-  const ready: OrganizationData = { state: 'ready', organization: organization() };
+  const ready: OrganizationData = {
+    state: 'ready',
+    organization: organization(),
+  };
 
   it('names it once, as the page heading', async () => {
     renderShell(ready);
@@ -93,9 +92,6 @@ describe('a loaded organization', () => {
 
 describe('an archived organization', () => {
   it('explains the state instead of failing', async () => {
-    // Reached by being refused: the backend makes every organization endpoint
-    // inert for an archived one, so this page exists because the normal page
-    // cannot load.
     renderShell({
       state: 'archived',
       organizationId: 'org_1',
@@ -146,7 +142,9 @@ describe('an archived organization', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Restore' }));
 
-    await waitFor(() => expect(restoreOrganization).toHaveBeenCalledWith('org_1'));
+    await waitFor(() =>
+      expect(restoreOrganization).toHaveBeenCalledWith('org_1'),
+    );
     expect(revalidateSpy).toHaveBeenCalled();
   });
 
@@ -163,8 +161,6 @@ describe('an archived organization', () => {
 
 describe('an organization that could not be opened', () => {
   it('gives one answer for every remaining reason', async () => {
-    // Telling a non-member that an organization exists would answer a
-    // question the backend declined to answer.
     renderShell({ state: 'error', error: 'NOT_A_MEMBER' });
 
     expect(
@@ -173,7 +169,10 @@ describe('an organization that could not be opened', () => {
   });
 
   it('renders no tab underneath', async () => {
-    renderShell({ state: 'error', error: 'UNKNOWN' }, <span>the members tab</span>);
+    renderShell(
+      { state: 'error', error: 'UNKNOWN' },
+      <span>the members tab</span>,
+    );
 
     await screen.findByText('This organization could not be opened');
     expect(screen.queryByText('the members tab')).toBeNull();

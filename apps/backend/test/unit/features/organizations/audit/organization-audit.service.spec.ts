@@ -94,14 +94,6 @@ describe('OrganizationAuditService', () => {
     expect(serialized).not.toContain('metadata');
   });
 
-  /**
-   * The content-project projection, asserted whole.
-   *
-   * A field-by-field assertion cannot notice a field arriving, and what must
-   * never arrive here is the point: the caller's idempotency key, the request
-   * body, the brief, and the agent's own prose. Identifiers and two closed
-   * enums are the entire contract.
-   */
   it('writes only the closed content-project projection through its transaction client', async () => {
     create.mockResolvedValue({});
     const tx = {
@@ -132,8 +124,6 @@ describe('OrganizationAuditService', () => {
     expect(data.organizationId).toBe('org-1');
     expect(data.actorUserId).toBe('user-1');
 
-    // A creation has no prior state, and a fabricated empty one would suggest
-    // a project that existed before it did.
     expect(data.before).toBe(Prisma.DbNull);
 
     expect(data.after).toEqual({
@@ -147,7 +137,6 @@ describe('OrganizationAuditService', () => {
     });
   });
 
-  /** No method on this service can append outside a caller's transaction. */
   it('offers no generic append and no way to rewrite history', () => {
     const surface = Object.getOwnPropertyNames(
       Object.getPrototypeOf(service) as object,

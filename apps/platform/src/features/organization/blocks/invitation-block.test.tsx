@@ -2,8 +2,16 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { authClientStub, ok, resetAuthClientStub } from '@/test/auth-client-stub';
-import { navigateSpy, resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import {
+  authClientStub,
+  ok,
+  resetAuthClientStub,
+} from '@/test/auth-client-stub';
+import {
+  navigateSpy,
+  resetNavigationStub,
+  revalidateSpy,
+} from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
 import type { InvitationDetails } from '../invitation-state';
@@ -56,7 +64,6 @@ describe('what it shows', () => {
       <InvitationBlock invitation={{ ...INVITATION, role: 'admin,member' }} />,
     );
 
-    // Joined with Intl.ListFormat, not a hard-coded comma.
     expect(screen.getByText('Administrator and Member')).toBeInTheDocument();
   });
 
@@ -77,18 +84,13 @@ describe('accepting', () => {
     await user.click(screen.getByRole('button', { name: 'Accept invitation' }));
 
     await waitFor(() => {
-      expect(
-        authClientStub.organization.acceptInvitation,
-      ).toHaveBeenCalledWith({ invitationId: 'inv_1' });
+      expect(authClientStub.organization.acceptInvitation).toHaveBeenCalledWith(
+        { invitationId: 'inv_1' },
+      );
     });
   });
 
   it('goes into the organization it just joined, and revalidates', async () => {
-    // Accepting grants a membership *and* makes the organization active, in
-    // one server transaction. Neither is visible to route data already in
-    // hand, so the revalidation is not cosmetic. The destination is the
-    // organization itself: the reader followed a link about one specific
-    // organization, and landing anywhere else makes them go looking for it.
     authClientStub.organization.acceptInvitation.mockResolvedValue(
       ok({ invitation: {}, member: { organizationId: 'org_9' } }),
     );
@@ -107,8 +109,6 @@ describe('accepting', () => {
   });
 
   it('falls back to the organizations list if no membership comes back', async () => {
-    // Defensive rather than expected: the list will contain the new
-    // organization either way, so the reader is never stranded.
     authClientStub.organization.acceptInvitation.mockResolvedValue(
       ok({ invitation: {}, member: {} }),
     );
@@ -155,9 +155,9 @@ describe('declining', () => {
     await user.click(screen.getByRole('button', { name: 'Decline' }));
 
     await waitFor(() => {
-      expect(
-        authClientStub.organization.rejectInvitation,
-      ).toHaveBeenCalledWith({ invitationId: 'inv_1' });
+      expect(authClientStub.organization.rejectInvitation).toHaveBeenCalledWith(
+        { invitationId: 'inv_1' },
+      );
     });
     expect(authClientStub.organization.acceptInvitation).not.toHaveBeenCalled();
   });
@@ -165,8 +165,6 @@ describe('declining', () => {
 
 describe('failures', () => {
   it('explains an archived organization in its own terms', async () => {
-    // Refused by this project's backend hook, not by Better Auth, and the
-    // remedy is different: the organization has to be restored first.
     authClientStub.organization.acceptInvitation.mockResolvedValue({
       data: null,
       error: { code: 'ORGANIZATION_ARCHIVED', status: 403 },
@@ -184,8 +182,6 @@ describe('failures', () => {
   });
 
   it('does not guess between expired, withdrawn and already accepted', async () => {
-    // The backend cannot tell them apart on purpose, so the copy names all
-    // three rather than asserting one.
     authClientStub.organization.acceptInvitation.mockResolvedValue({
       data: null,
       error: { code: 'INVITATION_NOT_FOUND', status: 400 },

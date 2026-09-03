@@ -20,15 +20,6 @@ import { useSignUp } from '../hooks/use-sign-up';
 import { AUTH_ROUTES, RETURN_TO_PARAM } from '../routes';
 import { PASSWORD_MIN_LENGTH } from '../validation';
 
-/**
- * Registration.
- *
- * The screen has two faces because the backend's flow has two steps: signing
- * up does not sign you in. With `requireEmailVerification` on, a successful
- * registration produces a user and an email, so the second face says so and
- * offers the only useful next action — send it again — rather than pretending
- * a dashboard is one click away.
- */
 export function SignUpBlock({ returnTo }: { returnTo?: string }) {
   const t = useTranslations('Auth');
 
@@ -135,13 +126,6 @@ export function SignUpBlock({ returnTo }: { returnTo?: string }) {
   );
 }
 
-/**
- * The state a new account actually lands in.
- *
- * The address is echoed inside a `<bdi>`: an email is left-to-right text, and
- * without the isolation its punctuation reorders when it sits in an Arabic
- * sentence.
- */
 function VerificationPending({ email }: { email: string }) {
   const t = useTranslations('Auth');
   const resend = useResendVerification(email);

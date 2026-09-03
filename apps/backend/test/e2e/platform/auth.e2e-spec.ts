@@ -28,21 +28,12 @@ import type {
 } from '../../../src/infrastructure/mail/mail.types';
 import { PrismaService } from '../../../src/infrastructure/database';
 
-/**
- * Sentinels. Every one of these stands for a real secret; each is asserted
- * absent from the captured log output at the end of the suite.
- */
 const SENTINELS = [
   'LEAKY_RESEND_KEY',
   'LEAKY_AWS_SECRET',
   'LEAKY_SMTP_PASSWORD',
 ];
 
-/**
- * Substitutes for the configured driver so nothing leaves the process, while
- * still exercising the real renderer, the real locale resolution and the real
- * `MailService`.
- */
 class CapturingTransport implements MailTransport {
   readonly sent: OutboundMail[] = [];
   failure: Error | undefined;
@@ -64,7 +55,6 @@ class CapturingTransport implements MailTransport {
     return mail;
   }
 
-  /** The mail layer is asynchronous by design; give `dispatch` a tick. */
   async settle(): Promise<void> {
     for (let i = 0; i < 10 && this.sent.length === 0; i++) {
       await new Promise((resolve) => setTimeout(resolve, 20));
@@ -78,7 +68,6 @@ const signUpSchema = z.object({
 });
 class SignUpDto extends createZodDto(signUpSchema) {}
 
-/** Stands in for ordinary application routes living behind the global guard. */
 @Controller('e2e')
 class ProbeController {
   @Post('echo')
@@ -140,13 +129,10 @@ describe('Better Auth (e2e)', () => {
       .useValue(transport)
       .compile();
 
-    // The real production bootstrap. Asserting anything about body parsing
-    // against a default test app would prove nothing about production.
     app = moduleRef.createNestApplication<NestExpressApplication>({
       bodyParser: false,
     });
 
-    // Capture everything written to stdout/stderr for the security assertions.
     for (const stream of [process.stdout, process.stderr]) {
       const write = stream.write.bind(stream);
       stream.write = (chunk: string | Uint8Array, ...rest: unknown[]) => {
@@ -167,11 +153,6 @@ describe('Better Auth (e2e)', () => {
     await app?.close();
   });
 
-  /**
-   * `main.ts` boots with `bodyParser: false` so Better Auth can own its own
-   * request bodies. The library re-installs Express's parsers for every route
-   * outside its base path — this is the check that it actually did.
-   */
   describe('body parsing', () => {
     it('parses a normal JSON POST on an application route', async () => {
       const response = await request(server)
@@ -219,11 +200,6 @@ describe('Better Auth (e2e)', () => {
       });
     });
 
-    /**
-     * The guard rejects before `I18nLanguageInterceptor` runs, so there is no
-     * `I18nContext` on this path. Without the fallback in
-     * `UnifiedExceptionFilter` every 401 would come back in Arabic.
-     */
     describe('localized 401 without an I18nContext', () => {
       it('answers in English when asked to', async () => {
         const response = await request(server)
@@ -264,12 +240,6 @@ describe('Better Auth (e2e)', () => {
     });
   });
 
-  /**
-   * The full flow, in the order the configuration actually permits:
-   * `requireEmailVerification` blocks sign-in until the address is confirmed,
-   * and `autoSignInAfterVerification` is off, so verifying does not itself
-   * create a session.
-   */
   describe('sign-up → verify → sign-in → reset', () => {
     let verificationUrl: string;
     let sessionCookie: string;
@@ -396,11 +366,6 @@ describe('Better Auth (e2e)', () => {
       });
     });
 
-    /**
-     * The precedence that only works because `nestjs-i18n`'s middleware is
-     * disabled: resolution runs in the interceptor, after the guard has
-     * attached the user.
-     */
     it('uses the stored preference when no explicit header is sent', async () => {
       transport.reset();
 
@@ -449,10 +414,6 @@ describe('Better Auth (e2e)', () => {
     });
   });
 
-  /**
-   * A provider outage must not fail an authentication action, and must not
-   * terminate the process either.
-   */
   describe('mail failure isolation', () => {
     it('does not fail the auth request when delivery throws', async () => {
       const unhandled: unknown[] = [];

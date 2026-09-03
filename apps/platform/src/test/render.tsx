@@ -15,24 +15,6 @@ import { stubLocation, testRouter } from '@/test/navigation-stub';
 import arabic from '../../messages/ar.json';
 import english from '../../messages/en.json';
 
-/**
- * Renders a component the way the application does.
- *
- * The real dictionaries are used, not fixtures. A test that stubbed messages
- * would pass while the key it names is missing from `en.json`, which is
- * exactly the failure worth catching — and it means asserting on the text a
- * user actually reads.
- *
- * `DirectionProvider` is included because Radix's portalled menus take their
- * direction from context rather than from `<html dir>`, so a test that omitted
- * it would render the RTL case incorrectly and quietly pass.
- *
- * No router is mounted here on purpose. Component tests replace
- * `@/i18n/navigation` with a stub, so what they assert is *where* a component
- * navigates rather than what a router then did with it. Tests about routing
- * itself build a real router over the real route tree — see `router.test.tsx`,
- * which is the only place that arrangement proves anything.
- */
 const MESSAGES = { ar: arabic, en: english } as const;
 
 export const TEST_SESSION = {
@@ -88,26 +70,11 @@ export function renderWithProviders(
   return Object.assign(result, { locale });
 }
 
-/**
- * Renders a component that lives inside an organization's layout.
- *
- * The App Router organization layout supplies a React context, so component
- * tests mount that same provider directly.
- */
 export function renderInOrganization(
   ui: ReactElement,
   context: OrganizationContext,
   {
     locale = 'en' as AppLocale,
-    /**
-     * Where the reader arrives, which for a screen that keeps state in the
-     * query string is part of the input rather than scenery.
-     *
-     * The content-idea block carries its operation in `?operation=`, so
-     * "reload with a run in the URL" is a test that starts at that URL — and
-     * asserting recovery any other way would be asserting against a fiction of
-     * the component's own plumbing.
-     */
     initialEntries = ['/'],
   }: { locale?: AppLocale; initialEntries?: string[] } = {},
 ): RenderResult & { locale: AppLocale; router: typeof testRouter } {

@@ -27,8 +27,6 @@ describe('creating an organization', () => {
   });
 
   it('reports issues as translation keys, never as sentences', () => {
-    // A schema that returned English would be an untranslatable string living
-    // in a validation module.
     expect(issues({ name: '', slug: '' })).toEqual({
       name: 'organizationNameRequired',
       slug: 'organizationSlugRequired',
@@ -127,8 +125,6 @@ describe('validating organization business defaults', () => {
 
 describe('updating an organization', () => {
   it('applies the same rules as creating one', () => {
-    // Two schemas rather than one alias, because the two forms could diverge —
-    // but until they do, an address that was valid to create must stay valid.
     expect(
       validate(updateOrganizationSchema, {
         name: 'Acme Research',
@@ -154,9 +150,6 @@ describe('inviting a member', () => {
   });
 
   it('does not validate the role', () => {
-    // The role comes from a select built out of the role catalogue, so it
-    // arrives already narrowed. A rule here would guard a value no path can
-    // violate — and would hand the invite call a `string`.
     expect(Object.keys(inviteMemberSchema.shape)).toEqual(['email']);
   });
 });
@@ -172,8 +165,6 @@ describe('suggesting a slug', () => {
   });
 
   it('suggests nothing for a name in a non-Latin script', () => {
-    // Transliterated noise would be worse than an empty field: the reader can
-    // see an empty field and choose.
     expect(suggestSlug('أبحاث أكمي')).toBe('');
   });
 

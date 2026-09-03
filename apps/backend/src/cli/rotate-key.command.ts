@@ -6,18 +6,6 @@ import type {
 import { MAX_ROTATION_BATCH_SIZE } from '../features/control-plane/managed-secrets/managed-secret-rotation.service';
 import type { CommandIo } from './super-admin.command';
 
-/**
- * Exit codes, fixed and documented.
- *
- * `incomplete` is separate from `failed` because they call for different
- * actions. Incomplete means the sweep ran correctly and some rows did not
- * rotate — an unreadable credential to re-enter, or a row someone changed
- * mid-run that a re-run will pick up. Failed means the sweep itself did not
- * finish, and nothing about the table can be concluded from it.
- *
- * A rotation that changed nothing because everything was already current exits
- * 0: the operator's intent was "make the table current", and it is.
- */
 export const ROTATE_EXIT = {
   ok: 0,
   usage: 1,
@@ -46,17 +34,6 @@ type ParsedRotateArgs =
   | { ok: true; batchSize: number | undefined; dryRun: boolean }
   | { ok: false; message: string };
 
-/**
- * Parses `--batch-size` and `--dry-run`.
- *
- * Hand-rolled for the reason `parseArgs` in `super-admin.command.ts` is: two
- * flags do not justify a dependency, and there is no CLI framework here to be
- * consistent with.
- *
- * Unlike that command, repeating a value here is safe — a batch size is not a
- * credential — so refusals quote what they were given, which is what makes a
- * typo diagnosable.
- */
 export function parseRotateArgs(argv: readonly string[]): ParsedRotateArgs {
   let batchSize: number | undefined;
   let dryRun = false;
@@ -104,17 +81,6 @@ export function parseRotateArgs(argv: readonly string[]): ParsedRotateArgs {
   return { ok: true, batchSize, dryRun };
 }
 
-/**
- * Runs the command and returns an exit code.
- *
- * Separated from the process entrypoint for the same reason the super-admin
- * command is: a test can drive it with fake streams and a fake service and
- * assert both the code and everything written to the two streams — which is
- * where a credential would surface if one ever escaped.
- *
- * The service is resolved lazily, so an argument mistake is refused before a
- * Nest context is built and a database is touched.
- */
 export async function runRotateKey(
   argv: readonly string[],
   io: CommandIo,
@@ -139,11 +105,6 @@ export async function runRotateKey(
       dryRun: args.dryRun,
     });
   } catch (error) {
-    /**
-     * The message only, and never the stack or cause. This command runs beside
-     * credential material, and a Prisma or configuration error's own text is
-     * the largest surface here that was not written with that in mind.
-     */
     io.error.write(
       `Rotation failed: ${error instanceof Error ? error.message : 'unknown error'}\n`,
     );
@@ -153,34 +114,10 @@ export async function runRotateKey(
 
   io.output.write(renderReport(report, args.dryRun));
 
-  /**
-   * What "nothing left to do" means, and why a dry run counts differently.
-   *
-   * Exit 0 is what the runbook's retirement gate reads before an operator
-   * deletes a key permanently, so it has to mean *the table is current* — not
-   * merely *this invocation hit no errors*. On a dry run the rows that are
-   * still on an old key are exactly `wouldRotate`, and reporting success while
-   * they exist would invite retiring a key those rows still depend on.
-   *
-   * `concurrentlyModified` cannot occur on a dry run, which writes nothing.
-   */
   const outstanding = args.dryRun
     ? report.wouldRotate + report.unreadable + report.unknownSlot
     : report.unreadable + report.concurrentlyModified + report.unknownSlot;
 
-  /**
-   * A sweep that examined nothing cannot report that the table is current.
-   *
-   * The two states are indistinguishable from the dispositions alone: a
-   * genuinely empty table and a run pointed at the wrong database both produce
-   * every counter at zero. A human reading the report sees `examined 0` and
-   * stops; the exit code is what a script -- and the runbook's step D -- reads,
-   * and there exit 0 authorizes deleting the only key that can still decrypt
-   * the rows this run never saw. Refusing here costs an operator with a
-   * legitimately empty table one line of explanation, and costs an operator who
-   * ran against a development database nothing at all, which is the asymmetry
-   * that matters.
-   */
   if (report.examined === 0) {
     io.error.write(
       'Examined no secrets. That is not the same as the table being current, ' +
@@ -194,14 +131,6 @@ export async function runRotateKey(
   return outstanding > 0 ? ROTATE_EXIT.incomplete : ROTATE_EXIT.ok;
 }
 
-/**
- * The report an operator reads.
- *
- * Counts and slot names. Slot names are code-owned registry identifiers such as
- * `openai.api_key`, not values, and naming the specific rows that need
- * attention is the difference between a report that can be acted on and one
- * that only says a number.
- */
 function renderReport(report: RotationReport, dryRun: boolean): string {
   const lines: string[] = [];
 
@@ -247,15 +176,6 @@ function renderReport(report: RotationReport, dryRun: boolean): string {
   return `${lines.join('\n')}\n`;
 }
 
-/**
- * The dispositions that put a row in the report's "needs attention" list.
- *
- * A type predicate rather than an inline boolean, so `EXPLANATION` below can be
- * keyed to exactly these three. `Record<string, string>` would have compiled
- * with any of them missing and rendered `undefined` beside a slot name; typed
- * this way, adding a disposition that needs explaining is a compile error at the
- * one place that has to know about it.
- */
 function needsAttention(
   outcome: RotationOutcome,
 ): outcome is RotationOutcome & { disposition: AttentionDisposition } {

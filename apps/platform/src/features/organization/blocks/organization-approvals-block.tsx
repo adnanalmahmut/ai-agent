@@ -19,22 +19,6 @@ import {
 } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
 
-/**
- * Human approval of proposed agent actions.
- *
- * One list, filtered by decision state, and two buttons per pending proposal.
- * There is deliberately nothing else: no editing of what the agent wrote, no
- * choosing a different recipient, no "send now". A person reads the proposal
- * as it stands and decides on it; the effect itself happens in the worker
- * after every precondition is checked again, which is why the row keeps
- * showing state after the decision.
- *
- * The decide buttons render only for a role the server would allow, read from
- * the viewer's membership in *this* organization. That is a courtesy — the
- * backend refuses a member's click regardless — and the 409 that a second
- * decider receives is shown as what it is: somebody else got there first.
- */
-
 const PAGE_SIZE = 25;
 
 type LoadState = 'idle' | 'loading' | 'error';
@@ -53,14 +37,6 @@ export function OrganizationApprovalsBlock() {
   });
 
   const [filter, setFilter] = useState<Filter>('PENDING');
-  /**
-   * The filter the list currently belongs to, readable after an `await`.
-   *
-   * `loadMore` appends into whatever list is on screen when its request
-   * resolves. If the reader switched filters while it was in flight, that
-   * list is a different one, and the page must be dropped rather than
-   * appended onto it.
-   */
   const currentFilter = useRef<Filter>(filter);
 
   useEffect(() => {
@@ -73,12 +49,6 @@ export function OrganizationApprovalsBlock() {
   const [appendFailed, setAppendFailed] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
 
-  /**
-   * The two things that restart the first page also put the block back into
-   * its loading state, here rather than inside the effect: the state change
-   * belongs to the event that caused it, and an effect that set state on
-   * every run would render twice for every fetch.
-   */
   const changeFilter = (next: Filter) => {
     setFilter(next);
     setItems([]);
@@ -146,7 +116,6 @@ export function OrganizationApprovalsBlock() {
     }
   }, [cursor, filter, organizationId]);
 
-  /** A decided row replaces its previous self in place; nothing is refetched. */
   const replace = useCallback((decided: AgentActionApproval) => {
     setItems((previous) =>
       previous.map((item) =>
@@ -349,7 +318,9 @@ function ApprovalCard({
             </p>
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">{t('proposal.unreadable')}</p>
+          <p className="text-sm text-muted-foreground">
+            {t('proposal.unreadable')}
+          </p>
         )}
 
         {item.approval.decisionNote ? (

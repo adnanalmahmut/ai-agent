@@ -182,8 +182,6 @@ describe('Organization agent installations (e2e)', () => {
         defaultModelId: MODEL_IDS.openAiGpt4oMini,
         allowedModelIds: [MODEL_IDS.openAiGpt4oMini],
         defaultConfiguration: {},
-        // The published catalog states the definition's maximum so a client
-        // can only ever narrow it. content-idea grants nothing.
         maxToolGrants: [],
       },
     ]);
@@ -437,8 +435,6 @@ describe('Organization agent installations (e2e)', () => {
         });
         expect(switched.count).toBe(1);
 
-        // Deliberately reuse revision 1 so the new database invariant rejects
-        // the candidate after CAS and the whole transaction must roll back.
         await tx.organizationAgentVersion.create({
           data: {
             id: candidateId,

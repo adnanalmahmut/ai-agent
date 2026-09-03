@@ -42,8 +42,6 @@ describe('sign-in validation', () => {
   });
 
   it('does not impose a length rule on an existing password', () => {
-    // An account created before a rule changed must still be able to sign in;
-    // only the server may reject the value.
     expect(
       validate(signInSchema, {
         email: 'sara@example.com',
@@ -65,11 +63,31 @@ describe('sign-up validation', () => {
   });
 
   it.each([
-    ['name', 'nameRequired', { name: '', email: 'a@b.co', password: 'a-good-password' }],
-    ['email', 'emailRequired', { name: 'Sara', email: '', password: 'a-good-password' }],
-    ['email', 'emailInvalid', { name: 'Sara', email: 'nope', password: 'a-good-password' }],
-    ['password', 'passwordRequired', { name: 'Sara', email: 'a@b.co', password: '' }],
-    ['password', 'passwordTooShort', { name: 'Sara', email: 'a@b.co', password: 'short' }],
+    [
+      'name',
+      'nameRequired',
+      { name: '', email: 'a@b.co', password: 'a-good-password' },
+    ],
+    [
+      'email',
+      'emailRequired',
+      { name: 'Sara', email: '', password: 'a-good-password' },
+    ],
+    [
+      'email',
+      'emailInvalid',
+      { name: 'Sara', email: 'nope', password: 'a-good-password' },
+    ],
+    [
+      'password',
+      'passwordRequired',
+      { name: 'Sara', email: 'a@b.co', password: '' },
+    ],
+    [
+      'password',
+      'passwordTooShort',
+      { name: 'Sara', email: 'a@b.co', password: 'short' },
+    ],
   ])('reports %s as %s', (field, key, input) => {
     const result = validate(signUpSchema, input);
 
@@ -78,8 +96,6 @@ describe('sign-up validation', () => {
   });
 
   it('mirrors the installed Better Auth password bounds', () => {
-    // Read from `context/create-context.mjs` in 1.6.27, which the backend does
-    // not override. Guessing tighter would reject what the server accepts.
     expect(PASSWORD_MIN_LENGTH).toBe(8);
     expect(PASSWORD_MAX_LENGTH).toBe(128);
 
@@ -144,7 +160,6 @@ describe('password reset validation', () => {
   });
 
   it('reports the weak password before the mismatch', () => {
-    // Both are wrong; "too short" is the actionable half.
     const result = validate(resetPasswordSchema, {
       password: 'short',
       confirmPassword: '',

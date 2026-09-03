@@ -14,7 +14,6 @@ export type OrganizationBusinessProfileData = {
 
 export type OrganizationsListData = {
   organizations: OrganizationSummary[];
-  /** Empty when the archived read failed; never a reason to fail the page. */
   archived: ArchivedOrganization[];
   error: OrganizationError | null;
 };

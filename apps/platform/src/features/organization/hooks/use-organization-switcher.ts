@@ -9,24 +9,6 @@ import {
   invitationFailureFrom,
 } from '../invitation-state';
 
-/**
- * Reads the organizations a user belongs to and changes which one is active.
- *
- * Both lists come from Better Auth's own reactive atoms, so a membership
- * gained by accepting an invitation shows up without this file knowing that
- * invitations exist.
- *
- * Switching is a server operation: `/organization/set-active` writes
- * `activeOrganizationId` onto the session row and re-issues the cookie. That
- * is why the refresh afterwards is required rather than tidy — every Server
- * Component that read the old active organization is now stale, and there is
- * no client state to update that would fix them.
- *
- * A failed switch is not cosmetic either. The backend clears the active
- * organization when the membership check fails, so the user really is now in
- * no organization, and the refresh makes the UI say so instead of continuing
- * to show the one they just failed to select.
- */
 export function useOrganizationSwitcher() {
   const revalidate = useRevalidate();
   const organizations = authClient.useListOrganizations();

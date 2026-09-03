@@ -2,11 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { localeSwitchHref } from './locale-switch-href';
 
-/**
- * Guards the half of the language switch that `getPathname` does not cover:
- * the locale prefix is `next-intl`'s job, but keeping the reader's place on
- * the page — their tab, their filter, their anchor — is ours.
- */
 describe('localeSwitchHref', () => {
   it('preserves both the query string and the fragment', () => {
     expect(
@@ -24,8 +19,6 @@ describe('localeSwitchHref', () => {
   });
 
   it('keeps the fragment when there is no query', () => {
-    // The showcase page navigates by anchor, so losing this sends the reader
-    // back to the top of the document on every language switch.
     expect(localeSwitchHref('/', { hash: '#formatting' })).toBe('/#formatting');
   });
 
@@ -34,7 +27,6 @@ describe('localeSwitchHref', () => {
   });
 
   it('adds no punctuation when nothing was captured', () => {
-    // The server-rendered call passes no parts at all.
     expect(localeSwitchHref('/about')).toBe('/about');
   });
 
@@ -45,14 +37,12 @@ describe('localeSwitchHref', () => {
   });
 
   it('accepts parts without their leading marker', () => {
-    expect(localeSwitchHref('/settings', { search: 'tab=x', hash: 'top' })).toBe(
-      '/settings?tab=x#top',
-    );
+    expect(
+      localeSwitchHref('/settings', { search: 'tab=x', hash: 'top' }),
+    ).toBe('/settings?tab=x#top');
   });
 
   it('carries no locale prefix of its own', () => {
-    // `router.replace` applies the prefix the configured mode calls for; a
-    // prefix baked in here would double up under `always`.
     expect(localeSwitchHref('/settings', { search: '?tab=x' })).not.toMatch(
       /^\/(ar|en)\//,
     );

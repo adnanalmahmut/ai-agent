@@ -1,6 +1,12 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle, buttonVariants } from '@repo/ui';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  buttonVariants,
+} from '@repo/ui';
 import { Check, Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslations } from 'use-intl';
@@ -18,18 +24,6 @@ import {
 } from '../hooks/use-create-organization';
 import { suggestSlug } from '../organization-validation';
 
-/**
- * Creating an organization.
- *
- * A page rather than a dialog, and for a reason beyond taste: this is the
- * screen a brand-new user with no organizations is sent to from an empty
- * state, so it has to be linkable, refreshable and reachable with the Back
- * button. A modal over an empty list would be all three of those things badly.
- *
- * The slug is suggested from the name until the reader touches it, then left
- * alone. Continuing to overwrite an edited slug on every keystroke of the name
- * is the classic version of this form that people fight with.
- */
 export function CreateOrganizationBlock() {
   const t = useTranslations('Organization');
 
@@ -123,14 +117,6 @@ export function CreateOrganizationBlock() {
   );
 }
 
-/**
- * What the slug field says underneath itself.
- *
- * Deliberately advisory. "Available" means the server said so a moment ago,
- * not that the name is reserved — uniqueness is decided on write, and a
- * collision in between is answered with a translated error rather than
- * prevented here.
- */
 function SlugHint({
   availability,
 }: {

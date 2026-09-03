@@ -1,324 +1,80 @@
 # Database
 
-PostgreSQL stores identity, sessions, accounts, verification records,
-organizations, members, invitations, Better Auth rate-limit rows, agent runs,
-outbox events, control-plane state, organization-agent installations and
-versions, and organization knowledge. Prisma schema and generated client are
-committed and CI verifies that generation is current.
-outbox events, control-plane state, organization product-audit history, and
-organization knowledge. Prisma schema and generated client are committed and
-CI verifies that generation is current.
+PostgreSQL is the authority for identity, tenant data, configuration, accepted
+agent work, approvals, and audit history. The Prisma schema is
+`apps/backend/prisma/schema.prisma`; generated client code is committed and CI
+checks that it is current.
 
-The `organization` row also owns application business settings separately from
-Better Auth's profile fields: `locale`, `timezone`, `currency`, `legalName`,
-`industry`, `websiteUrl`, and `businessDescription`. The defaults (`ar`, `UTC`,
-and `USD`) make every existing row immediately readable. The schema stores a
-dedicated `businessProfileVersion` and `businessProfileUpdatedAt`; application
-writes compare and increment that version so Better Auth name/slug changes do
-not cause false conflicts. These are typed columns rather than entries in the
-legacy metadata string because they are stable product inputs with one owner,
-validation contract, and future consumers.
+## Model groups
 
-`organization_audit_event` is append-only product history rooted in a required
-organization foreign key. It records the authenticated actor when one exists,
-an application-owned action and subject identity, commit time, and closed safe
-JSON projections before and after a mutation. `actorUserId` is intentionally
-not a foreign key: an audit fact must survive a future actor-lifecycle change
-without blocking it or erasing attribution through `SET NULL`. Organization
-deletion is restricted so tenant history cannot be orphaned or silently
-removed. Reads are served by `(organizationId, occurredAt, id)` descending;
-the second index supports the history of one subject without weakening the
-tenant predicate. That second index carries an explicit `map:` in the Prisma
-schema because its generated name exceeds PostgreSQL's 63-byte identifier
-limit. The owning migration asked for a 76-byte name and PostgreSQL kept the
-first 63; Prisma truncates to 63 as well, but by a rule that preserves the
-`_idx` suffix, so the two disagree and `migrate diff` reported a permanent
-phantom rename. The map records the name the database actually holds. It
-changes no index semantics and needs no migration. The application exposes create-in-transaction and bounded
-list operations only—no update or delete operation. PostgreSQL independently
-enforces the same boundary with a `BEFORE UPDATE OR DELETE` trigger that raises
-`organization_audit_event_append_only`, so direct Prisma and raw-SQL mutation
-attempts using the application role fail as well. INSERT and SELECT remain
-available.
+| Area           | Models                                                                              |
+| -------------- | ----------------------------------------------------------------------------------- |
+| Authentication | `User`, `Session`, `Account`, `Verification`, `RateLimit`                           |
+| Organizations  | `Organization`, `Member`, `Invitation`, `OrganizationAuditEvent`                    |
+| Agents         | `AgentRun`, `OrganizationAgentInstallation`, `OrganizationAgentVersion`             |
+| Tools          | `ToolExecution`, `ToolExecutionApproval`                                            |
+| Delivery       | `OutboxEvent`                                                                       |
+| Control plane  | feature-flag overrides, `RuntimeSetting`, `ManagedSecret`, `ControlPlaneAuditEvent` |
+| Knowledge      | `KnowledgeSpace`, `KnowledgeDocument`, `KnowledgeChunk`                             |
+| Content        | `ContentProject`, `ContentDraft`                                                    |
 
-`tool_execution` is the durable record of one governed tool call: the
-organization, the run and its attempt, the exact `toolId` and `toolVersion`, the
-parsed input, the parsed result, and a closed failure code. It reaches its run
-through the composite `("agentRunId", "organizationId")` against
-`agent_run("id", "organizationId")`, so an execution recorded against another
-organization's run is refused by PostgreSQL rather than by a service predicate.
-The tool identity is stored as columns rather than as a foreign key because the
-registry is code — there is no `tool_definition` table to point at, and the pair
-is exactly what a grant names. `organization_agent_version.toolGrants` holds the
-tenant's selected `id@version` list, defaulted so the column is additive: a row
-written by an image that predates it means what an empty list means. A row left
-`STARTED` is an honest unknown outcome for a read-only call, and nothing sweeps
-it terminal. Leaving `STARTED` at all is one compare-and-set — the update
-carries `status = 'STARTED'` beside the tenant-scoped id and requires exactly
-one row — so a settled execution is never rewritten and a terminal write that
-matches nothing is a refusal rather than a silent no-op.
+Agent definitions, model definitions, tool definitions, and runtime adapters are
+code-owned. Database rows reference their stable/versioned identities; they do
+not redefine executable behavior.
 
-A side effect uses the same row with a second lifecycle:
-`AWAITING_APPROVAL -> REJECTED | APPROVED -> SUCCEEDED | FAILED |
-OUTCOME_UNKNOWN`. `effectAttemptCount` is the concurrency fence for delivery — a
-worker claims an attempt by matching the count it read and bumping it —
-`effectFirstAttemptedAt` bounds retries to the provider's idempotency window,
-`effectPayloadDigest` records what the first attempt sent so a later attempt can
-prove it repeats the same payload without the row holding the recipient's
-address, and `providerMessageId` is the provider's identifier for an accepted
-effect. `OUTCOME_UNKNOWN` carries no failure code: it is the honest state for a
-request the provider may have accepted whose answer was lost past the safe
-retry window. All four columns are defaulted or nullable, so a row written by
-the preceding image means what a read-only execution means.
+## Isolation and integrity
 
-`tool_execution_approval` is the human decision on one side-effect execution:
-exactly one per execution (unique on `toolExecutionId`), `PENDING | APPROVED |
-REJECTED`, who decided, when, a bounded note, and the digest of the parsed
-proposal the approver saw. It reaches its execution through the composite
-`("toolExecutionId", "organizationId")` against a new unique on
-`tool_execution("id", "organizationId")`, so PostgreSQL refuses an approval
-recorded against another organization's execution. A separate row rather than
-columns on the execution because the decision is a different fact with its own
-actor and its own time, and because the composite foreign key is what makes the
-tenant boundary the database's.
+Organization-owned relationships include `organizationId` even where it could
+be inferred through a parent. Composite foreign keys bind child and parent
+tenant identity so a service predicate is not the only defense against
+cross-organization references.
 
-Product audit history is retained indefinitely until a concrete product or
-legal retention requirement is approved. Current volume is bounded by real
-product mutations and reads are tenant-indexed and paginated; guessing a
-deletion window now could destroy accountability evidence. If retention is
-introduced later, a separately reviewed migration/policy must deliberately
-revise the PostgreSQL append-only protection. There is no hidden deletion
-bypass for hypothetical future retention.
+Identity and organization roots use reversible lifecycle state. Historical
+membership, agent, content, tool, and audit rows use restrictive relations
+rather than cascading deletion. Sessions and provider account links cascade
+with their user because they have no independent historical value.
 
-`agent_run` is the durable business authority for accepted background agent
-work. Its lifecycle is deliberately small (`QUEUED`, `RUNNING`, `SUCCEEDED`,
-`FAILED`) and separate from outbox delivery and BullMQ job state. Runtime is a
-string because application code owns runtime support; adding a runtime does not
-inherently require a database enum migration. That column is also what
-distinguishes an MCP session from work a worker executes: a session carries
-`mcp`, a value deliberately absent from the executable-runtime constant, so the
-runtime registry cannot resolve it and the worker cannot run one. A session is
-otherwise an ordinary run — same pinning, same idempotency, same tenant keys —
-which is why it needs no table and no column of its own, and why its tool calls
-satisfy the `(agentRunId, organizationId)` foreign key that is the tenant
-boundary for `tool_execution`. Request idempotency is enforced
-by `UNIQUE (organizationId, idempotencyKey)`, while the run id used as BullMQ's
-job id is only short-lived transport deduplication. The organization foreign key
-restricts deletion so execution history cannot be silently removed, and the
-creator foreign key does the same when a creator is present.
+Durable idempotency is enforced with PostgreSQL uniqueness and conditional
+writes. Examples include organization-scoped request keys, immutable
+organization-agent version numbers, tenant-safe source-run references, and
+single approval decisions. BullMQ job IDs improve efficiency but do not replace
+these constraints.
 
-`agentVersion` pins the run to one definition revision. Definitions are code,
-so `agentId` alone is ambiguous the moment a definition changes: a run accepted
-before a deployment must still execute the revision it was accepted against.
-The pair `(agentId, agentVersion)` is therefore what a worker resolves.
+Audit tables are append-only from the application's perspective. Product
+mutations write their audit row in the same transaction. Managed-secret values
+are authenticated ciphertext; read models expose metadata only.
 
-`organizationAgentVersionId` names the immutable organization-owned enabled
-state selected when the run was accepted. Its composite foreign key includes
-`organizationId`, so PostgreSQL rejects a run that references another tenant's
-version. It remains nullable only for pre-migration and rolling-rollback runs;
-new application acceptance always writes it. A legacy null-reference run uses
-the pinned code definition's owned default and never today's active pointer.
+Knowledge chunks repeat organization and space identity so tenant filtering is
+inside the vector-ranking query. The composite relation prevents a chunk from
+claiming a different organization than its space. The vector field is managed
+with pgvector and queried through the knowledge repository.
 
-`modelPolicyId`, `modelId`, and `modelPricingRevisionId` make each new run's
-model decision self-contained. Acceptance resolves all three inside the
-run/outbox transaction and writes the exact price-resolution instant as
-`createdAt`. The fields remain nullable together for expand/rollback
-compatibility: an all-null legacy run uses its pinned definition revision's
-default, while a partial or mismatched triple fails before a provider call.
+## Agent-run lifecycle
 
-`createdByUserId` is nullable. Null means only that no authenticated
-application User initiated the run, which is the honest representation for
-scheduled or system-initiated work. It is not an actor abstraction, a trigger
-hierarchy, or a placeholder for a synthetic system user.
+`AgentRun` is distinct from both outbox delivery state and BullMQ job state. A
+run pins the exact agent revision, organization-agent version, model policy,
+model, and price revision selected at acceptance. The queue payload contains
+only the run ID.
 
-A run can also be finalized by the worker's reconciliation sweep rather than by
-the attempt that was executing it. When BullMQ terminally fails a job without
-invoking the handler, no attempt is left to record an outcome, so the sweep
-writes `FAILED` with `completedAt` and an application-owned constant. That
-write is conditional on the run still being `QUEUED` or `RUNNING`, which is what
-makes a repeated, delayed, or reordered observation a no-op and keeps a run that
-a late worker managed to complete from being dragged back to failed. It
-deliberately does not match on `attemptCount`: the sweep is not an attempt, and
-forging an ordinal would be wrong precisely in the skipped-ordinal case the
-fence exists for.
+Attempt ordinals act as fencing tokens. Terminal writes match the current claim
+so a delayed worker cannot overwrite a newer attempt. Safe, bounded constants
+are the only permitted persisted failure diagnostics.
 
-`INDEX (status, updatedAt)` serves that sweep, which repeatedly asks for the
-oldest non-terminal runs. Terminal rows are never deleted, so without the index
-a bounded query costs a scan proportional to total history rather than to the
-backlog it is looking for: measured on PostgreSQL 16 against 200,000 terminal
-rows and a 200-row live tail, the query plans as a bitmap index scan over three
-heap blocks at 0.5 ms, against 58 ms for the sequential scan the planner chooses
-without it. The index carries no durable state and no semantics, and
-correctness does not depend on it.
+## Migrations
 
-Migration order:
+Migrations are forward-only and run as a separate deployment mode before
+application replacement. Schema changes must remain compatible with the
+currently running image through an expand/migrate/switch/contract sequence.
 
-1. Better Auth core.
-2. Admin, organization, and reversible lifecycle fields.
-3. Transactional outbox.
-4. Nullable session country/city.
-5. Better Auth database rate-limit storage.
-6. Durable agent-run foundation.
-7. Agent-run reconciliation index.
-8. Control plane: feature-flag overrides, runtime settings, managed secrets.
-9. Knowledge retrieval core.
-10. Knowledge management.
-11. Control-plane audit history.
-12. Super-admin floor enforcement.
-13. Organization-agent installations and immutable versions.
-14. Agent-run effective organization-version reference.
-15. Organization model policy and AgentRun model/price pinning.
+Useful commands:
 
-`organization_agent_installation` is the mutable aggregate root for one
-`(organizationId, agentId)`. Only its integer revision and active-version
-pointer change. `organization_agent_version` is append-only application state:
-it records the installation revision, exact code definition revision, enabled
-state, definition-validated configuration, creator attribution, and creation
-time. It also records the exact definition-owned model-policy revision and its
-selected stable model. Those two fields remain nullable together for rows
-written by the preceding image; new writes always populate both, and a partial
-pair is invalid. Attribution intentionally has no user foreign key so future user
-lifecycle work cannot delete or block historical state.
+```sh
+pnpm db:generate
+pnpm db:validate
+pnpm db:migrate       # create and apply a development migration
+pnpm db:deploy        # apply committed migrations
+```
 
-The nullable active pointer permits cyclic installation/version creation in one
-transaction; application reads reject a committed installation with no active
-version. Its composite foreign key references `(version.id,
-version.installationId)`, preventing one installation from pointing at another's
-version. Versions reference `(installation.id, installation.organizationId)`,
-so a version cannot claim a tenant different from its installation. The
-organization itself is restricted on delete, preserving this business history.
-`UNIQUE (installationId, revision)` prevents duplicate immutable revisions in
-one installation while allowing different installations to use the same
-revision numbers. The active-pointer foreign key is deferred to transaction
-commit so replacement can compare-and-swap the pointer before inserting the
-candidate: only the CAS winner writes revision N+1, while the unique constraint
-remains a separate database invariant. A candidate insert failure rolls the
-pointer update back with the same transaction.
-Version history keyset-pages by `(createdAt, id)` descending through the
-installation/organization predicates.
-9. Knowledge storage and management.
-10. Control-plane audit history and the super-admin floor.
-11. Additive organization business settings.
-
-Feature-flag overrides are two tables — one platform-wide, one per
-organization — rather than one table with a nullable `organizationId`.
-PostgreSQL treats NULLs as distinct in a unique index, so "at most one platform
-override per key" would not actually hold on the single-table shape, and the
-constraint that matters most would have been the one silently missing. The
-organization table cascades on organization delete, because an override for an
-organization that no longer exists has no meaning. Every control-plane table
-nulls its editor on user delete: who changed a setting is useful history but
-must never block removing an account.
-
-Managed secrets store ciphertext, nonce and authentication tag as separate
-`Bytea` columns alongside the algorithm and a fingerprint of the master key that
-sealed them. The fingerprint is what lets the application distinguish "encrypted
-under a key this deployment no longer has" from "this row was altered" — GCM
-alone reports both as an authentication failure.
-
-Sessions/accounts cascade with their user because they have no independent
-historical meaning. Membership and invitation foreign keys restrict deletion
-because they carry history. User/organization roots are changed through soft
-lifecycle fields, not physical deletion.
-
-Deployments run `prisma migrate deploy` before application rollout. Migration
-failure stops deployment. Schema evolution must remain backward compatible via
-expand → migrate/backfill → switch → contract-later; rollback never executes a
-down migration. See [backup/restore](backup-restore.md) for recovery.
-
-## Knowledge
-
-`knowledge_space`, `knowledge_document`, and `knowledge_chunk` hold
-organization-owned reference material, chunked and embedded so an agent can be
-given the parts of it that bear on a request. A space is a named collection
-within one organization, unique by `(organizationId, slug)`, because an agent's
-context policy names the spaces it may read by slug and a slug stays readable
-in code review where a per-deployment uuid would not.
-
-All three tables carry `organizationId`, including the two that could derive it
-through a parent. That denormalization is the isolation mechanism: the tenant
-predicate has to sit in the same row as the vector so the ranking query can be
-scoped without a join, and a join is something a later query can omit. Omitting
-it here returns another organization's material. `knowledge_chunk` carries
-`spaceId` for the same reason — a context policy is enforced by the same
-predicate that ranks.
-
-A document is identified within its space by title —
-`@@unique([organizationId, spaceId, title])` — because ingestion is an upsert
-on the material's own name rather than on an id the caller would have to keep.
-`revision` counts how many times that title's content has actually changed;
-there is deliberately no revision *history* table, since nothing in this
-milestone reads an older revision and a table that is only ever written is a
-table that will drift.
-
-Organization deletion is restricted on all three, like every other business
-table. Documents and chunks cascade from their space, and chunks from their
-document, because neither has meaning without its parent and re-ingestion
-replaces them wholesale.
-
-The tenant column is enforced, not merely maintained. `KnowledgeSpace` and
-`KnowledgeDocument` carry `@@unique([id, organizationId])` so a child can
-reference the pair, and `KnowledgeChunk` references
-`(spaceId, organizationId)` and `(documentId, organizationId)` rather than the
-two ids alone. Left as independent single-column keys, the three tenant answers
-on one row would agree only as far as whatever wrote it was correct — and
-`organizationId` is the entire scoping predicate. As pairs, a chunk claiming one
-organization while sitting in another's space is a constraint violation.
-
-`ContentProject` also carries the brief its ideas were generated from — topic
-and goal required, audience and guidance nullable, mirroring which of them the
-request schema requires. They are copied rather than resolved through the run
-for the same reason the idea snapshot is, and their migration guards itself: it
-adds two `NOT NULL` columns and refuses with an explicit error if the table
-holds any row. The guard buys a legible message rather than atomicity —
-PostgreSQL DDL is transactional, so a populated table would fail cleanly and
-wholly either way — and it names the row count and the missing backfill instead
-of reporting that a column contains null values.
-
-`ContentProject` and `ContentDraft` follow the same rule, and extend it to a
-table that did not previously need it. `AgentRun` gained
-`@@unique([id, organizationId])` so a project can reference
-`(sourceRunId, organizationId)` as a pair; a draft references
-`(projectId, organizationId)`. The project's snapshot columns are a copy of one
-idea rather than a pointer into `AgentRun.output`, because a project whose
-identity depended on the position of an element inside a JSON blob would become
-unreadable the day that shape changed. Drafts cascade from their project and the
-project restricts on its source run: the run is the snapshot's provenance, and
-deleting it would leave the row claiming to have come from somewhere that no
-longer exists.
-
-`knowledge_chunk.embedding` is `vector(1536)`, provided by the `vector`
-extension that the migration creates. 1536 is `text-embedding-3-small` native
-and reachable by `text-embedding-3-large` through its `dimensions` parameter,
-so two further models remain available without a table rewrite and a full
-re-embedding. The column is nullable, and not only because a chunk exists
-before it is embedded: a *required* `Unsupported` field removes `create`,
-`createMany` and `upsert` from the generated Prisma delegate entirely. Vectors
-are therefore written by a raw `UPDATE` after the row exists, and a chunk whose
-embedding is still null is excluded from retrieval rather than treated as a
-zero vector — which would be an equidistant match to everything.
-
-`embeddingModel` records which model produced each vector, and retrieval
-filters on it. Two models' embeddings are not comparable, and 1536 dimensions
-was chosen precisely so one model can replace another without a column change —
-which means the swap is not forced through a migration that stops traffic and
-the table holds both during re-embedding. A query that ranked across them would
-be confidently wrong with no error, so a search states the model it was
-embedded with and sees only rows from that model.
-
-There is deliberately **no vector index**. An approximate index applies the
-tenant predicate after the index scan, so a scoped query returns whichever of
-the requested rows happen to survive the filter — short, with no error. Prisma
-also cannot represent HNSW or IVFFlat and emits `DROP INDEX` for one on every
-subsequent migration, including an index created by raw SQL inside a migration
-file, so it would not survive a forward-only pipeline in any case. Exact search
-needs no index. The btree on `(organizationId, spaceId)` is what serves the
-scoping predicate, which is what pgvector's own guidance recommends for a
-filter this selective. Introducing an approximate index is a decision for
-measured evidence, not for anticipation.
-
-Vector reads and writes go through `$queryRaw`/`$executeRaw` rather than
-TypedSQL. `prisma generate --sql` requires a reachable database at generation
-time, and this repository commits the generated client and fails CI on drift —
-adopting it would put a pgvector-capable PostgreSQL into the client-generation
-step to type two queries.
+Do not use `db:push` for shared schema changes. See [deployment](deployment.md)
+for the migration gate and [backup/restore](backup-restore.md) before recovery
+work.

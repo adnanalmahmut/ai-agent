@@ -1,16 +1,8 @@
-import { cva, type VariantProps } from "class-variance-authority"
-import * as React from "react"
+import { cva, type VariantProps } from "class-variance-authority";
+import * as React from "react";
 
-import { cn } from "@repo/ui/lib/utils"
+import { cn } from "@repo/ui/lib/utils";
 
-/**
- * Inline status message.
- *
- * The icon slot is a grid column rather than an absolutely positioned child:
- * `position: absolute` with `left`/`right` is the single most common way an
- * otherwise correct component breaks in RTL, and a grid column mirrors for
- * free.
- */
 const alertVariants = cva(
   "relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5",
   {
@@ -24,8 +16,8 @@ const alertVariants = cva(
     defaultVariants: {
       variant: "default",
     },
-  }
-)
+  },
+);
 
 function Alert({
   className,
@@ -40,7 +32,7 @@ function Alert({
       className={cn(alertVariants({ variant }), className)}
       {...props}
     />
-  )
+  );
 }
 
 function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
@@ -49,11 +41,11 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="alert-title"
       className={cn(
         "col-start-2 min-h-4 font-medium tracking-tight",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function AlertDescription({
@@ -65,11 +57,11 @@ function AlertDescription({
       data-slot="alert-description"
       className={cn(
         "col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
-export { Alert, AlertTitle, AlertDescription, alertVariants }
+export { Alert, AlertTitle, AlertDescription, alertVariants };

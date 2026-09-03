@@ -1,21 +1,5 @@
-/**
- * Credentials the platform is willing to hold, declared in code.
- *
- * The list is short on purpose and is not a general secret store. Each entry
- * exists because one adapter needs one credential, and the adapter names the
- * key; nothing here is reachable by a caller-supplied string, so no request can
- * ask the application to decrypt something it was not built to use.
- *
- * `validate` is the shape check applied before a value is ever encrypted. It is
- * deliberately weak — a prefix and a length — because the only authority on
- * whether a credential is valid is the provider, and a strict pattern would
- * reject a legitimate key the day the provider changes its format. What it does
- * catch is the common operator error: pasting a truncated value, a placeholder,
- * or the wrong provider's key.
- */
 export type ManagedSecretDefinition = {
   description: string;
-  /** Returns an operator-facing reason when the value is obviously wrong. */
   validate: (value: string) => string | undefined;
 };
 

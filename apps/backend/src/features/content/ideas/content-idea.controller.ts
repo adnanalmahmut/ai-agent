@@ -21,32 +21,10 @@ import { createZodDto } from '../../../infrastructure/http';
 import { UserRateLimit } from '../../../infrastructure/rate-limit';
 import { ContentIdeaService } from './content-idea.service';
 
-/**
- * Content ideas, over HTTP.
- *
- * Two operations and no third. Generation is asynchronous because it is a
- * provider call that takes seconds and can fail, so the request returns an
- * operation and the caller polls it — there is deliberately no synchronous
- * variant, which would hold a connection open for the length of a model call
- * and give a timeout no retry could distinguish from a refusal.
- *
- * Authorization is the shared organization guard, so it runs before the body
- * is validated and answers about the organization in the path rather than the
- * session's active one.
- */
-
 const requestSchema = contentIdeaInput;
 
 class RequestContentIdeasDto extends createZodDto(requestSchema) {}
 
-/**
- * Required, not optional.
- *
- * Generation costs money and is not naturally idempotent, so a client that
- * retried a timed-out request without a key would buy the same ideas twice.
- * Demanding the header makes that the client's explicit decision rather than
- * an accident of their HTTP library.
- */
 const idempotencyKeySchema = z.string().trim().min(8).max(200);
 
 @ApiTags('Content ideas')
@@ -57,10 +35,6 @@ export class ContentIdeaController {
 
   @Post()
   @RequiresOrganizationPermission({ contentIdea: ['create'] })
-  /**
-   * Metered well below the generic budget: each accepted request is a queued
-   * provider call against a credential the platform owns.
-   */
   @UserRateLimit({ points: 20, durationSec: 300 })
   @ApiOperation({
     operationId: 'requestContentIdeas',
@@ -93,19 +67,6 @@ export class ContentIdeaController {
     });
   }
 
-  /**
-   * Declared before `:operationId`, and that ordering is load-bearing.
-   *
-   * Nest matches routes in declaration order, so a parameterised segment
-   * declared first would swallow `/availability` and answer it as a lookup for
-   * an operation with that id — a 404 for a route that exists. A test asserts
-   * this answers, so reordering the file breaks the build rather than the
-   * screen.
-   *
-   * `contentIdea:read` rather than `create`: a member who may see results but
-   * not spend money still needs the screen to explain why nothing is being
-   * generated.
-   */
   @Get('availability')
   @RequiresOrganizationPermission({ contentIdea: ['read'] })
   @ApiOperation({

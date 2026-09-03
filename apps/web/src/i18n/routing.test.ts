@@ -1,4 +1,8 @@
-import { DEFAULT_LOCALE, LOCALE_META, SUPPORTED_LOCALES } from '@repo/i18n-core';
+import {
+  DEFAULT_LOCALE,
+  LOCALE_META,
+  SUPPORTED_LOCALES,
+} from '@repo/i18n-core';
 import { createNavigation } from 'next-intl/navigation';
 import { defineRouting } from 'next-intl/routing';
 import { describe, expect, it } from 'vitest';
@@ -6,14 +10,6 @@ import { describe, expect, it } from 'vitest';
 import { webI18nConfig, type LocalePrefixMode } from './config';
 import { routing } from './routing';
 
-/**
- * Builds the navigation helpers for a given URL shape.
- *
- * The language switcher never branches on the prefix mode — it hands a
- * locale-agnostic pathname to next-intl and lets `routing` apply the prefix.
- * `getPathname` is that mechanism, so exercising it here is what proves the
- * switcher works under both modes without a browser.
- */
 function navigationFor(mode: LocalePrefixMode) {
   return createNavigation(
     defineRouting({
@@ -34,8 +30,6 @@ describe('routing policy', () => {
   });
 
   it('never lets the browser or a cookie choose the web locale', () => {
-    // The project policy: the URL is the only source of truth. This must not
-    // become environment-dependent or be flipped for convenience.
     expect(routing.localeDetection).toBe(false);
     expect(webI18nConfig.localeDetection).toBe(false);
   });
@@ -49,8 +43,9 @@ describe('routing policy', () => {
   });
 
   it('maps every supported locale to a direction', () => {
-    expect(SUPPORTED_LOCALES.map((locale) => LOCALE_META[locale].direction))
-      .toEqual(['rtl', 'ltr']);
+    expect(
+      SUPPORTED_LOCALES.map((locale) => LOCALE_META[locale].direction),
+    ).toEqual(['rtl', 'ltr']);
   });
 });
 
@@ -76,7 +71,6 @@ describe('locale-aware pathnames', () => {
     const { getPathname } = navigationFor('as-needed');
 
     it.each([
-      // The default locale is unprefixed; every other locale keeps its prefix.
       ['ar', '/', '/'],
       ['en', '/', '/en'],
       ['ar', '/settings', '/settings'],
@@ -98,7 +92,6 @@ describe('locale-aware pathnames', () => {
       const english = getPathname({ locale: 'en', href: '/settings' });
 
       expect(arabic).not.toBe(english);
-      // Switching language must land on the same page, never the home page.
       expect(arabic.endsWith('/settings')).toBe(true);
       expect(english.endsWith('/settings')).toBe(true);
     }

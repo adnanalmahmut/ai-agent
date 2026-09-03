@@ -1,10 +1,7 @@
 import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  authClientStub,
-  resetAuthClientStub,
-} from '@/test/auth-client-stub';
+import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
 import { context, organization } from '@/test/organization-fixtures';
 import { renderInOrganization } from '@/test/render';
 
@@ -27,9 +24,8 @@ vi.mock('../organization-api', async () => {
   };
 });
 
-const { OrganizationContentProjectBlock } = await import(
-  './organization-content-project-block'
-);
+const { OrganizationContentProjectBlock } =
+  await import('./organization-content-project-block');
 const { ApiError } = await import('@/lib/application-api');
 
 const detail = (overrides: Record<string, unknown> = {}) => ({
@@ -84,8 +80,6 @@ describe('organization content project block', () => {
 
     render();
 
-    // Twice over: the page heading and the draft's working title, which start
-    // life the same and are separately meaningful once a writer renames one.
     expect(await screen.findAllByText('Kettle teardown')).toHaveLength(2);
     expect(
       screen.getByText('Cost breakdown as a trust signal'),
@@ -93,12 +87,6 @@ describe('organization content project block', () => {
     expect(screen.getByText(/revision 1/i)).toBeInTheDocument();
   });
 
-  /**
-   * An unwritten draft says so rather than rendering blank.
-   *
-   * A draft with no body is the normal state in this release — there is no
-   * writer yet — so an empty card would read as a rendering failure.
-   */
   it('says the draft is unwritten rather than showing nothing', async () => {
     getContentProject.mockResolvedValue(detail());
 
@@ -133,16 +121,11 @@ describe('organization content project block', () => {
     ).toBeInTheDocument();
   });
 
-  /**
-   * The brief is what a writer works to, so it leads the page.
-   */
   it('shows the brief the ideas were generated from', async () => {
     getContentProject.mockResolvedValue(detail());
 
     render();
 
-    // Bound to their labels, not merely present: a topic/goal swap would pass
-    // an assertion that only looked for the two strings somewhere on the page.
     const valueFor = (label: string) =>
       screen.getByText(label).parentElement?.textContent ?? '';
 
@@ -154,13 +137,6 @@ describe('organization content project block', () => {
     expect(valueFor('Guidance:')).toContain('Warm and practical.');
   });
 
-  /**
-   * An empty string is not something the request said.
-   *
-   * `guidance` is optional with no minimum length, so a direct API caller can
-   * store `''` — and a label with nothing after it is the same misreading as
-   * an unconditional row.
-   */
   it('omits an optional field the request left empty', async () => {
     getContentProject.mockResolvedValue(
       detail({
@@ -180,10 +156,6 @@ describe('organization content project block', () => {
     expect(screen.queryByText(/^guidance:$/i)).not.toBeInTheDocument();
   });
 
-  /**
-   * A request that named no audience shows no audience row. An empty row would
-   * read as "no audience" where the truth is "the request did not say".
-   */
   it('omits the optional rows the original request left out', async () => {
     getContentProject.mockResolvedValue(
       detail({
@@ -216,15 +188,8 @@ describe('organization content project block', () => {
     expect(screen.getByText(/لم يُكتب شيء بعد/)).toBeInTheDocument();
   });
 
-  /**
-   * A project belonging to another organization answers 404, and this screen
-   * shows the same thing it shows for one that never existed. Anything else
-   * would make the page a way to probe for ids.
-   */
   it('reports a refused project as simply absent', async () => {
-    getContentProject.mockRejectedValue(
-      new ApiError(404, 'NOT_FOUND'),
-    );
+    getContentProject.mockRejectedValue(new ApiError(404, 'NOT_FOUND'));
 
     render();
 

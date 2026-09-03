@@ -23,8 +23,7 @@ docs/rollback.md
 docs/backup-restore.md
 docs/security.md
 docs/operations-runbook.md
-docs/troubleshooting.md
-docs/project-history.md'
+docs/troubleshooting.md'
 
 for file in $required_files; do
   if [ ! -s "$file" ]; then
@@ -43,12 +42,10 @@ grep -Fq 'staging-success-<SHA>' docs/cd.md
 grep -Fq 'actions/upload-artifact@v7' docs/cd.md
 grep -Fq 'actions/download-artifact@v8' docs/cd.md
 grep -Fq 'ops/tests/artifact-contract.sh' docs/cd.md
-grep -Fq 'OCI image index digest' docs/release-retention.md
-grep -Fq 'never compares digest strings' docs/release-retention.md
-grep -Fq 'before any mutation' docs/release-retention.md
+grep -Fq 'CURRENT_RELEASE.json' docs/release-retention.md
+grep -Fq 'PREVIOUS_RELEASE.json' docs/release-retention.md
+grep -Fq 'docker image inspect' docs/release-retention.md
 grep -Fq 'reclaim-locked' docs/release-retention.md
-grep -Fq 'open file description' docs/release-retention.md
-grep -Fq 'never fails the deployment' docs/release-retention.md
 grep -Fq 'release-retention.md' docs/cd.md
 grep -Fq 'release-retention.md' docs/rollback.md
 grep -Fq 'ai-agent-release-retention' docs/host-bundle.md

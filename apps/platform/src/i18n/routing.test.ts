@@ -16,30 +16,17 @@ import {
   stripLocalePrefix,
 } from './routing';
 
-/**
- * The URL grammar.
- *
- * These are pure functions over strings, which is the whole reason they exist
- * as a module: the rules they encode — where the locale sits, what happens
- * when it is missing, how the mount point is added and removed — decide every
- * redirect in the application, and they are worth checking without a router.
- */
 describe('routing policy', () => {
   it('always carries the locale in the path', () => {
-    // The router matches on a real `:locale` segment; "sometimes absent" would
-    // make `/organizations` indistinguishable from a locale named that.
     expect(LOCALE_PREFIX).toBe('always');
   });
 
   it('never lets the browser or a cookie choose the locale', () => {
-    // Project policy: a link shared between two people shows them the same
-    // page. This must not become environment-dependent.
     expect(LOCALE_DETECTION).toBe(false);
   });
 
   it('keeps the locale cookie as a preference the backend reads', () => {
     expect(LOCALE_COOKIE.name).toBe('APP_LOCALE');
-    // Scoped to the whole origin, because the reader is the API at `/api`.
     expect(LOCALE_COOKIE.path).toBe('/');
   });
 
@@ -62,13 +49,10 @@ describe('localizedPath', () => {
   });
 
   it('does not leave a trailing slash on the dashboard', () => {
-    // `/en/` and `/en` are different URLs to the router; emitting the first
-    // would cost a redirect on the most-visited route in the application.
     expect(localizedPath('en', '/')).toBe('/en');
   });
 
   it('carries no mount point of its own', () => {
-    // Next `basePath` applies `/platform`; baking it in here would double it up.
     expect(localizedPath('en', '/organizations')).not.toContain(
       PLATFORM_BASE_PATH,
     );
@@ -89,7 +73,6 @@ describe('stripLocalePrefix', () => {
     ['/ar', '/'],
     ['/en/organizations', '/organizations'],
     ['/ar/organizations/abc', '/organizations/abc'],
-    // Not a locale segment, so nothing is removed.
     ['/organizations', '/organizations'],
     ['/', '/'],
   ])('%s → %s', (input, expected) => {
@@ -130,7 +113,6 @@ describe('stripBasePath', () => {
   });
 
   it('leaves a path that has already lost it alone', () => {
-    // Router locations arrive without it; `window.location` arrives with it.
     expect(stripBasePath('/en/organizations')).toBe('/en/organizations');
   });
 
@@ -147,8 +129,6 @@ describe('localeFallbackPath', () => {
   });
 
   it('is deterministic rather than negotiated', () => {
-    // No `accept-language`, no cookie, no previous visit: the same URL means
-    // the same thing to everyone who opens it.
     expect(localeFallbackPath('/platform/')).toBe(
       localeFallbackPath('/platform/'),
     );
@@ -156,16 +136,20 @@ describe('localeFallbackPath', () => {
   });
 
   it('prefixes rather than rewrites an unsupported locale', () => {
-    // `/fr/x` becomes `/ar/fr/x`, which matches no route and 404s. Silently
-    // serving Arabic for a French URL would claim we speak French.
     expect(localeFallbackPath('/platform/fr/organizations')).toBe(
       `/${DEFAULT_LOCALE}/fr/organizations`,
     );
   });
 
   it('always produces a path the locale route can match', () => {
-    for (const input of ['/platform', '/platform/organizations', '/platform/x/y']) {
-      expect(localeFromPathname(localeFallbackPath(input))).toBe(DEFAULT_LOCALE);
+    for (const input of [
+      '/platform',
+      '/platform/organizations',
+      '/platform/x/y',
+    ]) {
+      expect(localeFromPathname(localeFallbackPath(input))).toBe(
+        DEFAULT_LOCALE,
+      );
     }
   });
 });

@@ -2,22 +2,6 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { PLATFORM_BASE_PATH } from '../src/config/paths.js';
 
-/**
- * The content-idea flow, in a real browser.
- *
- * Only the cases that need one. The component suite already asserts the logic
- * in jsdom — what it cannot assert is that the built bundle boots, that the
- * App Router mount path works, that the operation genuinely survives a *browser*
- * reload, and that a key minted with `crypto.randomUUID`, paired with a
- * `crypto.subtle` digest of the request and kept in real `sessionStorage`,
- * survives the same reload without the request text going with it. Each of
- * those is a browser fact.
- *
- * Every request is fulfilled from the fixtures below. No backend, no database,
- * no provider, and no credential — which is what keeps this runnable in CI on
- * every pull request rather than on a schedule nobody watches.
- */
-
 const ORGANIZATION_ID = 'org_smoke';
 const USER_ID = 'user_smoke';
 
@@ -50,7 +34,6 @@ const ORGANIZATION = {
   logo: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   metadata: null,
-  /** `owner`, so the client-side gate opens the form. The backend still decides. */
   members: [
     {
       id: 'member_smoke',
@@ -80,7 +63,6 @@ const IDEA = {
 
 const OPERATION_ID = 'op_smoke_1';
 
-/** The backend's success envelope, which the client unwraps. */
 const envelope = (data: unknown) => ({
   success: true,
   data,
@@ -95,20 +77,11 @@ const json = (route: Route, body: unknown, status = 200) =>
   });
 
 type Options = {
-  /** The sequence of statuses the operation read returns, one per call. */
   statuses?: string[];
   availability?: { available: boolean; reason: string | null };
-  /** Fails the first N submissions with this status before accepting. */
   submitFailsWith?: number;
 };
 
-/**
- * Everything the screen talks to, recorded and answered.
- *
- * Returned rather than asserted on inside, so each test names the property it
- * cares about — how many runs were purchased, which idempotency keys were sent
- * — instead of every test carrying the same block of expectations.
- */
 async function stubApi(page: Page, options: Options = {}) {
   const statuses = [...(options.statuses ?? ['SUCCEEDED'])];
   const submissions: { key: string | undefined; body: unknown }[] = [];
@@ -151,11 +124,6 @@ async function stubApi(page: Page, options: Options = {}) {
         if (remainingFailures > 0) {
           remainingFailures -= 1;
 
-          /**
-           * A 502, not a 400. The distinction is the whole point of the
-           * idempotency test: the server never *decided*, so acceptance is
-           * unknown and the key has to survive.
-           */
           return json(route, { error: { code: 'BAD_GATEWAY' } }, 502);
         }
 
@@ -176,8 +144,6 @@ async function stubApi(page: Page, options: Options = {}) {
 
       polls.push(operationId);
 
-      // The last status repeats once the sequence is exhausted, so a run that
-      // reached a terminal state stays there however many times it is read.
       const status = statuses.length > 1 ? statuses.shift()! : statuses[0];
 
       return json(
@@ -200,25 +166,8 @@ async function stubApi(page: Page, options: Options = {}) {
   return { submissions, polls };
 }
 
-/**
- * Explicitly includes the platform mount point.
- *
- * `baseURL` is intentionally configured with that same mount point, but an
- * absolute app path keeps the smoke test independent of URL-resolution
- * differences between browser runners. `/en/...` would skip the mount point,
- * whereas `/platform/en/...` exercises the real configured base path.
- */
 const contentIdeasPath = `${PLATFORM_BASE_PATH}/en/organizations/${ORGANIZATION_ID}/content-ideas`;
 
-/**
- * Wait for the first client effect as well as the document navigation.
- *
- * App Router can stream the form markup before React has attached its event
- * handlers. Filling that inert markup is a race: hydration then restores the
- * controlled inputs to their empty state and leaves the submit button disabled.
- * The availability request is started by a mount effect, so observing its
- * response is a stable signal that this screen is interactive.
- */
 const gotoContentIdeas = async (page: Page) => {
   await Promise.all([
     page.waitForResponse((response) =>
@@ -247,27 +196,25 @@ test.describe('content ideas in a browser', () => {
 
     await gotoContentIdeas(page);
 
-    // The route loads and the form is offered, which together prove the bundle
-    // booted and the configured base path resolved.
-    await expect(page.getByRole('heading', { name: 'Content ideas' })).toBeVisible();
-    await expect(page.getByRole('button', { name: /generate ideas/i })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Content ideas' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /generate ideas/i }),
+    ).toBeVisible();
 
     await fillForm(page);
     await page.getByRole('button', { name: /generate ideas/i }).click();
 
-    // Queued, then running, then the ideas — the sequence the screen exists to
-    // show honestly rather than hiding behind one spinner.
     await expect(page.getByText('Queued')).toBeVisible();
     await expect(page.getByText('Running')).toBeVisible();
     await expect(page.getByText(IDEA.title)).toBeVisible();
 
-    // Every field of the richer contract, not only the title.
     await expect(page.getByText(IDEA.hook)).toBeVisible();
     await expect(page.getByText(IDEA.summary)).toBeVisible();
     await expect(page.getByText('Post')).toBeVisible();
     await expect(page.getByText(/grounded in: brand\.voice/i)).toBeVisible();
 
-    // The request carried the whole contract and an idempotency key.
     expect(api.submissions).toHaveLength(1);
     expect(api.submissions[0]?.key).toEqual(expect.any(String));
     expect(api.submissions[0]?.body).toEqual({
@@ -279,16 +226,9 @@ test.describe('content ideas in a browser', () => {
       numberOfIdeas: 3,
     });
 
-    // And the operation is in the address, which is what the next test needs.
     await expect(page).toHaveURL(new RegExp(`operation=${OPERATION_ID}`));
   });
 
-  /**
-   * A real reload, which is the case jsdom cannot produce.
-   *
-   * Everything in memory is gone; the run is recovered from the address alone,
-   * and nothing is purchased to get it back.
-   */
   test('restores the operation and its result after a reload', async ({
     page,
   }) => {
@@ -304,18 +244,9 @@ test.describe('content ideas in a browser', () => {
 
     await expect(page.getByText(IDEA.title)).toBeVisible();
     await expect(page.getByText(IDEA.summary)).toBeVisible();
-    // One purchase, across both page views.
     expect(api.submissions).toHaveLength(1);
   });
 
-  /**
-   * The idempotency key across a browser reload, which is what
-   * `sessionStorage` is for.
-   *
-   * The first submission fails in transport, so acceptance is unknown: the run
-   * may exist and may be billed. Reloading and asking the same question again
-   * must reuse the key, or the reader pays twice for one answer.
-   */
   test('reuses the idempotency key after an ambiguous failure and a reload', async ({
     page,
   }) => {
@@ -328,22 +259,11 @@ test.describe('content ideas in a browser', () => {
     await expect(page.getByText(/something went wrong/i)).toBeVisible();
     expect(api.submissions).toHaveLength(1);
 
-    /**
-     * What survives the reload is an identity, not the request.
-     *
-     * Real `sessionStorage` in a real browser, which is the only place this can
-     * honestly be checked. The record used to be the request itself,
-     * serialized, so the operator's topic, goal, audience and guidance sat in a
-     * store every script on the origin can read. Only sameness is ever asked of
-     * the value, and a SHA-256 digest preserves sameness without keeping the
-     * text.
-     */
     const storage = await page.evaluate(() => ({
       ...window.sessionStorage,
     }));
     const pending = storage[`content-idea:pending:${ORGANIZATION_ID}`];
 
-    // Not vacuous: the ambiguous failure is exactly when a record must exist.
     expect(pending).toEqual(expect.any(String));
     expect(JSON.parse(pending ?? 'null')).toEqual({
       idempotencyKey: api.submissions[0]?.key,
@@ -384,13 +304,6 @@ test.describe('content ideas in a browser', () => {
     ).toHaveCount(0);
   });
 
-  /**
-   * A poll that fails transiently must not abandon a run that is still going.
-   *
-   * The 429 is the case that matters: it is this tab's own polling spending the
-   * route budget, and stopping there would strand a billed run behind copy
-   * inviting the resubmission that buys a second one.
-   */
   test('rides out a rate limit and a server error while polling', async ({
     page,
   }) => {
@@ -400,8 +313,10 @@ test.describe('content ideas in a browser', () => {
       const url = route.request().url();
 
       if (url.includes('get-session')) return json(route, SESSION);
-      if (url.includes('get-full-organization')) return json(route, ORGANIZATION);
-      if (url.includes('/organization/list')) return json(route, [ORGANIZATION]);
+      if (url.includes('get-full-organization'))
+        return json(route, ORGANIZATION);
+      if (url.includes('/organization/list'))
+        return json(route, [ORGANIZATION]);
 
       return json(route, {});
     });
@@ -456,16 +371,12 @@ test.describe('content ideas in a browser', () => {
     await fillForm(page);
     await page.getByRole('button', { name: /generate ideas/i }).click();
 
-    // It kept asking through both, and the run finished.
     await expect(page.getByText(IDEA.title)).toBeVisible();
     expect(reads).toBeGreaterThanOrEqual(3);
   });
 });
 
-const useSessionMode = async (
-  page: Page,
-  mode: 'anonymous' | 'outage',
-) => {
+const useSessionMode = async (page: Page, mode: 'anonymous' | 'outage') => {
   await page.context().addCookies([
     {
       name: 'platform-e2e-session',
@@ -499,9 +410,10 @@ test.describe('App Router route and authentication contracts', () => {
 
     await page.goto(`${PLATFORM_BASE_PATH}/en${returnTo}`);
 
-    await expect(page).toHaveURL((url) =>
-      url.pathname === `${PLATFORM_BASE_PATH}/en/sign-in` &&
-      url.searchParams.get('returnTo') === returnTo,
+    await expect(page).toHaveURL(
+      (url) =>
+        url.pathname === `${PLATFORM_BASE_PATH}/en/sign-in` &&
+        url.searchParams.get('returnTo') === returnTo,
     );
     await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
     await expect(page.getByText('Kettle teardown')).toHaveCount(0);
@@ -512,9 +424,7 @@ test.describe('App Router route and authentication contracts', () => {
   }) => {
     await useSessionMode(page, 'anonymous');
     await page.goto(`${PLATFORM_BASE_PATH}/en/sign-in`);
-    await expect(
-      page.getByRole('heading', { name: 'Sign in' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
 
     await page.context().clearCookies();
     await page.goto(`${PLATFORM_BASE_PATH}/en/sign-in`);
@@ -527,7 +437,9 @@ test.describe('App Router route and authentication contracts', () => {
   test('renders the localized not-found page for an unsupported path', async ({
     page,
   }) => {
-    const response = await page.goto(`${PLATFORM_BASE_PATH}/en/not-a-real-route`);
+    const response = await page.goto(
+      `${PLATFORM_BASE_PATH}/en/not-a-real-route`,
+    );
 
     expect(response?.status()).toBe(404);
     await expect(

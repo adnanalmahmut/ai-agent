@@ -42,8 +42,6 @@ describe('PasswordField', () => {
   });
 
   it('gives the toggle a name and a state, not just an icon', async () => {
-    // An icon-only control with no accessible name is invisible to a screen
-    // reader, and one that never announces its state is worse than useless.
     const user = userEvent.setup();
     renderWithProviders(<Field autoComplete="current-password" />);
 
@@ -70,8 +68,6 @@ describe('PasswordField', () => {
   it.each(['current-password', 'new-password'] as const)(
     'passes autocomplete=%s to the browser',
     (autoComplete) => {
-      // Getting this wrong is silently harmful: `current-password` on a reset
-      // form makes the password manager offer the one being replaced.
       renderWithProviders(<Field autoComplete={autoComplete} />);
 
       expect(screen.getByLabelText('Password')).toHaveAttribute(

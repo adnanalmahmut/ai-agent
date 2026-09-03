@@ -29,7 +29,6 @@ describe('ResendNotificationDelivery', () => {
       apiKey: 're_test_key_value',
       timeoutMs: 1_000,
     });
-    // The constructed SDK client, with its network call replaced.
     (instance as unknown as { client: { emails: { send: unknown } } }).client =
       {
         emails: { send },
@@ -91,11 +90,6 @@ describe('ResendNotificationDelivery', () => {
     },
   );
 
-  /**
-   * `invalid_idempotent_request` means an earlier request with this key was
-   * accepted: the message was sent, by an attempt whose answer was lost. It
-   * is not "not sent", so it must not be `rejected`.
-   */
   it.each([
     ['invalid_idempotent_request', 409],
     ['concurrent_idempotent_requests', 409],

@@ -5,13 +5,6 @@ import { stripLocalePrefix } from '@/i18n/routing';
 import { PLATFORM_ROUTES } from './routes';
 import { returnPathFromUrl, safeReturnPath } from './safe-return-url';
 
-/**
- * The open-redirect guard.
- *
- * These are the tests that matter most in the feature: everything else here
- * fails visibly, while a hole in this function fails by working — the victim
- * signs in successfully and is then handed to whoever wrote the link.
- */
 describe('safeReturnPath', () => {
   describe('accepts internal destinations', () => {
     it.each([
@@ -26,8 +19,6 @@ describe('safeReturnPath', () => {
     });
 
     it('keeps a spaces-containing query value', () => {
-      // `URLSearchParams` hands values over decoded, so a literal space is a
-      // legitimate thing to see here and must not be treated as an attack.
       expect(safeReturnPath('/search?q=design system')).toBe(
         '/search?q=design%20system',
       );
@@ -55,8 +46,6 @@ describe('safeReturnPath', () => {
     });
 
     it('rejects a tab-smuggled authority', () => {
-      // Browsers strip tab, LF and CR from URLs before resolving them, so
-      // this becomes `//evil.example` after normalisation.
       expect(safeReturnPath('/\t/evil.example')).toBe(
         PLATFORM_ROUTES.dashboard,
       );
@@ -97,8 +86,6 @@ describe('safeReturnPath', () => {
     });
 
     it('still allows returning to the invitation page', () => {
-      // Public, but not an authentication route — signing in from an
-      // invitation must come back to it.
       expect(safeReturnPath('/organizations/accept-invitation?id=abc')).toBe(
         '/organizations/accept-invitation?id=abc',
       );
@@ -117,7 +104,6 @@ describe('stripLocalePrefix', () => {
     ['/en', '/'],
     ['/ar', '/'],
     ['/reports', '/reports'],
-    // Not a locale segment, despite the resemblance.
     ['/english/reports', '/english/reports'],
     ['/enterprise', '/enterprise'],
   ])('%s becomes %s', (input, expected) => {
@@ -133,8 +119,6 @@ describe('returnPathFromUrl', () => {
   });
 
   it('produces a value that survives a second pass', () => {
-    // The proxy writes it, the sign-in page reads it back — the value has to
-    // be stable under the validator that guards both ends.
     const once = returnPathFromUrl({
       pathname: '/en/reports',
       search: '?a=1&b=2',

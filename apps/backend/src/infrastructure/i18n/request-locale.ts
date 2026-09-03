@@ -1,23 +1,11 @@
 import { parseAppLocale, type AppLocale } from '@repo/i18n-core';
 
-/** Explicit per-request override sent by first-party clients. */
 export const APP_LOCALE_HEADER = 'x-app-locale';
 
-/** Preference cookie written by the web app when the user switches language. */
 export const APP_LOCALE_COOKIE = 'APP_LOCALE';
 
-/**
- * Reads one header by lower-case name, or `undefined`.
- *
- * The indirection exists because the same precedence rule has to run against
- * two unrelated request objects: Express requests inside the Nest pipeline,
- * and the Web-Fetch `Request` that Better Auth hands to its email callbacks.
- * Expressing the rule once over a getter is what stops those two paths from
- * drifting into two subtly different locale algorithms.
- */
 export type HeaderGetter = (name: string) => string | undefined;
 
-/** Adapter for Node/Express-style header bags, which may hold arrays. */
 export function nodeHeaderGetter(headers: {
   [key: string]: string | string[] | undefined;
 }): HeaderGetter {
@@ -27,19 +15,16 @@ export function nodeHeaderGetter(headers: {
   };
 }
 
-/** Adapter for the Web-Fetch `Headers` on a Better Auth callback request. */
 export function webHeaderGetter(
   request: { headers: { get(name: string): string | null } } | undefined,
 ): HeaderGetter {
   return (name) => request?.headers.get(name) ?? undefined;
 }
 
-/** 1. `X-App-Locale` — an explicit override, and the highest-priority source. */
 export function localeFromAppHeader(get: HeaderGetter): AppLocale | undefined {
   return parseAppLocale(get(APP_LOCALE_HEADER));
 }
 
-/** 3. The `APP_LOCALE` cookie — a persisted web preference. */
 export function localeFromCookieHeader(
   get: HeaderGetter,
 ): AppLocale | undefined {
@@ -61,13 +46,6 @@ export function localeFromCookieHeader(
   return undefined;
 }
 
-/**
- * 4. `Accept-Language` — the browser's preference.
- *
- * Picks the highest-quality entry that maps to a supported locale, so
- * `en-GB;q=0.9, fr;q=1.0` still yields `en` rather than giving up at the
- * unsupported first choice.
- */
 export function localeFromAcceptLanguage(
   get: HeaderGetter,
 ): AppLocale | undefined {
@@ -101,23 +79,6 @@ export function localeFromAcceptLanguage(
   return undefined;
 }
 
-/**
- * The documented precedence, in one place:
- *
- *   1. `X-App-Locale` header
- *   2. authenticated user's saved preference
- *   3. `APP_LOCALE` cookie
- *   4. `Accept-Language`
- *   5. (nothing) → the caller's default
- *
- * Every candidate is validated before it is accepted. An unsupported value
- * (`X-App-Locale: klingon`) is *ignored* and the chain continues to the next
- * source, rather than becoming the locale or short-circuiting to the default.
- *
- * `userPreferred` is typed `unknown` on purpose: it arrives from a nullable
- * database column, so the validation has to happen here rather than at every
- * call site.
- */
 export function resolveLocaleFromHeaders(
   get: HeaderGetter,
   userPreferred?: unknown,
@@ -130,12 +91,6 @@ export function resolveLocaleFromHeaders(
   );
 }
 
-/**
- * A malformed percent-escape (`APP_LOCALE=%ZZ`) makes `decodeURIComponent`
- * throw `URIError`. A locale resolver must never fail a request over an
- * unreadable preference cookie — it treats the value as absent and lets the
- * chain continue.
- */
 function decodeCookieValue(raw: string): string | undefined {
   try {
     return decodeURIComponent(raw);

@@ -3,15 +3,6 @@ import { describe, expect, it, jest } from '@jest/globals';
 import { AgentContextAssembler } from '../../../../src/features/knowledge/agent-context.assembler';
 import type { ContextPolicy } from '../../../../src/ai/agents/agent.types';
 
-/**
- * What an agent is allowed to be given.
- *
- * The database and the vector search are exercised end to end elsewhere; what
- * is asserted here is the part that decides *whether* to search at all and
- * *how much* of the answer survives — the branches that are easy to get right
- * once and then lose to a refactor, because none of them fails loudly.
- */
-
 const passage = (content: string, spaceId = 'space_brand') => ({
   chunkId: `chunk_${content.length}_${spaceId}`,
   documentId: 'doc_1',
@@ -53,11 +44,6 @@ const policy = (overrides: Partial<ContextPolicy> = {}): ContextPolicy => ({
 });
 
 describe('AgentContextAssembler', () => {
-  /**
-   * No policy is no context, and it must cost nothing to establish that. An
-   * agent that did not declare what it may read does not get "everything" as
-   * a default, and it should not spend an embedding call discovering so.
-   */
   it('retrieves nothing for an agent with no context policy', async () => {
     const { assembler, resolveSlugs, embed, search } = build();
 
@@ -104,11 +90,6 @@ describe('AgentContextAssembler', () => {
     expect(embed).not.toHaveBeenCalled();
   });
 
-  /**
-   * The policy names slugs; the slugs are resolved against the caller's own
-   * organization. This is what keeps a definition from being able to name its
-   * way into another tenant's material.
-   */
   it('resolves policy slugs only within the calling organization', async () => {
     const { assembler, resolveSlugs, search } = build({
       spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
@@ -165,10 +146,6 @@ describe('AgentContextAssembler', () => {
     );
   });
 
-  /**
-   * The policy's number, not a constant that happens to equal it. Every other
-   * case here uses the default, so a hardcoded limit would read as correct.
-   */
   it('takes the chunk ceiling from the policy', async () => {
     const { assembler, search } = build({
       spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
@@ -183,14 +160,6 @@ describe('AgentContextAssembler', () => {
     expect(search).toHaveBeenCalledWith(expect.objectContaining({ limit: 3 }));
   });
 
-  /**
-   * What the vector is made of.
-   *
-   * Nothing else asserts the embedder's argument, so embedding the untrimmed
-   * string — or the policy's slugs, or an empty array — passes the whole
-   * suite: `search` is a double that returns its fixtures whatever it is
-   * given, so retrieval degrades to noise without a single failure.
-   */
   it('embeds the trimmed query itself', async () => {
     const { assembler, embed } = build({
       spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
@@ -246,11 +215,6 @@ describe('AgentContextAssembler', () => {
   });
 
   describe('the character budget', () => {
-    /**
-     * Whole passages only. Half a paragraph reads as a complete thought that
-     * happens to end early, and neither the model nor a reader checking the
-     * answer can tell that something was cut.
-     */
     it('drops passages rather than truncating them', async () => {
       const { assembler } = build({
         spaces: [{ id: 'space_brand', slug: 'brand.voice' }],
@@ -267,11 +231,6 @@ describe('AgentContextAssembler', () => {
       expect(assembled[0]?.content).toBe('a'.repeat(60));
     });
 
-    /**
-     * One long document must not hide every shorter passage ranked behind it.
-     * Skipping over an oversized passage rather than stopping is the
-     * difference between a thin context and an empty one.
-     */
     it('keeps a later passage that still fits', async () => {
       const { assembler } = build({
         spaces: [{ id: 'space_brand', slug: 'brand.voice' }],

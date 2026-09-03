@@ -20,21 +20,6 @@ import {
 } from '../../../src/infrastructure/outbox';
 import { QueueProducer, QUEUE_NAMES } from '../../../src/infrastructure/queue';
 
-/**
- * The outbox against a real PostgreSQL and a real Redis.
- *
- * Everything asserted below depends on behaviour no mock reproduces:
- * `FOR UPDATE SKIP LOCKED`, `NOW()` evaluated by the database rather than by a
- * worker, `UPDATE ... RETURNING` as one atomic statement, and — the reason this
- * file grew — conditional updates matching a claim version that only the
- * database can hand out. A suite that stubbed the repository would pass while
- * the SQL let a stale dispatcher overwrite a delivered row.
- *
- * Constructed by hand rather than through `AppModule`, because the module the
- * dispatcher belongs to is the *worker's*, and booting the API to test the
- * worker's delivery path would test the wrong wiring.
- */
-
 const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6378';
 
 const redis = {
@@ -46,14 +31,11 @@ const redis = {
 };
 
 const queue = {
-  // Its own namespace, so teardown can obliterate exactly this suite's keys.
   prefix: `outbox-test-${process.pid}`,
   workerConcurrency: 1,
   shutdownGraceMs: 0,
   job: { attempts: 1, backoffMs: 500 },
   retention: {
-    // Long enough that nothing is evicted mid-test: the deduplication assertion
-    // is only meaningful while the retained job still exists.
     completed: { ageSeconds: 600, count: 100 },
     failed: { ageSeconds: 600, count: 100 },
   },
@@ -73,7 +55,6 @@ const silent = {
 } as unknown as PinoLogger;
 
 const ROUTABLE = 'agent-run.queued';
-/** A type this build has no route for — the rolling-deployment case. */
 const FUTURE_TYPE = 'agent-run.rescheduled.v2';
 
 describe('transactional outbox (e2e)', () => {
@@ -100,21 +81,12 @@ describe('transactional outbox (e2e)', () => {
     try {
       await inspector.obliterate({ force: true });
     } catch {
-      // Nothing was ever published.
+      // The queue may already be absent during test cleanup.
     }
     await inspector.close();
     await prisma.onModuleDestroy();
   });
 
-  /**
-   * Cleared before each test as well as after.
-   *
-   * These assertions describe the whole claim, so the suite has to own the
-   * whole table. It is no longer the only writer — knowledge ingestion appends
-   * here too, and a claim asks for every routable type — so rows left behind
-   * by an earlier suite would be leased alongside this test's own and read as
-   * a claim returning more than it was given.
-   */
   beforeEach(async () => {
     await prisma.outboxEvent.deleteMany({});
   });
@@ -124,7 +96,7 @@ describe('transactional outbox (e2e)', () => {
     try {
       await inspector.obliterate({ force: true });
     } catch {
-      // Nothing to remove.
+      // The queue may already be absent during test cleanup.
     }
   });
 
@@ -145,7 +117,6 @@ describe('transactional outbox (e2e)', () => {
     return row.id;
   };
 
-  /** The claim shape the dispatcher uses, with this suite's defaults. */
   const claimAs = (
     claimedBy: string,
     overrides: { leaseMs?: number; limit?: number; types?: string[] } = {},
@@ -173,8 +144,6 @@ describe('transactional outbox (e2e)', () => {
           payload: { agentRunId: 'run-1' },
           dedupeKey: 'run-1',
           attempts: 1,
-          // Returned, not merely written: it is half of the claim version the
-          // conditional updates match on.
           claimedBy: 'worker-a',
         },
       ]);
@@ -183,15 +152,9 @@ describe('transactional outbox (e2e)', () => {
       expect(row.status).toBe('PROCESSING');
       expect(row.claimedBy).toBe('worker-a');
       expect(row.leaseExpiresAt).not.toBeNull();
-      // From the database clock, not the caller's.
       expect(row.leaseExpiresAt!.getTime()).toBeGreaterThan(Date.now());
     });
 
-    /**
-     * The property that makes a second dispatcher useful rather than merely
-     * present. Without `SKIP LOCKED` the two serialise — the second blocks on the
-     * first's row locks — and the pair achieves the throughput of one.
-     */
     it('hands two concurrent claimants disjoint sets', async () => {
       const ids = new Set<string>();
       for (let i = 0; i < 6; i++)
@@ -204,7 +167,6 @@ describe('transactional outbox (e2e)', () => {
 
       const claimedIds = [...first, ...second].map((event) => event.id);
 
-      // No id claimed twice, and no id invented.
       expect(new Set(claimedIds).size).toBe(claimedIds.length);
       for (const id of claimedIds) expect(ids.has(id)).toBe(true);
     });
@@ -214,19 +176,12 @@ describe('transactional outbox (e2e)', () => {
 
       await claimAs('worker-a');
 
-      // A second claimant finds nothing: the lease has not lapsed.
       await expect(claimAs('worker-b')).resolves.toEqual([]);
     });
 
-    /**
-     * The recovery mechanism itself. A dispatcher that died between publishing
-     * and recording delivery leaves the row exactly like this, and the only thing
-     * that brings the event back is the lease running out.
-     */
     it('reclaims an event whose lease has lapsed, under a new claim version', async () => {
       const id = await append();
 
-      // A lease of zero expires the instant it is written.
       await claimAs('worker-a', { leaseMs: 0 });
 
       const reclaimed = await claimAs('worker-b');
@@ -274,11 +229,6 @@ describe('transactional outbox (e2e)', () => {
       expect(row.leaseExpiresAt).toBeNull();
     });
 
-    /**
-     * `FAILED` is terminal. A parked event must not come back on the next pass,
-     * or parking it would only have delayed the poison event rather than stopped
-     * it.
-     */
     it('never claims a parked event, even with an expired lease', async () => {
       await append();
       const [claim] = await claimAs('worker-a', { leaseMs: 0 });
@@ -294,17 +244,7 @@ describe('transactional outbox (e2e)', () => {
     });
   });
 
-  /**
-   * Claim ownership, which is what stops a stale dispatcher overwriting a newer
-   * outcome.
-   *
-   * Every test here builds the real interleaving rather than passing forged
-   * parameters: dispatcher A claims, its lease expires, dispatcher B reclaims and
-   * finishes, and only then does A try to record its own outcome using the claim
-   * the database actually gave it.
-   */
   describe('stale claim ownership', () => {
-    /** Runs the A-claims / lease-expires / B-reclaims prelude. */
     const twoClaims = async (): Promise<{
       id: string;
       stale: ClaimedOutboxEvent;
@@ -317,7 +257,6 @@ describe('transactional outbox (e2e)', () => {
 
       expect(stale).toBeDefined();
       expect(current).toBeDefined();
-      // Different claim versions, which is the whole mechanism.
       expect(current.attempts).toBe(stale.attempts + 1);
       expect(current.claimedBy).not.toBe(stale.claimedBy);
 
@@ -346,25 +285,11 @@ describe('transactional outbox (e2e)', () => {
       expect((await rowOf(id)).status).toBe('FAILED');
     });
 
-    /**
-     * The first of the two races this iteration exists to close.
-     *
-     *   A claims                     attempts = 1, claimedBy = A
-     *   A's lease expires
-     *   B reclaims                   attempts = 2, claimedBy = B
-     *   B publishes, records DELIVERED
-     *   A's publish finally fails
-     *   A reschedules ------------->  the row would go back to PENDING
-     *
-     * The event would then be published a second time for no reason at all.
-     */
     it('refuses a stale reschedule of a delivered event', async () => {
       const { id, stale } = await twoClaims();
 
-      // B finishes the work.
       await repository.markDelivered([id]);
 
-      // A, still holding its old claim, now discovers its publish failed.
       await expect(
         repository.reschedule(stale, 0, 'redis unavailable'),
       ).resolves.toBe(false);
@@ -372,15 +297,9 @@ describe('transactional outbox (e2e)', () => {
       const row = await rowOf(id);
       expect(row.status).toBe('DELIVERED');
       expect(row.deliveredAt).not.toBeNull();
-      // And it is not claimable again, which is the outcome that matters.
       await expect(claimAs('worker-c')).resolves.toEqual([]);
     });
 
-    /**
-     * The sharper half of the same race: not a wasted re-delivery but a lie in
-     * the audit trail, written by a process that had already lost the right to
-     * speak for the row.
-     */
     it('refuses a stale park of a delivered event', async () => {
       const { id, stale } = await twoClaims();
 
@@ -395,11 +314,6 @@ describe('transactional outbox (e2e)', () => {
       expect(row.lastError).toBeNull();
     });
 
-    /**
-     * Ownership is not only about `DELIVERED`. A stale writer must not disturb a
-     * *live* claim either, or it would drag work away from the dispatcher that
-     * legitimately holds it.
-     */
     it('refuses a stale reschedule while another dispatcher is still working', async () => {
       const { id, stale } = await twoClaims();
 
@@ -422,27 +336,15 @@ describe('transactional outbox (e2e)', () => {
       expect((await rowOf(id)).status).toBe('PROCESSING');
     });
 
-    /**
-     * `markDelivered` is deliberately exempt from the ownership check: a
-     * successful publish is a fact about Redis, not an opinion, and leaving a
-     * genuinely delivered row `PROCESSING` would schedule a re-delivery of work
-     * that was already delivered.
-     */
     it('still lets a stale dispatcher record a delivery it really performed', async () => {
       const { id } = await twoClaims();
 
-      // A published successfully, just late. Its evidence is admissible.
       await repository.markDelivered([id]);
 
       expect((await rowOf(id)).status).toBe('DELIVERED');
     });
   });
 
-  /**
-   * Rolling deployment. An older worker running beside a newer API must leave
-   * event types it has no route for completely alone — claiming one could only
-   * end in parking it, destroying work before the newer worker ever started.
-   */
   describe('version skew', () => {
     it('does not claim or mutate an event type this build cannot route', async () => {
       const id = await append({ type: FUTURE_TYPE, dedupeKey: 'future' });
@@ -466,15 +368,9 @@ describe('transactional outbox (e2e)', () => {
       expect((await rowOf(future)).attempts).toBe(0);
     });
 
-    /**
-     * The half that is easy to get wrong. A worker that skipped a new type while
-     * it was `PENDING` but reclaimed it once somebody else's lease lapsed would
-     * destroy it just the same, only less often and less reproducibly.
-     */
     it('does not reclaim a future event whose lease has lapsed', async () => {
       const id = await append({ type: FUTURE_TYPE, dedupeKey: 'future' });
 
-      // A newer worker claims it and then dies, leaving an expired lease.
       const [claim] = await repository.claim({
         limit: 10,
         leaseMs: 0,
@@ -484,7 +380,6 @@ describe('transactional outbox (e2e)', () => {
       expect(claim).toBeDefined();
       expect((await rowOf(id)).status).toBe('PROCESSING');
 
-      // The old worker must not pick up the pieces.
       await expect(claimAs('worker-v1')).resolves.toEqual([]);
       expect((await rowOf(id)).claimedBy).toBe('worker-v2');
     });
@@ -500,7 +395,6 @@ describe('transactional outbox (e2e)', () => {
       });
 
       expect(claimed.map((event) => event.id)).toEqual([id]);
-      // Never `FAILED` at any point: version skew delayed it, nothing more.
       expect((await rowOf(id)).status).toBe('PROCESSING');
     });
 
@@ -518,12 +412,6 @@ describe('transactional outbox (e2e)', () => {
     });
   });
 
-  /**
-   * The write side, and the only reason the outbox exists: a rolled-back
-   * transaction must leave no event behind. Were the event written outside the
-   * transaction, a failed business write would still queue a job — one that
-   * refers to a row that never existed.
-   */
   describe('append inside a transaction', () => {
     it('commits the event with the transaction', async () => {
       await prisma.$transaction(async (tx) => {
@@ -558,12 +446,6 @@ describe('transactional outbox (e2e)', () => {
     });
   });
 
-  /**
-   * PostgreSQL to BullMQ, end to end, with both real.
-   *
-   * The seam either works or it does not, and every part of it that could be
-   * mocked is a part that would not have been tested.
-   */
   describe('dispatch', () => {
     let producer: QueueProducer;
     let dispatcher: OutboxDispatcher;
@@ -620,16 +502,6 @@ describe('transactional outbox (e2e)', () => {
     }, 30_000);
   });
 
-  /**
-   * The crash window, reproduced rather than described.
-   *
-   * The earlier version of this test claimed twice and asserted the reclaim, but
-   * never published anything — so it proved nothing about the window it was named
-   * after. This one performs a *real* `queue.add` through the real producer,
-   * deliberately skips the `DELIVERED` write, and only then lets the lease lapse.
-   * That is exactly the state a dispatcher killed between step two and step three
-   * leaves behind.
-   */
   describe('crash between publishing and recording delivery', () => {
     let producer: QueueProducer;
     let dispatcher: OutboxDispatcher;
@@ -648,7 +520,6 @@ describe('transactional outbox (e2e)', () => {
     it('re-publishes under the same dedupe id and ends DELIVERED exactly once', async () => {
       const id = await append({ dedupeKey: 'crash-window' });
 
-      // --- Dispatcher A: claims, publishes for real, then "crashes". ---
       const [claimA] = await claimAs('dispatcher-a', { leaseMs: 0 });
       expect(claimA).toBeDefined();
       expect(claimA.attempts).toBe(1);
@@ -661,15 +532,11 @@ describe('transactional outbox (e2e)', () => {
       );
       expect(publishedByA.jobId).toBe('crash-window');
 
-      // The job is genuinely in Redis...
       expect(await inspector.getJob('crash-window')).toBeDefined();
-      // ...and the database has no idea. `markDelivered` is deliberately never
-      // called: this is the crash.
       const afterCrash = await rowOf(id);
       expect(afterCrash.status).toBe('PROCESSING');
       expect(afterCrash.deliveredAt).toBeNull();
 
-      // --- Dispatcher B: the lease has lapsed, so it reclaims and finishes. ---
       const pass = await dispatcher.dispatchOnce();
 
       expect(pass).toMatchObject({ claimed: 1, delivered: 1, failed: 0 });
@@ -677,19 +544,8 @@ describe('transactional outbox (e2e)', () => {
       const settled = await rowOf(id);
       expect(settled.status).toBe('DELIVERED');
       expect(settled.deliveredAt).not.toBeNull();
-      // Incremented by the reclaim: the durable record shows the event was
-      // handled twice, which is what makes at-least-once auditable.
       expect(settled.attempts).toBe(2);
 
-      /**
-       * One logical job for the dedupe id, asserted against real queue state.
-       *
-       * BullMQ returns the same id for a duplicate `add` as for an insert, so
-       * there is nothing in the return value to assert on — the queue itself is
-       * the only witness. Retention in this suite is long enough that A's job is
-       * still present, which is exactly the condition under which the guarantee
-       * holds.
-       */
       const counts = await inspector.getJobCounts(
         'waiting',
         'active',
@@ -705,21 +561,10 @@ describe('transactional outbox (e2e)', () => {
     }, 30_000);
   });
 
-  /**
-   * A prolonged transport outage must not lose durably accepted work.
-   *
-   * This is what the readiness contract promises: the API stays ready while
-   * Redis is down *because* the work is safe in PostgreSQL. The outage is
-   * injected by pointing a producer at a closed port, so the failures are real
-   * connection failures rather than thrown fakes; recovery swaps in a producer
-   * pointed at the working Redis, which is what a Redis coming back looks like
-   * from the dispatcher's side.
-   */
   describe('recovery after a prolonged outage', () => {
     it('keeps retrying past the old attempt limit and delivers when Redis returns', async () => {
       const id = await append({ dedupeKey: 'outage' });
 
-      // Port 9 is TCP discard: closed, and nothing here ever binds it.
       const brokenProducer = new QueueProducer(
         {
           ...redis,
@@ -733,19 +578,15 @@ describe('transactional outbox (e2e)', () => {
       const failing = new OutboxDispatcher(
         repository,
         brokenProducer,
-        // No backoff, so the test can burn through attempts quickly. The retry
-        // delay itself is asserted in the unit spec.
         { ...queue, job: { attempts: 1, backoffMs: 0 } },
         silent,
       );
 
-      // Well past the ten attempts the old `OUTBOX_MAX_ATTEMPTS` allowed.
       const ATTEMPTS = 14;
       for (let index = 0; index < ATTEMPTS; index++) {
         const pass = await failing.dispatchOnce();
 
         expect(pass).toMatchObject({ claimed: 1, delivered: 0, deferred: 1 });
-        // Never parked, at any attempt count.
         expect((await rowOf(id)).status).toBe('PENDING');
       }
 
@@ -756,7 +597,6 @@ describe('transactional outbox (e2e)', () => {
 
       await brokenProducer.close();
 
-      // --- Redis comes back. ---
       const healthyProducer = new QueueProducer(redis, queue, silent);
       healthyProducer.init();
       const recovered = new OutboxDispatcher(
@@ -775,7 +615,6 @@ describe('transactional outbox (e2e)', () => {
         expect(settled.status).toBe('DELIVERED');
         expect(settled.attempts).toBe(ATTEMPTS + 1);
 
-        // The backlog drained into the real queue.
         expect(await inspector.getJob('outage')).toBeDefined();
       } finally {
         await recovered.stop(1_000);

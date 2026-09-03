@@ -101,7 +101,6 @@ function normalizeCity(value: string | undefined): string | null {
   return city ? city.slice(0, 255) : null;
 }
 
-/** Returns a canonical public IP, or null for invalid/non-routable input. */
 export function normalizePublicIp(
   ipAddress: string | null | undefined,
 ): string | null {
