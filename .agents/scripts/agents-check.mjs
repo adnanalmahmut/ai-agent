@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { lstatSync, readFileSync, readlinkSync, readdirSync, realpathSync } from 'node:fs';
-import { dirname, extname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { lstatSync, readdirSync, readFileSync, readlinkSync } from 'node:fs';
+import { dirname, extname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -106,7 +106,6 @@ function validateCanonicalFiles() {
     '.agents/scripts/__tests__/pr-train.test.mjs',
     '.codex/hooks.json',
     '.claude/settings.json',
-    '.cursor/hooks.json',
     'docs/deployment-state.md',
   ];
   for (const file of required) if (!exists(join(root, file))) fail(`missing canonical file: ${file}`);
@@ -131,7 +130,6 @@ function validateRolesAndAdapters() {
   const adapters = [
     ['Codex', '.codex/agents', '.toml'],
     ['Claude', '.claude/agents', '.md'],
-    ['Cursor', '.cursor/agents', '.md'],
   ];
   for (const [label, directory, extension] of adapters) {
     sameList(sortedNames(join(root, directory), extension), expectedRoles, `${label} adapter`);
@@ -167,28 +165,24 @@ function validateSkills() {
 
   const claudeSkills = join(root, '.claude/skills');
   if (!exists(claudeSkills)) {
-    fail('missing Claude skill adapter directory: .claude/skills');
+    fail('missing Claude skill path file: .claude/skills');
     return;
   }
-  const exposed = readdirSync(claudeSkills).sort();
-  sameList(exposed, skillNames, 'Claude skill adapter');
-  for (const name of exposed) {
-    const adapter = join(claudeSkills, name);
-    if (!lstatSync(adapter).isSymbolicLink()) {
-      fail(`${relative(root, adapter)} must be a symlink; this checkout may have materialized Git link text (check core.symlinks and the Windows symlink prerequisite)`);
-      continue;
-    }
-    const target = resolve(dirname(adapter), readlinkSync(adapter));
-    try {
-      if (realpathSync(target) !== realpathSync(join(skillRoot, name))) {
-        fail(`${relative(root, adapter)} points outside the canonical skill directory`);
-      }
-    } catch {
-      fail(`${relative(root, adapter)} is a broken skill symlink`);
-    }
+  const stat = lstatSync(claudeSkills);
+  let targetPath = '';
+  if (stat.isSymbolicLink()) {
+    targetPath = readlinkSync(claudeSkills);
+  } else if (stat.isFile()) {
+    targetPath = readFileSync(claudeSkills, 'utf8').trim();
+  } else {
+    fail('.claude/skills must be a path file or symlink indicating ../.agents/skills');
+    return;
+  }
+  if (targetPath !== '../.agents/skills') {
+    fail(`.claude/skills must indicate ../.agents/skills, got: ${targetPath}`);
   }
 
-  for (const directory of ['.codex', '.cursor', '.claude']) {
+  for (const directory of ['.codex', '.claude']) {
     for (const file of filesUnder(join(root, directory))) {
       if (file.endsWith('SKILL.md') && !lstatSync(dirname(file)).isSymbolicLink()) {
         fail(`copied tool-specific skill found: ${relative(root, file)}`);
@@ -208,7 +202,7 @@ function validateWorkflows() {
 
 function validateHooks() {
   const configs = {};
-  for (const config of ['.codex/hooks.json', '.claude/settings.json', '.cursor/hooks.json']) {
+  for (const config of ['.codex/hooks.json', '.claude/settings.json']) {
     try {
       configs[config] = JSON.parse(read(join(root, config)));
     } catch (error) {
@@ -249,19 +243,6 @@ function validateHooks() {
       fail(`.claude/settings.json ${event} must resolve ${script} from CLAUDE_PROJECT_DIR`);
     }
   }
-
-  const cursor = configs['.cursor/hooks.json'];
-  const cursorHooks = [
-    ['preToolUse', 'pre-tool.mjs'],
-    ['stop', 'stop-check.mjs'],
-  ];
-  for (const [event, script] of cursorHooks) {
-    const hook = cursor?.hooks?.[event]?.[0];
-    if (hook?.command !== `node .agents/hooks/${script} cursor`) {
-      fail(`.cursor/hooks.json ${event} must use the documented project-root cwd for ${script}`);
-    }
-  }
-  if (cursor?.hooks?.stop?.[0]?.loop_limit !== 2) fail('.cursor/hooks.json stop must keep the bounded loop_limit of 2');
 }
 
 function validateMarkdownLinks() {
@@ -301,7 +282,6 @@ function validateSafetyAndState() {
     ...ownedAgentFiles,
     ...filesUnder(join(root, '.codex')),
     ...filesUnder(join(root, '.claude')),
-    ...filesUnder(join(root, '.cursor')),
     ...filesUnder(join(root, 'docs')),
     join(root, 'README.md'),
     join(root, 'AGENTS.md'),

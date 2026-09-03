@@ -35,19 +35,15 @@ links, unsafe hook definitions, and contradictory deployment-state claims.
 
 ## Tool mapping
 
-| Concept | Codex | Claude Code | Cursor |
-|---|---|---|---|
-| Project guidance | Native `AGENTS.md` discovery | `CLAUDE.md` imports `AGENTS.md` | Native `AGENTS.md` discovery |
-| Skills | Native `.agents/skills` | `.claude/skills/<name>` symlink | Native `.agents/skills` |
-| Custom roles | `.codex/agents/*.toml` adapter | `.claude/agents/*.md` adapter | `.cursor/agents/*.md` adapter |
-| Hooks | `.codex/hooks.json` | `.claude/settings.json` | `.cursor/hooks.json` |
-| Reusable commands | Portable skills | Portable skills | Portable skills; no parallel command tree |
+| Concept | Codex | Claude Code |
+|---|---|---|
+| Project guidance | Native `AGENTS.md` discovery | `CLAUDE.md` imports `AGENTS.md` |
+| Skills | Native `.agents/skills` | `.claude/skills` path file to `.agents/skills` |
+| Custom roles | `.codex/agents/*.toml` adapter | `.claude/agents/*.md` adapter |
+| Hooks | `.codex/hooks.json` | `.claude/settings.json` |
+| Reusable commands | Portable skills | Portable skills |
 
-Claude's skill adapters are symlinks, not generated copies. WSL/Linux
-checkouts normally preserve them. Native Windows contributors must enable Git
-symlink checkout on a symlink-capable filesystem before checkout; a regular
-file containing the link target is invalid and is rejected by harness
-validation. See [the adapter contract](../.agents/README.md#symlink-checkout-contract).
+Claude Code references canonical skills via the `.claude/skills` path file pointing to `../.agents/skills`, with instructions configured in `CLAUDE.md`.
 
 ## Session state and resume
 

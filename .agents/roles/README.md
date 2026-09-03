@@ -1,6 +1,6 @@
 # Agent roles
 
-These files are the canonical role contracts for every supported agent tool. Tool-specific files under `.codex/agents`, `.claude/agents`, and `.cursor/agents` are thin adapters and must point back here.
+These files are the canonical role contracts for every supported agent tool. Tool-specific files under `.codex/agents` and `.claude/agents` are thin adapters and must point back here.
 
 | Role | Use it for |
 | --- | --- |
