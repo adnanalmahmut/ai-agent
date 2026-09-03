@@ -70,8 +70,9 @@ export default defineConfig({
   /**
    * The built application, served the way production serves it.
    *
- * `next start` rather than the dev server, because the thing worth knowing is
- * that the production server boots and honours the configured base path.
+ * The generated standalone server rather than the dev server, because the
+ * thing worth knowing is that the deployable runtime boots and honours the
+ * configured base path.
  * A small HTTP fixture answers the Server Component session and organization
  * reads; browser-side API traffic remains intercepted inside the spec.
    */
@@ -85,9 +86,11 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: `pnpm exec next start -H 127.0.0.1 -p ${PORT}`,
+      command: 'node .next/standalone/apps/platform/server.js',
       cwd: PLATFORM_ROOT,
       env: {
+        HOSTNAME: '127.0.0.1',
+        PORT: String(PORT),
         PLATFORM_API_ORIGIN: `http://127.0.0.1:${API_PORT}`,
       },
       url: `http://127.0.0.1:${PORT}${PLATFORM_BASE_PATH}/health`,

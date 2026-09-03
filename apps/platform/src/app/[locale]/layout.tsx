@@ -8,6 +8,7 @@ import { getMessages } from 'next-intl/server';
 import type { ReactNode } from 'react';
 
 import { ThemeProvider } from '@/components/theme-provider';
+import { ThemeScript } from '@/components/theme-script';
 import { thmanyahSans, thmanyahSerifDisplay } from '@/config/fonts';
 import { publicConfig } from '@/config/public';
 import { routing } from '@/i18n/routing';
@@ -36,17 +37,15 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} dir={direction} suppressHydrationWarning>
+      <head>
+        <ThemeScript />
+      </head>
       <body
         className={`${thmanyahSans.variable} ${thmanyahSerifDisplay.variable} antialiased`}
       >
         <NextIntlClientProvider messages={messages}>
           <DirectionProvider direction={direction}>
-            <ThemeProvider
-              attribute="class"
-              defaultTheme="system"
-              enableSystem
-              disableTransitionOnChange
-            >
+            <ThemeProvider>
               {children}
             </ThemeProvider>
           </DirectionProvider>

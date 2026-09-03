@@ -8,7 +8,7 @@ production secrets.
   lint, unit tests, migrations into real PostgreSQL, E2E against real
   PostgreSQL/Redis, and production build.
 - Platform: install/packages, workspace typecheck, lint, unit/component tests,
-  and Vite build.
+  Next.js standalone production build, and Playwright route/runtime smoke.
 - Web: install/packages, lint, tests, and Next production build.
 - Containers: Buildx Bake builds every exact production target without a push,
   then loads the backend runtime and migration targets, applies migrations to a

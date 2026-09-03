@@ -32,13 +32,11 @@ FROM node:24-bookworm-slim AS runtime
 
 ENV NODE_ENV=production
 ENV HOSTNAME=0.0.0.0
-ENV PORT=8080
+ENV PORT=3001
 WORKDIR /app
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid nodejs nextjs
 COPY --from=build --chown=nextjs:nodejs /workspace/apps/platform/.next/standalone ./
-COPY --from=build --chown=nextjs:nodejs /workspace/apps/platform/.next/static ./apps/platform/.next/static
-COPY --from=build --chown=nextjs:nodejs /workspace/apps/platform/public ./apps/platform/public
 USER nextjs
-EXPOSE 8080
+EXPOSE 3001
 CMD ["node", "apps/platform/server.js"]

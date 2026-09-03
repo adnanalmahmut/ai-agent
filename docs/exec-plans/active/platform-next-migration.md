@@ -92,6 +92,9 @@ Final stack:
 - 2026-09-03: keep existing interactive feature components during migration, converting only their router dependencies and entry boundaries.
 - 2026-09-03: use a locale catch-all route so unknown descendants render the application's localized not-found boundary instead of Next's generic root 404.
 - 2026-09-03: treat the availability request fired by the content-idea mount effect as the browser test's hydration signal before interacting with controlled fields.
+- 2026-09-03: keep root-level browser API calls same-origin in development with a development-only external rewrite; production continues to route `/api` at host Nginx.
+- 2026-09-03: package public and static assets into the standalone tree during `postbuild`, so local smoke, CI, and the container execute the same deployable artifact.
+- 2026-09-03: replace the `next-themes` client-rendered bootstrap script after the live Next MCP loop exposed its React 19 runtime warning; a server-rendered pre-hydration script plus a narrow local provider preserves the same light/dark/system contract without runtime errors.
 
 ## Progress
 
@@ -100,9 +103,25 @@ Final stack:
 - [x] Read repository workflow, installed Next 16.3 guidance, and current primary documentation.
 - [x] PR 1 — Next foundation, routing, auth, and i18n.
 - [x] PR 2 — feature and test migration.
-- [ ] PR 3 — runtime/deployment cutover, cleanup, and documentation.
-- [ ] Final CI inspection and human handoff.
+- [x] PR 3 — runtime/deployment cutover, cleanup, and documentation.
+- [x] Final CI inspection and human handoff preparation.
+
+## Outcome
+
+The Platform now has one routing and runtime authority: Next.js 16.3 App Router.
+The three-PR stack preserves the `/platform/{locale}/...` contract, moves auth
+and route protection to server layouts, retains the existing interactive
+product features, removes React Router and the Vite/static-Nginx runtime, and
+ships a self-contained standalone Node server on loopback port 3001. Live
+Next.js MCP plus browser inspection caught and removed two hydration errors
+that static checks did not expose. Browser API traffic remains same-origin;
+server reads retain their server-only uncached NestJS boundary.
 
 ## Blockers
 
-None. The recursive workspace test reproduced the recorded five-second CPU-contention timeout in two interaction-heavy settings cases. Their assertions and behavior are unchanged, but the cases now declare a 15-second budget; the recursive backend, web, and Platform suites subsequently passed together.
+None. The plan remains active while the three PRs are open for human review and
+moves to `completed/` only when the work lands. The recursive workspace test
+reproduced the recorded five-second CPU-contention
+timeout in two interaction-heavy settings cases. Their assertions and behavior
+are unchanged, but the cases now declare a 15-second budget; the recursive
+backend, web, and Platform suites subsequently passed together.

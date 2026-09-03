@@ -11,6 +11,15 @@ administration, organization membership/invitations, the operator control-plane
 surface, and permission-gated UI. Client permission gates improve UX; backend
 authorization remains decisive.
 
+Browser API calls remain same-origin under `/api`. Host Nginx routes that path
+to the NestJS API in Staging; `next dev` reproduces the same contract with a
+development-only external rewrite to `PLATFORM_API_PROXY_TARGET`, defaulting to
+`http://127.0.0.1:3002`. Server Components instead use the server-only
+`PLATFORM_API_ORIGIN` and forward request cookies without caching responses.
+The production artifact is the self-contained Next.js standalone server; both
+the container and Compose run it on internal port 3001 behind the existing
+loopback-only host binding.
+
 The control-plane screen (`/admin/control-plane`) edits feature flags, runtime
 settings, and provider credentials, and exposes a separately loaded,
 cursor-paginated audit-history tab. It can write a credential and can never

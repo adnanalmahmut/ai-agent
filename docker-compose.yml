@@ -324,10 +324,10 @@ services:
       dockerfile: apps/platform/Dockerfile
     environment:
       HOSTNAME: 0.0.0.0
-      PORT: 8080
+      PORT: 3001
       PLATFORM_API_ORIGIN: http://backend:3002
     ports:
-      - 127.0.0.1:${PLATFORM_HOST_PORT:-3001}:8080
+      - 127.0.0.1:${PLATFORM_HOST_PORT:-3001}:3001
     networks:
       - edge
     healthcheck:
@@ -335,7 +335,7 @@ services:
         - CMD
         - node
         - -e
-        - fetch('http://127.0.0.1:8080/platform/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+        - fetch('http://127.0.0.1:3001/platform/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 10s
       timeout: 5s
       retries: 6

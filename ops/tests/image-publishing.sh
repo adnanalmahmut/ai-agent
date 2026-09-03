@@ -23,6 +23,8 @@ done
 grep -Fq 'pnpm --filter platform build' apps/platform/Dockerfile
 grep -Fq '/workspace/apps/platform/.next/standalone' apps/platform/Dockerfile
 grep -Fq 'CMD ["node", "apps/platform/server.js"]' apps/platform/Dockerfile
+grep -Fq 'ENV PORT=3001' apps/platform/Dockerfile
+grep -Fq 'EXPOSE 3001' apps/platform/Dockerfile
 grep -Fq 'ARG NEXT_PUBLIC_APP_NAME=Feedogo' apps/platform/Dockerfile
 grep -Fq 'NEXT_PUBLIC_APP_NAME = "Feedogo"' docker-bake.hcl
 
