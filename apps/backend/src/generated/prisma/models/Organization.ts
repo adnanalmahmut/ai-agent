@@ -3118,10 +3118,6 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     logo: string | null
     createdAt: Date
     metadata: string | null
-    /**
-     * Product defaults and a deliberately small typed business profile.
-     * Better Auth ignores these extra columns; application routes own them.
-     */
     locale: string
     timezone: string
     currency: string
@@ -3129,23 +3125,8 @@ export type $OrganizationPayload<ExtArgs extends runtime.Types.Extensions.Intern
     industry: string | null
     websiteUrl: string | null
     businessDescription: string | null
-    /**
-     * Optimistic compare-and-swap token for the business settings surface.
-     * Kept separate from Better Auth's name/slug writes so unrelated profile
-     * changes cannot manufacture a settings conflict.
-     */
     businessProfileVersion: number
     businessProfileUpdatedAt: Date
-    /**
-     * Set when the organization is archived. Every member, invitation and
-     * business resource survives; the organization simply becomes operationally
-     * inert (see `auth-hooks.ts`) until an owner or a `super_admin` restores it.
-     * 
-     * Not declared to Better Auth. The organization plugin has no notion of a
-     * soft-deleted organization, so enforcement is ours and the column is read
-     * through `PrismaService`. Extra nullable columns are invisible to the
-     * adapter's create/update payloads.
-     */
     archivedAt: Date | null
     archivedByUserId: string | null
     archiveReason: string | null

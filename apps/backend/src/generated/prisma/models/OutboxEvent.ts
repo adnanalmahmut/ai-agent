@@ -596,54 +596,14 @@ export type $OutboxEventPayload<ExtArgs extends runtime.Types.Extensions.Interna
   objects: {}
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
-    /**
-     * Event type. Resolved to a queue and a job name in code, never here.
-     */
     type: string
-    /**
-     * The job payload, verbatim.
-     */
     payload: runtime.JsonValue
-    /**
-     * Passed to BullMQ as the job id, when present.
-     * 
-     * Collapses the duplicates that at-least-once delivery produces, and only
-     * those: BullMQ rejects a repeated id while the job still exists in Redis, so
-     * the guarantee expires with retention. Durable idempotency is a PostgreSQL
-     * UNIQUE constraint on the business row, not this column.
-     */
     dedupeKey: string | null
     status: $Enums.OutboxEventStatus
     attempts: number
-    /**
-     * Earliest time this event may be claimed. Moved forward on each failed
-     * publish, so a queue that is refusing writes is retried with backoff rather
-     * than hammered every poll.
-     */
     availableAt: Date
-    /**
-     * When the current claim lapses. The crash-recovery window: a dispatcher that
-     * dies between `queue.add()` and the `DELIVERED` write leaves the row claimed,
-     * and nothing re-delivers it until this passes.
-     */
     leaseExpiresAt: Date | null
-    /**
-     * Which dispatcher holds the claim.
-     * 
-     * Read as half of the claim version, not merely for audit. `reschedule` and
-     * `markFailed` match on `(claimedBy, attempts)`, so a dispatcher whose lease
-     * lapsed while a newer one reclaimed and delivered the row updates zero rows
-     * instead of dragging `DELIVERED` back to `PENDING` or down to `FAILED`.
-     * 
-     * `markDelivered` is deliberately exempt: a successful publish is a fact, and
-     * leaving a delivered row `PROCESSING` would schedule a pointless re-delivery.
-     */
     claimedBy: string | null
-    /**
-     * Last publish failure, for diagnosis. Truncated by the dispatcher: a
-     * provider error can carry an entire request, and this column is read by
-     * people rather than by code.
-     */
     lastError: string | null
     deliveredAt: Date | null
     createdAt: Date

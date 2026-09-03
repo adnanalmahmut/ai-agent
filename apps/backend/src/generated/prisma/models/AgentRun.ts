@@ -14,11 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model AgentRun
- * Durable authority for one background agent execution.
- * The runtime stays a string so adding a second application-supported runtime
- * is a code change, not inherently a database migration. `agentId` names an
- * application-owned definition; definitions are code, so it is deliberately
- * not a foreign key.
+ * 
  */
 export type AgentRunModel = runtime.Types.Result.DefaultSelection<Prisma.$AgentRunPayload>
 
@@ -1802,53 +1798,19 @@ export type $AgentRunPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     agentId: string
-    /**
-     * The exact definition revision this run is pinned to. Asynchronous work
-     * must execute the definition that was current when it was accepted, so
-     * `(agentId, agentVersion)` — not `agentId` alone — identifies the code the
-     * worker resolves, including across a rolling deployment.
-     */
     agentVersion: number
     runtime: string
     status: $Enums.AgentRunStatus
     organizationId: string
-    /**
-     * The immutable organization-owned effective state selected at acceptance.
-     * Nullable only for runs accepted before this relation existed and for
-     * rolling/rollback compatibility with the preceding image.
-     */
     organizationAgentVersionId: string | null
-    /**
-     * Stable application model-policy identities resolved when the run is
-     * accepted. All three are non-null for new application writes. They remain
-     * nullable together for pre-MOD-01B and rolling-rollback runs, whose pinned
-     * definition revision supplies the only model behavior that existed then.
-     */
     modelPolicyId: string | null
     modelId: string | null
     modelPricingRevisionId: string | null
-    /**
-     * Null means no authenticated application User initiated this run — for
-     * example scheduled or system-initiated work. It is not an actor
-     * abstraction and carries no other meaning.
-     */
     createdByUserId: string | null
-    /**
-     * Application-owned input and result values. They are JSON so the database
-     * does not make a runtime SDK's request/result types canonical.
-     */
     input: runtime.JsonValue
     output: runtime.JsonValue | null
-    /**
-     * Bounded diagnostic prose from the latest failed attempt. Never a stack,
-     * serialized provider response, or raw error cause.
-     */
     lastError: string | null
     attemptCount: number
-    /**
-     * Caller-supplied durable request identity, scoped to the organization.
-     * BullMQ's job id is a secondary optimization and cannot replace this.
-     */
     idempotencyKey: string
     startedAt: Date | null
     completedAt: Date | null

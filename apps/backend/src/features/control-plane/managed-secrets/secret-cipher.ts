@@ -7,8 +7,11 @@ import {
 
 export const SECRET_ALGORITHM = 'aes-256-gcm';
 
+// GCM standard 96-bit IV: fresh random bytes per encryption.
 const IV_BYTES = 12;
 
+// Pin the full 128-bit GCM authentication tag.
+// Node accepts shorter tags, which would weaken integrity protection.
 const AUTH_TAG_BYTES = 16;
 
 export type StoredBytes = Uint8Array<ArrayBuffer>;

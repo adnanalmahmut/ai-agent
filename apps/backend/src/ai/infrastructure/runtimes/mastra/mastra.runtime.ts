@@ -30,6 +30,8 @@ type ProviderName = keyof typeof PROVIDER_SECRETS;
 
 const GENERATION_BUDGET = {
   maxOutputTokens: 2_000,
+  // BullMQ owns retry and records each attempt durably.
+  // Disable SDK retries so one AgentRun attempt maps to one provider attempt.
   maxRetries: 0,
   timeout: { totalMs: 60_000, stepMs: 45_000 },
 } as const;
@@ -58,6 +60,8 @@ export class MastraRuntime implements AgentRuntime {
       tools: toMastraTools(request.tools),
     });
 
+    // Mastra's default agent logger can emit provider request/response data through
+    // console.error. Keep the SDK no-op logger; containment tests protect this seam.
     containMastraAgent(agent);
 
     const result = await agent.generate(

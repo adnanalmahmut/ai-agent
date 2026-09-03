@@ -14,11 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model KnowledgeDocument
- * One source text, before it was split.
  * 
- * Kept as a row of its own rather than folded into the chunks so a retrieved
- * passage can say where it came from, and so re-ingesting a changed source
- * replaces a known set of chunks instead of accumulating duplicates.
  */
 export type KnowledgeDocumentModel = runtime.Types.Result.DefaultSelection<Prisma.$KnowledgeDocumentPayload>
 
@@ -952,10 +948,6 @@ export type $KnowledgeDocumentPayload<ExtArgs extends runtime.Types.Extensions.I
   name: "KnowledgeDocument"
   objects: {
     organization: Prisma.$OrganizationPayload<ExtArgs>
-    /**
-     * Referenced as a pair with `organizationId`, so a document cannot be filed
-     * into a space belonging to a different organization.
-     */
     space: Prisma.$KnowledgeSpacePayload<ExtArgs>
     chunks: Prisma.$KnowledgeChunkPayload<ExtArgs>[]
   }
@@ -964,27 +956,8 @@ export type $KnowledgeDocumentPayload<ExtArgs extends runtime.Types.Extensions.I
     organizationId: string
     spaceId: string
     title: string
-    /**
-     * Where the text came from, when it came from somewhere addressable. Free
-     * text and never dereferenced by this application.
-     */
     sourceUri: string | null
-    /**
-     * A digest of the source text, so ingestion can tell an unchanged document
-     * from one that has to be re-split and re-embedded — which costs a provider
-     * call per chunk.
-     */
     checksum: string
-    /**
-     * How many times the body has been replaced, starting at one.
-     * 
-     * There is deliberately no revision *history*. Keeping superseded chunks
-     * would mean either retrieving stale passages or carrying an is-current
-     * predicate through the one query whose predicates are the isolation
-     * guarantee. This counter exists so a caller can see that a re-ingestion
-     * changed something, and so the outbox event for one edit is distinct from
-     * the event for the next.
-     */
     revision: number
     createdAt: Date
     updatedAt: Date

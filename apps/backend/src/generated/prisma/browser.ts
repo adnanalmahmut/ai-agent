@@ -39,8 +39,7 @@ export type Account = Prisma.AccountModel
 export type Verification = Prisma.VerificationModel
 /**
  * Model RateLimit
- * Concurrency-safe storage required by Better Auth 1.6.x's native limiter.
- * Fields are derived from getAuthTables() for the installed version.
+ * 
  */
 export type RateLimit = Prisma.RateLimitModel
 /**
@@ -60,30 +59,17 @@ export type Member = Prisma.MemberModel
 export type Invitation = Prisma.InvitationModel
 /**
  * Model AgentRun
- * Durable authority for one background agent execution.
- * The runtime stays a string so adding a second application-supported runtime
- * is a code change, not inherently a database migration. `agentId` names an
- * application-owned definition; definitions are code, so it is deliberately
- * not a foreign key.
+ * 
  */
 export type AgentRun = Prisma.AgentRunModel
 /**
  * Model OrganizationAgentInstallation
- * One code-owned agent installed inside one organization.
  * 
- * The mutable facts are only `revision` and the pointer to the current
- * immutable version. `activeVersionId` is nullable so the installation and its
- * first version can be created in one transaction; application-created
- * committed rows always point at a version.
  */
 export type OrganizationAgentInstallation = Prisma.OrganizationAgentInstallationModel
 /**
  * Model OrganizationAgentVersion
- * One immutable effective state of an organization's installed agent.
  * 
- * Definition behavior remains code-owned. This row pins the exact code
- * definition revision plus the organization-owned, definition-validated
- * configuration and whether that effective state is enabled.
  */
 export type OrganizationAgentVersion = Prisma.OrganizationAgentVersionModel
 /**
@@ -93,14 +79,7 @@ export type OrganizationAgentVersion = Prisma.OrganizationAgentVersionModel
 export type ToolExecution = Prisma.ToolExecutionModel
 /**
  * Model ToolExecutionApproval
- * The human decision on one side-effect proposal.
  * 
- * Exactly one per side-effect `ToolExecution`, enforced by the unique on
- * `toolExecutionId`. A separate row rather than columns on the execution
- * because the decision is a different fact: it has its own actor, its own
- * time, and its own digest of what was decided. The composite foreign key is
- * what lets PostgreSQL — not a service predicate — refuse an approval that
- * names another organization's execution.
  */
 export type ToolExecutionApproval = Prisma.ToolExecutionApprovalModel
 /**
@@ -110,165 +89,56 @@ export type ToolExecutionApproval = Prisma.ToolExecutionApprovalModel
 export type OutboxEvent = Prisma.OutboxEventModel
 /**
  * Model FeatureFlagPlatformOverride
- * A platform-wide feature-flag override.
  * 
- * Separate from the organization-scoped table rather than one table with a
- * nullable `organizationId`, because PostgreSQL treats NULLs as distinct in a
- * unique index — so the single most important constraint here, "at most one
- * platform override per key", would silently not hold. Two tables state the
- * precedence in the schema instead of in a comment.
  */
 export type FeatureFlagPlatformOverride = Prisma.FeatureFlagPlatformOverrideModel
 /**
  * Model FeatureFlagOrganizationOverride
- * A feature-flag override for one organization, which wins over the platform
- * override and the code default.
+ * 
  */
 export type FeatureFlagOrganizationOverride = Prisma.FeatureFlagOrganizationOverrideModel
 /**
  * Model RuntimeSetting
- * One operator-editable setting, whose key must exist in the code-owned
- * registry and whose value must satisfy that entry's Zod schema.
  * 
- * The value is JSON because the registry — not the column — decides each
- * setting's type. Storing text and parsing on read would make every consumer
- * re-derive the type, and a typed column per setting would make adding one a
- * migration.
  */
 export type RuntimeSetting = Prisma.RuntimeSettingModel
 /**
  * Model ManagedSecret
- * A provider credential, encrypted at rest with the application master key.
  * 
- * The plaintext is never returned by any read surface and never enters
- * `process.env`; it is decrypted only when an adapter is about to use it. What
- * the control plane can show is everything in this model except `ciphertext`.
- * 
- * `keyVersion` records the exact configured encryption key. It remains nullable
- * only for rows written by the preceding image; those use `keyFingerprint` for
- * an explicit compatibility lookup. Key material never enters this table.
  */
 export type ManagedSecret = Prisma.ManagedSecretModel
 /**
  * Model ControlPlaneAuditEvent
- * An append-only record of one control-plane mutation.
  * 
- * The control-plane rows themselves carry `updatedByUserId` and `updatedAt`,
- * which answers "who touched this last" and nothing else. Every question an
- * operator actually asks after an incident is a question about history: when
- * was this switched on, who switched it, what was it before, and was it ever
- * set at all. A last-writer column cannot answer any of them, and clearing an
- * override deletes the row and the only attribution with it — so the moment
- * the evidence matters most is the moment it stops existing.
- * 
- * Append-only is a property of the code, not of a grant: nothing in the
- * application updates or deletes a row here, and the read surface is a
- * paginated listing with no mutations beside it. Deliberately scoped to the
- * control plane rather than generalized — a business-wide audit framework is a
- * different feature with different retention, different authorization, and a
- * much larger surface to get wrong.
- * 
- * ## What must never be in it
- * 
- * No secret plaintext, no ciphertext, no IV, no auth tag, and no value from a
- * runtime setting the registry marks as anything other than public. A managed
- * secret's events carry only whether a slot became configured, was rotated, or
- * was removed, plus the operator's own non-secret label. That is enforced in
- * `control-plane-audit.service.ts`, where the safe projection for each
- * resource is built, and asserted by tests that push a canary credential
- * through every mutation and search the row, the API response and the log for
- * it.
  */
 export type ControlPlaneAuditEvent = Prisma.ControlPlaneAuditEventModel
 /**
  * Model OrganizationAuditEvent
- * An append-only record of one organization-owned product mutation.
  * 
- * This is deliberately separate from `ControlPlaneAuditEvent`: product
- * history belongs to a tenant and is authorized through organization
- * membership, while control-plane history belongs to platform operators.
- * Application code only creates and lists these rows; it exposes no update or
- * delete operation. The owning migration also installs a PostgreSQL trigger
- * that rejects UPDATE and DELETE issued through any database client.
  */
 export type OrganizationAuditEvent = Prisma.OrganizationAuditEventModel
 /**
  * Model KnowledgeSpace
- * A named collection of documents inside one organization.
  * 
- * Spaces exist so an agent can be pointed at *some* of an organization's
- * material rather than all of it: `content-idea@1` reads brand and product
- * notes and has no business reading a support archive. The set an agent may
- * see is declared in its code-owned context policy, not chosen at call time.
  */
 export type KnowledgeSpace = Prisma.KnowledgeSpaceModel
 /**
  * Model KnowledgeDocument
- * One source text, before it was split.
  * 
- * Kept as a row of its own rather than folded into the chunks so a retrieved
- * passage can say where it came from, and so re-ingesting a changed source
- * replaces a known set of chunks instead of accumulating duplicates.
  */
 export type KnowledgeDocument = Prisma.KnowledgeDocumentModel
 /**
  * Model KnowledgeChunk
- * One passage and its embedding.
  * 
- * `embedding` is `Unsupported` because Prisma has no vector type, and it is
- * *nullable* because a required `Unsupported` field removes `create`,
- * `createMany` and `upsert` from the generated delegate entirely — verified
- * against the installed 7.9.1. A row is therefore written first and its
- * vector set by a raw `UPDATE`, and a chunk whose embedding is still null is
- * simply not retrievable yet.
- * 
- * There is deliberately no vector index. An approximate index changes which
- * rows come back, and the tenant predicate is applied *after* the index scan
- * — so a scoped query under HNSW returns whichever of the requested rows
- * happen to survive the filter, silently short. Prisma also cannot represent
- * such an index and emits `DROP INDEX` for it on every subsequent migration,
- * so it would not survive a forward-only pipeline in any case. Exact search
- * needs no index; the btree below is what pgvector's own guidance recommends
- * for a filter this selective.
  */
 export type KnowledgeChunk = Prisma.KnowledgeChunkModel
 /**
  * Model ContentProject
- * One content idea an organization decided to act on.
  * 
- * The prose fields are a snapshot the *server* derived from
- * `AgentRun.output` at `sourceIdeaIndex`, not text the caller submitted. A
- * caller who could send the prose could persist words the agent never wrote
- * while they still read as agent-authored, and nothing afterwards could tell
- * the difference — the run reference would claim a provenance the row did not
- * have.
- * 
- * The snapshot is copied rather than referenced because it must not move.
- * `AgentRun.output` is one JSON document holding every idea from that request;
- * reading the chosen one back through an index would make the project's
- * identity depend on the position of an element in a blob, and would leave a
- * project unreadable if the output shape ever changed. What was chosen is
- * settled at selection and stays settled.
- * 
- * `suggestedFormat` and `language` are strings rather than database enums, for
- * the same reason `AgentRun.runtime` is: the vocabularies are code-owned and
- * validated there, so extending either is a code change rather than
- * inherently a migration.
  */
 export type ContentProject = Prisma.ContentProjectModel
 /**
  * Model ContentDraft
- * One revision of the thing a content project is trying to produce.
  * 
- * Revision 1 is created in the same transaction as its project and is a
- * *target*, not content: it names the format, language, and working title the
- * eventual piece should have, and its body is null because nothing has written
- * it. Seeding the body from the idea summary would put words in the draft that
- * no writer chose and no reviewer approved, and would make an unwritten draft
- * indistinguishable from a written one.
- * 
- * The revision column exists now, at a fixed value of one, because the Writer
- * Agent that will add revision 2 must not have to migrate a single-draft table
- * into a versioned one while projects already exist.
  */
 export type ContentDraft = Prisma.ContentDraftModel

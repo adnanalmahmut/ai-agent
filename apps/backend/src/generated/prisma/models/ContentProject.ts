@@ -14,26 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model ContentProject
- * One content idea an organization decided to act on.
  * 
- * The prose fields are a snapshot the *server* derived from
- * `AgentRun.output` at `sourceIdeaIndex`, not text the caller submitted. A
- * caller who could send the prose could persist words the agent never wrote
- * while they still read as agent-authored, and nothing afterwards could tell
- * the difference — the run reference would claim a provenance the row did not
- * have.
- * 
- * The snapshot is copied rather than referenced because it must not move.
- * `AgentRun.output` is one JSON document holding every idea from that request;
- * reading the chosen one back through an index would make the project's
- * identity depend on the position of an element in a blob, and would leave a
- * project unreadable if the output shape ever changed. What was chosen is
- * settled at selection and stays settled.
- * 
- * `suggestedFormat` and `language` are strings rather than database enums, for
- * the same reason `AgentRun.runtime` is: the vocabularies are code-owned and
- * validated there, so extending either is a code change rather than
- * inherently a migration.
  */
 export type ContentProjectModel = runtime.Types.Result.DefaultSelection<Prisma.$ContentProjectPayload>
 
@@ -1560,63 +1541,19 @@ export type $ContentProjectPayload<ExtArgs extends runtime.Types.Extensions.Inte
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
     organizationId: string
-    /**
-     * The run this idea came from, referenced as a pair with `organizationId`
-     * so a project cannot be built from another organization's run. `Restrict`
-     * because the run is the project's provenance: deleting it would leave a
-     * snapshot claiming to have come from somewhere that no longer exists.
-     */
     sourceRunId: string
-    /**
-     * Which idea in that run's output was selected. Kept for provenance — so a
-     * reader can find the original alongside its siblings — and never read to
-     * reconstruct the snapshot.
-     */
     sourceIdeaIndex: number
-    /**
-     * The brief the ideas were generated from, snapshotted with the idea.
-     * 
-     * Copied from `AgentRun.input` by the server for the same reason the idea is
-     * copied from `AgentRun.output`: the project has to be a complete statement
-     * of the work on its own. A writer — the agent that will eventually fill
-     * revision 1, or a person — needs to know what the piece is *for*, and
-     * reaching back into the run's input to find out would make every future
-     * consumer depend on a JSON column belonging to another aggregate, one whose
-     * shape is pinned to a definition revision that may no longer be current.
-     * 
-     * `topic` and `goal` are required here because they are required of the
-     * request that produced the ideas. `audience` and `guidance` are optional
-     * there and nullable here; null means the request did not say, which is
-     * different from an empty string and is worth being able to tell apart.
-     */
     topic: string
     goal: string
     audience: string | null
     guidance: string | null
-    /**
-     * The selected idea, exactly as the agent produced it.
-     */
     title: string
     hook: string
     angle: string
     summary: string
     suggestedFormat: string
-    /**
-     * The content language, taken from the run's input rather than the
-     * selecting member's UI locale. An Arabic-speaking marketer planning English
-     * copy is the ordinary case.
-     */
     language: string
-    /**
-     * Null means no authenticated application User selected this idea. It is not
-     * an actor abstraction and carries no other meaning.
-     */
     createdByUserId: string | null
-    /**
-     * Caller-supplied durable request identity, scoped to the organization.
-     * Selecting the same idea twice from a retried request must not produce two
-     * projects.
-     */
     idempotencyKey: string
     createdAt: Date
     updatedAt: Date

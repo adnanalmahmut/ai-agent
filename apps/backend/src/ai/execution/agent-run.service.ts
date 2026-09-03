@@ -56,6 +56,8 @@ export class AgentRunService {
 
     try {
       const run = await this.prisma.$transaction(async (tx) => {
+        // Serialize concurrent run requests per tenant to enforce organization
+        // concurrency limits atomically without coarse table-level locks.
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${AGENT_RUN_CAPACITY_LOCK}, hashtext(${input.organizationId}))`;
 
         const accepted = await tx.agentRun.findUnique({

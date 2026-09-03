@@ -2445,10 +2445,6 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     agentRunsCreated: Prisma.$AgentRunPayload<ExtArgs>[]
     contentProjectsCreated: Prisma.$ContentProjectPayload<ExtArgs>[]
     contentDraftsCreated: Prisma.$ContentDraftPayload<ExtArgs>[]
-    /**
-     * Control-plane edit attribution. `SetNull` on delete, because who changed
-     * a setting is useful history but must never block removing an account.
-     */
     featureFlagPlatformOverridesEdited: Prisma.$FeatureFlagPlatformOverridePayload<ExtArgs>[]
     featureFlagOrganizationOverridesEdited: Prisma.$FeatureFlagOrganizationOverridePayload<ExtArgs>[]
     runtimeSettingsEdited: Prisma.$RuntimeSettingPayload<ExtArgs>[]
@@ -2462,34 +2458,12 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     image: string | null
     createdAt: Date
     updatedAt: Date
-    /**
-     * Outbound-message language for this account: 'ar' | 'en'.
-     * Nullable because an account may never have expressed a preference, and
-     * always re-validated through `parseAppLocale` on read — the column is a
-     * hint, never a trusted locale.
-     */
     preferredLanguage: string | null
-    /**
-     * Comma-separated global role names; null means the plugin's `defaultRole`.
-     */
     role: string | null
     banned: boolean | null
     banReason: string | null
     banExpires: Date | null
-    /**
-     * Set when the account is deactivated. A soft delete: every row below stays
-     * intact and the account can be restored by a `super_admin`.
-     * 
-     * Independent of `banned`. A ban is a moderation decision; a deactivation is
-     * a lifecycle state. Restoring one must never clear the other, which is why
-     * this is a separate column rather than an overload of `banned`.
-     */
     deletedAt: Date | null
-    /**
-     * Who performed the deactivation. Not a relation: the actor is an audit
-     * fact, and a foreign key here would make the actor's own lifecycle depend
-     * on the records they touched.
-     */
     deletedByUserId: string | null
     deletionReason: string | null
   }, ExtArgs["result"]["user"]>

@@ -14,33 +14,7 @@ import type * as Prisma from "../internal/prismaNamespace.js"
 
 /**
  * Model ControlPlaneAuditEvent
- * An append-only record of one control-plane mutation.
  * 
- * The control-plane rows themselves carry `updatedByUserId` and `updatedAt`,
- * which answers "who touched this last" and nothing else. Every question an
- * operator actually asks after an incident is a question about history: when
- * was this switched on, who switched it, what was it before, and was it ever
- * set at all. A last-writer column cannot answer any of them, and clearing an
- * override deletes the row and the only attribution with it — so the moment
- * the evidence matters most is the moment it stops existing.
- * 
- * Append-only is a property of the code, not of a grant: nothing in the
- * application updates or deletes a row here, and the read surface is a
- * paginated listing with no mutations beside it. Deliberately scoped to the
- * control plane rather than generalized — a business-wide audit framework is a
- * different feature with different retention, different authorization, and a
- * much larger surface to get wrong.
- * 
- * ## What must never be in it
- * 
- * No secret plaintext, no ciphertext, no IV, no auth tag, and no value from a
- * runtime setting the registry marks as anything other than public. A managed
- * secret's events carry only whether a slot became configured, was rotated, or
- * was removed, plus the operator's own non-secret label. That is enforced in
- * `control-plane-audit.service.ts`, where the safe projection for each
- * resource is built, and asserted by tests that push a canary credential
- * through every mutation and search the row, the API response and the log for
- * it.
  */
 export type ControlPlaneAuditEventModel = runtime.Types.Result.DefaultSelection<Prisma.$ControlPlaneAuditEventPayload>
 
@@ -464,44 +438,12 @@ export type $ControlPlaneAuditEventPayload<ExtArgs extends runtime.Types.Extensi
   objects: {}
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
-    /**
-     * When the mutation committed. The listing pages on `(occurredAt, id)` so
-     * two events in the same millisecond still have a total order.
-     */
     occurredAt: Date
-    /**
-     * Who did it. Nullable because an event can outlive its actor's row, and
-     * deliberately not a relation: an audit fact must not become a reason a
-     * user row cannot be removed, and `SetNull` on a relation would erase the
-     * attribution this table exists to keep.
-     */
     actorUserId: string | null
-    /**
-     * Which control-plane resource: `featureFlag`, `runtimeSetting`, or
-     * `managedSecret`. A string rather than an enum because adding a resource
-     * should not be a migration on a log table.
-     */
     resource: string
-    /**
-     * What was done to it, as `resource.verb` — `featureFlag.setOrganizationOverride`.
-     */
     action: string
-    /**
-     * The registry key the action addressed.
-     */
     resourceKey: string
-    /**
-     * Present only for organization-scoped feature-flag overrides.
-     */
     organizationId: string | null
-    /**
-     * The safe projection of the resource before and after the mutation.
-     * 
-     * JSON because each resource's safe shape is different and none of them is
-     * worth a column. A null `before` means the resource had no stored state —
-     * which is itself the fact worth recording, since "first configured" and
-     * "changed" are different events.
-     */
     before: runtime.JsonValue | null
     after: runtime.JsonValue | null
   }, ExtArgs["result"]["controlPlaneAuditEvent"]>

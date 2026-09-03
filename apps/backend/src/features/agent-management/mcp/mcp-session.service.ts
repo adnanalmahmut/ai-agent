@@ -193,8 +193,11 @@ export class McpSessionService {
         () => createGovernedMcpServer({ tools, version: MCP_ADAPTER_VERSION }),
         {
           responseMode: 'json',
+          // Reject legacy JSON-RPC batches: one exchange must expose at most one
+          // budgeted tool call.
           legacy: 'reject',
           onerror: () => undefined,
+          // Intentionally non-streaming: this server exposes discrete tool calls without long-lived subscriptions.
           maxSubscriptions: 0,
         },
       ),
@@ -402,6 +405,8 @@ export function refusedMethod(body: unknown): string | undefined {
   return undefined;
 }
 
+// Safe only for synchronous handler construction: restore immediately so
+// another request cannot run while the global warning sink is replaced.
 export function withoutConsoleWarnings<T>(run: () => T): T {
   const warn = console.warn;
   console.warn = () => undefined;

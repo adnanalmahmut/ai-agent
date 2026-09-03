@@ -730,20 +730,10 @@ export type $SessionPayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     updatedAt: Date
     ipAddress: string | null
     userAgent: string | null
-    /**
-     * Server-derived from ipAddress through the local GeoLite2 City database.
-     */
     country: string | null
-    /**
-     * Server-derived city label; never accepted from an auth request body.
-     */
     city: string | null
     userId: string
     impersonatedBy: string | null
-    /**
-     * Request context, never authorization. Proves only which organization the
-     * session has selected — membership and permission are read from `member`.
-     */
     activeOrganizationId: string | null
   }, ExtArgs["result"]["session"]>
   composites: {}

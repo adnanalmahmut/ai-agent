@@ -29,6 +29,8 @@ export class ToolExecutionFailure extends Error {
       configurable: true,
     });
 
+    // This error crosses the SDK/tool-result boundary. Remove the stack so
+    // provider-visible serialization cannot expose repository paths.
     delete this.stack;
   }
 }

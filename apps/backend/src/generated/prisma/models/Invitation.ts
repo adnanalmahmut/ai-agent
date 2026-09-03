@@ -732,9 +732,6 @@ export type $InvitationPayload<ExtArgs extends runtime.Types.Extensions.Internal
     organizationId: string
     email: string
     role: string | null
-    /**
-     * 'pending' | 'accepted' | 'rejected' | 'canceled'
-     */
     status: string
     expiresAt: Date
     createdAt: Date
