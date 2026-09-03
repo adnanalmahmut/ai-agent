@@ -129,7 +129,7 @@ assert_jq 'migrate has no APP_ENCRYPTION_DECRYPT_KEYS' '.services.migrate.enviro
 
 assert_jq 'migrate environment is DATABASE_URL only' '.services.migrate.environment | keys == ["DATABASE_URL"]'
 assert_jq 'web environment allowlist' '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]'
-assert_jq 'platform has no environment block' '.services.platform.environment == null'
+assert_jq 'platform environment allowlist' '.services.platform.environment | keys | sort == ["HOSTNAME", "PLATFORM_API_ORIGIN", "PORT"]'
 assert_jq 'geoipupdate environment allowlist' '.services.geoipupdate.environment | keys | sort == ["GEOIPUPDATE_ACCOUNT_ID", "GEOIPUPDATE_EDITION_IDS", "GEOIPUPDATE_FREQUENCY", "GEOIPUPDATE_LICENSE_KEY"]'
 
 echo 'container environment least-privilege invariants: ok'
