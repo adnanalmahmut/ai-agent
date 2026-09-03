@@ -152,6 +152,14 @@ backend image; install bundle 7 as part of deploying the release that carries
 the new entrypoints, not as an isolated update followed by a redeploy of an
 older image.
 
+Bundle 8 replaces the Platform's static runtime with its Next.js server and
+adds the server-only `PLATFORM_API_ORIGIN` mapping while retaining the existing
+loopback host boundary. A bundle-7 host would start the new image without the
+internal NestJS origin, leaving Server Component session and organization
+requests pointed at the Platform container itself. `MIN_VERSION` therefore
+moves to 8. Install bundle 8 as part of deploying the release that carries the
+Next.js Platform runtime.
+
 Files that are not release-coupled are deliberately absent. The Nginx site and
 TLS assets survive any release, and the backup units are installed by
 `ops/backup/install-backups.sh` on their own schedule.

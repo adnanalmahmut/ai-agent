@@ -204,6 +204,11 @@ Retention remains untouched at host bundle 7. That bundle updates the API,
 worker, and operator CLI commands for the backend's explicit composition-root
 paths, so `MIN_VERSION` moves to 7 while retention behavior stays unchanged.
 
+Retention also remains untouched at host bundle 8. That bundle changes the
+Platform service from the static runtime to the Next.js server and supplies its
+server-only backend origin, so `MIN_VERSION` moves to 8 while retention behavior
+stays unchanged.
+
 Retention is likewise untouched at host bundle 5, which adds only the operator
 rotation verb to the deploy wrapper. `MIN_VERSION` stays at 4 there, so that
 bundle behaves the way bundle 3 did: a host still on bundle 4 deploys the
