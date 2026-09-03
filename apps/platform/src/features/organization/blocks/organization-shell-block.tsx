@@ -1,6 +1,8 @@
+'use client';
+
 import { Badge, Button, Card, CardContent, buttonVariants } from '@repo/ui';
 import { Archive, Loader2, RotateCcw } from 'lucide-react';
-import { Outlet } from 'react-router';
+import type { ReactNode } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -14,7 +16,7 @@ import { OrganizationRoleLabel } from '../components/organization-role-label';
 import { OrganizationTabs } from '../components/organization-tabs';
 import { useRestoreOrganization } from '../hooks/use-organization-settings';
 import type { OrganizationData } from '../loaders';
-import type { OrganizationContext } from '../organization-context';
+import { OrganizationProvider, type OrganizationContext } from '../organization-context';
 import type { ArchivedOrganization } from '../organization-types';
 
 /**
@@ -26,7 +28,13 @@ import type { ArchivedOrganization } from '../organization-types';
  * member of it, and both facts are in the outlet context. No tab carries a
  * branch for "archived" or "could not load".
  */
-export function OrganizationShellBlock({ data }: { data: OrganizationData }) {
+export function OrganizationShellBlock({
+  children,
+  data,
+}: {
+  children?: ReactNode;
+  data: OrganizationData;
+}) {
   const session = usePlatformSession();
 
   if (data.state === 'archived') {
@@ -78,7 +86,7 @@ export function OrganizationShellBlock({ data }: { data: OrganizationData }) {
 
       <OrganizationTabs organizationId={organization.id} />
 
-      <Outlet context={context} />
+      <OrganizationProvider value={context}>{children}</OrganizationProvider>
     </div>
   );
 }

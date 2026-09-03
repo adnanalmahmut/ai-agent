@@ -1,8 +1,5 @@
-import { useRouteLoaderData } from 'react-router';
-
 import { authClient } from '@/features/auth/auth-client';
-import type { OrganizationData } from '@/features/organization/loaders';
-import { ORGANIZATION_ROUTE_ID } from '@/features/organization/loaders';
+import { useOptionalOrganizationContext } from '@/features/organization/organization-context';
 
 export type CurrentOrganization = {
   id: string;
@@ -28,15 +25,14 @@ export type CurrentOrganization = {
  * decides again.
  */
 export function useCurrentOrganization(): CurrentOrganization | null {
-  const routeData =
-    useRouteLoaderData<OrganizationData>(ORGANIZATION_ROUTE_ID);
+  const organizationContext = useOptionalOrganizationContext();
 
   const active = authClient.useActiveOrganization();
 
-  if (routeData?.state === 'ready') {
+  if (organizationContext) {
     return {
-      id: routeData.organization.id,
-      name: routeData.organization.name,
+      id: organizationContext.organization.id,
+      name: organizationContext.organization.name,
     };
   }
 

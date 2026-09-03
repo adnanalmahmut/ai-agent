@@ -1,3 +1,5 @@
+'use client';
+
 import { buttonVariants } from '@repo/ui';
 import { LogIn, Mail } from 'lucide-react';
 import { useTranslations } from 'use-intl';

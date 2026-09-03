@@ -12,15 +12,15 @@
  * Because the browser and the API share an origin, none of this needs to be an
  * environment variable — there is no host to configure, only a path, and a
  * path that changed would break the reverse proxy and the router together.
- * Making it a `VITE_` variable would publish a value that can never vary while
- * suggesting it can.
+ * Making it a public environment variable would publish a value that can never
+ * vary while suggesting it can.
  *
- * This module deliberately imports nothing: `vite.config.ts` reads it for the
- * build's `base`, the router reads it for its `basename`, and the auth client
- * reads it for its API prefix. One definition, three consumers, no drift.
+ * This module deliberately imports nothing: `next.config.ts` reads it for the
+ * build's `basePath`, and browser API clients read it for their stable public
+ * prefixes. One definition, multiple consumers, no drift.
  */
 
-/** Public path this SPA is served from. Matches Vite's `base`. */
+/** Public path this application is served from. Matches Next's `basePath`. */
 export const PLATFORM_BASE_PATH = '/platform';
 
 /** Public path of the backend. Same origin, so a path is the whole address. */

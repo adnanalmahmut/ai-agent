@@ -8,7 +8,7 @@ boundary, not merely deployment layout.
 flowchart TB
   I[Internet] -->|80/443| N[Host Nginx]
   N -->|127.0.0.1:3000| W[Next.js web]
-  N -->|127.0.0.1:3001| P[Vite platform]
+  N -->|127.0.0.1:3001| P[Next.js platform]
   N -->|127.0.0.1:3002| A[Nest API]
   A --> D[(PostgreSQL)]
   A --> R[(Redis)]

@@ -20,10 +20,11 @@ for target in backend backend-migration web platform; do
   grep -Fq "target \"$target\"" docker-bake.hcl
 done
 
-grep -Fq 'ARG VITE_APP_NAME' apps/platform/Dockerfile
-grep -Fq 'test -n "$VITE_APP_NAME"' apps/platform/Dockerfile
-grep -Fq '! grep -R "%VITE_" /workspace/apps/platform/dist' apps/platform/Dockerfile
-grep -Fq 'VITE_APP_NAME = "Feedogo"' docker-bake.hcl
+grep -Fq 'pnpm --filter platform build' apps/platform/Dockerfile
+grep -Fq '/workspace/apps/platform/.next/standalone' apps/platform/Dockerfile
+grep -Fq 'CMD ["node", "apps/platform/server.js"]' apps/platform/Dockerfile
+grep -Fq 'ARG NEXT_PUBLIC_APP_NAME=Feedogo' apps/platform/Dockerfile
+grep -Fq 'NEXT_PUBLIC_APP_NAME = "Feedogo"' docker-bake.hcl
 
 if grep -ERn ':latest([^A-Za-z]|$)' "$workflow" docker-bake.hcl; then
   echo 'latest is forbidden as a release identity' >&2

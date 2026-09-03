@@ -1,12 +1,14 @@
+'use client';
+
 import { Badge, Button, Card, CardContent } from '@repo/ui';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { ORGANIZATION_ROUTES } from '@/features/auth/routes';
+import { Link } from '@/i18n/navigation';
 import {
   getContentProject,
   type ContentProjectDetail,
@@ -24,10 +26,9 @@ import { useOrganizationContext } from '../organization-context';
 
 type LoadState = 'loading' | 'loaded' | 'missing' | 'error';
 
-export function OrganizationContentProjectBlock() {
+export function OrganizationContentProjectBlock({ projectId }: { projectId: string }) {
   const t = useTranslations('ContentProjects');
   const { organization } = useOrganizationContext();
-  const { projectId } = useParams<{ projectId: string }>();
   const organizationId = organization.id;
 
   const [project, setProject] = useState<ContentProjectDetail | null>(null);
@@ -80,7 +81,7 @@ export function OrganizationContentProjectBlock() {
   const backLink = (
     <Link
       className="inline-flex items-center gap-1 text-sm underline-offset-4 hover:underline"
-      to={ORGANIZATION_ROUTES.contentProjects(organizationId)}
+      href={ORGANIZATION_ROUTES.contentProjects(organizationId)}
     >
       <ArrowLeft aria-hidden className="size-4 rtl:rotate-180" />
       {t('detail.back')}

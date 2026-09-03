@@ -24,6 +24,13 @@ export const navigateSpy = vi.fn<
 /** Records every request to re-run the loaders. */
 export const revalidateSpy = vi.fn<() => void>();
 
+export const testRouter = {
+  state: {
+    location: { pathname: '/', search: '', hash: '' },
+    historyAction: 'POP',
+  },
+};
+
 type Href = string | { pathname: string; query?: Record<string, string | undefined> };
 
 export function hrefToPath(href: Href): string {
@@ -65,8 +72,20 @@ export function Link({
   );
 }
 
-export const useAppNavigate = () => navigateSpy;
+export const useAppNavigate = () =>
+  (href: Href, options?: { replace?: boolean; locale?: AppLocale }) => {
+    navigateSpy(href, options);
+    const next = new URL(hrefToPath(href), 'http://platform.test');
+    testRouter.state.location = {
+      pathname: next.pathname,
+      search: next.search,
+      hash: next.hash,
+    };
+    testRouter.state.historyAction = options?.replace ? 'REPLACE' : 'PUSH';
+  };
 export const useRevalidate = () => revalidateSpy;
+export const useAppSearchParams = () =>
+  new URLSearchParams(testRouter.state.location.search);
 
 /**
  * Reads the *real* locale from the provider the test rendered with.
@@ -87,7 +106,14 @@ export const useAppLocale = (): AppLocale => useLocale() as AppLocale;
 let pathname = '/';
 
 export function stubLocation(at: string): void {
-  pathname = at;
+  const next = new URL(at, 'http://platform.test');
+  pathname = next.pathname;
+  testRouter.state.location = {
+    pathname: next.pathname,
+    search: next.search,
+    hash: next.hash,
+  };
+  testRouter.state.historyAction = 'POP';
 }
 
 export const useAppLocation = () => ({
@@ -100,4 +126,6 @@ export function resetNavigationStub() {
   navigateSpy.mockReset();
   revalidateSpy.mockReset();
   pathname = '/';
+  testRouter.state.location = { pathname: '/', search: '', hash: '' };
+  testRouter.state.historyAction = 'POP';
 }

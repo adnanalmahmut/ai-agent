@@ -1528,7 +1528,7 @@ describe('the content ideas screen', () => {
 
       expect(link).toHaveAttribute(
         'href',
-        '/organizations/org_1/content-projects/proj_1',
+        '/en/organizations/org_1/content-projects/proj_1',
       );
     });
 

@@ -1,3 +1,5 @@
+'use client';
+
 import { Badge, Button, Card, CardContent, Textarea } from '@repo/ui';
 import { Loader2, ShieldCheck } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';

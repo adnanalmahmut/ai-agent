@@ -40,7 +40,10 @@ import {
  * decisions only.
  */
 export const authClient = createAuthClient({
-  baseURL: new URL(AUTH_BASE_PATH, window.location.origin).toString(),
+  baseURL: new URL(
+    AUTH_BASE_PATH,
+    typeof window === 'undefined' ? 'http://localhost' : window.location.origin,
+  ).toString(),
   plugins: [
     inferAdditionalFields({
       user: {

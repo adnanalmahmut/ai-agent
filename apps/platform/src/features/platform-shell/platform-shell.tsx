@@ -1,12 +1,15 @@
+'use client';
+
 import { Button, SidebarInset, SidebarProvider, SidebarTrigger, useSidebar } from '@repo/ui';
 import { ShieldAlert } from 'lucide-react';
-import { Outlet } from 'react-router';
+import type { ReactNode } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { ModeToggle } from '@/components/mode-toggle';
 import { authClient } from '@/features/auth/auth-client';
-import { usePlatformSession } from '@/features/auth/use-platform-session';
+import type { PlatformSession } from '@/features/auth/session-types';
+import { PlatformSessionProvider, usePlatformSession } from '@/features/auth/use-platform-session';
 import { ActiveOrganization } from '@/features/organization/components/active-organization';
 
 import { PlatformSidebar } from './platform-sidebar';
@@ -28,7 +31,7 @@ function MobileSidebarTrigger() {
 /**
  * The frame every authenticated page renders inside.
  */
-export function PlatformShell() {
+function PlatformShellContent({ children }: { children: ReactNode }) {
   const t = useTranslations('Platform');
   const session = usePlatformSession();
   const isImpersonating = Boolean(session.session.impersonatedBy);
@@ -83,10 +86,24 @@ export function PlatformShell() {
 
         <main className="flex-1 px-4 py-6 md:px-6 md:py-8">
           <div className="mx-auto w-full max-w-6xl">
-            <Outlet />
+            {children}
           </div>
         </main>
       </SidebarInset>
     </SidebarProvider>
+  );
+}
+
+export function PlatformShell({
+  children,
+  session,
+}: {
+  children: ReactNode;
+  session: PlatformSession;
+}) {
+  return (
+    <PlatformSessionProvider session={session}>
+      <PlatformShellContent>{children}</PlatformShellContent>
+    </PlatformSessionProvider>
   );
 }

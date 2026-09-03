@@ -1,3 +1,5 @@
+'use client';
+
 import {
   LOCALE_META,
   SUPPORTED_LOCALES,

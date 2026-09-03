@@ -1,3 +1,5 @@
+'use client';
+
 import { Button, buttonVariants } from '@repo/ui';
 import { CheckCircle2, KeyRound } from 'lucide-react';
 import { useTranslations } from 'use-intl';

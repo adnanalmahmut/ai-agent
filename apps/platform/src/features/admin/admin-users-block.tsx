@@ -1,3 +1,5 @@
+'use client';
+
 import { Button, Input } from '@repo/ui';
 import { Loader2, RefreshCw, Search, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';

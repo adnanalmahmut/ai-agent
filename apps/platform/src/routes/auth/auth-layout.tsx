@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router';
+import type { ReactNode } from 'react';
 
 import { BrandMark } from '@/components/brand-mark';
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -23,7 +23,7 @@ import { publicConfig } from '@/config/public';
  * shell: someone who cannot sign in yet still needs to be able to read the
  * page.
  */
-export function AuthLayout() {
+export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-muted/40">
       <header className="px-5 py-5 md:px-8">
@@ -44,7 +44,7 @@ export function AuthLayout() {
 
       <main className="flex flex-1 items-start justify-center px-5 pb-16 md:items-center md:px-8 md:pb-24">
         <div className="w-full max-w-md">
-          <Outlet />
+          {children}
         </div>
       </main>
     </div>

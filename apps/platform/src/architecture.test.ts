@@ -8,8 +8,8 @@ import { describe, expect, it } from 'vitest';
  *
  * Every constraint below is one a reviewer would otherwise have to remember on
  * every pull request: thin routes, no scattered fetches, no role strings in
- * components, no magic colours, logical spacing, and — since the migration —
- * no Next.js left behind. Written as tests because a rule that is only in a
+ * components, no magic colours, logical spacing, and explicit Next.js
+ * boundaries. Written as tests because a rule that is only in a
  * document is a rule that decays.
  *
  * Each exemption names a file and says why. An exemption list that grows
@@ -81,20 +81,8 @@ function withoutComments(source: string): string {
     .replace(/^[ \t]*\/\/.*$/gm, '');
 }
 
-describe('nothing of Next.js survived', () => {
-  it('imports no Next.js package anywhere', () => {
-    // The migration's own regression test. A stray `next/link` would compile
-    // under an unrelated dependency and fail only in the browser.
-    const offenders = SOURCE_FILES.filter((path) =>
-      /from ['"](next|next-intl|next\/[\w/-]+|next-intl\/[\w/-]+)['"]/.test(
-        read(path),
-      ),
-    ).map(label);
-
-    expect(offenders).toEqual([]);
-  });
-
-  it('declares no Next.js dependency', () => {
+describe('Next.js boundaries are explicit', () => {
+  it('declares the framework packages directly', () => {
     const manifest: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> } =
       JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
 
@@ -103,18 +91,22 @@ describe('nothing of Next.js survived', () => {
       ...manifest.devDependencies,
     });
 
-    // `next-themes` is deliberately absent from this list and deliberately
-    // still installed: it has zero dependencies, peers only on React, and is
-    // Next-flavoured in name alone.
-    expect(installed).not.toContain('next');
-    expect(installed).not.toContain('next-intl');
-    expect(installed).not.toContain('eslint-config-next');
+    expect(installed).toEqual(
+      expect.arrayContaining([
+        'next',
+        'next-intl',
+        'server-only',
+        'eslint-config-next',
+      ]),
+    );
   });
 
-  it('leaves no server-only module in a browser bundle', () => {
-    // There is no server. A `server-only` import would now be a build error
-    // waiting to happen rather than a boundary being enforced.
-    for (const path of SOURCE_FILES) {
+  it('keeps server-only imports out of client modules', () => {
+    const clientFiles = SOURCE_FILES.filter((path) =>
+      /^['"]use client['"];/.test(read(path)),
+    );
+
+    for (const path of clientFiles) {
       expect(read(path), label(path)).not.toMatch(/['"]server-only['"]/);
     }
   });
@@ -122,31 +114,14 @@ describe('nothing of Next.js survived', () => {
 
 describe('routes stay thin', () => {
   const ROUTE_FILES = SOURCE_FILES.filter((path) =>
-    relative(process.cwd(), path).startsWith(join('src', 'routes')),
+    relative(process.cwd(), path).startsWith(join('src', 'app')),
   );
-
-  /**
-   * The two route modules that are not pages.
-   *
-   * `locale-route` writes `lang` and `dir` onto the document element, which is
-   * outside React's tree and therefore genuinely an effect. `route-error` is
-   * the error boundary and owns a reload button.
-   */
-  const NOT_A_PAGE = [
-    join('routes', 'locale-route.tsx'),
-    join('routes', 'route-error.tsx'),
-  ];
-
-  const pages = ROUTE_FILES.filter(
-    (path) =>
-      !isDesignSystemPage(path) &&
-      !NOT_A_PAGE.some((exempt) => path.includes(exempt)),
-  );
+  const pages = ROUTE_FILES.filter((path) => path.endsWith(`${sep}page.tsx`));
 
   it('finds the routes it is meant to be checking', () => {
     // A refactor that moved the routes directory must not silently disarm
     // this into a test that passes because it looks at nothing.
-    expect(pages.length).toBeGreaterThan(4);
+    expect(pages.length).toBeGreaterThan(20);
   });
 
   it.each(pages.map((path) => [label(path), path]))(
@@ -178,15 +153,17 @@ describe('routes stay thin', () => {
 });
 
 describe('no scattered network calls', () => {
-  /** The application API boundary. Its whole job is to be the one caller. */
-  const API_BOUNDARY = join('src', 'lib', 'application-api.ts');
+  const API_BOUNDARIES = [
+    join('src', 'lib', 'api', 'server-request.ts'),
+    join('src', 'lib', 'application-api.ts'),
+  ];
 
-  it('calls fetch from exactly one module', () => {
+  it('calls fetch only from the server and browser API boundaries', () => {
     const callers = SOURCE_FILES.filter((path) =>
       /(^|[^.\w])fetch\s*\(/m.test(withoutComments(read(path))),
     ).map(label);
 
-    expect(callers).toEqual([API_BOUNDARY]);
+    expect(callers).toEqual(API_BOUNDARIES);
   });
 
   it('imports the Better Auth client from exactly one module', () => {
@@ -221,35 +198,26 @@ describe('authentication is a router boundary, not an effect', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('guards the private tree from exactly one place', () => {
-    const guards = SOURCE_FILES.filter((path) =>
-      /export async function protectedLoader/.test(read(path)),
-    ).map(label);
-
-    expect(guards).toEqual(['src/features/auth/loaders.ts']);
-  });
-
-  it('wires that guard into the route tree', () => {
-    const tree = read(join(SRC, 'app', 'routes.tsx'));
-
-    expect(tree).toContain('loader: protectedLoader');
-    // The dashboard shell must be a *child* of the guard, never a sibling.
-    expect(tree.indexOf('protectedLoader')).toBeLessThan(
-      tree.indexOf('PlatformShell'),
+  it('guards the private tree in its server layout', () => {
+    const layout = read(
+      join(SRC, 'app', '[locale]', '(platform)', 'layout.tsx'),
     );
+
+    expect(layout).toContain('getServerSession()');
+    expect(layout).toContain('if (!session)');
+    expect(layout.indexOf('if (!session)')).toBeLessThan(
+      layout.indexOf('<PlatformShell'),
+    );
+    expect(layout).toContain('returnPathFromUrl');
   });
 });
 
 describe('the mount point is stated once', () => {
-  it('is read from the same constant by the build and the router', () => {
-    // If Vite's `base` and React Router's `basename` ever disagree, every
-    // asset 404s in production and nothing catches it before deploy.
-    expect(read(join(process.cwd(), 'vite.config.ts'))).toContain(
-      'PLATFORM_BASE_PATH',
-    );
-    expect(read(join(SRC, 'app', 'router.tsx'))).toContain(
-      'basename: PLATFORM_BASE_PATH',
-    );
+  it('is read from the path constant by Next configuration', () => {
+    const config = read(join(process.cwd(), 'next.config.ts'));
+
+    expect(config).toContain('import { PLATFORM_BASE_PATH }');
+    expect(config).toContain('basePath: PLATFORM_BASE_PATH');
   });
 
   it('hard-codes the platform or api path nowhere else', () => {

@@ -1,5 +1,6 @@
 import { screen } from '@testing-library/react';
-import type { RouteObject } from 'react-router';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderWithProviders } from '@/test/render';
@@ -11,7 +12,6 @@ const { resetNavigationStub, stubLocation } = await import(
 );
 const { OrganizationTabs } = await import('./organization-tabs');
 const { ORGANIZATION_ROUTES } = await import('@/features/auth/routes');
-const { createRoutes } = await import('@/app/routes');
 
 const ORGANIZATION_ID = 'org_acme';
 
@@ -34,21 +34,19 @@ const currentHref = () =>
  * children are `lazy`, so the components cannot be inspected — but the `path`
  * literals can, and those are the half that has to agree with the tab hrefs.
  */
-function organizationChildPaths(routes: RouteObject[]): Set<string> {
+function organizationChildPaths(): Set<string> {
+  const routeRoot = join(
+    process.cwd(),
+    'src/app/[locale]/(platform)/organizations/[organizationId]',
+  );
   const found = new Set<string>();
 
-  const walk = (route: RouteObject) => {
-    if (route.path === ':organizationId') {
-      for (const child of route.children ?? []) {
-        found.add(child.path ?? '');
-      }
+  if (existsSync(join(routeRoot, 'page.tsx'))) found.add('');
+  for (const entry of readdirSync(routeRoot, { withFileTypes: true })) {
+    if (entry.isDirectory() && existsSync(join(routeRoot, entry.name, 'page.tsx'))) {
+      found.add(entry.name);
     }
-
-    for (const child of route.children ?? []) walk(child);
-  };
-
-  for (const route of routes) walk(route);
-
+  }
   return found;
 }
 
@@ -63,7 +61,7 @@ function organizationChildPaths(routes: RouteObject[]): Set<string> {
  */
 describe('the organization tabs', () => {
   it('links only to segments the route tree declares', () => {
-    const declared = organizationChildPaths(createRoutes());
+    const declared = organizationChildPaths();
 
     expect(declared.size).toBeGreaterThan(0);
 

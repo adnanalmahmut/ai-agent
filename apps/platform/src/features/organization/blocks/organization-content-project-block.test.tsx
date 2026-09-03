@@ -76,7 +76,7 @@ const detail = (overrides: Record<string, unknown> = {}) => ({
 
 const render = () =>
   renderInOrganization(
-    <OrganizationContentProjectBlock />,
+    <OrganizationContentProjectBlock projectId="proj_1" />,
     context({ organization: organization() }),
   );
 
@@ -215,7 +215,7 @@ describe('organization content project block', () => {
     getContentProject.mockResolvedValue(detail());
 
     renderInOrganization(
-      <OrganizationContentProjectBlock />,
+      <OrganizationContentProjectBlock projectId="proj_1" />,
       context({ organization: organization() }),
       { locale: 'ar' },
     );

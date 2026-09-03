@@ -1,3 +1,5 @@
+'use client';
+
 import { Card, CardContent, CardHeader, CardTitle, buttonVariants } from '@repo/ui';
 import { Check, Plus, X } from 'lucide-react';
 import { useState } from 'react';

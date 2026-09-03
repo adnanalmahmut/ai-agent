@@ -1,3 +1,5 @@
+'use client';
+
 import { buttonVariants } from '@repo/ui';
 import { CheckCircle2, MailCheck } from 'lucide-react';
 import { useTranslations } from 'use-intl';

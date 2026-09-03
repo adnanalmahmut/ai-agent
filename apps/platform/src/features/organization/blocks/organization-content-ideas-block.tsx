@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Badge,
   Button,
@@ -9,7 +11,6 @@ import {
 } from '@repo/ui';
 import { Check, Lightbulb, Loader2, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -28,7 +29,15 @@ import {
   type PendingSubmission,
 } from '../content-idea-submission';
 
-import { ORGANIZATION_DETAIL_ROUTES } from '@/features/auth/routes';
+import {
+  ORGANIZATION_DETAIL_ROUTES,
+  ORGANIZATION_ROUTES,
+} from '@/features/auth/routes';
+import {
+  Link,
+  useAppNavigate,
+  useAppSearchParams,
+} from '@/i18n/navigation';
 import {
   CONTENT_IDEA_LANGUAGES,
   createContentProjectFromIdea,
@@ -246,7 +255,8 @@ export function OrganizationContentIdeasBlock({
 }: { pollIntervalMs?: number; pollTimeoutMs?: number } = {}) {
   const t = useTranslations('ContentIdeas');
   const { organization, viewer } = useOrganizationContext();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const searchParams = useAppSearchParams();
+  const navigate = useAppNavigate();
 
   const canCreate = useOrganizationRolePermission(viewer.member?.role, {
     contentIdea: ['create'],
@@ -341,19 +351,19 @@ export function OrganizationContentIdeasBlock({
    * this session before leaving the screen.
    */
   const putOperationInRoute = useCallback(
-    (operationId: string | null) =>
-      setSearchParams(
-        (previous) => {
-          const next = new URLSearchParams(previous);
+    (operationId: string | null) => {
+      const next = new URLSearchParams(searchParams.toString());
 
-          if (operationId === null) next.delete(OPERATION_PARAM);
-          else next.set(OPERATION_PARAM, operationId);
+      if (operationId === null) next.delete(OPERATION_PARAM);
+      else next.set(OPERATION_PARAM, operationId);
 
-          return next;
-        },
+      const query = next.toString();
+      navigate(
+        `${ORGANIZATION_ROUTES.contentIdeas(organizationId)}${query ? `?${query}` : ''}`,
         { replace: true },
-      ),
-    [setSearchParams],
+      );
+    },
+    [navigate, organizationId, searchParams],
   );
 
   /**
@@ -948,7 +958,7 @@ export function OrganizationContentIdeasBlock({
                         ) : (
                           <Link
                             className="text-sm underline-offset-4 hover:underline"
-                            to={ORGANIZATION_DETAIL_ROUTES.contentProject(
+                            href={ORGANIZATION_DETAIL_ROUTES.contentProject(
                               organizationId,
                               promotedNow[index] ?? '',
                             )}
