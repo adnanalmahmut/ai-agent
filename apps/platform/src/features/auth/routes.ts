@@ -3,9 +3,9 @@
  *
  * All paths here are **locale-agnostic**. The locale prefix is applied by
  * `@/i18n/navigation`, so nothing in a feature ever writes `/ar/...` or
- * `/en/...` itself, and the mount point (`/platform`) is applied by React
- * Router's `basename`, so nothing writes that either. A path here is the same
- * string the route tree matches on.
+ * `/en/...` itself, and Next applies the mount point (`/platform`) from
+ * `basePath`, so nothing writes that either. A path here is the same string the
+ * App Router page represents beneath its locale segment.
  */
 
 /** Public: reachable without a session, because a session is what they create. */

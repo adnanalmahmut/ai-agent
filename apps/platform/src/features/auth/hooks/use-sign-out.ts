@@ -17,10 +17,10 @@ import { useAuthAction } from './use-auth-action';
  * Three things then have to be discarded, and each needs its own step. Better
  * Auth's own session atom is reset by the call (its atom listener matches
  * `/sign-out`) and broadcast to other tabs. Navigating with `replace` leaves
- * the private tree without leaving it one Back press away. Revalidating drops
- * the loader data the private routes are still holding — without it, the
- * organization list and the session behind the account menu would survive the
- * sign-out in memory.
+ * the private tree without leaving it one Back press away. Refreshing drops
+ * the Server Component data the private routes are still holding — without
+ * it, the organization list and session behind the account menu would survive
+ * the sign-out in memory.
  */
 export function useSignOut() {
   const navigate = useAppNavigate();

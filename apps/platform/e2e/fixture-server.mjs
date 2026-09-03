@@ -53,10 +53,30 @@ const organization = {
 
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host}`);
+  const sessionMode = request.headers.cookie
+    ?.split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith('platform-e2e-session='))
+    ?.split('=')[1];
   let body;
 
   if (url.pathname === '/health') body = { ok: true };
-  if (url.pathname === '/api/auth/get-session') body = session;
+  if (url.pathname === '/api/auth/get-session') {
+    if (sessionMode === 'outage') {
+      request.socket.destroy();
+      return;
+    }
+    if (sessionMode === 'anonymous') {
+      response.writeHead(401, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ error: { code: 'UNAUTHORIZED' } }));
+      return;
+    }
+    body = session;
+  }
+  if (url.pathname === '/api/auth/organization/list') body = [organization];
+  if (url.pathname === '/api/organizations/archived') {
+    body = { success: true, data: [] };
+  }
   if (url.pathname === '/api/auth/organization/get-full-organization') {
     body = organization;
   }

@@ -7,7 +7,7 @@ import { PLATFORM_BASE_PATH } from '../src/config/paths.js';
  *
  * Only the cases that need one. The component suite already asserts the logic
  * in jsdom — what it cannot assert is that the built bundle boots, that the
- * router's basename works, that the operation genuinely survives a *browser*
+ * App Router mount path works, that the operation genuinely survives a *browser*
  * reload, and that a key minted with `crypto.randomUUID`, paired with a
  * `crypto.subtle` digest of the request and kept in real `sessionStorage`,
  * survives the same reload without the request text going with it. Each of
@@ -206,7 +206,7 @@ async function stubApi(page: Page, options: Options = {}) {
  * `baseURL` is intentionally configured with that same mount point, but an
  * absolute app path keeps the smoke test independent of URL-resolution
  * differences between browser runners. `/en/...` would skip the mount point,
- * whereas `/platform/en/...` exercises the real router basename.
+ * whereas `/platform/en/...` exercises the real configured base path.
  */
 const contentIdeasPath = `${PLATFORM_BASE_PATH}/en/organizations/${ORGANIZATION_ID}/content-ideas`;
 
@@ -248,7 +248,7 @@ test.describe('content ideas in a browser', () => {
     await gotoContentIdeas(page);
 
     // The route loads and the form is offered, which together prove the bundle
-    // booted and the router's basename resolved.
+    // booted and the configured base path resolved.
     await expect(page.getByRole('heading', { name: 'Content ideas' })).toBeVisible();
     await expect(page.getByRole('button', { name: /generate ideas/i })).toBeVisible();
 
@@ -459,5 +459,94 @@ test.describe('content ideas in a browser', () => {
     // It kept asking through both, and the run finished.
     await expect(page.getByText(IDEA.title)).toBeVisible();
     expect(reads).toBeGreaterThanOrEqual(3);
+  });
+});
+
+const useSessionMode = async (
+  page: Page,
+  mode: 'anonymous' | 'outage',
+) => {
+  await page.context().addCookies([
+    {
+      name: 'platform-e2e-session',
+      value: mode,
+      domain: '127.0.0.1',
+      path: '/',
+      httpOnly: true,
+      sameSite: 'Lax',
+    },
+  ]);
+};
+
+test.describe('App Router route and authentication contracts', () => {
+  test('adds the default Arabic locale to a locale-less deep link', async ({
+    page,
+  }) => {
+    await page.goto(`${PLATFORM_BASE_PATH}/organizations?view=archived`);
+
+    await expect(page).toHaveURL(
+      new RegExp(`${PLATFORM_BASE_PATH}/ar/organizations\\?view=archived$`),
+    );
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  });
+
+  test('redirects an anonymous private deep link before rendering its UI', async ({
+    page,
+  }) => {
+    await useSessionMode(page, 'anonymous');
+    const returnTo = `/organizations/${ORGANIZATION_ID}/content-projects/project_1?revision=2`;
+
+    await page.goto(`${PLATFORM_BASE_PATH}/en${returnTo}`);
+
+    await expect(page).toHaveURL((url) =>
+      url.pathname === `${PLATFORM_BASE_PATH}/en/sign-in` &&
+      url.searchParams.get('returnTo') === returnTo,
+    );
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByText('Kettle teardown')).toHaveCount(0);
+  });
+
+  test('keeps an anonymous visitor on sign-in and sends a signed-in visitor home', async ({
+    page,
+  }) => {
+    await useSessionMode(page, 'anonymous');
+    await page.goto(`${PLATFORM_BASE_PATH}/en/sign-in`);
+    await expect(
+      page.getByRole('heading', { name: 'Sign in' }),
+    ).toBeVisible();
+
+    await page.context().clearCookies();
+    await page.goto(`${PLATFORM_BASE_PATH}/en/sign-in`);
+    await expect(page).toHaveURL(new RegExp(`${PLATFORM_BASE_PATH}/en$`));
+    await expect(
+      page.getByRole('main').getByText('smoke@example.test'),
+    ).toBeVisible();
+  });
+
+  test('renders the localized not-found page for an unsupported path', async ({
+    page,
+  }) => {
+    const response = await page.goto(`${PLATFORM_BASE_PATH}/en/not-a-real-route`);
+
+    expect(response?.status()).toBe(404);
+    await expect(
+      page.getByRole('heading', { name: 'Page not found' }),
+    ).toBeVisible();
+  });
+
+  test('does not misclassify an API outage as an anonymous session', async ({
+    page,
+  }) => {
+    await useSessionMode(page, 'outage');
+    const privatePath = `${PLATFORM_BASE_PATH}/en/organizations`;
+    const response = await page.goto(privatePath);
+
+    expect(response?.status()).toBeGreaterThanOrEqual(500);
+    await expect(page).toHaveURL(privatePath);
+    await expect(
+      page.getByRole('heading', { name: 'Something went wrong' }),
+    ).toBeVisible();
+    await expect(page).not.toHaveURL(/\/sign-in/);
   });
 });

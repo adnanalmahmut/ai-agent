@@ -8,13 +8,13 @@ import {
   invitationFailureFrom,
   type InvitationDetails,
 } from './invitation-state';
+import { organizationErrorFrom } from './organization-errors';
 import type {
   InvitationRouteData,
   OrganizationBusinessProfileData,
   OrganizationData,
   OrganizationsListData,
-} from './loaders';
-import { organizationErrorFrom } from './organization-errors';
+} from './route-data';
 import type {
   ArchivedOrganization,
   FullOrganization,

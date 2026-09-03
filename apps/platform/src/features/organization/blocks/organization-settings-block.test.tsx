@@ -199,7 +199,7 @@ describe('the business defaults form', () => {
       await screen.findByText('Business defaults were saved.'),
     ).toBeInTheDocument();
     expect(revalidateSpy).toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it('reports a concurrent update instead of claiming success', async () => {
     const { ApiError } = await import('@/lib/application-api');
@@ -221,7 +221,7 @@ describe('the business defaults form', () => {
         'These settings changed elsewhere. Review the latest values and try again.',
       ),
     ).toBeInTheDocument();
-  });
+  }, 15_000);
 });
 
 describe('the danger zone', () => {

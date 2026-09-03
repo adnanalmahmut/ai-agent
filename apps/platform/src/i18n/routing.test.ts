@@ -68,7 +68,7 @@ describe('localizedPath', () => {
   });
 
   it('carries no mount point of its own', () => {
-    // `basename` applies `/platform`; baking it in here would double it up.
+    // Next `basePath` applies `/platform`; baking it in here would double it up.
     expect(localizedPath('en', '/organizations')).not.toContain(
       PLATFORM_BASE_PATH,
     );

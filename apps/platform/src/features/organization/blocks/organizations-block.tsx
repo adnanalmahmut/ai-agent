@@ -15,7 +15,7 @@ import { PageHeader } from '@/components/page-header';
 import { ORGANIZATION_ROUTES, PLATFORM_ROUTES } from '@/features/auth/routes';
 import { Link } from '@/i18n/navigation';
 
-import type { OrganizationsListData } from '../loaders';
+import type { OrganizationsListData } from '../route-data';
 import { useRestoreOrganization } from '../hooks/use-organization-settings';
 import type { ArchivedOrganization } from '../organization-types';
 import { OrganizationAvatar } from '../components/organization-avatar';

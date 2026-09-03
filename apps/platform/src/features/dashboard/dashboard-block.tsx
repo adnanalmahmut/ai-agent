@@ -18,7 +18,7 @@ import { PageHeader } from '@/components/page-header';
 import { PLATFORM_ROUTES } from '@/features/auth/routes';
 import { usePlatformSession } from '@/features/auth/use-platform-session';
 import { ActiveOrganization } from '@/features/organization/components/active-organization';
-import type { OrganizationsListData } from '@/features/organization/loaders';
+import type { OrganizationsListData } from '@/features/organization/route-data';
 import { Link } from '@/i18n/navigation';
 
 /**

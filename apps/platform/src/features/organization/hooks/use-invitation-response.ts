@@ -18,9 +18,9 @@ import {
  *
  * Accepting changes two things the platform displays: the user gains a
  * membership, and the backend makes the new organization active in the same
- * transaction. Neither is visible to loader data already in hand, so
- * revalidating is not optional here — without it the shell would keep showing
- * the previous organization until a hard reload.
+ * transaction. Neither is visible to Server Component data already in hand,
+ * so refreshing is not optional here — without it the shell would keep
+ * showing the previous organization until a hard reload.
  *
  * On success the reader is taken *into* the organization they just joined
  * rather than to the dashboard. They followed a link about one specific

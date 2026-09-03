@@ -10,7 +10,9 @@ export default function ErrorBoundary({ reset }: { reset: () => void }) {
     <main className="flex min-h-screen items-center justify-center bg-muted/40 p-5">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>{t('unexpected.title')}</CardTitle>
+          <CardTitle>
+            <h1>{t('unexpected.title')}</h1>
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">

@@ -15,7 +15,7 @@ import { OrganizationErrorAlert } from '../components/organization-error-alert';
 import { OrganizationRoleLabel } from '../components/organization-role-label';
 import { OrganizationTabs } from '../components/organization-tabs';
 import { useRestoreOrganization } from '../hooks/use-organization-settings';
-import type { OrganizationData } from '../loaders';
+import type { OrganizationData } from '../route-data';
 import { OrganizationProvider, type OrganizationContext } from '../organization-context';
 import type { ArchivedOrganization } from '../organization-types';
 
