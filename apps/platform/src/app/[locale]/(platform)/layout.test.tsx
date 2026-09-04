@@ -1,4 +1,8 @@
+import { useQueryClient } from '@tanstack/react-query';
+import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { ReactNode } from 'react';
 
 import { AUTH_ROUTES, RETURN_TO_PARAM } from '@/features/auth/routes';
 import type { PlatformSession } from '@/features/auth/session-types';
@@ -30,7 +34,7 @@ vi.mock('@/i18n/server-navigation', () => ({
   redirect: (options: unknown) => redirect(options),
 }));
 vi.mock('@/features/platform-shell/platform-shell', () => ({
-  PlatformShell: () => null,
+  PlatformShell: ({ children }: { children: ReactNode }) => children,
 }));
 
 const { default: ProtectedLayout } = await import('./layout');
@@ -39,9 +43,9 @@ const SESSION = {
   user: { id: 'user_1' },
 } as unknown as PlatformSession;
 
-const render = (locale = 'en') =>
+const renderLayout = (locale = 'en', children: ReactNode = null) =>
   ProtectedLayout({
-    children: null,
+    children,
     params: Promise.resolve({ locale }),
   });
 
@@ -57,7 +61,7 @@ describe('the protected route group', () => {
   it('sends an anonymous visitor to sign-in instead of rendering the shell', async () => {
     getServerSession.mockResolvedValue(null);
 
-    const rendered = await render();
+    const rendered = await renderLayout();
 
     expect(rendered).toBeUndefined();
     expect(redirect).toHaveBeenCalledWith({
@@ -70,7 +74,7 @@ describe('the protected route group', () => {
     getServerSession.mockResolvedValue(null);
     interruptedAt('/platform/en/organizations/org_1/members?tab=active');
 
-    await render();
+    await renderLayout();
 
     expect(redirect).toHaveBeenCalledWith({
       href: {
@@ -87,7 +91,7 @@ describe('the protected route group', () => {
     getServerSession.mockResolvedValue(null);
     interruptedAt('//evil.example/platform/en');
 
-    await render();
+    await renderLayout();
 
     expect(redirect).toHaveBeenCalledWith({
       href: AUTH_ROUTES.signIn,
@@ -99,7 +103,7 @@ describe('the protected route group', () => {
     getServerSession.mockResolvedValue(null);
     interruptedAt('/platform/en/sign-in');
 
-    await render();
+    await renderLayout();
 
     expect(redirect).toHaveBeenCalledWith({
       href: AUTH_ROUTES.signIn,
@@ -111,7 +115,7 @@ describe('the protected route group', () => {
     getServerSession.mockResolvedValue(SESSION);
     interruptedAt('/platform/en/organizations');
 
-    const rendered = await render();
+    const rendered = await renderLayout();
 
     expect(redirect).not.toHaveBeenCalled();
     expect(rendered).toBeTruthy();
@@ -120,15 +124,34 @@ describe('the protected route group', () => {
   it('asks for the session before deciding anything', async () => {
     getServerSession.mockResolvedValue(null);
 
-    await render();
+    await renderLayout();
 
     expect(getServerSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the private tree a query client to hold its server state', async () => {
+    getServerSession.mockResolvedValue(SESSION);
+
+    function QueryClientProbe() {
+      useQueryClient();
+
+      return <p>reached</p>;
+    }
+
+    const rendered = await renderLayout('en', <QueryClientProbe />);
+
+    // `useQueryClient` throws without a provider above it, so rendering at
+    // all is the assertion: the protected boundary is where the client is
+    // mounted, and it is mounted around the shell rather than inside it.
+    render(rendered as ReactNode);
+
+    expect(screen.getByText('reached')).toBeInTheDocument();
   });
 
   it('rejects a locale the application does not serve', async () => {
     getServerSession.mockResolvedValue(SESSION);
 
-    await expect(render('fr')).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(renderLayout('fr')).rejects.toThrow('NEXT_NOT_FOUND');
     expect(redirect).not.toHaveBeenCalled();
   });
 });

@@ -90,7 +90,16 @@ export function RuntimeSettingsPanel() {
   };
 
   return (
-    <PanelState resource={resource} emptyLabel={t('settings.empty')}>
+    <PanelState
+      isLoading={resource.isLoading}
+      loadError={resource.loadError}
+      onRetry={resource.reload}
+      actionError={resource.actionError}
+      actionErrorDetails={resource.actionErrorDetails}
+      onDismissActionError={resource.dismissActionError}
+      isEmpty={resource.items.length === 0}
+      emptyLabel={t('settings.empty')}
+    >
       <Table>
         <TableHeader>
           <TableRow>

@@ -10,7 +10,7 @@ import english from '../messages/en.json';
 import { AUTH_ERROR_CODES } from './features/auth/auth-errors';
 import { INVITATION_FAILURES } from './features/organization/invitation-state';
 import { organizationRoles } from './features/authorization/permissions';
-import { CONTROL_PLANE_ERROR_KINDS } from './features/control-plane/use-control-plane-resource';
+import { CONTROL_PLANE_ERROR_KINDS } from './features/control-plane/control-plane-errors';
 import {
   CONTROL_PLANE_AUDIT_ACTIONS,
   FEATURE_FLAG_SOURCES,

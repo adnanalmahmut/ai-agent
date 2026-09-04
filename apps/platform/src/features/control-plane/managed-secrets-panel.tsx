@@ -85,7 +85,16 @@ export function ManagedSecretsPanel() {
   };
 
   return (
-    <PanelState resource={resource} emptyLabel={t('secrets.empty')}>
+    <PanelState
+      isLoading={resource.isLoading}
+      loadError={resource.loadError}
+      onRetry={resource.reload}
+      actionError={resource.actionError}
+      actionErrorDetails={resource.actionErrorDetails}
+      onDismissActionError={resource.dismissActionError}
+      isEmpty={resource.items.length === 0}
+      emptyLabel={t('secrets.empty')}
+    >
       <Table>
         <TableHeader>
           <TableRow>

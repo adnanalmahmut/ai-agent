@@ -35,6 +35,15 @@ Server-only configuration is separated from browser-safe public configuration.
 Client permission checks control presentation only. The API rechecks the
 organization named in the request path and remains authoritative.
 
+Interactive client screens hold their server state in TanStack Query. The
+authenticated tree is wrapped once, at the protected layout, by
+`src/components/platform-query-provider.tsx`, whose defaults are one request
+per mount with no automatic retry and no refetch on window focus or reconnect.
+The control-plane feature-flag panel reads and writes through it; the runtime
+settings and managed secrets panels still use the local
+`useControlPlaneResource` hook. Non-interactive server data continues to be
+fetched on the server.
+
 The boundaries above are enforced by standard tooling rather than by a
 repository policy suite. `apps/platform/eslint.config.mjs` restricts direct
 `fetch`, the Better Auth entry points, repeated mount paths, hard deletes, and
