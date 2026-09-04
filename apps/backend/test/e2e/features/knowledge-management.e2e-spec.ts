@@ -7,7 +7,10 @@ import {
   it,
 } from '@jest/globals';
 
+import { z } from 'zod';
+
 import { FeatureFlagService } from '../../../src/features/control-plane';
+import { ingestedDocumentSchema } from '../../../src/features/knowledge/knowledge.contract';
 import { KNOWLEDGE_SPACE_SLUGS } from '../../../src/features/knowledge/knowledge-space.registry';
 import { KNOWLEDGE_DOCUMENT_INGESTED } from '../../../src/features/knowledge/knowledge.events';
 import { EMBEDDING_MODEL } from '../../../src/features/knowledge/adapters/openai-embedding.adapter';
@@ -999,6 +1002,29 @@ describe('organization knowledge', () => {
     );
 
     expect(JSON.stringify(response.body)).not.toContain('refund window');
+  });
+
+  it('emits exactly the payload its contract describes', async () => {
+    const response = await as(harness, owner)
+      .put(`${base()}/spaces/${SLUG}/documents`, {
+        title: 'Contract check',
+        content: TEXT,
+      })
+      .expect(200);
+
+    const payload = dataOf<z.input<typeof ingestedDocumentSchema>>(
+      response.body,
+    );
+
+    // Decoding validates the real wire payload against the same schema the
+    // OpenAPI document is generated from, then yields the application
+    // representation. Nothing in production decodes responses; this only
+    // proves the contract and the endpoint agree.
+    const decoded = z.safeDecode(ingestedDocumentSchema, payload);
+
+    expect(decoded.error?.issues ?? []).toEqual([]);
+    expect(decoded.data?.createdAt).toBeInstanceOf(Date);
+    expect(decoded.data?.updatedAt).toBeInstanceOf(Date);
   });
 
   it('is the controller the API composes', () => {

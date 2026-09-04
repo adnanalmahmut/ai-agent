@@ -6,9 +6,33 @@ import request from 'supertest';
 import type { App } from 'supertest/types';
 
 import { AppModule } from '../../../src/api/app.module';
+import { KNOWLEDGE_SPACE_SLUGS } from '../../../src/features/knowledge/knowledge-space.registry';
 import { setupOpenApi } from '../../../src/infrastructure/docs';
 import { MAIL_TRANSPORT } from '../../../src/infrastructure/mail/mail-transport';
 import { CapturingTransport } from '../../support/auth-harness';
+
+type JsonSchema = {
+  type?: string;
+  format?: string;
+  enum?: unknown[];
+  required?: string[];
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  anyOf?: JsonSchema[];
+};
+
+type Body = { content?: Record<string, { schema?: JsonSchema }> };
+
+type Operation = {
+  parameters?: {
+    name: string;
+    in: string;
+    required?: boolean;
+    schema?: JsonSchema;
+  }[];
+  requestBody?: Body;
+  responses: Record<string, Body | undefined>;
+};
 
 type OpenApiDocument = {
   openapi: string;
@@ -154,6 +178,218 @@ describe('OpenAPI enabled (e2e)', () => {
       expect(urls.length).toBeGreaterThan(0);
       expect(urls.filter((url) => !url.startsWith('/api/'))).toEqual([]);
       expect(urls.filter((url) => url.startsWith('/api/api'))).toEqual([]);
+    });
+  });
+
+  describe('Knowledge payload contract', () => {
+    const KNOWLEDGE = '/organizations/{organizationId}/knowledge';
+    const SPACES = `${KNOWLEDGE}/spaces`;
+    const DOCUMENTS = `${KNOWLEDGE}/spaces/{slug}/documents`;
+    const DOCUMENT = `${KNOWLEDGE}/documents/{documentId}`;
+
+    function must<T>(value: T | null | undefined, what: string): T {
+      if (value === null || value === undefined) {
+        throw new Error(`the document does not describe ${what}`);
+      }
+
+      return value;
+    }
+
+    const operation = (path: string, method: string): Operation => {
+      const operations = must(
+        applicationDocument.paths[path] as
+          Record<string, Operation> | undefined,
+        path,
+      );
+
+      return must(operations[method], `${method.toUpperCase()} ${path}`);
+    };
+
+    const successData = (path: string, method: string): JsonSchema => {
+      const envelope = must(
+        operation(path, method).responses['200']?.content?.['application/json']
+          ?.schema,
+        `a success body for ${method.toUpperCase()} ${path}`,
+      );
+
+      // The documented body is the envelope clients receive, not the
+      // handler's inner return value.
+      expect(
+        Object.keys(must(envelope.properties, 'envelope properties')),
+      ).toEqual(expect.arrayContaining(['success', 'data', 'meta']));
+
+      return must(envelope.properties?.data, `response data for ${path}`);
+    };
+
+    const queryParameter = (path: string, method: string, name: string) =>
+      must(
+        (operation(path, method).parameters ?? []).find(
+          (parameter) => parameter.in === 'query' && parameter.name === name,
+        ),
+        `a ${name} query parameter on ${method.toUpperCase()} ${path}`,
+      );
+
+    it('documents the success envelope around the payload', () => {
+      const envelope = must(
+        operation(DOCUMENTS, 'put').responses['200']?.content?.[
+          'application/json'
+        ]?.schema,
+        'the ingest success body',
+      );
+
+      expect(envelope.required).toEqual(['success', 'data', 'meta']);
+      expect(envelope.properties?.success).toMatchObject({ enum: [true] });
+      expect(
+        Object.keys(must(envelope.properties?.meta?.properties, 'meta')),
+      ).toEqual(['requestId', 'timestamp']);
+    });
+
+    describe('ingestKnowledgeDocument', () => {
+      it('describes the request body instead of an empty object', () => {
+        const body = must(
+          operation(DOCUMENTS, 'put').requestBody?.content?.['application/json']
+            ?.schema,
+          'an ingest request body',
+        );
+
+        const properties = must(body.properties, 'request body properties');
+
+        expect(properties.title).toMatchObject({ type: 'string' });
+        expect(properties.sourceUri).toMatchObject({ type: 'string' });
+        expect(properties.content).toMatchObject({ type: 'string' });
+
+        // `sourceUri` is the only optional field.
+        expect(body.required).toEqual(['title', 'content']);
+      });
+
+      it('describes every field of the ingested document', () => {
+        const data = successData(DOCUMENTS, 'put');
+
+        expect(Object.keys(must(data.properties, 'ingest data'))).toEqual([
+          'id',
+          'title',
+          'sourceUri',
+          'checksum',
+          'revision',
+          'chunkCount',
+          'changed',
+          'createdAt',
+          'updatedAt',
+        ]);
+      });
+
+      it('carries timestamps as ISO strings, not as dates', () => {
+        const properties = must(
+          successData(DOCUMENTS, 'put').properties,
+          'ingest data',
+        );
+
+        for (const field of ['createdAt', 'updatedAt']) {
+          expect(properties[field]).toMatchObject({
+            type: 'string',
+            format: 'date-time',
+          });
+        }
+      });
+    });
+
+    describe('listKnowledgeDocuments', () => {
+      it.each(['cursor', 'limit'])('documents %s as optional', (name) => {
+        expect(queryParameter(DOCUMENTS, 'get', name).required ?? false).toBe(
+          false,
+        );
+      });
+
+      it('gives cursor and limit their validated value types', () => {
+        expect(queryParameter(DOCUMENTS, 'get', 'cursor').schema).toMatchObject(
+          { type: 'string' },
+        );
+        expect(queryParameter(DOCUMENTS, 'get', 'limit').schema).toMatchObject({
+          type: 'integer',
+        });
+      });
+
+      it('documents a cursor page, not the envelope pagination model', () => {
+        const data = successData(DOCUMENTS, 'get');
+
+        expect(Object.keys(must(data.properties, 'page'))).toEqual([
+          'items',
+          'nextCursor',
+        ]);
+        expect(data.properties?.items?.type).toBe('array');
+        expect(data.properties?.nextCursor?.anyOf).toEqual(
+          expect.arrayContaining([{ type: 'null' }]),
+        );
+      });
+
+      it('describes the documents inside the page', () => {
+        const item = must(
+          successData(DOCUMENTS, 'get').properties?.items?.items,
+          'a page item',
+        );
+
+        expect(Object.keys(must(item.properties, 'page item'))).toEqual([
+          'id',
+          'title',
+          'sourceUri',
+          'checksum',
+          'revision',
+          'createdAt',
+          'updatedAt',
+          '_count',
+        ]);
+        expect(item.properties?.createdAt).toMatchObject({
+          type: 'string',
+          format: 'date-time',
+        });
+      });
+    });
+
+    describe('listKnowledgeSpaces', () => {
+      it('returns an array of spaces', () => {
+        expect(successData(SPACES, 'get').type).toBe('array');
+      });
+
+      it('constrains slug to the canonical space list', () => {
+        const item = must(
+          successData(SPACES, 'get').items,
+          'a knowledge space',
+        );
+
+        expect(item.properties?.slug?.enum).toEqual([...KNOWLEDGE_SPACE_SLUGS]);
+      });
+
+      it('allows a space that has never been written to have no timestamps', () => {
+        const created = must(
+          successData(SPACES, 'get').items?.properties?.createdAt,
+          'a space createdAt',
+        );
+
+        expect(created.anyOf).toEqual([
+          expect.objectContaining({ type: 'string', format: 'date-time' }),
+          { type: 'null' },
+        ]);
+      });
+    });
+
+    describe('delete operations', () => {
+      it('documents clearKnowledgeSpace as returning the cleared slug', () => {
+        const data = successData(`${SPACES}/{slug}`, 'delete');
+
+        expect(Object.keys(must(data.properties, 'cleared space'))).toEqual([
+          'slug',
+        ]);
+        expect(data.properties?.slug?.enum).toEqual([...KNOWLEDGE_SPACE_SLUGS]);
+      });
+
+      it('documents deleteKnowledgeDocument as returning the deleted id', () => {
+        const data = successData(DOCUMENT, 'delete');
+
+        expect(Object.keys(must(data.properties, 'deleted document'))).toEqual([
+          'id',
+        ]);
+        expect(data.properties?.id).toMatchObject({ type: 'string' });
+      });
     });
   });
 
