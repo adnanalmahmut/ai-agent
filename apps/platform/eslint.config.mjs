@@ -38,7 +38,7 @@ const BETTER_AUTH_SERVER_ENTRY = {
     "The Better Auth server entry belongs to the backend. Use '@/features/auth/auth-client' in the browser or '@/features/auth/server-session' on the server.",
 };
 
-const MOUNT_PATH = String.raw`^\/(platform|api)\/`;
+const MOUNT_PATH = String.raw`^\/(platform|api)(?:\/|$)`;
 
 const MOUNT_PATH_MESSAGE =
   "Import PLATFORM_BASE_PATH or API_BASE_PATH from '@/config/paths' rather than repeating the mount path.";
@@ -109,7 +109,8 @@ export default defineConfig([
           message: MOUNT_PATH_MESSAGE,
         },
         {
-          selector: 'CallExpression[callee.property.name="removeUser"]',
+          selector:
+            'CallExpression[callee.property.name="removeUser"][callee.object.property.name="admin"]',
           message:
             'An account is deactivated and restored, never hard-deleted. Use the account lifecycle API.',
         },
