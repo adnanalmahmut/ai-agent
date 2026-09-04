@@ -16,6 +16,7 @@ COPY patches patches
 COPY apps/platform/package.json apps/platform/package.json
 # The root prepare lifecycle builds workspace packages during install, so their
 # build inputs must already exist in the dependency layer.
+COPY packages/authz-policy packages/authz-policy
 COPY packages/i18n-core packages/i18n-core
 COPY packages/ui packages/ui
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
@@ -26,7 +27,9 @@ COPY apps/platform apps/platform
 ARG NEXT_PUBLIC_APP_NAME=Feedogo
 ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
 RUN test -n "$NEXT_PUBLIC_APP_NAME"
-RUN pnpm --filter @repo/i18n-core build && pnpm --filter platform build
+RUN pnpm --filter @repo/authz-policy build \
+    && pnpm --filter @repo/i18n-core build \
+    && pnpm --filter platform build
 
 FROM node:24-bookworm-slim AS runtime
 

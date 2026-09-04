@@ -48,6 +48,8 @@ composition is convention, not a check.
 
 - `packages/ui` owns shared components, hooks, fonts, and global styles.
 - `packages/i18n-core` owns supported locale identifiers and shared parsing.
+- `packages/authz-policy` owns the permission catalog and role grants the
+  platform predicts from and the backend enforces.
 
 Each application owns its messages and product-specific features.
 

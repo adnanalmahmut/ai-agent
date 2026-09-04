@@ -1,74 +1,39 @@
+import {
+  GLOBAL_APPLICATION_STATEMENTS,
+  GLOBAL_ROLE_GRANTS,
+  ORGANIZATION_PERMISSION_STATEMENTS,
+  ORGANIZATION_ROLE_GRANTS,
+  type GlobalRoleName,
+  type OrganizationRoleName,
+} from '@repo/authz-policy';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { defaultStatements } from 'better-auth/plugins/admin/access';
 
-// Keep platform and organization authorization in separate type domains.
+/**
+ * Which permissions exist and which role holds them is defined once, in
+ * `@repo/authz-policy`, and shared with the platform. This module turns that
+ * policy into the Better Auth access control this application enforces with,
+ * and owns what only the enforcing side needs.
+ *
+ * Keep platform and organization authorization in separate type domains.
+ */
 
 export const GLOBAL_PERMISSION_STATEMENTS = {
   ...defaultStatements,
-
-  accountLifecycle: ['deactivate', 'restore'],
-
-  organizationLifecycle: ['restore'],
-
-  controlPlane: ['read', 'write'],
-  managedSecret: ['write'],
+  ...GLOBAL_APPLICATION_STATEMENTS,
 } as const;
 
 const globalAc = createAccessControl(GLOBAL_PERMISSION_STATEMENTS);
 
-const platformUser = globalAc.newRole({
-  user: [],
-  session: [],
-  accountLifecycle: [],
-  organizationLifecycle: [],
-});
-
-const platformAdmin = globalAc.newRole({
-  user: [
-    'get',
-    'list',
-    'create',
-    'update',
-    // Reversible, and needed for routine moderation.
-    'ban',
-    // Support workflow. Impersonating another *admin* additionally requires
-    // `impersonate-admins`, which only `super_admin` holds.
-    'impersonate',
-  ],
-  session: ['list', 'revoke', 'delete'],
-  accountLifecycle: [],
-  organizationLifecycle: [],
-});
-
-const platformSuperAdmin = globalAc.newRole({
-  user: [
-    'get',
-    'list',
-    'create',
-    'update',
-    'ban',
-    'impersonate',
-    'impersonate-admins',
-    'set-role',
-    'set-password',
-    'set-email',
-  ],
-  session: ['list', 'revoke', 'delete'],
-  accountLifecycle: ['deactivate', 'restore'],
-  organizationLifecycle: ['restore'],
-  controlPlane: ['read', 'write'],
-  managedSecret: ['write'],
-});
-
 export const globalAccessControl = globalAc;
 
 export const globalRoles = {
-  user: platformUser,
-  admin: platformAdmin,
-  super_admin: platformSuperAdmin,
+  user: globalAc.newRole(GLOBAL_ROLE_GRANTS.user),
+  admin: globalAc.newRole(GLOBAL_ROLE_GRANTS.admin),
+  super_admin: globalAc.newRole(GLOBAL_ROLE_GRANTS.super_admin),
 } as const;
 
-export type GlobalRoleName = keyof typeof globalRoles;
+export type { GlobalRoleName, OrganizationRoleName };
 
 export type GlobalPermissionRequest = Parameters<
   (typeof globalRoles)[GlobalRoleName]['authorize']
@@ -80,62 +45,18 @@ export const DEFAULT_GLOBAL_ROLE = 'user' satisfies GlobalRoleName;
 
 export const SUPER_ADMIN_ROLE = 'super_admin' satisfies GlobalRoleName;
 
-export const ORGANIZATION_PERMISSION_STATEMENTS = {
-  organization: ['update', 'delete', 'archive', 'restore'],
-  member: ['create', 'update', 'delete'],
-  invitation: ['create', 'cancel'],
-  knowledge: ['read', 'write'],
-  contentIdea: ['create', 'read'],
-  contentProject: ['create', 'read'],
-  agentActionApproval: ['read', 'decide'],
-  mcpSession: ['create'],
-} as const;
+export { ORGANIZATION_PERMISSION_STATEMENTS };
 
+// A separate instance prevents platform roles from granting tenant authority.
 const organizationAc = createAccessControl(ORGANIZATION_PERMISSION_STATEMENTS);
-
-const organizationMember = organizationAc.newRole({
-  organization: [],
-  member: [],
-  invitation: [],
-  // Members need source visibility to interpret agent answers.
-  knowledge: ['read'],
-  contentIdea: ['read'],
-  contentProject: ['read'],
-  agentActionApproval: ['read'],
-  mcpSession: [],
-});
-
-const organizationAdmin = organizationAc.newRole({
-  organization: ['update'],
-  member: ['create', 'update', 'delete'],
-  invitation: ['create', 'cancel'],
-  knowledge: ['read', 'write'],
-  contentIdea: ['create', 'read'],
-  contentProject: ['create', 'read'],
-  agentActionApproval: ['read', 'decide'],
-  mcpSession: ['create'],
-});
-
-const organizationOwner = organizationAc.newRole({
-  organization: ['update', 'archive', 'restore'],
-  member: ['create', 'update', 'delete'],
-  invitation: ['create', 'cancel'],
-  knowledge: ['read', 'write'],
-  contentIdea: ['create', 'read'],
-  contentProject: ['create', 'read'],
-  agentActionApproval: ['read', 'decide'],
-  mcpSession: ['create'],
-});
 
 export const organizationAccessControl = organizationAc;
 
 export const organizationRoles = {
-  member: organizationMember,
-  admin: organizationAdmin,
-  owner: organizationOwner,
+  member: organizationAc.newRole(ORGANIZATION_ROLE_GRANTS.member),
+  admin: organizationAc.newRole(ORGANIZATION_ROLE_GRANTS.admin),
+  owner: organizationAc.newRole(ORGANIZATION_ROLE_GRANTS.owner),
 } as const;
-
-export type OrganizationRoleName = keyof typeof organizationRoles;
 
 export const ORGANIZATION_CREATOR_ROLE = 'owner' satisfies OrganizationRoleName;
 

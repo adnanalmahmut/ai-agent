@@ -1,3 +1,7 @@
+import {
+  GLOBAL_ROLE_GRANTS,
+  ORGANIZATION_ROLE_GRANTS,
+} from '@repo/authz-policy';
 import { defaultStatements } from 'better-auth/plugins/admin/access';
 import { describe, expect, it } from 'vitest';
 
@@ -151,6 +155,14 @@ describe('organization roles', () => {
     expect(allows(organizationRoles.admin, request)).toBe(true);
   });
 
+  it('reserves mcpSession:create to the roles that manage the organization', () => {
+    const request = { mcpSession: ['create'] };
+
+    expect(allows(organizationRoles.member, request)).toBe(false);
+    expect(allows(organizationRoles.admin, request)).toBe(true);
+    expect(allows(organizationRoles.owner, request)).toBe(true);
+  });
+
   it.each([
     ['organization:archive', { organization: ['archive'] }],
     ['organization:restore', { organization: ['restore'] }],
@@ -182,5 +194,60 @@ describe('role-name guards', () => {
 
     expect(isOrganizationRoleName('owner')).toBe(true);
     expect(isOrganizationRoleName('super_admin')).toBe(false);
+  });
+});
+
+/**
+ * This UI only predicts what the API will allow, and the prediction is only
+ * worth anything if it is made from the same policy the API enforces. The
+ * backend runs this same comparison against this same shared table, so a
+ * hand-edit on either side fails here rather than drifting quietly into a
+ * screen that offers something the API refuses.
+ */
+describe('the predicted policy is the shared policy', () => {
+  const grantsFor = (grants: unknown, resource: string): readonly string[] =>
+    (grants as Record<string, readonly string[]>)[resource] ?? [];
+
+  it('predicts every global permission exactly as the shared table says', () => {
+    for (const roleName of Object.keys(globalRoles) as Array<
+      keyof typeof globalRoles
+    >) {
+      const grants = GLOBAL_ROLE_GRANTS[roleName];
+
+      for (const [resource, actions] of Object.entries(
+        GLOBAL_PERMISSION_STATEMENTS,
+      )) {
+        for (const action of actions) {
+          expect(allows(globalRoles[roleName], { [resource]: [action] })).toBe(
+            grantsFor(grants, resource).includes(action),
+          );
+        }
+      }
+    }
+  });
+
+  it('predicts every organization permission exactly as the shared table says', () => {
+    for (const roleName of Object.keys(organizationRoles) as Array<
+      keyof typeof organizationRoles
+    >) {
+      const grants = ORGANIZATION_ROLE_GRANTS[roleName];
+
+      for (const [resource, actions] of Object.entries(
+        ORGANIZATION_PERMISSION_STATEMENTS,
+      )) {
+        for (const action of actions) {
+          expect(
+            allows(organizationRoles[roleName], { [resource]: [action] }),
+          ).toBe(grantsFor(grants, resource).includes(action));
+        }
+      }
+    }
+  });
+
+  it('covers the same role names the shared table declares', () => {
+    expect(Object.keys(globalRoles)).toEqual(Object.keys(GLOBAL_ROLE_GRANTS));
+    expect(Object.keys(organizationRoles)).toEqual(
+      Object.keys(ORGANIZATION_ROLE_GRANTS),
+    );
   });
 });

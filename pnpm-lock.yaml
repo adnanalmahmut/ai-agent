@@ -51,6 +51,9 @@ importers:
       '@prisma/client':
         specifier: ^7.9.1
         version: 7.9.1(prisma@7.9.1(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(typescript@5.9.3))(typescript@5.9.3)
+      '@repo/authz-policy':
+        specifier: workspace:*
+        version: link:../../packages/authz-policy
       '@repo/i18n-core':
         specifier: workspace:*
         version: link:../../packages/i18n-core
@@ -190,6 +193,9 @@ importers:
 
   apps/platform:
     dependencies:
+      '@repo/authz-policy':
+        specifier: workspace:*
+        version: link:../../packages/authz-policy
       '@repo/i18n-core':
         specifier: workspace:*
         version: link:../../packages/i18n-core
@@ -336,6 +342,12 @@ importers:
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@20.19.43)(jsdom@30.0.1(@noble/hashes@2.3.0))(vite@8.2.1(@types/node@20.19.43)(jiti@2.7.0)(terser@5.49.2)(yaml@2.9.0))
+
+  packages/authz-policy:
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
 
   packages/i18n-core:
     devDependencies:

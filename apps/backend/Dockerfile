@@ -22,13 +22,15 @@ COPY patches patches
 COPY apps/backend/package.json apps/backend/package.json
 # The root prepare lifecycle builds workspace packages during install, so their
 # build inputs must already exist in the dependency layer.
+COPY packages/authz-policy packages/authz-policy
 COPY packages/i18n-core packages/i18n-core
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter backend...
 
 FROM dependencies AS build
 COPY apps/backend apps/backend
-RUN pnpm --filter @repo/i18n-core build \
+RUN pnpm --filter @repo/authz-policy build \
+    && pnpm --filter @repo/i18n-core build \
     && DATABASE_URL=postgresql://build:build@localhost:5432/build pnpm --filter backend prisma:generate \
     && pnpm --filter backend build \
     && pnpm --filter backend deploy --legacy --prod /out/backend
