@@ -40,9 +40,7 @@ import {
 } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
 
-type Work = {
-  (): Promise<unknown>;
-};
+type Work = () => Promise<unknown>;
 
 type Failure = {
   kind:
