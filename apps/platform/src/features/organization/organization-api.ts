@@ -1,3 +1,4 @@
+import type { operations } from '@/generated/application-api.generated';
 import { apiRequest } from '@/lib/application-api';
 
 import type {
@@ -54,6 +55,64 @@ export function replaceOrganizationBusinessProfile(
   });
 }
 
+/* ---------------------------------------------------------------------------
+ * Knowledge
+ *
+ * The Backend's Zod schemas are the authored definition of these payloads.
+ * They arrive here as generated OpenAPI types, so everything below is an alias
+ * of that contract rather than a second description of it: change a schema,
+ * run `pnpm api:types`, and the difference surfaces as a type error at
+ * whichever caller it actually breaks.
+ * ------------------------------------------------------------------------- */
+
+/*
+ * The `data` each operation answers with. The generated types describe the
+ * whole success envelope the API sends; `apiRequest` already unwraps it, so
+ * `data` is what these functions resolve to.
+ */
+type ListKnowledgeSpacesData =
+  operations['listKnowledgeSpaces']['responses'][200]['content']['application/json']['data'];
+
+type ClearKnowledgeSpaceData =
+  operations['clearKnowledgeSpace']['responses'][200]['content']['application/json']['data'];
+
+type ListKnowledgeDocumentsData =
+  operations['listKnowledgeDocuments']['responses'][200]['content']['application/json']['data'];
+
+type IngestKnowledgeDocumentData =
+  operations['ingestKnowledgeDocument']['responses'][200]['content']['application/json']['data'];
+
+type DeleteKnowledgeDocumentData =
+  operations['deleteKnowledgeDocument']['responses'][200]['content']['application/json']['data'];
+
+type IngestKnowledgeDocumentBody =
+  operations['ingestKnowledgeDocument']['requestBody']['content']['application/json'];
+
+/**
+ * The documented query, plus the one option that is not part of the HTTP
+ * contract: cancellation is a transport concern, so OpenAPI does not describe
+ * an `AbortSignal` and neither does the generated type.
+ */
+type ListKnowledgeDocumentsOptions = NonNullable<
+  operations['listKnowledgeDocuments']['parameters']['query']
+> & { signal?: AbortSignal };
+
+export type KnowledgeSpace = ListKnowledgeSpacesData[number];
+
+export type KnowledgeSpaceSlug = KnowledgeSpace['slug'];
+
+export type KnowledgeDocumentPage = ListKnowledgeDocumentsData;
+
+export type KnowledgeDocument = KnowledgeDocumentPage['items'][number];
+
+export type IngestedDocument = IngestKnowledgeDocumentData;
+
+/**
+ * The canonical slugs as runtime values, which the type alone cannot provide:
+ * the message-catalogue test iterates them to prove every space is
+ * translated. `satisfies` holds the list answerable to the generated union, so
+ * a slug the API does not serve cannot be added here.
+ */
 export const KNOWLEDGE_SPACE_SLUGS = [
   'organization.profile',
   'brand.identity',
@@ -63,43 +122,7 @@ export const KNOWLEDGE_SPACE_SLUGS = [
   'content.strategy',
   'design.system',
   'faq',
-] as const;
-
-export type KnowledgeSpaceSlug = (typeof KNOWLEDGE_SPACE_SLUGS)[number];
-
-export type KnowledgeSpace = {
-  slug: string;
-  name: string;
-  description: string;
-  configured: boolean;
-  documentCount: number;
-  createdAt: string | null;
-  updatedAt: string | null;
-};
-
-export type KnowledgeDocument = {
-  id: string;
-  title: string;
-  sourceUri: string | null;
-  checksum: string;
-  revision: number;
-  createdAt: string;
-  updatedAt: string;
-  _count: { chunks: number };
-};
-
-export type KnowledgeDocumentPage = {
-  items: KnowledgeDocument[];
-  nextCursor: string | null;
-};
-
-export type IngestedDocument = {
-  id: string;
-  title: string;
-  revision: number;
-  chunkCount: number;
-  changed: boolean;
-};
+] as const satisfies readonly KnowledgeSpaceSlug[];
 
 const knowledgeBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/knowledge`;
@@ -113,8 +136,8 @@ export function listKnowledgeSpaces(
 
 export function clearKnowledgeSpace(
   organizationId: string,
-  slug: string,
-): Promise<{ slug: string }> {
+  slug: KnowledgeSpaceSlug,
+): Promise<ClearKnowledgeSpaceData> {
   return apiRequest(
     `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(slug)}`,
     { method: 'DELETE' },
@@ -123,8 +146,8 @@ export function clearKnowledgeSpace(
 
 export function listKnowledgeDocuments(
   organizationId: string,
-  slug: string,
-  options: { cursor?: string; limit?: number; signal?: AbortSignal } = {},
+  slug: KnowledgeSpaceSlug,
+  options: ListKnowledgeDocumentsOptions = {},
 ): Promise<KnowledgeDocumentPage> {
   const query = new URLSearchParams();
 
@@ -143,8 +166,8 @@ export function listKnowledgeDocuments(
 
 export function ingestKnowledgeDocument(
   organizationId: string,
-  slug: string,
-  document: { title: string; sourceUri?: string; content: string },
+  slug: KnowledgeSpaceSlug,
+  document: IngestKnowledgeDocumentBody,
 ): Promise<IngestedDocument> {
   return apiRequest(
     `${knowledgeBase(organizationId)}/spaces/${encodeURIComponent(
@@ -157,7 +180,7 @@ export function ingestKnowledgeDocument(
 export function deleteKnowledgeDocument(
   organizationId: string,
   documentId: string,
-): Promise<{ id: string }> {
+): Promise<DeleteKnowledgeDocumentData> {
   return apiRequest(
     `${knowledgeBase(organizationId)}/documents/${encodeURIComponent(
       documentId,

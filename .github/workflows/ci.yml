@@ -232,6 +232,15 @@ jobs:
       - name: Build workspace packages
         run: pnpm run build:packages
 
+      # The Knowledge types the Platform compiles against are generated from
+      # the Backend's OpenAPI document, so a contract change that was not
+      # regenerated has to fail here rather than type-check cleanly against a
+      # stale artifact. Generation reads Nest route metadata in preview mode:
+      # no server, no database, no Redis, no credentials — which is why this
+      # step belongs in this job and not one with service containers.
+      - name: Check the committed Application API types are current
+        run: pnpm api:types:check
+
       - name: Typecheck
         run: pnpm typecheck
 

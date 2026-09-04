@@ -65,7 +65,10 @@ space and budget policy before material reaches a model.
   contained diagnostics.
 - `GET /api/health/live` checks the process only.
 - `GET /api/health/ready` checks drain state and required dependencies.
-- OpenAPI is optional and disabled unless configured.
+- OpenAPI is optional and disabled unless configured. The document builder
+  in `src/infrastructure/docs` is also what platform API type generation
+  reads, so a payload contract change is a platform-visible change; see
+  [frontend](frontend.md).
 
 ## Operator commands
 

@@ -28,6 +28,7 @@
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json",
     "i18n:types": "nestjs-i18n -p src/i18n -o src/generated/i18n.generated.ts",
     "i18n:check": "nestjs-i18n check -p src/i18n",
+    "openapi:emit": "node dist/src/tools/emit-openapi.js",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "db:up": "docker compose -f ../../docker-compose.yml --profile development up -d postgres redis",
