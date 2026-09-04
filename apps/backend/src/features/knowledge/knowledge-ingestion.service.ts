@@ -1,11 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
+import type { z } from 'zod';
 
 import { RuntimeConfigResolver } from '../control-plane';
 import { OutboxRepository } from '../../infrastructure/outbox';
 import { AppException } from '../../core/errors';
 import { PrismaService } from '../../infrastructure/database';
 import { chunkDocument } from './chunking';
+import {
+  deletedKnowledgeDocumentSchema,
+  documentListItemSchema,
+  documentPageSchema,
+  ingestedDocumentSchema,
+} from './knowledge.contract';
 import { isUniqueConstraintViolation } from './prisma-errors';
 import { KNOWLEDGE_DOCUMENT_INGESTED } from './knowledge.events';
 import {
@@ -18,28 +25,13 @@ import type { KnowledgeSpaceSlug } from './knowledge-space.registry';
 import { KnowledgeSpaceService } from './knowledge-space.service';
 import { EMBEDDING_PORT, type EmbeddingPort } from './ports/embedding.port';
 
-export type IngestedDocument = {
-  id: string;
-  title: string;
-  sourceUri: string | null;
-  checksum: string;
-  revision: number;
-  chunkCount: number;
-  changed: boolean;
-  createdAt: Date;
-  updatedAt: Date;
-};
+export type IngestedDocument = z.output<typeof ingestedDocumentSchema>;
 
-export type DocumentListItem = {
-  id: string;
-  title: string;
-  sourceUri: string | null;
-  checksum: string;
-  revision: number;
-  createdAt: Date;
-  updatedAt: Date;
-  _count: { chunks: number };
-};
+export type DocumentListItem = z.output<typeof documentListItemSchema>;
+
+type DocumentPage = z.output<typeof documentPageSchema>;
+
+type DeletedKnowledgeDocument = z.output<typeof deletedKnowledgeDocumentSchema>;
 
 @Injectable()
 export class KnowledgeIngestionService {
@@ -219,7 +211,7 @@ export class KnowledgeIngestionService {
     slug: KnowledgeSpaceSlug;
     cursor?: string;
     limit?: number;
-  }): Promise<{ items: DocumentListItem[]; nextCursor: string | null }> {
+  }): Promise<DocumentPage> {
     const take = pageSize(input.limit);
     const after =
       input.cursor === undefined ? null : decodeCursor(input.cursor);
@@ -266,7 +258,7 @@ export class KnowledgeIngestionService {
   async remove(input: {
     organizationId: string;
     documentId: string;
-  }): Promise<{ id: string }> {
+  }): Promise<DeletedKnowledgeDocument> {
     const removed = await this.prisma.knowledgeDocument.deleteMany({
       where: { id: input.documentId, organizationId: input.organizationId },
     });

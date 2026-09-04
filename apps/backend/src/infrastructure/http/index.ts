@@ -16,6 +16,8 @@ export type {
   ZodDto,
 } from './validation';
 
+export { apiSuccessSchema, wireSchemaOf } from './openapi-schema';
+
 export { UnifiedExceptionFilter } from './errors';
 
 export {

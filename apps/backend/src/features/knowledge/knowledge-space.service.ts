@@ -1,23 +1,24 @@
 import { Injectable } from '@nestjs/common';
+import type { z } from 'zod';
 
 import { RuntimeConfigResolver } from '../control-plane';
 import { AppException } from '../../core/errors';
 import { PrismaService } from '../../infrastructure/database';
+import {
+  clearedKnowledgeSpaceSchema,
+  knowledgeSpaceSummarySchema,
+} from './knowledge.contract';
 import {
   KNOWLEDGE_SPACE_SLUGS,
   knowledgeSpaceDefinition,
   type KnowledgeSpaceSlug,
 } from './knowledge-space.registry';
 
-export type KnowledgeSpaceSummary = {
-  slug: KnowledgeSpaceSlug;
-  name: string;
-  description: string;
-  configured: boolean;
-  documentCount: number;
-  createdAt: Date | null;
-  updatedAt: Date | null;
-};
+export type KnowledgeSpaceSummary = z.output<
+  typeof knowledgeSpaceSummarySchema
+>;
+
+type ClearedKnowledgeSpace = z.output<typeof clearedKnowledgeSpaceSchema>;
 
 @Injectable()
 export class KnowledgeSpaceService {
@@ -108,7 +109,7 @@ export class KnowledgeSpaceService {
   async remove(input: {
     organizationId: string;
     slug: KnowledgeSpaceSlug;
-  }): Promise<{ slug: KnowledgeSpaceSlug }> {
+  }): Promise<ClearedKnowledgeSpace> {
     // Scoped delete rather than a read-then-delete: one statement, and a space
     // belonging to another organization matches nothing.
     const removed = await this.prisma.knowledgeSpace.deleteMany({

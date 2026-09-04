@@ -8,10 +8,21 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { z } from 'zod';
 
-import { createZodDto } from '../../infrastructure/http';
+import {
+  apiSuccessSchema,
+  createZodDto,
+  wireSchemaOf,
+} from '../../infrastructure/http';
 import { UserRateLimit } from '../../infrastructure/rate-limit';
 import { AppException } from '../../core/errors';
 import { KnowledgeIngestionService } from './knowledge-ingestion.service';
@@ -25,6 +36,13 @@ import {
   type KnowledgeSpaceSlug,
 } from './knowledge-space.registry';
 import { KnowledgeSpaceService } from './knowledge-space.service';
+import {
+  clearedKnowledgeSpaceSchema,
+  deletedKnowledgeDocumentSchema,
+  documentPageSchema,
+  ingestedDocumentSchema,
+  knowledgeSpaceSummarySchema,
+} from './knowledge.contract';
 
 function assertRegisteredSlug(value: string): KnowledgeSpaceSlug {
   if (!isKnowledgeSpaceSlug(value)) {
@@ -80,6 +98,9 @@ export class KnowledgeController {
       'List the canonical knowledge spaces and what this organization has stored',
   })
   @ApiParam({ name: 'organizationId' })
+  @ApiOkResponse({
+    schema: apiSuccessSchema(z.array(knowledgeSpaceSummarySchema)),
+  })
   listSpaces(@Param('organizationId') organizationId: string) {
     return this.spaces.list(organizationId);
   }
@@ -92,6 +113,7 @@ export class KnowledgeController {
   })
   @ApiParam({ name: 'organizationId' })
   @ApiParam({ name: 'slug', enum: KNOWLEDGE_SPACE_SLUGS })
+  @ApiOkResponse({ schema: apiSuccessSchema(clearedKnowledgeSpaceSchema) })
   clearSpace(
     @Param('organizationId') organizationId: string,
     @Param('slug') slug: string,
@@ -110,6 +132,19 @@ export class KnowledgeController {
   })
   @ApiParam({ name: 'organizationId' })
   @ApiParam({ name: 'slug', enum: KNOWLEDGE_SPACE_SLUGS })
+  // Names, optionality and value semantics come from the same Zod schema that
+  // validates the query, so the two cannot describe different things.
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    schema: wireSchemaOf(listDocumentsSchema.shape.cursor),
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: wireSchemaOf(listDocumentsSchema.shape.limit),
+  })
+  @ApiOkResponse({ schema: apiSuccessSchema(documentPageSchema) })
   listDocuments(
     @Param('organizationId') organizationId: string,
     @Param('slug') slug: string,
@@ -132,6 +167,9 @@ export class KnowledgeController {
   })
   @ApiParam({ name: 'organizationId' })
   @ApiParam({ name: 'slug', enum: KNOWLEDGE_SPACE_SLUGS })
+  // The request body is described by the schema that already validates it.
+  @ApiBody({ schema: wireSchemaOf(ingestSchema) })
+  @ApiOkResponse({ schema: apiSuccessSchema(ingestedDocumentSchema) })
   ingest(
     @Param('organizationId') organizationId: string,
     @Param('slug') slug: string,
@@ -154,6 +192,7 @@ export class KnowledgeController {
   })
   @ApiParam({ name: 'organizationId' })
   @ApiParam({ name: 'documentId' })
+  @ApiOkResponse({ schema: apiSuccessSchema(deletedKnowledgeDocumentSchema) })
   deleteDocument(
     @Param('organizationId') organizationId: string,
     @Param('documentId') documentId: string,
