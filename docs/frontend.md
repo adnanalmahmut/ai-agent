@@ -44,6 +44,32 @@ group and the agreement between `basePath` and the mount-path constant are
 covered by tests beside the code they describe. Everything else about route
 composition is convention, not a check.
 
+### Generated Application API types
+
+The Knowledge request, query, and response payload types the platform compiles
+against are generated, not written. The backend's Zod contracts in
+`apps/backend/src/features/knowledge/knowledge.contract.ts` are the authored
+source; they become the Application OpenAPI document, which
+`openapi-typescript` turns into
+`apps/platform/src/generated/application-api.generated.ts`. The feature
+boundary in `src/features/organization/organization-api.ts` keeps its own
+names, but they are aliases of that generated contract rather than a second
+description of it.
+
+```sh
+pnpm api:types        # regenerate the committed artifact
+pnpm api:types:check  # regenerate, then fail if the committed copy differed
+```
+
+Do not hand-edit the generated file. Generation builds the backend and reads
+Nest route metadata in preview mode, so it needs no running API, no database,
+no Redis, and no credentials; the intermediate OpenAPI document is written to a
+temporary directory and discarded. CI runs the check in the platform job, so a
+contract change committed without regenerating fails there.
+
+The other API families in `organization-api.ts` are still written by hand,
+because their endpoints do not yet declare response contracts.
+
 ## Shared packages
 
 - `packages/ui` owns shared components, hooks, fonts, and global styles.
@@ -61,6 +87,7 @@ pnpm dev:platform
 pnpm --filter web test
 pnpm --filter platform test
 pnpm --filter platform test:e2e
+pnpm api:types
 ```
 
 See [authentication and RBAC](authentication-rbac.md) for authorization

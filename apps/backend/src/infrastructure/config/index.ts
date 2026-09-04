@@ -25,6 +25,7 @@ export {
   queueConfig,
   redisConfig,
 };
+export { DEFAULT_APPLICATION_NAME } from './app.config';
 export type { LogMailConfig, MailConfig } from './mail.config';
 export type { EncryptionConfig } from './encryption.config';
 export type { GoogleAuthConfig } from './auth.config';

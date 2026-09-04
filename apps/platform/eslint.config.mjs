@@ -11,13 +11,18 @@ import nextTs from 'eslint-config-next/typescript';
  *
  * Everything they apply to is product code. Test files and Playwright
  * fixtures stand outside these boundaries on purpose, because their job is to
- * stub and drive them.
+ * stub and drive them, and so does generated code, which restates the
+ * Backend's contract rather than deciding anything these rules govern.
  */
 const APPLICATION_SOURCE = ['src/**/*.ts', 'src/**/*.tsx'];
 const NOT_APPLICATION_SOURCE = [
   'src/**/*.test.ts',
   'src/**/*.test.tsx',
   'src/test/**',
+  // Written by `pnpm api:types`. The paths in it are the API's own route
+  // keys, which is data about the contract rather than a mount path someone
+  // typed out a second time.
+  'src/generated/**',
 ];
 
 /** The only two modules that may reach the network directly. */

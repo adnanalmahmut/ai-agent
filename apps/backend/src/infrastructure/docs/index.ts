@@ -1,14 +1,12 @@
 import type { INestApplication } from '@nestjs/common';
 import type { ConfigType } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import { apiReference } from '@scalar/nestjs-api-reference';
 
 import { appConfig, openapiConfig } from '../config';
+import { createApplicationOpenApiDocument } from './application-document';
 
-// Application routes authenticate with Better Auth's session cookie.
-// Do not advertise bearer auth unless bearer-token authentication is added.
-const SESSION_COOKIE_SCHEME = 'sessionCookie';
-const SESSION_COOKIE_NAME = '__Host-session';
+export { createApplicationOpenApiDocument } from './application-document';
 
 export function setupOpenApi(app: INestApplication): boolean {
   const openapi = app.get<ConfigType<typeof openapiConfig>>(openapiConfig.KEY);
@@ -17,34 +15,7 @@ export function setupOpenApi(app: INestApplication): boolean {
 
   const application = app.get<ConfigType<typeof appConfig>>(appConfig.KEY);
 
-  const document = SwaggerModule.createDocument(
-    app,
-    new DocumentBuilder()
-      // Keep both OpenAPI sources on the same specification version.
-      .setOpenAPIVersion('3.1.1')
-      .setTitle(`${application.name} — Application API`)
-      .setDescription(
-        'Application endpoints. Authentication, administration and ' +
-          'organization protocol endpoints are documented by Better Auth ' +
-          'under the "Authentication API" source.',
-      )
-      .setVersion('1.0.0')
-      // The one place the global API prefix is declared. Keep in sync with
-      // the prefix `main.ts` applies.
-      .addServer('/api')
-      .addCookieAuth(
-        SESSION_COOKIE_NAME,
-        { type: 'apiKey', in: 'cookie', name: SESSION_COOKIE_NAME },
-        SESSION_COOKIE_SCHEME,
-      )
-      .addSecurityRequirements(SESSION_COOKIE_SCHEME)
-      .build(),
-    // `main.ts` sets the global prefix before building the document, so Nest
-    // would also stamp `/api` onto every path key and documented URLs would
-    // resolve to `/api/api/...`. The server declares the prefix; paths stay
-    // relative to it, matching how the Better Auth source is documented.
-    { ignoreGlobalPrefix: true },
-  );
+  const document = createApplicationOpenApiDocument(app, application.name);
 
   // Expose only the JSON document; Scalar is the single documentation UI.
   SwaggerModule.setup('docs-app', app, document, {

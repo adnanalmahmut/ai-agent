@@ -37,6 +37,7 @@ import {
   listKnowledgeSpaces,
   type KnowledgeDocument,
   type KnowledgeSpace,
+  type KnowledgeSpaceSlug,
 } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
 
@@ -87,11 +88,13 @@ export function OrganizationKnowledgeBlock() {
 
   const [spaces, setSpaces] = useState<KnowledgeSpace[]>([]);
   const [documents, setDocuments] = useState<{
-    slug: string;
+    slug: KnowledgeSpaceSlug;
     rows: KnowledgeDocument[];
     nextCursor: string | null;
   } | null>(null);
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const [selectedSlug, setSelectedSlug] = useState<KnowledgeSpaceSlug | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [failure, setFailure] = useState<Failure | null>(null);

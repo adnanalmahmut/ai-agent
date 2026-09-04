@@ -1,6 +1,13 @@
 import { registerAs } from '@nestjs/config';
 import { z } from 'zod';
 
+/**
+ * The name used when `APP_NAME` is unset. Exported because OpenAPI type
+ * generation builds the document without the configuration module — it has no
+ * environment to read — and still has to title the document the same way.
+ */
+export const DEFAULT_APPLICATION_NAME = 'API Service';
+
 const schema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'staging', 'production'])
@@ -8,7 +15,7 @@ const schema = z.object({
 
   APP_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
 
-  APP_NAME: z.string().default('API Service'),
+  APP_NAME: z.string().default(DEFAULT_APPLICATION_NAME),
 
   APP_PLATFORM_URL: z.url().default('http://localhost:3001/platform'),
 
