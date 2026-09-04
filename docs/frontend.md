@@ -35,6 +35,15 @@ Server-only configuration is separated from browser-safe public configuration.
 Client permission checks control presentation only. The API rechecks the
 organization named in the request path and remains authoritative.
 
+The boundaries above are enforced by standard tooling rather than by a
+repository policy suite. `apps/platform/eslint.config.mjs` restricts direct
+`fetch`, the Better Auth entry points, repeated mount paths, hard deletes, and
+untranslated user-facing strings. The Next.js build rejects a `server-only`
+module reaching a client component. The session gate on the private route
+group and the agreement between `basePath` and the mount-path constant are
+covered by tests beside the code they describe. Everything else about route
+composition is convention, not a check.
+
 ## Shared packages
 
 - `packages/ui` owns shared components, hooks, fonts, and global styles.
