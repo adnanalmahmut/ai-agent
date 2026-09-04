@@ -103,7 +103,11 @@ describe('OpenAPI enabled (e2e)', () => {
       // auth route would read `/auth/...`. Both shapes are checked so this stays
       // meaningful whichever way the prefix is represented.
       const offending = Object.keys(applicationDocument.paths).filter(
-        (path) => path.startsWith('/auth') || path.startsWith('/api/auth'),
+        (path) =>
+          path === '/auth' ||
+          path.startsWith('/auth/') ||
+          path === '/api/auth' ||
+          path.startsWith('/api/auth/'),
       );
 
       expect(offending).toEqual([]);
