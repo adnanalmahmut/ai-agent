@@ -26,9 +26,14 @@ configuration and managed credentials.
 Organization members can read shared knowledge, content results/projects, and
 pending agent actions. Organization admins and owners can manage membership,
 invitations, knowledge, content creation, approvals, agent installation, and MCP
-sessions. Only owners may archive or restore their organization. The permission
-catalog in `apps/backend/src/infrastructure/auth/permissions.ts` is
-authoritative.
+sessions. Only owners may archive or restore their organization.
+
+The permission catalog and the role grants are declared once, in
+`packages/authz-policy`. The backend and the platform each build their own
+Better Auth access-control instances from that policy, so the two authorization
+domains stay independent while the grants behind them cannot drift apart. The
+backend remains the authority: it enforces the policy on every request, and its
+copy of the decision is the one that counts.
 
 Application organization routes use one shared guard before body validation.
 The guard authorizes against the organization in the path, not the session's
@@ -55,5 +60,6 @@ not pass through Nest's general rate-limit interceptor. Canonical client IP
 comes from Nginx's overwritten `X-Real-IP` header. Session country and city
 are derived server-side from that address; request bodies cannot set them.
 
-Client-side permission checks only decide what controls to render. Every
-mutation and protected read is authorized again by the backend.
+Client-side permission checks only decide what controls to render; they read
+the shared policy so the controls match what the API will allow. Every mutation
+and protected read is authorized again by the backend regardless.

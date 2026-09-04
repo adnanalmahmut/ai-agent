@@ -16,6 +16,7 @@
     "test:e2e:install": "playwright install --with-deps chromium"
   },
   "dependencies": {
+    "@repo/authz-policy": "workspace:*",
     "@repo/i18n-core": "workspace:*",
     "@repo/ui": "workspace:*",
     "better-auth": "^1.6.27",

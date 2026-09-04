@@ -32,7 +32,9 @@ HTTP listener.
   accepts requests and commits state. The worker dispatches the outbox and
   consumes BullMQ jobs. The CLI performs host-authorized operator actions.
 - `packages/ui` and `packages/i18n-core` contain shared presentation and
-  locale contracts. They do not own business behavior.
+  locale contracts. `packages/authz-policy` declares the authorization policy
+  the backend and the platform both answer from. None of them executes
+  business behavior: enforcement stays in the backend.
 
 The backend source dependency direction is:
 

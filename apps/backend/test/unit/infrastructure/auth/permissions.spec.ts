@@ -3,6 +3,11 @@ import { defaultStatements as adminDefaultStatements } from 'better-auth/plugins
 import { defaultStatements as organizationDefaultStatements } from 'better-auth/plugins/organization/access';
 
 import {
+  GLOBAL_ROLE_GRANTS,
+  ORGANIZATION_ROLE_GRANTS,
+} from '@repo/authz-policy';
+
+import {
   DEFAULT_GLOBAL_ROLE,
   GLOBAL_ADMIN_ROLES,
   GLOBAL_PERMISSION_STATEMENTS,
@@ -230,6 +235,12 @@ describe('organization access control', () => {
       );
     });
 
+    it('cannot open an MCP session', () => {
+      expect(allowsOrganization('member', { mcpSession: ['create'] })).toBe(
+        false,
+      );
+    });
+
     it('sees proposed agent actions but cannot decide them', () => {
       expect(
         allowsOrganization('member', { agentActionApproval: ['read'] }),
@@ -250,6 +261,7 @@ describe('organization access control', () => {
       ['invitation', 'cancel'],
       ['agentActionApproval', 'read'],
       ['agentActionApproval', 'decide'],
+      ['mcpSession', 'create'],
     ])('may %s:%s', (resource, action) => {
       expect(allowsOrganization('admin', { [resource]: [action] })).toBe(true);
     });
@@ -267,6 +279,12 @@ describe('organization access control', () => {
   describe('owner', () => {
     it('is the role assigned to whoever creates an organization', () => {
       expect(ORGANIZATION_CREATOR_ROLE).toBe('owner');
+    });
+
+    it('may open an MCP session', () => {
+      expect(allowsOrganization('owner', { mcpSession: ['create'] })).toBe(
+        true,
+      );
     });
 
     it('owns the lifecycle', () => {
@@ -372,5 +390,61 @@ describe('organization access control', () => {
         memberRoleHasPermission('super_admin', { organization: ['restore'] }),
       ).toBe(false);
     });
+  });
+});
+
+/**
+ * The backend and the platform each build their own Better Auth access control
+ * so the two domains stay independent, but both build it from one shared grant
+ * table. These tests are what makes that claim checkable: every permission
+ * decision this application makes is compared against the shared table it came
+ * from. The platform runs the same comparison against the same table, so a
+ * hand-edit on either side fails rather than silently drifting.
+ */
+describe('the enforced policy is the shared policy', () => {
+  const grantsFor = (grants: unknown, resource: string): readonly string[] =>
+    (grants as Record<string, readonly string[]>)[resource] ?? [];
+
+  it('decides every global permission exactly as the shared table says', () => {
+    for (const roleName of Object.keys(globalRoles) as Array<
+      keyof typeof globalRoles
+    >) {
+      const grants = GLOBAL_ROLE_GRANTS[roleName];
+
+      for (const [resource, actions] of Object.entries(
+        GLOBAL_PERMISSION_STATEMENTS,
+      )) {
+        for (const action of actions) {
+          expect(allowsGlobal(roleName, { [resource]: [action] })).toBe(
+            grantsFor(grants, resource).includes(action),
+          );
+        }
+      }
+    }
+  });
+
+  it('decides every organization permission exactly as the shared table says', () => {
+    for (const roleName of Object.keys(organizationRoles) as Array<
+      keyof typeof organizationRoles
+    >) {
+      const grants = ORGANIZATION_ROLE_GRANTS[roleName];
+
+      for (const [resource, actions] of Object.entries(
+        ORGANIZATION_PERMISSION_STATEMENTS,
+      )) {
+        for (const action of actions) {
+          expect(allowsOrganization(roleName, { [resource]: [action] })).toBe(
+            grantsFor(grants, resource).includes(action),
+          );
+        }
+      }
+    }
+  });
+
+  it('covers the same role names the shared table declares', () => {
+    expect(Object.keys(globalRoles)).toEqual(Object.keys(GLOBAL_ROLE_GRANTS));
+    expect(Object.keys(organizationRoles)).toEqual(
+      Object.keys(ORGANIZATION_ROLE_GRANTS),
+    );
   });
 });
