@@ -29,7 +29,8 @@ export function setupOpenApi(app: INestApplication): boolean {
           'under the "Authentication API" source.',
       )
       .setVersion('1.0.0')
-      // Keep in sync with the application's global API prefix.
+      // The one place the global API prefix is declared. Keep in sync with
+      // the prefix `main.ts` applies.
       .addServer('/api')
       .addCookieAuth(
         SESSION_COOKIE_NAME,
@@ -38,6 +39,11 @@ export function setupOpenApi(app: INestApplication): boolean {
       )
       .addSecurityRequirements(SESSION_COOKIE_SCHEME)
       .build(),
+    // `main.ts` sets the global prefix before building the document, so Nest
+    // would also stamp `/api` onto every path key and documented URLs would
+    // resolve to `/api/api/...`. The server declares the prefix; paths stay
+    // relative to it, matching how the Better Auth source is documented.
+    { ignoreGlobalPrefix: true },
   );
 
   // Expose only the JSON document; Scalar is the single documentation UI.

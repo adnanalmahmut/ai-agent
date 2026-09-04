@@ -12,6 +12,7 @@ import { CapturingTransport } from '../../support/auth-harness';
 
 type OpenApiDocument = {
   openapi: string;
+  servers?: { url: string }[];
   paths: Record<string, unknown>;
   tags?: { name: string }[];
   components?: {
@@ -34,6 +35,10 @@ async function boot(enabled: boolean) {
   const app = moduleRef.createNestApplication<NestExpressApplication>({
     bodyParser: false,
   });
+
+  // Mirror `main.ts`: the global prefix is applied before the document is
+  // built, so the document under test sees exactly what production emits.
+  app.setGlobalPrefix('api');
 
   const mounted = setupOpenApi(app);
   await app.init();
@@ -77,6 +82,7 @@ describe('OpenAPI enabled (e2e)', () => {
       '/admin/users/{userId}/restore',
       '/organizations/{organizationId}/archive',
       '/organizations/{organizationId}/restore',
+      '/organizations/{organizationId}/knowledge/spaces',
     ])('documents %s', (path) => {
       expect(Object.keys(applicationDocument.paths)).toContain(path);
     });
@@ -93,11 +99,61 @@ describe('OpenAPI enabled (e2e)', () => {
     });
 
     it('does not re-document any Better Auth path', () => {
-      const offending = Object.keys(applicationDocument.paths).filter((path) =>
-        path.startsWith('/api/auth'),
+      // Application paths are relative to the `/api` server, so a re-documented
+      // auth route would read `/auth/...`. Both shapes are checked so this stays
+      // meaningful whichever way the prefix is represented.
+      const offending = Object.keys(applicationDocument.paths).filter(
+        (path) =>
+          path === '/auth' ||
+          path.startsWith('/auth/') ||
+          path === '/api/auth' ||
+          path.startsWith('/api/auth/'),
       );
 
       expect(offending).toEqual([]);
+    });
+  });
+
+  describe('API prefix', () => {
+    const documentedUrl = (server: string, path: string) =>
+      `${server.replace(/\/$/, '')}${path}`;
+
+    const effectiveServer = () => {
+      const [server] = applicationDocument.servers ?? [];
+      expect(server?.url).toBeDefined();
+      return server?.url ?? '';
+    };
+
+    it('declares the prefix once, on the server', () => {
+      expect(applicationDocument.servers).toEqual([{ url: '/api' }]);
+    });
+
+    it('leaves the prefix out of the path keys', () => {
+      const prefixed = Object.keys(applicationDocument.paths).filter(
+        (path) => path === '/api' || path.startsWith('/api/'),
+      );
+
+      expect(prefixed).toEqual([]);
+    });
+
+    it.each([
+      '/organizations/{organizationId}/archive',
+      '/admin/users/{userId}/deactivate',
+      '/organizations/{organizationId}/knowledge/spaces',
+    ])('resolves %s to its real public URL', (path) => {
+      expect(Object.keys(applicationDocument.paths)).toContain(path);
+      expect(documentedUrl(effectiveServer(), path)).toBe(`/api${path}`);
+    });
+
+    it('resolves every documented URL under exactly one /api prefix', () => {
+      const server = effectiveServer();
+      const urls = Object.keys(applicationDocument.paths).map((path) =>
+        documentedUrl(server, path),
+      );
+
+      expect(urls.length).toBeGreaterThan(0);
+      expect(urls.filter((url) => !url.startsWith('/api/'))).toEqual([]);
+      expect(urls.filter((url) => url.startsWith('/api/api'))).toEqual([]);
     });
   });
 
