@@ -125,6 +125,7 @@ jobs:
           docker compose --profile test config >/dev/null
           docker compose --profile staging --profile migration config >/dev/null
           ops/tests/container-foundation.sh
+          ops/tests/compose-interface.sh
           ops/tests/container-environment.sh
           ops/tests/runtime-preflight.sh
           ops/tests/nginx-real-ip.sh

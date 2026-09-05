@@ -4,6 +4,13 @@ The repository has exactly one root `docker-compose.yml`. Profiles select
 development, test, staging, production, and one-shot migration behavior; there
 are no environment-specific Compose files.
 
+Repository commands reach Compose through `infra/scripts/compose.sh`, which
+resolves the repository root from its own location and pins the project name
+to `ai-agent`. The root `pnpm db:up`, `db:down`, and `db:logs` scripts use it,
+and the backend workspace aliases delegate to them. Host and deployment tooling
+under `ops/` keeps its own invocation, because it runs against the installed
+bundle rather than the repository.
+
 Production/staging run PostgreSQL, Redis, API, worker, web, platform, and
 geoipupdate. API/worker share the backend image. Named volumes persist
 PostgreSQL, Redis AOF, and GeoIP data. Data networking is internal; application
