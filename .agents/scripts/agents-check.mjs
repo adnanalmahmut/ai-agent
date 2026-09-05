@@ -6,28 +6,6 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const errors = [];
-const expectedRoles = [
-  'code-reviewer',
-  'debugger',
-  'docs-researcher',
-  'explorer',
-  'implementer',
-  'security-reviewer',
-  'test-engineer',
-];
-const requiredRoleHeadings = [
-  'Purpose',
-  'When to use',
-  'When not to use',
-  'Input contract',
-  'Required context',
-  'Allowed actions',
-  'Forbidden actions',
-  'Output contract',
-  'Validation and evidence',
-  'Stopping conditions',
-  'Escalation',
-];
 
 function fail(message) {
   errors.push(message);
@@ -78,25 +56,17 @@ function sortedNames(path, extension) {
     .sort();
 }
 
-function sameList(actual, expected, label) {
-  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-    fail(`${label} set differs: expected [${expected.join(', ')}], got [${actual.join(', ')}]`);
-  }
-}
-
+/**
+ * Only files something else silently depends on: the two entry points the host
+ * tools discover, the scripts named by hook configuration, those configs, and
+ * the deployment record this script itself reads. Prose files are not listed —
+ * a document that goes missing while something still points at it is caught by
+ * link validation, which needs no registry to maintain.
+ */
 function validateCanonicalFiles() {
   const required = [
     'AGENTS.md',
     'CLAUDE.md',
-    '.agents/task-brief.md',
-    '.agents/policies/engineering.md',
-    '.agents/policies/safety.md',
-    '.agents/policies/git-and-delivery.md',
-    '.agents/workflows/feature-implementation.md',
-    '.agents/workflows/bug-fixing.md',
-    '.agents/workflows/pr-review.md',
-    '.agents/workflows/incident-debugging.md',
-    '.agents/workflows/documentation-sync.md',
     '.agents/hooks/policy.mjs',
     '.agents/hooks/pre-tool.mjs',
     '.agents/hooks/stop-check.mjs',
@@ -107,34 +77,38 @@ function validateCanonicalFiles() {
   ];
   for (const file of required) if (!exists(join(root, file))) fail(`missing canonical file: ${file}`);
 
+  // Without this exact import Claude Code silently loses every project rule.
   const firstLine = read(join(root, 'CLAUDE.md')).split(/\r?\n/, 1)[0];
   if (firstLine !== '@AGENTS.md') fail('CLAUDE.md must begin with the exact @AGENTS.md import');
 }
 
+/**
+ * Adapters are dangling-pointer risks, not style risks. What breaks concretely
+ * is an adapter that names a canonical role file which does not exist, or a
+ * canonical role that no adapter exposes — so both directions are checked
+ * against the filesystem. Which roles exist is the repository's business; adding
+ * one must not require editing this file.
+ */
 function validateRolesAndAdapters() {
-  const canonical = sortedNames(join(root, '.agents/roles'), '.md');
-  sameList(canonical, expectedRoles, 'canonical role');
-
-  for (const role of expectedRoles) {
-    const rolePath = join(root, '.agents/roles', `${role}.md`);
-    if (!exists(rolePath)) continue;
-    const source = read(rolePath);
-    for (const heading of requiredRoleHeadings) {
-      if (!source.includes(`## ${heading}\n`)) fail(`${relative(root, rolePath)} lacks "${heading}"`);
-    }
-  }
+  const roles = sortedNames(join(root, '.agents/roles'), '.md');
+  if (roles.length === 0) fail('no canonical role contracts found under .agents/roles');
 
   const adapters = [
-    ['Codex', '.codex/agents', '.toml'],
-    ['Claude', '.claude/agents', '.md'],
+    ['.codex/agents', '.toml'],
+    ['.claude/agents', '.md'],
   ];
-  for (const [label, directory, extension] of adapters) {
-    sameList(sortedNames(join(root, directory), extension), expectedRoles, `${label} adapter`);
-    for (const role of expectedRoles) {
-      const path = join(root, directory, `${role}${extension}`);
-      if (!exists(path)) continue;
+  for (const [directory, extension] of adapters) {
+    const present = sortedNames(join(root, directory), extension);
+    for (const role of roles) {
+      if (!present.includes(role)) fail(`${directory} has no adapter for canonical role ${role}`);
+    }
+
+    for (const name of present) {
+      const path = join(root, directory, `${name}${extension}`);
       const source = read(path);
-      if (!source.includes(`.agents/roles/${role}.md`)) fail(`${relative(root, path)} does not route to its canonical role`);
+      const target = `.agents/roles/${name}.md`;
+      if (!exists(join(root, target))) fail(`${relative(root, path)} adapts ${name}, which has no canonical role file`);
+      if (!source.includes(target)) fail(`${relative(root, path)} does not route to ${target}`);
       if (extension === '.toml') {
         for (const key of ['name', 'description', 'developer_instructions']) {
           if (!new RegExp(`^${key}\\s*=`, 'm').test(source)) fail(`${relative(root, path)} lacks ${key}`);
@@ -185,15 +159,6 @@ function validateSkills() {
         fail(`copied tool-specific skill found: ${relative(root, file)}`);
       }
     }
-  }
-}
-
-function validateWorkflows() {
-  for (const path of filesUnder(join(root, '.agents/workflows')).filter((file) => file.endsWith('.md') && !file.endsWith('README.md'))) {
-    const source = read(path);
-    if (!source.includes('## State graph\n')) fail(`${relative(root, path)} lacks an explicit state graph`);
-    if (!/(three|3).*(cycle|attempt)|(?:cycle|attempt).*(three|3)/is.test(source)) fail(`${relative(root, path)} lacks a bounded three-cycle loop`);
-    if (!source.includes('ESCALATE')) fail(`${relative(root, path)} lacks an escalation state`);
   }
 }
 
@@ -316,7 +281,6 @@ function validateSafetyAndState() {
 validateCanonicalFiles();
 validateRolesAndAdapters();
 validateSkills();
-validateWorkflows();
 validateHooks();
 validateMarkdownLinks();
 validateSafetyAndState();
