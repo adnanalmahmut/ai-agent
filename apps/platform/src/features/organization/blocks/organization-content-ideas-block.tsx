@@ -238,6 +238,13 @@ export function OrganizationContentIdeasBlock({
           signal,
         );
 
+        // A read the reader has moved on from still arrives here when the
+        // request did not honour the signal, or when it settled inside the
+        // race with its own cancellation. Query drops the answer, but nothing
+        // outside Query would stop it speaking for the run now on screen, so
+        // it says nothing at all past this point.
+        if (signal.aborted) return next;
+
         // First sight of this run: whatever the last one refused or outlasted
         // is not what the reader is looking at any more.
         if (held == null) {
@@ -258,10 +265,12 @@ export function OrganizationContentIdeasBlock({
           ? settled
           : next;
       } catch (thrown: unknown) {
-        // Anything the screen cannot read a verdict from — a rate limit, a
-        // broken server, a request that never arrived — is left to the next
-        // poll rather than shown to the reader.
-        if (!isUnreadable(thrown)) throw thrown;
+        // A read that was abandoned refuses on its way out; that refusal
+        // belongs to the run the reader left, not to the one in front of
+        // them. Anything else the screen cannot read a verdict from — a rate
+        // limit, a broken server, a request that never arrived — is left to
+        // the next poll rather than shown to the reader.
+        if (signal.aborted || !isUnreadable(thrown)) throw thrown;
 
         setFailure(classify(thrown));
 

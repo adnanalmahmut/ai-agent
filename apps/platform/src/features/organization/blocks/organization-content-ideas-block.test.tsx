@@ -75,6 +75,19 @@ const succeeded = (
 const after = <T,>(ms: number, value: T) =>
   new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
 
+/** A request that answers when the test says so, and never before. */
+const deferred = <T,>() => {
+  let settle!: (value: T) => void;
+  let refuse!: (reason: unknown) => void;
+
+  const promise = new Promise<T>((resolve, reject) => {
+    settle = resolve;
+    refuse = reject;
+  });
+
+  return { promise, settle, refuse };
+};
+
 const IDEA = {
   title: 'Why our kettle boils in ninety seconds',
   hook: 'Ninety seconds. Not a marketing number — a physics one.',
@@ -874,6 +887,137 @@ describe('the content ideas screen', () => {
       expect(
         screen.queryByText(/taking longer than expected/i),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('a cancelled read that answers anyway', () => {
+    /**
+     * Query drops the *result* of a read it has abandoned, and that is all it
+     * can do: a request that never looks at the signal, or one that settles
+     * inside the race with its own cancellation, still runs the rest of the
+     * query function. What that code says about failures, about giving up,
+     * and about the address has to be its own business to hold back.
+     */
+    it('does not refuse on behalf of the run the reader moved to', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const stale = deferred<unknown>();
+      const signals: AbortSignal[] = [];
+
+      getContentIdeaOperation.mockImplementation(
+        (_organizationId: string, id: string, signal: AbortSignal) => {
+          if (id !== 'op_stale') {
+            return Promise.resolve(operation({ id, status: 'RUNNING' }));
+          }
+
+          signals.push(signal);
+
+          return stale.promise;
+        },
+      );
+
+      render({}, { initialEntries: ['/?operation=op_stale'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      act(() => stubLocation('/?operation=op_current'));
+
+      expect(await screen.findByText('Running')).toBeVisible();
+      await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+
+      await act(async () => {
+        stale.refuse(new ApiError(404, 'NOT_FOUND'));
+        await Promise.resolve();
+      });
+
+      await settle();
+
+      expect(screen.queryByText(/could not be found/i)).not.toBeInTheDocument();
+      expect(currentUrl()).toContain('operation=op_current');
+      expect(screen.getByText('Running')).toBeVisible();
+    });
+
+    it('does not clear a refusal the reader is being shown', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const stale = deferred<unknown>();
+      const signals: AbortSignal[] = [];
+
+      getContentIdeaOperation.mockImplementation(
+        (organizationId: string, _id: string, signal: AbortSignal) => {
+          if (organizationId !== organization().id) {
+            return Promise.reject(new ApiError(404, 'NOT_FOUND'));
+          }
+
+          signals.push(signal);
+
+          return stale.promise;
+        },
+      );
+
+      renderSwitchable({}, { initialEntries: ['/?operation=op_1'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      await switchOrganization();
+
+      expect(await screen.findByText(/could not be found/i)).toBeVisible();
+      await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+
+      await act(async () => {
+        stale.settle(succeeded([IDEA], [], { id: 'op_1' }));
+        await Promise.resolve();
+      });
+
+      await settle();
+
+      expect(screen.getByText(/could not be found/i)).toBeVisible();
+      expect(screen.queryByText(IDEA.title)).not.toBeInTheDocument();
+    });
+
+    it('does not put the screen back to watching a refused run', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const stale = deferred<unknown>();
+      const signals: AbortSignal[] = [];
+      let current = () =>
+        Promise.resolve(operation({ id: 'op_current', status: 'RUNNING' }));
+
+      getContentIdeaOperation.mockImplementation(
+        (_organizationId: string, id: string, signal: AbortSignal) => {
+          if (id !== 'op_stale') return current();
+
+          signals.push(signal);
+
+          return stale.promise;
+        },
+      );
+
+      render({}, { initialEntries: ['/?operation=op_stale'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      act(() => stubLocation('/?operation=op_current'));
+
+      expect(await screen.findByText('Running')).toBeVisible();
+
+      current = () => Promise.reject(new ApiError(404, 'NOT_FOUND'));
+
+      expect(await screen.findByText(/could not be found/i)).toBeVisible();
+
+      const asked = getContentIdeaOperation.mock.calls.length;
+
+      await act(async () => {
+        stale.settle(succeeded([IDEA], [], { id: 'op_stale' }));
+        await Promise.resolve();
+      });
+
+      await settle();
+
+      // A run the reader left cannot start the watch up again on a run the
+      // server has already refused.
+      expect(getContentIdeaOperation).toHaveBeenCalledTimes(asked);
+      expect(screen.getByText(/could not be found/i)).toBeVisible();
     });
   });
 
