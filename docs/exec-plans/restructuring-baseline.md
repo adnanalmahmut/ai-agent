@@ -206,10 +206,13 @@ re-verified by a human.
 
 ## Assumptions and conflicts to verify in later phases
 
-1. **MCP session cleanup.** Expiry is evaluated when a session is touched
-   (`mcp-session.service.ts`). Whether an abandoned session is ever closed
-   without a subsequent request is not established here. Confirm before the
-   Runtime takes over session ownership.
+1. **MCP session cleanup — settled.** Expiry is evaluated when a session is
+   touched (`mcp-session.service.ts`), and an abandoned one is closed anyway:
+   `ai/execution/agent-run-reconciler.service.ts` sweeps expired sessions on
+   its own interval, with no client request involved, which is also what
+   releases the organization's in-flight ceiling. Characterized in
+   [the test checklist](restructuring-test-checklist.md); the Runtime must keep
+   both halves when it takes over session ownership.
 2. **Approval does not suspend a run.** Today the tool returns
    `{ status: 'awaiting_approval' }` and the run continues to its own
    conclusion; the approval and the effect happen afterwards, off the run, via
