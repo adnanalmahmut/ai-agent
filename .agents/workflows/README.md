@@ -7,7 +7,6 @@ These workflows are canonical, tool-neutral execution graphs. Every transition r
 - [Pull-request review](pr-review.md)
 - [Incident debugging](incident-debugging.md)
 - [Documentation synchronization](documentation-sync.md)
-- [Bounded PR train](pr-train.md) — multi-PR session state and compact-safe resume
 
 ## Shared rules
 
@@ -16,4 +15,4 @@ These workflows are canonical, tool-neutral execution graphs. Every transition r
 3. Parallel work is allowed only for independent, bounded subtasks with non-overlapping writes.
 4. After three unsuccessful repair or hypothesis cycles, stop and escalate with evidence.
 5. Publishing, deployment, merge, and destructive actions require the authority stated in `AGENTS.md` and the safety policy.
-6. A session that produces more than one PR runs under [the bounded PR train](pr-train.md). Conversation memory is never authoritative state.
+6. Conversation memory is never authoritative state. Git, GitHub PR state, and final-head CI are. For multi-PR sessions see the [Git and delivery policy](../policies/git-and-delivery.md).
