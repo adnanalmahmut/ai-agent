@@ -26,12 +26,14 @@ flowchart TD
 - `.agents/workflows/` owns explicit task graphs and bounded loops.
 - `.agents/skills/` owns reusable procedures.
 - `.agents/hooks/` owns deterministic enforcement logic.
-- `.agents/scripts/` owns harness validation and the PR-train state model.
+- `.agents/scripts/` owns harness validation and the read-only resume snapshot.
 
 Tool adapters may declare a tool's discovery schema, permissions, or event
 mapping. Their prompt bodies only route to canonical files. The validation
-command rejects missing references, duplicated skills, stale adapters, broken
-links, unsafe hook definitions, and contradictory deployment-state claims.
+command validates mechanical integrity only: present canonical files, adapter
+routing and config shape, Node syntax, skill frontmatter, resolvable Markdown
+links, and consistent deployment-state claims. It does not enforce a house style
+for agent documents.
 
 ## Tool mapping
 
@@ -47,39 +49,34 @@ Claude Code references canonical skills via the `.claude/skills` path file point
 
 ## Session state and resume
 
-A session may produce several independently reviewable pull requests as a
-bounded PR train: 3 open implementation PRs by default, 4 supported, and no
-fourth started automatically at the default. The contract — schema, states,
-dependency rules, checkpoint triggers, and forbidden actions — is
-[the PR train workflow](../.agents/workflows/pr-train.md). It is stated once
-there; this document only records where it lives and how it is split.
+The repository owns no workflow state machine. Git, GitHub pull-request state,
+and final-head CI are authoritative, and a resuming agent reads them directly.
 
-The split matters for testability. `.agents/scripts/pr-train.mjs` is pure: it
-takes the dashboard text plus an evidence object and returns a model and
-findings, with no filesystem, subprocess, or network access. That is what makes
-the state machine and the reconciliation rules testable without a real
-repository, and `.agents/scripts/__tests__/pr-train.test.mjs` exercises them
-directly, including mutation probes that remove the train-limit guard and the
-base/dependency agreement check and assert a test then fails.
-`.agents/scripts/resume-task.mjs` is the integration boundary behind
-`pnpm agents:resume`: it collects Git and GitHub evidence, hands it to the model,
-and prints. It is read-only by construction.
+`.agents/scripts/resume-task.mjs`, behind `pnpm agents:resume`, is a read-only
+evidence reporter. It prints the repository root, branch, HEAD, `origin/main`,
+upstream tracking, `git status --short --branch`, and recent decorated history;
+then, when `gh` is available, the pull request for the current branch with its
+state, base, head SHA, mergeability, check rollup for that exact head SHA, and
+URL. It flags the case where the local HEAD differs from the PR head, because CI
+for an older SHA says nothing about what is currently proposed.
 
-`TODO.md` is a local operational dashboard, deliberately untracked. It never
-overrules Git or GitHub, and it is not a substitute for a tracked exec plan under
-`docs/exec-plans/`. Resume refuses outright if that file is tracked by Git, and
-warns if it is merely unignored — pointing at `.git/info/exclude` rather than at
-tracked `.gitignore`, because local-only state does not belong in a tracked file.
+It observes and never orchestrates: it runs inspection commands only, makes no
+GitHub writes, mutates no files or refs, and needs no dashboard. When `gh` is
+missing, unauthenticated, or the branch has no PR, it prints the local Git
+evidence and says plainly that GitHub evidence is unavailable.
 
-Two facts are reported separately and never conflated: what the dashboard records
-as occupied capacity, and whether starting another PR is authorized by live
-evidence. The second fails closed — a slot is released only when the dashboard
-says merged *and* GitHub confirms it, and unreadable GitHub state blocks new-slot
-progression while leaving current work free to continue.
+A compaction is a process restart, not continuity of memory. Everything the
+snapshot prints therefore comes from evidence rather than from what an earlier
+turn believed. An optional untracked `TODO.md` may hold a plain human-readable
+note — goal, current branch, current PR, last completed step, known blocker,
+next action. Nothing parses it, it is not validated, and it never overrules Git
+or GitHub. Resume prints it verbatim if it exists.
 
-A compaction is treated as a process restart. Resume reconstructs state from
-evidence and reports drift rather than repairing it silently; a dashboard that
-does not parse stops resume with an explicit error list instead of a guess.
+Multi-PR sessions follow the rules in
+[the Git and delivery policy](../.agents/policies/git-and-delivery.md): base on
+`main` by default, stack only for a real dependency, keep each PR independently
+reviewable, verify the final head, retarget children after the parent merges,
+and leave merging to a human.
 
 ## Context discipline
 
@@ -90,7 +87,6 @@ knowledge base or every policy into each tool prompt.
 ## Maintenance
 
 Change canonical semantics first, update only adapters affected by schema, run
-`pnpm agents:check`, and
-update this document when ownership or discovery changes. Official tool
-documentation must be rechecked before adopting a new adapter field or
-lifecycle event.
+`pnpm agents:check`, and update this document when ownership or discovery
+changes. Official tool documentation must be rechecked before adopting a new
+adapter field or lifecycle event.

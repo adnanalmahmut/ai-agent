@@ -12,7 +12,7 @@ logic, or skill bodies.
 - `workflows/`: explicit orchestration graphs and stopping conditions
 - `skills/`: portable procedures loaded on demand
 - `hooks/`: deterministic cross-platform enforcement code
-- `scripts/`: harness validation, the PR-train state model, and resume
+- `scripts/`: harness validation and the read-only resume snapshot
 - `task-brief.md`: standard input contract for substantial tasks
 
 Progressive disclosure is deliberate: `AGENTS.md` routes startup context;
@@ -37,18 +37,24 @@ on canonical skills directly from `.agents/skills/`.
 
 ## Session state
 
-A session that produces several pull requests runs as a bounded PR train.
-`.agents/scripts/pr-train.mjs` is the pure state model — parsing, the state
-machine, the size limit, dependency and sibling derivation, and reconciliation
-against real evidence. `.agents/scripts/resume-task.mjs` is the read-only
-integration boundary behind `pnpm agents:resume`.
+The repository owns no workflow state. Git, GitHub PR state, and final-head CI
+are authoritative, and a fresh agent reads them directly.
 
-The contract lives in one place: [the PR train workflow](workflows/pr-train.md).
-Other documents route to it rather than restating it.
+`pnpm agents:resume` (`.agents/scripts/resume-task.mjs`) prints that evidence as
+one snapshot after a compaction or restart: branch, HEAD, `origin/main`, status,
+recent history, and — when `gh` is available — the branch's PR with its base,
+head SHA, mergeability, and the checks for that exact SHA. It observes only: it
+never mutates Git, files, or GitHub, and it degrades to local evidence when `gh`
+is missing or unauthenticated.
+
+An optional local `TODO.md` is a plain untracked note. Nothing parses it, and it
+never overrules Git or GitHub. Multi-PR rules live in
+[the Git and delivery policy](policies/git-and-delivery.md).
 
 ## Validation
 
 Run `pnpm agents:check` after changing canonical guidance, roles, workflows,
-skills, hook policy, the PR-train model, or any tool adapter. The same command is
-a dedicated CI job and includes the portable hook-policy regression tests and the
-PR-train parser/state tests with their mutation probes.
+skills, hook policy, harness scripts, or any tool adapter. It validates
+mechanical integrity — present canonical files, adapter routing and JSON shape,
+Node syntax, skill frontmatter, resolvable Markdown links — and runs the portable
+hook-policy and resume regression tests. The same command is a dedicated CI job.

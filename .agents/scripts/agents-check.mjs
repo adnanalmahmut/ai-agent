@@ -97,13 +97,10 @@ function validateCanonicalFiles() {
     '.agents/workflows/pr-review.md',
     '.agents/workflows/incident-debugging.md',
     '.agents/workflows/documentation-sync.md',
-    '.agents/workflows/pr-train.md',
     '.agents/hooks/policy.mjs',
     '.agents/hooks/pre-tool.mjs',
     '.agents/hooks/stop-check.mjs',
-    '.agents/scripts/pr-train.mjs',
     '.agents/scripts/resume-task.mjs',
-    '.agents/scripts/__tests__/pr-train.test.mjs',
     '.codex/hooks.json',
     '.claude/settings.json',
     'docs/deployment-state.md',
@@ -214,7 +211,7 @@ function validateHooks() {
     '.agents/hooks/policy.mjs',
     '.agents/hooks/pre-tool.mjs',
     '.agents/hooks/stop-check.mjs',
-    '.agents/scripts/pr-train.mjs',
+    '.agents/scripts/agents-check.mjs',
     '.agents/scripts/resume-task.mjs',
   ]) {
     const result = spawnSync(process.execPath, ['--check', script], { cwd: root, encoding: 'utf8' });
