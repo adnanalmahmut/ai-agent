@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 
 import { type FieldIssues, validate } from '@/features/auth/validation';
-import { useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import { replaceOrganizationBusinessProfile } from '../organization-api';
 import type { OrganizationBusinessProfile } from '../organization-types';
@@ -38,7 +38,7 @@ export function formValuesFromProfile(
 }
 
 export function useOrganizationBusinessProfile(organizationId: string) {
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { isPending, error, reset, runThrowing } = useOrganizationAction();
   const [issues, setIssues] = useState<
     FieldIssues<OrganizationBusinessProfileValues>
@@ -64,9 +64,9 @@ export function useOrganizationBusinessProfile(organizationId: string) {
       if (!updated) return;
 
       setIsSaved(true);
-      revalidate();
+      router.refresh();
     },
-    [organizationId, revalidate, runThrowing],
+    [organizationId, router, runThrowing],
   );
 
   const clear = useCallback(() => {

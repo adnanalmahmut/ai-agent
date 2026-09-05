@@ -8,9 +8,10 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import {
-  navigateSpy,
+  pushSpy,
+  refreshSpy,
+  replaceSpy,
   resetNavigationStub,
-  revalidateSpy,
 } from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
@@ -101,11 +102,9 @@ describe('accepting', () => {
     await user.click(screen.getByRole('button', { name: 'Accept invitation' }));
 
     await waitFor(() =>
-      expect(navigateSpy).toHaveBeenCalledWith('/organizations/org_9', {
-        replace: true,
-      }),
+      expect(replaceSpy).toHaveBeenCalledWith('/organizations/org_9'),
     );
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('falls back to the organizations list if no membership comes back', async () => {
@@ -119,9 +118,7 @@ describe('accepting', () => {
     await user.click(screen.getByRole('button', { name: 'Accept invitation' }));
 
     await waitFor(() =>
-      expect(navigateSpy).toHaveBeenCalledWith('/organizations', {
-        replace: true,
-      }),
+      expect(replaceSpy).toHaveBeenCalledWith('/organizations'),
     );
   });
 
@@ -178,7 +175,8 @@ describe('failures', () => {
     expect(
       await screen.findByText(/archived and cannot be joined/),
     ).toBeInTheDocument();
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 
   it('does not guess between expired, withdrawn and already accepted', async () => {

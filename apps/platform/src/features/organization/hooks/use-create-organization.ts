@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { authClient } from '@/features/auth/auth-client';
 import { ORGANIZATION_ROUTES } from '@/features/auth/routes';
 import { type FieldIssues, validate } from '@/features/auth/validation';
-import { useAppNavigate, useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import {
   type CreateOrganizationValues,
@@ -16,8 +16,7 @@ const SLUG_CHECK_DELAY_MS = 400;
 export type SlugAvailability = 'unknown' | 'checking' | 'available' | 'taken';
 
 export function useCreateOrganization() {
-  const navigate = useAppNavigate();
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { isPending, error, reset, run } = useOrganizationAction();
   const [issues, setIssues] = useState<FieldIssues<CreateOrganizationValues>>(
     {},
@@ -44,10 +43,10 @@ export function useCreateOrganization() {
 
       if (!created) return;
 
-      revalidate();
-      navigate(ORGANIZATION_ROUTES.overview(created.id), { replace: true });
+      router.refresh();
+      router.replace(ORGANIZATION_ROUTES.overview(created.id));
     },
-    [navigate, revalidate, run],
+    [router, run],
   );
 
   return { submit, issues, error, isPending, reset };

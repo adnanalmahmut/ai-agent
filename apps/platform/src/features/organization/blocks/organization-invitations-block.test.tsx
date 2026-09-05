@@ -8,7 +8,7 @@ import {
   fail,
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
-import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import { refreshSpy, resetNavigationStub } from '@/test/navigation-stub';
 import {
   context,
   invitation,
@@ -123,7 +123,7 @@ describe('inviting', () => {
     expect(
       await screen.findByText(/An invitation was sent to/),
     ).toBeInTheDocument();
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('refuses a malformed address without calling the server', async () => {
@@ -214,7 +214,7 @@ describe('withdrawing', () => {
         },
       ),
     );
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('is not offered for an invitation that is no longer pending', () => {

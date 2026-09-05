@@ -10,6 +10,7 @@ import {
   Textarea,
 } from '@repo/ui';
 import { Check, Lightbulb, Loader2, RefreshCw } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'use-intl';
 
@@ -33,7 +34,7 @@ import {
   ORGANIZATION_DETAIL_ROUTES,
   ORGANIZATION_ROUTES,
 } from '@/features/auth/routes';
-import { Link, useAppNavigate, useAppSearchParams } from '@/i18n/navigation';
+import { Link, useRouter } from '@/i18n/navigation';
 import {
   CONTENT_IDEA_LANGUAGES,
   createContentProjectFromIdea,
@@ -127,8 +128,8 @@ export function OrganizationContentIdeasBlock({
 }: { pollIntervalMs?: number; pollTimeoutMs?: number } = {}) {
   const t = useTranslations('ContentIdeas');
   const { organization, viewer } = useOrganizationContext();
-  const searchParams = useAppSearchParams();
-  const navigate = useAppNavigate();
+  const searchParams = useSearchParams();
+  const router = useRouter();
 
   const canCreate = useOrganizationRolePermission(viewer.member?.role, {
     contentIdea: ['create'],
@@ -191,13 +192,14 @@ export function OrganizationContentIdeasBlock({
       if (operationId === null) next.delete(OPERATION_PARAM);
       else next.set(OPERATION_PARAM, operationId);
 
+      // `URLSearchParams` is carried forward whole rather than rebuilt as an
+      // object, so a repeated key the page arrived with survives the rewrite.
       const query = next.toString();
-      navigate(
-        `${ORGANIZATION_ROUTES.contentIdeas(organizationId)}${query ? `?${query}` : ''}`,
-        { replace: true },
-      );
+      const path = ORGANIZATION_ROUTES.contentIdeas(organizationId);
+
+      router.replace(query ? `${path}?${query}` : path);
     },
-    [navigate, organizationId, searchParams],
+    [organizationId, router, searchParams],
   );
 
   useEffect(() => {

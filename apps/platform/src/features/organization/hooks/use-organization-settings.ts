@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { authClient } from '@/features/auth/auth-client';
 import { PLATFORM_ROUTES } from '@/features/auth/routes';
 import { type FieldIssues, validate } from '@/features/auth/validation';
-import { useAppNavigate, useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import { archiveOrganization, restoreOrganization } from '../organization-api';
 import {
@@ -13,7 +13,7 @@ import {
 import { useOrganizationAction } from './use-organization-action';
 
 export function useUpdateOrganization(organizationId: string) {
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { isPending, error, reset, run } = useOrganizationAction();
   const [issues, setIssues] = useState<FieldIssues<UpdateOrganizationValues>>(
     {},
@@ -42,9 +42,9 @@ export function useUpdateOrganization(organizationId: string) {
       if (!updated) return;
 
       setIsSaved(true);
-      revalidate();
+      router.refresh();
     },
-    [organizationId, revalidate, run],
+    [organizationId, router, run],
   );
 
   const clear = useCallback(() => {
@@ -56,7 +56,7 @@ export function useUpdateOrganization(organizationId: string) {
 }
 
 export function useArchiveOrganization(organizationId: string) {
-  const navigate = useAppNavigate();
+  const router = useRouter();
   const { isPending, error, reset, runThrowing } = useOrganizationAction();
 
   const submit = useCallback(
@@ -67,16 +67,16 @@ export function useArchiveOrganization(organizationId: string) {
 
       if (!result) return;
 
-      navigate(PLATFORM_ROUTES.organizations, { replace: true });
+      router.replace(PLATFORM_ROUTES.organizations);
     },
-    [navigate, organizationId, runThrowing],
+    [organizationId, router, runThrowing],
   );
 
   return { submit, error, isPending, reset };
 }
 
 export function useRestoreOrganization(organizationId: string) {
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { isPending, error, reset, runThrowing } = useOrganizationAction();
 
   const submit = useCallback(async () => {
@@ -84,8 +84,8 @@ export function useRestoreOrganization(organizationId: string) {
 
     if (!result) return;
 
-    revalidate();
-  }, [organizationId, revalidate, runThrowing]);
+    router.refresh();
+  }, [organizationId, router, runThrowing]);
 
   return { submit, error, isPending, reset };
 }

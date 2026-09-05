@@ -7,7 +7,11 @@ import {
   fail,
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
-import { navigateSpy, resetNavigationStub } from '@/test/navigation-stub';
+import {
+  pushSpy,
+  replaceSpy,
+  resetNavigationStub,
+} from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
@@ -60,7 +64,8 @@ describe('registering', () => {
     await waitFor(() =>
       expect(screen.getByText(/Confirm your email/)).toBeInTheDocument(),
     );
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 
   it('shows the address the link was sent to', async () => {

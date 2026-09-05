@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
-import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import { refreshSpy, resetNavigationStub } from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
@@ -101,7 +101,7 @@ describe('switching', () => {
     await user.click(screen.getByRole('button', { name: /Acme/ }));
     await user.click(await screen.findByRole('menuitem', { name: 'Globex' }));
 
-    await waitFor(() => expect(revalidateSpy).toHaveBeenCalled());
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalled());
   });
 
   it('refreshes even when the switch is refused', async () => {
@@ -117,7 +117,7 @@ describe('switching', () => {
     await user.click(screen.getByRole('button', { name: /Acme/ }));
     await user.click(await screen.findByRole('menuitem', { name: 'Globex' }));
 
-    await waitFor(() => expect(revalidateSpy).toHaveBeenCalled());
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalled());
   });
 
   it('does not re-select the organization already active', async () => {

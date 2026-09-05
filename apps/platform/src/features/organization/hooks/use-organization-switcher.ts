@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { authClient } from '@/features/auth/auth-client';
 import type { OrganizationSummary } from '@/features/auth/session-types';
-import { useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import {
   type InvitationFailure,
@@ -10,7 +10,7 @@ import {
 } from '../invitation-state';
 
 export function useOrganizationSwitcher() {
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const organizations = authClient.useListOrganizations();
   const active = authClient.useActiveOrganization();
 
@@ -32,10 +32,10 @@ export function useOrganizationSwitcher() {
         setFailure(invitationFailureFrom(thrown));
       } finally {
         setPendingId(null);
-        revalidate();
+        router.refresh();
       }
     },
-    [revalidate],
+    [router],
   );
 
   return {

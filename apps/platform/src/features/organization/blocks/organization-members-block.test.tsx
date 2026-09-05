@@ -9,9 +9,10 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import {
-  navigateSpy,
+  pushSpy,
+  refreshSpy,
+  replaceSpy,
   resetNavigationStub,
-  revalidateSpy,
 } from '@/test/navigation-stub';
 import {
   context,
@@ -125,7 +126,7 @@ describe('changing a role', () => {
       ),
     );
 
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('reports a refusal in the reader’s language', async () => {
@@ -223,9 +224,7 @@ describe('removing a member', () => {
     );
 
     await waitFor(() =>
-      expect(navigateSpy).toHaveBeenCalledWith('/organizations', {
-        replace: true,
-      }),
+      expect(replaceSpy).toHaveBeenCalledWith('/organizations'),
     );
   });
 
@@ -241,8 +240,9 @@ describe('removing a member', () => {
       await screen.findByRole('button', { name: 'Remove member' }),
     );
 
-    await waitFor(() => expect(revalidateSpy).toHaveBeenCalled());
-    expect(navigateSpy).not.toHaveBeenCalled();
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalled());
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 
   it('surfaces the last-owner rule rather than pre-empting it', async () => {

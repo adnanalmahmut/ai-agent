@@ -11,7 +11,7 @@ import {
   OrganizationProvider,
   type OrganizationContext,
 } from '@/features/organization/organization-context';
-import { stubLocation, testRouter } from '@/test/navigation-stub';
+import { stubLocation } from '@/test/navigation-stub';
 
 import arabic from '../../messages/ar.json';
 import english from '../../messages/en.json';
@@ -82,11 +82,10 @@ export function renderInOrganization(
     locale = 'en' as AppLocale,
     initialEntries = ['/'],
   }: { locale?: AppLocale; initialEntries?: string[] } = {},
-): RenderResult & { locale: AppLocale; router: typeof testRouter } {
+): RenderResult & { locale: AppLocale } {
   stubLocation(initialEntries[0] ?? '/');
-  const result = renderWithProviders(ui, { locale, organization: context });
 
-  return Object.assign(result, { router: testRouter });
+  return renderWithProviders(ui, { locale, organization: context });
 }
 
 export { arabic, english };

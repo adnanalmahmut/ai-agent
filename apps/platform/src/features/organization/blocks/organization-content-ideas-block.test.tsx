@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -7,6 +7,12 @@ import {
   authClientStub,
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
+import {
+  currentUrl,
+  pushSpy,
+  replaceSpy,
+  stubLocation,
+} from '@/test/navigation-stub';
 import { context, organization } from '@/test/organization-fixtures';
 import { renderInOrganization } from '@/test/render';
 
@@ -793,33 +799,31 @@ describe('the content ideas screen', () => {
   });
 
   describe('recovering an operation from the URL', () => {
-    const urlOf = (result: ReturnType<typeof render>) =>
-      `${result.router.state.location.pathname}${result.router.state.location.search}`;
-
     it('puts an accepted operation into the address', async () => {
       allow('contentIdea:create', 'contentIdea:read');
       requestContentIdeas.mockResolvedValue(operation({ id: 'op_accepted' }));
 
-      const result = render();
+      render();
       await fillForm();
       await submit();
 
       await waitFor(() =>
-        expect(urlOf(result)).toContain('operation=op_accepted'),
+        expect(currentUrl()).toContain('operation=op_accepted'),
       );
     });
 
     it('replaces rather than pushes, so the back button leaves the screen', async () => {
       allow('contentIdea:create', 'contentIdea:read');
 
-      const result = render();
+      render();
 
       await fillForm();
       await submit();
 
-      await waitFor(() => expect(urlOf(result)).toContain('operation=op_1'));
+      await waitFor(() => expect(currentUrl()).toContain('operation=op_1'));
 
-      expect(result.router.state.historyAction).toBe('REPLACE');
+      expect(replaceSpy).toHaveBeenCalled();
+      expect(pushSpy).not.toHaveBeenCalled();
     });
 
     it('picks up the run named by the address on arrival', async () => {
@@ -839,6 +843,28 @@ describe('the content ideas screen', () => {
       expect(requestContentIdeas).not.toHaveBeenCalled();
     });
 
+    it('follows the address when only the query changes', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaOperation.mockResolvedValue(
+        operation({ id: 'op_from_the_address', status: 'RUNNING' }),
+      );
+
+      render({}, { initialEntries: ['/'] });
+
+      expect(await screen.findByText(/no ideas requested yet/i)).toBeVisible();
+
+      // The reader stays on the same page; only the query moves. Reading the
+      // address once at mount would leave the screen showing the old answer.
+      act(() => stubLocation('/?operation=op_from_the_address'));
+
+      expect(await screen.findByText('Running')).toBeVisible();
+      expect(getContentIdeaOperation).toHaveBeenCalledWith(
+        organization().id,
+        'op_from_the_address',
+        expect.anything(),
+      );
+    });
+
     it('recovers a finished result, not only a running one', async () => {
       allow('contentIdea:create', 'contentIdea:read');
       getContentIdeaOperation.mockResolvedValue(
@@ -855,16 +881,13 @@ describe('the content ideas screen', () => {
       allow('contentIdea:create', 'contentIdea:read');
       getContentIdeaOperation.mockRejectedValue(new ApiError(404, 'NOT_FOUND'));
 
-      const result = render(
-        {},
-        { initialEntries: ['/?operation=op_from_another_org'] },
-      );
+      render({}, { initialEntries: ['/?operation=op_from_another_org'] });
 
       expect(
         await screen.findByText(/that request could not be found/i),
       ).toBeVisible();
       await waitFor(() =>
-        expect(urlOf(result)).not.toContain('op_from_another_org'),
+        expect(currentUrl()).not.toContain('op_from_another_org'),
       );
       expect(screen.getByText(/no ideas requested yet/i)).toBeVisible();
     });
@@ -873,11 +896,11 @@ describe('the content ideas screen', () => {
       allow('contentIdea:create', 'contentIdea:read');
       getContentIdeaOperation.mockRejectedValue(new ApiError(500, 'INTERNAL'));
 
-      const result = render({}, { initialEntries: ['/?operation=op_kept'] });
+      render({}, { initialEntries: ['/?operation=op_kept'] });
 
       await settle();
 
-      expect(urlOf(result)).toContain('operation=op_kept');
+      expect(currentUrl()).toContain('operation=op_kept');
     });
   });
 

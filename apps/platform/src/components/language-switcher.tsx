@@ -13,17 +13,18 @@ import {
   DropdownMenuTrigger,
 } from '@repo/ui';
 import { Languages } from 'lucide-react';
-import { useLocale, useTranslations } from 'use-intl';
+import { useTranslations } from 'use-intl';
 
 import { rememberLocale } from '@/i18n/locale-cookie';
 import { localeSwitchHref } from '@/i18n/locale-switch-href';
-import { useAppLocation, useAppNavigate } from '@/i18n/navigation';
+import { usePathname, useRouter } from '@/i18n/navigation';
+import { useAppLocale } from '@/i18n/use-app-locale';
 
 export function LanguageSwitcher() {
   const t = useTranslations('Navigation');
-  const navigate = useAppNavigate();
-  const location = useAppLocation();
-  const activeLocale = useLocale() as AppLocale;
+  const router = useRouter();
+  const pathname = usePathname();
+  const activeLocale = useAppLocale();
 
   function switchTo(nextLocale: AppLocale) {
     if (nextLocale === activeLocale) return;
@@ -33,13 +34,21 @@ export function LanguageSwitcher() {
     // the platform renders.
     rememberLocale(nextLocale);
 
-    // `useAppLocation` gives the path without the locale, and `navigate`
+    // `usePathname` gives the path without the locale and the router
     // re-applies one — so the reader lands on the same page in the other
     // language, keeping their tab, filter or anchor.
-    navigate(localeSwitchHref(location.pathname, location), {
-      replace: true,
-      locale: nextLocale,
-    });
+    //
+    // The query and the anchor are read from the address at the moment of the
+    // click rather than subscribed to. Nothing here re-renders when they
+    // change, and `useSearchParams` would opt every page carrying this button
+    // — the signed-out ones included — out of being prerendered.
+    router.replace(
+      localeSwitchHref(pathname, {
+        search: window.location.search,
+        hash: window.location.hash,
+      }),
+      { locale: nextLocale },
+    );
   }
 
   return (

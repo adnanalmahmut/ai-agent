@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { authClient } from '@/features/auth/auth-client';
 import type { OrganizationRoleName } from '@/features/authorization/permissions';
 import { type FieldIssues, validate } from '@/features/auth/validation';
-import { useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import {
   type InviteMemberValues,
@@ -12,7 +12,7 @@ import {
 import { useOrganizationAction } from './use-organization-action';
 
 export function useInviteMember(organizationId: string) {
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { isPending, error, reset, run } = useOrganizationAction();
   const [issues, setIssues] = useState<FieldIssues<InviteMemberValues>>({});
   const [invitedEmail, setInvitedEmail] = useState<string | null>(null);
@@ -41,9 +41,9 @@ export function useInviteMember(organizationId: string) {
       if (!invitation) return;
 
       setInvitedEmail(parsed.values.email);
-      revalidate();
+      router.refresh();
     },
-    [organizationId, revalidate, run],
+    [organizationId, router, run],
   );
 
   const clear = useCallback(() => {
@@ -56,7 +56,7 @@ export function useInviteMember(organizationId: string) {
 }
 
 export function useCancelInvitation() {
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { error, reset, run } = useOrganizationAction();
   const [pendingInvitationId, setPendingInvitationId] = useState<string | null>(
     null,
@@ -72,9 +72,9 @@ export function useCancelInvitation() {
 
       setPendingInvitationId(null);
 
-      if (cancelled) revalidate();
+      if (cancelled) router.refresh();
     },
-    [revalidate, run],
+    [router, run],
   );
 
   return { cancel, pendingInvitationId, error, reset };

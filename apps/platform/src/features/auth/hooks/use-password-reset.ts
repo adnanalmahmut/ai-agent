@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { useAppLocale } from '@/i18n/navigation';
+import { useAppLocale } from '@/i18n/use-app-locale';
 
 import { authClient } from '../auth-client';
 import { passwordResetCallbackUrl } from '../callback-urls';
