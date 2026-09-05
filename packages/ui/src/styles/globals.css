@@ -165,19 +165,20 @@
   --ds-gray-11: #b3b3b3;
   --ds-gray-12: #ebebeb;
 
-  /* Primary & Brand Colors - Dark Mode */
-  --ds-blue-1: #11131f;
-  --ds-blue-2: #141726;
-  --ds-blue-3: #182449;
-  --ds-blue-4: #1d3162;
-  --ds-blue-5: #25407b;
-  --ds-blue-6: #2f5296;
-  --ds-blue-7: #3e68b9;
-  --ds-blue-8: #4f80e1;
-  --ds-blue-9: #6366f1;
-  --ds-blue-10: #5558e6;
-  --ds-blue-11: #9bb7f5;
-  --ds-blue-12: #d6e2ff;
+    /* Primary & Brand Colors — Dark Mode */
+
+    --ds-blue-1:  #07111f;
+    --ds-blue-2:  #0b1728;
+    --ds-blue-3:  #10213a;
+    --ds-blue-4:  #132b4a;
+    --ds-blue-5:  #17365c;
+    --ds-blue-6:  #1d4472;
+    --ds-blue-7:  #25558d;
+    --ds-blue-8:  #2f69b7;
+    --ds-blue-9:  #3b82f6;
+    --ds-blue-10: #5a97f8;
+    --ds-blue-11: #8bb8fb;
+    --ds-blue-12: #dbeafe;
 
   /* Background Tokens - Dark Mode */
   --ds-background-primary: var(--ds-gray-1);
