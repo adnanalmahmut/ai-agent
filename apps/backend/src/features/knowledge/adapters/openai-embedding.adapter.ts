@@ -15,7 +15,7 @@ const catalogModel = APPLICATION_MODEL_CATALOG.embeddingModel(
 
 export const EMBEDDING_MODEL = catalogModel.providerModelId;
 
-if (catalogModel.capabilities.dimensions !== EMBEDDING_DIMENSIONS) {
+if (catalogModel.dimensions !== EMBEDDING_DIMENSIONS) {
   throw new Error(
     `Embedding model "${catalogModel.id}" does not match the deployed ${EMBEDDING_DIMENSIONS}-dimension schema`,
   );

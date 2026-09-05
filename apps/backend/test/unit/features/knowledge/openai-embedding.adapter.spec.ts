@@ -44,7 +44,7 @@ describe('OpenAiEmbeddingAdapter model catalog integration', () => {
 
     expect(EMBEDDING_MODEL).toBe(catalogModel.providerModelId);
     expect(adapter.model).toBe(catalogModel.providerModelId);
-    expect(adapter.dimensions).toBe(catalogModel.capabilities.dimensions);
+    expect(adapter.dimensions).toBe(catalogModel.dimensions);
     const request = fetchMock.mock.calls[0]?.[1];
     if (typeof request?.body !== 'string') {
       throw new Error('Expected a serialized JSON request body');
