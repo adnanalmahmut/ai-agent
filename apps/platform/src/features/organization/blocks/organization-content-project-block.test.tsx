@@ -1,9 +1,12 @@
-import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
+import { OrganizationProvider } from '../organization-context';
+import { act, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
 import { context, organization } from '@/test/organization-fixtures';
-import { renderInOrganization } from '@/test/render';
+import { renderWithProviders, renderInOrganization } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
   const { authClientStub } = await import('@/test/auth-client-stub');
@@ -197,4 +200,57 @@ describe('organization content project block', () => {
       await screen.findByText(/this project does not exist/i),
     ).toBeInTheDocument();
   });
+});
+
+it.each(['organization', 'project'])(
+  'cancels the previous detail when the %s changes',
+  async (identity) => {
+    let finish!: (value: unknown) => void;
+    getContentProject
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      )
+      .mockResolvedValueOnce(detail({ title: 'Current detail', drafts: [] }));
+    function Harness() {
+      const [changed, setChanged] = useState(false);
+      const id = identity === 'organization' && changed ? 'org_2' : 'org_1';
+      return (
+        <OrganizationProvider
+          value={context({ organization: organization({ id }) })}
+        >
+          <button onClick={() => setChanged(true)}>Switch resource</button>
+          <OrganizationContentProjectBlock
+            projectId={identity === 'project' && changed ? 'proj_2' : 'proj_1'}
+          />
+        </OrganizationProvider>
+      );
+    }
+    renderWithProviders(<Harness />);
+    await waitFor(() => expect(getContentProject).toHaveBeenCalledTimes(1));
+    const signal = getContentProject.mock.calls[0]![2] as AbortSignal;
+    await userEvent.click(screen.getByText('Switch resource'));
+    expect(signal.aborted).toBe(true);
+    await screen.findByText('Current detail');
+    await act(async () => finish(detail()));
+    expect(screen.queryByText('Kettle teardown')).not.toBeInTheDocument();
+    expect(getContentProject.mock.calls[1]).toEqual([
+      identity === 'organization' ? 'org_2' : 'org_1',
+      identity === 'project' ? 'proj_2' : 'proj_1',
+      expect.any(AbortSignal),
+    ]);
+  },
+);
+
+it('retries a failed detail only when requested', async () => {
+  getContentProject
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce(detail());
+  render();
+  await screen.findByText(/projects could not be loaded/i);
+  expect(getContentProject).toHaveBeenCalledTimes(1);
+  await userEvent.click(screen.getByRole('button', { name: /try again/i }));
+  expect(await screen.findAllByText('Kettle teardown')).toHaveLength(2);
 });

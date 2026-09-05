@@ -2,7 +2,8 @@
 
 import { Button, Input } from '@repo/ui';
 import { Loader2, RefreshCw, Search, ShieldAlert } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { PageHeader } from '@/components/page-header';
@@ -24,211 +25,115 @@ export function AdminUsersBlock() {
   const t = useTranslations('AdminUsers');
   const canListUsers = useGlobalPermission({ user: ['list'] });
 
-  const [users, setUsers] = useState<AdminUserInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Dialog & Action States
+  const [debouncedSearch, setDebouncedSearch] = useState<string | null>(null);
   const [banUser, setBanUser] = useState<AdminUserInfo | null>(null);
   const [banReason, setBanReason] = useState('');
-  const [isBanning, setIsBanning] = useState(false);
-
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [actionUserId, setActionUserId] = useState<string | null>(null);
-
-  // Concurrency & race-condition prevention refs
-  const activeControllerRef = useRef<AbortController | null>(null);
-  const requestGenRef = useRef(0);
-  const searchQueryRef = useRef(searchQuery);
-
-  useEffect(() => {
-    searchQueryRef.current = searchQuery;
-  }, [searchQuery]);
-
-  const loadUsers = useCallback(
-    async (queryOverride?: string) => {
-      // 1. Cancel any active in-flight request
-      if (activeControllerRef.current) {
-        activeControllerRef.current.abort();
-      }
-
-      // 2. Spawn new AbortController and track request generation
-      const controller = new AbortController();
-      activeControllerRef.current = controller;
-      const currentGen = ++requestGenRef.current;
-
-      const targetQuery =
-        queryOverride !== undefined ? queryOverride : searchQueryRef.current;
-
-      setIsLoading(true);
-      setLoadError(null);
-
-      try {
-        const res = await authClient.admin.listUsers({
-          query: {
-            limit: 100,
-            searchValue: targetQuery || undefined,
-          },
-          fetchOptions: { signal: controller.signal },
-        });
-
-        // Stale or superseded requests MUST NOT mutate state
-        if (controller.signal.aborted || currentGen !== requestGenRef.current) {
-          return;
-        }
-
-        if (res.data?.users) {
-          setUsers(res.data.users as unknown as AdminUserInfo[]);
-        } else if (res.error) {
-          setLoadError(res.error.message || t('errors.load'));
-        }
-      } catch (err) {
-        // Stale or superseded requests MUST NOT mutate error state
-        if (controller.signal.aborted || currentGen !== requestGenRef.current) {
-          return;
-        }
-        if (err instanceof DOMException && err.name === 'AbortError') {
-          return;
-        }
-        setLoadError(t('errors.load'));
-      } finally {
-        // Stale or superseded requests MUST NOT clear the loading indicator for newer requests
-        if (
-          !controller.signal.aborted &&
-          currentGen === requestGenRef.current
-        ) {
-          setIsLoading(false);
-        }
-      }
-    },
-    [t],
-  );
 
   useEffect(() => {
     if (!canListUsers) return;
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [canListUsers, searchQuery]);
 
-    const timer = setTimeout(() => {
-      void loadUsers(searchQuery);
-    }, 300);
-
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [canListUsers, loadUsers, searchQuery]);
-
-  useEffect(() => {
-    return () => {
-      activeControllerRef.current?.abort();
-    };
-  }, []);
-
-  const handleRoleChange = async (
-    userId: string,
-    newRole: AssignableGlobalRoleName,
-  ) => {
-    if (!isAssignableGlobalRoleName(newRole)) return;
-
-    setActionUserId(userId);
-    setActionError(null);
-    try {
-      const res = await authClient.admin.setRole({
-        userId,
-        role: newRole,
+  const listing = useQuery({
+    queryKey: ['admin', 'users', { search: debouncedSearch, limit: 100 }],
+    enabled: canListUsers && debouncedSearch !== null,
+    queryFn: async ({ signal }) => {
+      const res = await authClient.admin.listUsers({
+        query: { limit: 100, searchValue: debouncedSearch || undefined },
+        fetchOptions: { signal },
       });
-      if (res?.error) {
-        setActionError(res.error.message || t('errors.role'));
-        return;
-      }
-      await loadUsers();
-    } catch {
-      setActionError(t('errors.role'));
-    } finally {
-      setActionUserId(null);
-    }
+      if (res.error) throw res.error;
+      return (res.data?.users ?? []) as unknown as AdminUserInfo[];
+    },
+  });
+  const users = listing.data ?? [];
+  const isLoading = listing.isPending || listing.isFetching;
+  const loadError = listing.isError;
+  const loadUsers = () => {
+    if (debouncedSearch !== searchQuery) setDebouncedSearch(searchQuery);
+    else void listing.refetch();
   };
 
-  const handleConfirmBan = async () => {
+  const action = useMutation({
+    mutationFn: async (
+      write:
+        | { kind: 'role'; userId: string; role: AssignableGlobalRoleName }
+        | { kind: 'ban'; userId: string; reason: string }
+        | {
+            kind: 'unban' | 'deactivate' | 'restore' | 'impersonate';
+            userId: string;
+          },
+    ) => {
+      // Better Auth reports protocol failures as data; transport failures
+      // retain the screen's operation-specific fallback message.
+      let result;
+      try {
+        switch (write.kind) {
+          case 'role':
+            result = await authClient.admin.setRole({
+              userId: write.userId,
+              role: write.role,
+            });
+            break;
+          case 'ban':
+            result = await authClient.admin.banUser({
+              userId: write.userId,
+              banReason: write.reason || 'Administrative ban',
+            });
+            break;
+          case 'unban':
+            result = await authClient.admin.unbanUser({ userId: write.userId });
+            break;
+          case 'deactivate':
+            await deactivateUserAccount(write.userId);
+            break;
+          case 'restore':
+            await restoreUserAccount(write.userId);
+            break;
+          case 'impersonate':
+            result = await authClient.admin.impersonateUser({
+              userId: write.userId,
+            });
+            break;
+        }
+      } catch {
+        throw new Error(t(`errors.${write.kind}`));
+      }
+      if (result?.error)
+        throw new Error(result.error.message || t(`errors.${write.kind}`));
+    },
+    onSuccess: async (_data, write) => {
+      if (write.kind === 'impersonate') {
+        window.location.reload();
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+  const actionError = action.error?.message;
+  const isBanning = action.isPending && action.variables.kind === 'ban';
+  const actionUserId =
+    action.isPending && action.variables.kind !== 'ban'
+      ? action.variables.userId
+      : null;
+  const handleRoleChange = (userId: string, role: AssignableGlobalRoleName) => {
+    if (isAssignableGlobalRoleName(role))
+      action.mutate({ kind: 'role', userId, role });
+  };
+  const handleConfirmBan = () => {
     if (!banUser) return;
-    setIsBanning(true);
-    setActionError(null);
-    try {
-      const res = await authClient.admin.banUser({
-        userId: banUser.id,
-        banReason: banReason || 'Administrative ban',
-      });
-      if (res?.error) {
-        setActionError(res.error.message || t('errors.ban'));
-        return;
-      }
-      setBanUser(null);
-      setBanReason('');
-      await loadUsers();
-    } catch {
-      setActionError(t('errors.ban'));
-    } finally {
-      setIsBanning(false);
-    }
-  };
-
-  const handleUnban = async (userId: string) => {
-    setActionUserId(userId);
-    setActionError(null);
-    try {
-      const res = await authClient.admin.unbanUser({ userId });
-      if (res?.error) {
-        setActionError(res.error.message || t('errors.unban'));
-        return;
-      }
-      await loadUsers();
-    } catch {
-      setActionError(t('errors.unban'));
-    } finally {
-      setActionUserId(null);
-    }
-  };
-
-  const handleDeactivate = async (userId: string) => {
-    setActionUserId(userId);
-    setActionError(null);
-    try {
-      await deactivateUserAccount(userId);
-      await loadUsers();
-    } catch {
-      setActionError(t('errors.deactivate'));
-    } finally {
-      setActionUserId(null);
-    }
-  };
-
-  const handleRestore = async (userId: string) => {
-    setActionUserId(userId);
-    setActionError(null);
-    try {
-      await restoreUserAccount(userId);
-      await loadUsers();
-    } catch {
-      setActionError(t('errors.restore'));
-    } finally {
-      setActionUserId(null);
-    }
-  };
-
-  const handleImpersonate = async (userId: string) => {
-    setActionUserId(userId);
-    setActionError(null);
-    try {
-      const res = await authClient.admin.impersonateUser({ userId });
-      if (res?.error) {
-        setActionError(res.error.message || t('errors.impersonate'));
-        return;
-      }
-      window.location.reload();
-    } catch {
-      setActionError(t('errors.impersonate'));
-    } finally {
-      setActionUserId(null);
-    }
+    action.mutate(
+      { kind: 'ban', userId: banUser.id, reason: banReason },
+      {
+        onSuccess: () => {
+          setBanUser(null);
+          setBanReason('');
+        },
+      },
+    );
   };
 
   if (!canListUsers) {
@@ -310,10 +215,14 @@ export function AdminUsersBlock() {
             setBanUser(user);
             setBanReason('');
           }}
-          onUnban={(userId) => void handleUnban(userId)}
-          onDeactivate={(userId) => void handleDeactivate(userId)}
-          onRestore={(userId) => void handleRestore(userId)}
-          onImpersonate={(userId) => void handleImpersonate(userId)}
+          onUnban={(userId) => action.mutate({ kind: 'unban', userId })}
+          onDeactivate={(userId) =>
+            action.mutate({ kind: 'deactivate', userId })
+          }
+          onRestore={(userId) => action.mutate({ kind: 'restore', userId })}
+          onImpersonate={(userId) =>
+            action.mutate({ kind: 'impersonate', userId })
+          }
         />
       )}
 

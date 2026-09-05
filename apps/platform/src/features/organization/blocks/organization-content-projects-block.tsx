@@ -2,91 +2,59 @@
 
 import { Badge, Button, Card, CardContent } from '@repo/ui';
 import { FolderKanban, Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { ORGANIZATION_DETAIL_ROUTES } from '@/features/auth/routes';
 import { Link } from '@/i18n/navigation';
-import { listContentProjects, type ContentProject } from '../organization-api';
+import { listContentProjects } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
 
 const PAGE_SIZE = 25;
-
-type LoadState = 'idle' | 'loading' | 'error';
 
 export function OrganizationContentProjectsBlock() {
   const t = useTranslations('ContentProjects');
   const { organization } = useOrganizationContext();
   const organizationId = organization.id;
 
-  const [items, setItems] = useState<ContentProject[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [state, setState] = useState<LoadState>('loading');
-  const [isAppending, setIsAppending] = useState(false);
-  const [appendFailed, setAppendFailed] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let current = true;
-
-    listContentProjects(organizationId, { limit: PAGE_SIZE }, controller.signal)
-      .then((page) => {
-        if (!current) return;
-
-        setItems(page.items);
-        setCursor(page.nextCursor);
-        setState('idle');
-      })
-      .catch(() => {
-        if (!current) return;
-
-        setState('error');
-      });
-
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [organizationId, reloadToken]);
-
-  const loadMore = useCallback(async () => {
-    if (cursor === null) return;
-
-    setIsAppending(true);
-    setAppendFailed(false);
-
-    try {
-      const page = await listContentProjects(organizationId, {
-        limit: PAGE_SIZE,
-        cursor,
-      });
-
-      setItems((previous) => [...previous, ...page.items]);
-      setCursor(page.nextCursor);
-    } catch {
-      setAppendFailed(true);
-    } finally {
-      setIsAppending(false);
-    }
-  }, [cursor, organizationId]);
-
-  const isLoading = state === 'loading' || isAppending;
+  const projects = useInfiniteQuery({
+    queryKey: [
+      'organizations',
+      organizationId,
+      'content-projects',
+      { limit: PAGE_SIZE },
+    ],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      listContentProjects(
+        organizationId,
+        {
+          limit: PAGE_SIZE,
+          ...(pageParam === undefined ? {} : { cursor: pageParam }),
+        },
+        signal,
+      ),
+    getNextPageParam: (page) => page.nextCursor,
+  });
+  const items = projects.data?.pages.flatMap((page) => page.items) ?? [];
+  const isLoading = projects.isFetching;
+  const loadFailed = projects.isError && !projects.isFetchNextPageError;
+  const appendFailed = projects.isFetchNextPageError;
 
   return (
     <div className="space-y-4">
       <PageHeader title={t('title')} description={t('description')} />
 
-      {state === 'error' ? (
+      {loadFailed ? (
         <Card>
           <CardContent className="space-y-2 py-4 text-sm">
             <p className="text-destructive">{t('error.load')}</p>
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setReloadToken((token) => token + 1)}
+              onClick={() => void projects.refetch()}
             >
               {t('error.retry')}
             </Button>
@@ -94,7 +62,7 @@ export function OrganizationContentProjectsBlock() {
         </Card>
       ) : null}
 
-      {items.length === 0 && !isLoading && state !== 'error' ? (
+      {items.length === 0 && !isLoading && !loadFailed ? (
         <EmptyState
           icon={<FolderKanban aria-hidden className="size-5" />}
           title={t('empty.title')}
@@ -150,9 +118,15 @@ export function OrganizationContentProjectsBlock() {
         </p>
       ) : null}
 
-      {cursor !== null && !isLoading ? (
+      {projects.hasNextPage && !isLoading ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void loadMore()}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              void projects.fetchNextPage({ cancelRefetch: false })
+            }
+          >
             {appendFailed ? t('error.retry') : t('loadMore')}
           </Button>
 

@@ -1,4 +1,5 @@
-import { fireEvent, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -175,4 +176,154 @@ describe('super_admin selector handling in AdminUsersTable', () => {
     const comboboxes = screen.getAllByRole('combobox');
     expect(comboboxes).toHaveLength(1);
   });
+});
+
+describe('admin query lifecycle', () => {
+  const user = {
+    id: 'user_1',
+    name: 'Listed user',
+    email: 'listed@example.com',
+    role: 'user',
+    emailVerified: true,
+    banned: true,
+    createdAt: '2026-01-01T00:00:00Z',
+  };
+  it('debounces initial and subsequent searches for 300ms, including clearing search', async () => {
+    vi.useFakeTimers();
+    try {
+      authClientStub.admin.listUsers.mockResolvedValue(
+        ok({ users: [], total: 0 }),
+      );
+      renderWithProviders(<AdminUsersBlock />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(299);
+      });
+      expect(authClientStub.admin.listUsers).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(1);
+      fireEvent.change(screen.getByRole('searchbox'), {
+        target: { value: 'first' },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      fireEvent.change(screen.getByRole('searchbox'), {
+        target: { value: 'final' },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(299);
+      });
+      expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(authClientStub.admin.listUsers).toHaveBeenLastCalledWith({
+        query: { limit: 100, searchValue: 'final' },
+        fetchOptions: { signal: expect.any(AbortSignal) },
+      });
+      fireEvent.change(screen.getByRole('searchbox'), {
+        target: { value: '' },
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+      expect(authClientStub.admin.listUsers).toHaveBeenLastCalledWith({
+        query: { limit: 100, searchValue: undefined },
+        fetchOptions: { signal: expect.any(AbortSignal) },
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each(['returned', 'thrown'])(
+    'shows a %s read failure and retries on demand',
+    async (kind) => {
+      if (kind === 'returned')
+        authClientStub.admin.listUsers.mockResolvedValueOnce({
+          data: null,
+          error: { message: 'refused' },
+        });
+      else
+        authClientStub.admin.listUsers.mockRejectedValueOnce(
+          new Error('offline'),
+        );
+      authClientStub.admin.listUsers.mockResolvedValueOnce(
+        ok({ users: [user], total: 1 }),
+      );
+      renderWithProviders(<AdminUsersBlock />);
+      await screen.findByText('Failed to load users list.');
+      expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(1);
+      await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+      await screen.findByText('Listed user');
+    },
+  );
+
+  it('invalidates the current search after a write and preserves protocol errors', async () => {
+    authClientStub.admin.listUsers.mockResolvedValue(
+      ok({ users: [user], total: 1 }),
+    );
+    authClientStub.admin.unbanUser
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'Cannot unban this user' },
+      })
+      .mockResolvedValueOnce(ok({ status: true }));
+    renderWithProviders(<AdminUsersBlock />);
+    await screen.findByText('Listed user');
+    fireEvent.change(screen.getByRole('searchbox'), {
+      target: { value: 'listed' },
+    });
+    await waitFor(() =>
+      expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(2),
+    );
+    await screen.findByText('Listed user');
+    await userEvent.click(screen.getByTitle('Unban User'));
+    await screen.findByText('Cannot unban this user');
+    expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByTitle('Unban User'));
+    await waitFor(() =>
+      expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(3),
+    );
+    expect(authClientStub.admin.listUsers).toHaveBeenLastCalledWith({
+      query: { limit: 100, searchValue: 'listed' },
+      fetchOptions: { signal: expect.any(AbortSignal) },
+    });
+    expect(
+      screen.queryByText('Cannot unban this user'),
+    ).not.toBeInTheDocument();
+  });
+});
+
+it('cancels superseded searches and ignores a late rejection', async () => {
+  let reject!: (error: Error) => void;
+  let signal: AbortSignal | undefined;
+  authClientStub.admin.listUsers
+    .mockImplementationOnce(
+      (options?: { fetchOptions?: { signal?: AbortSignal } }) => {
+        signal = options?.fetchOptions?.signal;
+        return new Promise((_yes, no) => {
+          reject = no;
+        });
+      },
+    )
+    .mockResolvedValueOnce(ok({ users: [], total: 0 }));
+  const view = renderWithProviders(<AdminUsersBlock />);
+  await waitFor(() =>
+    expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(1),
+  );
+  fireEvent.change(screen.getByRole('searchbox'), {
+    target: { value: 'current' },
+  });
+  await waitFor(() =>
+    expect(authClientStub.admin.listUsers).toHaveBeenCalledTimes(2),
+  );
+  expect(signal?.aborted).toBe(true);
+  await act(async () => reject(new Error('obsolete failure')));
+  expect(
+    screen.queryByText('Failed to load users list.'),
+  ).not.toBeInTheDocument();
+  view.unmount();
 });

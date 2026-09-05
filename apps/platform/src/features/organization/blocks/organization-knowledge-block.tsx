@@ -17,7 +17,14 @@ import {
 } from '@repo/ui';
 import { FileText, Loader2, Trash2 } from 'lucide-react';
 import type React from 'react';
-import { useCallback, useEffect, useState } from 'react';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
+import { useState } from 'react';
 import { useFormatter, useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -35,13 +42,11 @@ import {
   ingestKnowledgeDocument,
   listKnowledgeDocuments,
   listKnowledgeSpaces,
-  type KnowledgeDocument,
+  type KnowledgeDocumentPage,
   type KnowledgeSpace,
   type KnowledgeSpaceSlug,
 } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
-
-type Work = () => Promise<unknown>;
 
 type Failure = {
   kind:
@@ -78,6 +83,11 @@ const classify = (thrown: unknown): Failure => {
 };
 
 export function OrganizationKnowledgeBlock() {
+  const { organization } = useOrganizationContext();
+  return <OrganizationKnowledge key={organization.id} />;
+}
+
+function OrganizationKnowledge() {
   const t = useTranslations('Knowledge');
   const format = useFormatter();
   const { organization, viewer } = useOrganizationContext();
@@ -86,153 +96,95 @@ export function OrganizationKnowledgeBlock() {
     knowledge: ['write'],
   });
 
-  const [spaces, setSpaces] = useState<KnowledgeSpace[]>([]);
-  const [documents, setDocuments] = useState<{
-    slug: KnowledgeSpaceSlug;
-    rows: KnowledgeDocument[];
-    nextCursor: string | null;
-  } | null>(null);
-  const [selectedSlug, setSelectedSlug] = useState<KnowledgeSpaceSlug | null>(
-    null,
-  );
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [failure, setFailure] = useState<Failure | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
-
+  const organizationId = organization.id;
+  const queryClient = useQueryClient();
+  const knowledgeKey = ['organizations', organizationId, 'knowledge'] as const;
+  const spacesQuery = useQuery({
+    queryKey: [...knowledgeKey, 'spaces'],
+    queryFn: ({ signal }) => listKnowledgeSpaces(organizationId, signal),
+  });
+  const spaces = spacesQuery.data ?? [];
+  const [selection, setSelection] = useState<KnowledgeSpaceSlug | null>(null);
+  const selectedSlug =
+    spaces.find((space) => space.slug === selection)?.slug ??
+    spaces.find((space) => space.configured)?.slug ??
+    spaces[0]?.slug ??
+    null;
+  // Remember the initial choice even if a later write changes space counts.
+  if (selection === null && selectedSlug !== null) setSelection(selectedSlug);
+  const documents = useInfiniteQuery({
+    queryKey: [...knowledgeKey, 'documents', selectedSlug],
+    enabled: selectedSlug !== null,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      listKnowledgeDocuments(organizationId, selectedSlug!, {
+        signal,
+        ...(pageParam === undefined ? {} : { cursor: pageParam }),
+      }),
+    getNextPageParam: (page) => page.nextCursor,
+  });
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
-
-  const organizationId = organization.id;
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let current = true;
-
-    listKnowledgeSpaces(organizationId, controller.signal)
-      .then((loaded) => {
-        if (!current) return;
-
-        setSpaces(loaded);
-        setSelectedSlug((selected) =>
-          selected !== null && loaded.some((space) => space.slug === selected)
-            ? selected
-            : /* Prefer a configured space over the taxonomy's fixed first item. */
-              (loaded.find((space) => space.configured)?.slug ??
-              loaded[0]?.slug ??
-              null),
-        );
-        setFailure(null);
-        setIsLoading(false);
-      })
-      .catch((thrown: unknown) => {
-        if (!current) return;
-
-        setFailure(classify(thrown));
-        setIsLoading(false);
-      });
-
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [organizationId, reloadToken]);
-
-  useEffect(() => {
-    if (selectedSlug === null) return;
-
-    const controller = new AbortController();
-    let current = true;
-    const slug = selectedSlug;
-
-    listKnowledgeDocuments(organizationId, slug, { signal: controller.signal })
-      .then((page) => {
-        if (!current) return;
-
-        setDocuments({ slug, rows: page.items, nextCursor: page.nextCursor });
-        // Otherwise a banner from the space that failed outlives it, sitting
-        // above the rows of the space that loaded fine.
-        setFailure(null);
-      })
-      .catch((thrown: unknown) => {
-        if (current) setFailure(classify(thrown));
-      });
-
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [organizationId, selectedSlug, reloadToken]);
-
-  const reload = useCallback(() => setReloadToken((token) => token + 1), []);
-
-  const visible =
-    documents !== null && documents.slug === selectedSlug ? documents : null;
-  const visibleDocuments = visible?.rows ?? [];
-
-  const loadMore = useCallback(async () => {
-    if (visible === null || visible.nextCursor === null) return;
-
-    const slug = visible.slug;
-    const cursor = visible.nextCursor;
-
-    setIsLoadingMore(true);
-
-    try {
-      const page = await listKnowledgeDocuments(organizationId, slug, {
-        cursor,
-      });
-
-      setDocuments((previous) =>
-        previous === null || previous.slug !== slug
-          ? previous
-          : {
-              slug,
-              rows: [...previous.rows, ...page.items],
-              nextCursor: page.nextCursor,
-            },
+  const action = useMutation({
+    mutationFn: async (
+      write:
+        | {
+            kind: 'store';
+            slug: KnowledgeSpaceSlug;
+            title: string;
+            content: string;
+          }
+        | { kind: 'clear'; slug: KnowledgeSpaceSlug }
+        | { kind: 'delete'; slug: KnowledgeSpaceSlug; documentId: string },
+    ) => {
+      if (write.kind === 'store')
+        return ingestKnowledgeDocument(organizationId, write.slug, {
+          title: write.title.trim(),
+          content: write.content,
+        });
+      if (write.kind === 'clear')
+        return clearKnowledgeSpace(organizationId, write.slug);
+      return deleteKnowledgeDocument(organizationId, write.documentId);
+    },
+    onSuccess: async (_data, write) => {
+      const documentsKey = [...knowledgeKey, 'documents', write.slug];
+      await queryClient.cancelQueries({ queryKey: documentsKey });
+      // Writes previously reloaded the first page, resetting pagination.
+      queryClient.setQueryData<InfiniteData<KnowledgeDocumentPage>>(
+        documentsKey,
+        (data) =>
+          data && {
+            pages: data.pages.slice(0, 1),
+            pageParams: data.pageParams.slice(0, 1),
+          },
       );
-      setFailure(null);
-    } catch (thrown: unknown) {
-      setFailure(classify(thrown));
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }, [organizationId, visible]);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [...knowledgeKey, 'spaces'],
+        }),
+        queryClient.invalidateQueries({ queryKey: documentsKey }),
+      ]);
+    },
+  });
+  const busy = action.isPending;
+  const isLoading = spacesQuery.isFetching && spacesQuery.data === undefined;
+  const isLoadingMore = documents.isFetchingNextPage;
+  const visibleDocuments =
+    documents.data?.pages.flatMap((page) => page.items) ?? [];
+  const error = action.error ?? spacesQuery.error ?? documents.error;
+  const failure = error === null ? null : classify(error);
 
-  const act = async (work: Work) => {
-    setBusy(true);
-    setFailure(null);
-
-    try {
-      await work();
-      reload();
-
-      return true;
-    } catch (thrown: unknown) {
-      setFailure(classify(thrown));
-
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitDocument = async () => {
+  const submitDocument = () => {
     if (selectedSlug === null) return;
-
-    const stored = await act(() =>
-      ingestKnowledgeDocument(organizationId, selectedSlug, {
-        title: title.trim(),
-        content,
-      }),
+    action.mutate(
+      { kind: 'store', slug: selectedSlug, title, content },
+      {
+        onSuccess: () => {
+          setTitle('');
+          setContent('');
+        },
+      },
     );
-
-    if (stored) {
-      setTitle('');
-      setContent('');
-    }
   };
 
   const selected = spaces.find((space) => space.slug === selectedSlug) ?? null;
@@ -282,7 +234,12 @@ export function OrganizationKnowledgeBlock() {
                   key={space.slug}
                   size="sm"
                   variant={space.slug === selectedSlug ? 'default' : 'outline'}
-                  onClick={() => setSelectedSlug(space.slug)}
+                  onClick={() => {
+                    if (space.slug !== selectedSlug) {
+                      action.reset();
+                      setSelection(space.slug);
+                    }
+                  }}
                 >
                   <bdi>{nameOf(space)}</bdi>
                   <Badge variant="secondary">{space.documentCount}</Badge>
@@ -296,9 +253,7 @@ export function OrganizationKnowledgeBlock() {
                 variant="ghost"
                 disabled={busy}
                 onClick={() =>
-                  void act(() =>
-                    clearKnowledgeSpace(organizationId, selected.slug),
-                  )
+                  action.mutate({ kind: 'clear', slug: selected.slug })
                 }
               >
                 <Trash2 aria-hidden className="size-4" />
@@ -359,12 +314,11 @@ export function OrganizationKnowledgeBlock() {
                                   title: document.title,
                                 })}
                                 onClick={() =>
-                                  void act(() =>
-                                    deleteKnowledgeDocument(
-                                      organizationId,
-                                      document.id,
-                                    ),
-                                  )
+                                  action.mutate({
+                                    kind: 'delete',
+                                    slug: selected.slug,
+                                    documentId: document.id,
+                                  })
                                 }
                               >
                                 <Trash2 aria-hidden className="size-4" />
@@ -384,12 +338,14 @@ export function OrganizationKnowledgeBlock() {
                 somebody is reading cannot make the next page skip or repeat
                 one — which is exactly what an offset would do.
               */}
-              {visible?.nextCursor !== null && visible !== null ? (
+              {documents.hasNextPage ? (
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={isLoadingMore || busy}
-                  onClick={() => void loadMore()}
+                  disabled={documents.isFetching || busy}
+                  onClick={() =>
+                    void documents.fetchNextPage({ cancelRefetch: false })
+                  }
                 >
                   {isLoadingMore ? (
                     <Loader2 aria-hidden className="size-4 animate-spin" />
