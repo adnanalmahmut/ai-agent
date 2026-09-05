@@ -1,9 +1,17 @@
-export const MODEL_PROVIDER_IDS = {
-  openai: 'openai',
-} as const;
+/**
+ * The models this application supports, and the pricing revisions its runs are
+ * billed against.
+ *
+ * These are source-controlled static definitions, not a registry: the set
+ * changes by editing this file and shipping it, so TypeScript already checks
+ * everything a constructor could have re-checked at boot.
+ *
+ * The stable identities in `MODEL_IDS` are durable. They are persisted on
+ * `AgentRun.modelId`, so they must never be renamed to a raw provider model
+ * name, and an unrecognized identity must fail rather than fall back.
+ */
 
-export type ModelProviderId =
-  (typeof MODEL_PROVIDER_IDS)[keyof typeof MODEL_PROVIDER_IDS];
+export type ModelProviderId = 'openai';
 
 export const MODEL_IDS = {
   openAiGpt4oMini: 'openai.gpt-4o-mini',
@@ -18,77 +26,46 @@ export const MODEL_ID_VALUES = [
 export type AgentModelId = typeof MODEL_IDS.openAiGpt4oMini;
 export type EmbeddingModelId = typeof MODEL_IDS.openAiTextEmbedding3Small;
 
-type ModelIdentity = {
-  readonly id: ModelId;
+/** What MastraRuntime needs to turn a stable identity into a provider call. */
+export type GenerationModelDefinition = {
+  readonly id: AgentModelId;
   readonly providerId: ModelProviderId;
-  readonly providerModelId: string;
-  readonly source: {
-    readonly url: string;
-    readonly retrievedAt: string;
-  };
-};
-
-export type GenerationModelDefinition = ModelIdentity & {
-  readonly kind: 'generation';
-  readonly capabilities: {
-    readonly inputModalities: readonly ['text'];
-    readonly outputModalities: readonly ['text'];
-    readonly contextWindowTokens: number;
-    readonly maxOutputTokens: number;
-    readonly structuredOutput: true;
-    readonly runtimeCompatibility: readonly ['mastra'];
-  };
   readonly mastraModelId: `${ModelProviderId}/${string}`;
 };
 
-export type EmbeddingModelDefinition = ModelIdentity & {
-  readonly kind: 'embedding';
-  readonly capabilities: {
-    readonly inputModalities: readonly ['text'];
-    readonly outputModalities: readonly ['embedding'];
-    readonly dimensions: number;
-    readonly adapterCompatibility: readonly ['openai-embeddings'];
-  };
+/** What the OpenAI embedding adapter needs, including the deployed vector size. */
+export type EmbeddingModelDefinition = {
+  readonly id: EmbeddingModelId;
+  readonly providerId: ModelProviderId;
+  readonly providerModelId: string;
+  readonly dimensions: number;
 };
 
-export type ModelDefinition =
-  GenerationModelDefinition | EmbeddingModelDefinition;
-
+/** USD micros per million tokens. */
 export type GenerationTokenRates = {
   readonly uncachedInput: number;
   readonly cachedInput: number;
   readonly output: number;
 };
 
+/** USD micros per million tokens. */
 export type EmbeddingTokenRates = {
   readonly input: number;
 };
 
-type PricingRevisionBase = {
+/**
+ * A priced interval, half-open as `[effectiveFrom, effectiveTo)`. `id` is
+ * durable: it is persisted on `AgentRun.modelPricingRevisionId` at acceptance
+ * and re-checked at execution, so a shipped revision's identity and interval
+ * must not be edited afterwards — supersede it with a new revision instead.
+ */
+export type ModelPricingRevision = {
   readonly id: string;
   readonly modelId: ModelId;
   readonly effectiveFrom: string;
   readonly effectiveTo: string | null;
-  readonly currency: 'USD';
-  readonly unit: 'USD_MICROS_PER_MILLION_TOKENS';
-  readonly source: {
-    readonly url: string;
-    readonly retrievedAt: string;
-  };
+  readonly rates: GenerationTokenRates | EmbeddingTokenRates;
 };
-
-export type GenerationPricingRevision = PricingRevisionBase & {
-  readonly kind: 'generation';
-  readonly rates: GenerationTokenRates;
-};
-
-export type EmbeddingPricingRevision = PricingRevisionBase & {
-  readonly kind: 'embedding';
-  readonly rates: EmbeddingTokenRates;
-};
-
-export type ModelPricingRevision =
-  GenerationPricingRevision | EmbeddingPricingRevision;
 
 export class ModelCatalogError extends Error {
   constructor(message: string) {
@@ -97,154 +74,93 @@ export class ModelCatalogError extends Error {
   }
 }
 
-export class ModelCatalog {
-  private readonly modelsById: ReadonlyMap<string, ModelDefinition>;
-  private readonly modelsByProviderIdentity: ReadonlyMap<
-    string,
-    ModelDefinition
-  >;
-  private readonly pricingByModel: ReadonlyMap<
-    ModelId,
-    readonly ModelPricingRevision[]
-  >;
+// https://developers.openai.com/api/docs/models/gpt-4o-mini
+const AGENT_MODELS = {
+  [MODEL_IDS.openAiGpt4oMini]: {
+    id: MODEL_IDS.openAiGpt4oMini,
+    providerId: 'openai',
+    mastraModelId: 'openai/gpt-4o-mini',
+  },
+} as const satisfies Record<AgentModelId, GenerationModelDefinition>;
 
-  constructor(
-    models: readonly ModelDefinition[],
-    pricing: readonly ModelPricingRevision[],
-  ) {
-    const modelsById = new Map<string, ModelDefinition>();
-    const modelsByProviderIdentity = new Map<string, ModelDefinition>();
+// https://developers.openai.com/api/docs/models/text-embedding-3-small
+const EMBEDDING_MODELS = {
+  [MODEL_IDS.openAiTextEmbedding3Small]: {
+    id: MODEL_IDS.openAiTextEmbedding3Small,
+    providerId: 'openai',
+    providerModelId: 'text-embedding-3-small',
+    dimensions: 1_536,
+  },
+} as const satisfies Record<EmbeddingModelId, EmbeddingModelDefinition>;
 
-    for (const candidate of models) {
-      const model = immutableCopy(candidate);
-      if (modelsById.has(model.id)) {
-        throw new ModelCatalogError(`Duplicate model identity "${model.id}"`);
-      }
+// Rates: https://openai.com/index/api-prompt-caching/ and
+// https://openai.com/index/new-embedding-models-and-api-updates/
+const PRICING_REVISIONS = [
+  {
+    id: 'openai.gpt-4o-mini.standard.2024-10-01',
+    modelId: MODEL_IDS.openAiGpt4oMini,
+    effectiveFrom: '2024-10-01T00:00:00.000Z',
+    effectiveTo: null,
+    rates: { uncachedInput: 150_000, cachedInput: 75_000, output: 600_000 },
+  },
+  {
+    id: 'openai.text-embedding-3-small.standard.2024-01-25',
+    modelId: MODEL_IDS.openAiTextEmbedding3Small,
+    effectiveFrom: '2024-01-25T00:00:00.000Z',
+    effectiveTo: null,
+    rates: { input: 20_000 },
+  },
+] as const satisfies readonly ModelPricingRevision[];
 
-      const providerIdentity = providerModelKey(
-        model.providerId,
-        model.providerModelId,
-      );
-      if (modelsByProviderIdentity.has(providerIdentity)) {
-        throw new ModelCatalogError(
-          `Duplicate provider model identity "${providerIdentity}"`,
-        );
-      }
-
-      validateModel(model);
-      modelsById.set(model.id, model);
-      modelsByProviderIdentity.set(providerIdentity, model);
-    }
-
-    const pricingByModel = new Map<ModelId, ModelPricingRevision[]>();
-    const revisionIds = new Set<string>();
-
-    for (const candidate of pricing) {
-      const revision = immutableCopy(candidate);
-      if (revisionIds.has(revision.id)) {
-        throw new ModelCatalogError(
-          `Duplicate pricing revision identity "${revision.id}"`,
-        );
-      }
-      revisionIds.add(revision.id);
-
-      const model = modelsById.get(revision.modelId);
-      if (!model) {
-        throw new ModelCatalogError(
-          `Pricing revision "${revision.id}" names unknown model "${revision.modelId}"`,
-        );
-      }
-      if (revision.kind !== model.kind) {
-        throw new ModelCatalogError(
-          `Pricing revision "${revision.id}" does not match model kind "${model.kind}"`,
-        );
-      }
-
-      validatePricingRevision(revision);
-      const revisions = pricingByModel.get(revision.modelId) ?? [];
-      revisions.push(revision);
-      pricingByModel.set(revision.modelId, revisions);
-    }
-
-    for (const [modelId, revisions] of pricingByModel) {
-      revisions.sort(
-        (left, right) =>
-          instant(left.effectiveFrom) - instant(right.effectiveFrom),
-      );
-      validateNoOverlap(modelId, revisions);
-    }
-
-    this.modelsById = modelsById;
-    this.modelsByProviderIdentity = modelsByProviderIdentity;
-    this.pricingByModel = pricingByModel;
-  }
-
-  model(id: string): ModelDefinition {
-    const model = this.modelsById.get(id);
-    if (!model) {
-      throw new ModelCatalogError(
-        `Model "${id}" is not in the application catalog`,
-      );
-    }
-    return model;
-  }
-
-  providerModel(providerId: string, providerModelId: string): ModelDefinition {
-    const identity = providerModelKey(providerId, providerModelId);
-    const model = this.modelsByProviderIdentity.get(identity);
-    if (!model) {
-      throw new ModelCatalogError(
-        `Provider model "${identity}" is not in the application catalog`,
-      );
-    }
-    return model;
-  }
-
+/**
+ * Exported as one object rather than as free functions on purpose: under this
+ * package's ESM Jest configuration a module namespace is read-only, so a free
+ * function cannot be spied. The AgentRun e2e suite spies `pricingRevision` to
+ * prove the revision is resolved at the *acceptance* instant — evidence that no
+ * black-box assertion can reproduce while each model has a single open-ended
+ * revision.
+ */
+export const APPLICATION_MODEL_CATALOG = {
   agentModel(id: string): GenerationModelDefinition {
-    const model = this.model(id);
-    if (
-      model.kind !== 'generation' ||
-      !model.capabilities.structuredOutput ||
-      !model.capabilities.inputModalities.includes('text') ||
-      !model.capabilities.outputModalities.includes('text') ||
-      !model.capabilities.runtimeCompatibility.includes('mastra')
-    ) {
+    const model = (AGENT_MODELS as Record<string, GenerationModelDefinition>)[
+      id
+    ];
+    if (!model) {
       throw new ModelCatalogError(
-        `Model "${id}" does not satisfy the application agent-model contract`,
+        `Model "${id}" is not an application agent model`,
       );
     }
     return model;
-  }
+  },
 
   embeddingModel(id: string): EmbeddingModelDefinition {
-    const model = this.model(id);
-    if (
-      model.kind !== 'embedding' ||
-      !model.capabilities.inputModalities.includes('text') ||
-      !model.capabilities.outputModalities.includes('embedding') ||
-      !Number.isSafeInteger(model.capabilities.dimensions) ||
-      model.capabilities.dimensions <= 0 ||
-      !model.capabilities.adapterCompatibility.includes('openai-embeddings')
-    ) {
+    const model = (
+      EMBEDDING_MODELS as Record<string, EmbeddingModelDefinition>
+    )[id];
+    if (!model) {
       throw new ModelCatalogError(
-        `Model "${id}" does not satisfy the application embedding-model contract`,
+        `Model "${id}" is not an application embedding model`,
       );
     }
     return model;
-  }
+  },
 
+  /**
+   * Resolves the revision covering `at`. Exactly one match is required, so an
+   * ambiguous or missing interval fails loudly instead of picking a neighbour.
+   */
   pricingRevision(modelId: string, at: Date): ModelPricingRevision {
-    const model = this.model(modelId);
-    const atInstant = at.getTime();
-    if (!Number.isFinite(atInstant)) {
+    const instant = at.getTime();
+    if (!Number.isFinite(instant)) {
       throw new ModelCatalogError('Pricing resolution instant is invalid');
     }
 
-    const matches = (this.pricingByModel.get(model.id) ?? []).filter(
+    const matches = PRICING_REVISIONS.filter(
       (revision) =>
-        instant(revision.effectiveFrom) <= atInstant &&
+        revision.modelId === modelId &&
+        Date.parse(revision.effectiveFrom) <= instant &&
         (revision.effectiveTo === null ||
-          atInstant < instant(revision.effectiveTo)),
+          instant < Date.parse(revision.effectiveTo)),
     );
 
     if (matches.length !== 1) {
@@ -254,208 +170,5 @@ export class ModelCatalog {
     }
 
     return matches[0];
-  }
-}
-
-const MODELS = [
-  {
-    id: MODEL_IDS.openAiGpt4oMini,
-    providerId: MODEL_PROVIDER_IDS.openai,
-    providerModelId: 'gpt-4o-mini',
-    source: {
-      url: 'https://developers.openai.com/api/docs/models/gpt-4o-mini',
-      retrievedAt: '2026-08-27',
-    },
-    kind: 'generation',
-    capabilities: {
-      inputModalities: ['text'],
-      outputModalities: ['text'],
-      contextWindowTokens: 128_000,
-      maxOutputTokens: 16_384,
-      structuredOutput: true,
-      runtimeCompatibility: ['mastra'],
-    },
-    mastraModelId: 'openai/gpt-4o-mini',
   },
-  {
-    id: MODEL_IDS.openAiTextEmbedding3Small,
-    providerId: MODEL_PROVIDER_IDS.openai,
-    providerModelId: 'text-embedding-3-small',
-    source: {
-      url: 'https://developers.openai.com/api/docs/models/text-embedding-3-small',
-      retrievedAt: '2026-08-27',
-    },
-    kind: 'embedding',
-    capabilities: {
-      inputModalities: ['text'],
-      outputModalities: ['embedding'],
-      dimensions: 1_536,
-      adapterCompatibility: ['openai-embeddings'],
-    },
-  },
-] as const satisfies readonly ModelDefinition[];
-
-const PRICING = [
-  {
-    id: 'openai.gpt-4o-mini.standard.2024-10-01',
-    modelId: MODEL_IDS.openAiGpt4oMini,
-    kind: 'generation',
-    effectiveFrom: '2024-10-01T00:00:00.000Z',
-    effectiveTo: null,
-    currency: 'USD',
-    unit: 'USD_MICROS_PER_MILLION_TOKENS',
-    rates: {
-      uncachedInput: 150_000,
-      cachedInput: 75_000,
-      output: 600_000,
-    },
-    source: {
-      url: 'https://openai.com/index/api-prompt-caching/',
-      retrievedAt: '2026-08-27',
-    },
-  },
-  {
-    id: 'openai.text-embedding-3-small.standard.2024-01-25',
-    modelId: MODEL_IDS.openAiTextEmbedding3Small,
-    kind: 'embedding',
-    effectiveFrom: '2024-01-25T00:00:00.000Z',
-    effectiveTo: null,
-    currency: 'USD',
-    unit: 'USD_MICROS_PER_MILLION_TOKENS',
-    rates: { input: 20_000 },
-    source: {
-      url: 'https://openai.com/index/new-embedding-models-and-api-updates/',
-      retrievedAt: '2026-08-27',
-    },
-  },
-] as const satisfies readonly ModelPricingRevision[];
-
-export const APPLICATION_MODEL_CATALOG = new ModelCatalog(MODELS, PRICING);
-
-function providerModelKey(providerId: string, providerModelId: string): string {
-  return `${providerId}/${providerModelId}`;
-}
-
-function validateModel(model: ModelDefinition): void {
-  if (
-    model.providerModelId.trim() !== model.providerModelId ||
-    !model.providerModelId
-  ) {
-    throw new ModelCatalogError(
-      `Model "${model.id}" has an invalid provider model identity`,
-    );
-  }
-
-  if (model.kind === 'generation') {
-    const expectedMastraId = providerModelKey(
-      model.providerId,
-      model.providerModelId,
-    );
-    if (model.mastraModelId !== expectedMastraId) {
-      throw new ModelCatalogError(
-        `Model "${model.id}" has Mastra identity "${model.mastraModelId}" instead of "${expectedMastraId}"`,
-      );
-    }
-    if (
-      !Number.isSafeInteger(model.capabilities.contextWindowTokens) ||
-      model.capabilities.contextWindowTokens <= 0 ||
-      !Number.isSafeInteger(model.capabilities.maxOutputTokens) ||
-      model.capabilities.maxOutputTokens <= 0 ||
-      model.capabilities.maxOutputTokens >
-        model.capabilities.contextWindowTokens
-    ) {
-      throw new ModelCatalogError(
-        `Model "${model.id}" has invalid token-window capabilities`,
-      );
-    }
-    if (!model.capabilities.structuredOutput) {
-      throw new ModelCatalogError(
-        `Model "${model.id}" cannot satisfy structured AgentDefinition output`,
-      );
-    }
-
-    if (
-      !model.capabilities.inputModalities.includes('text') ||
-      !model.capabilities.outputModalities.includes('text') ||
-      !model.capabilities.runtimeCompatibility.includes('mastra')
-    ) {
-      throw new ModelCatalogError(
-        `Model "${model.id}" does not satisfy the application agent-model contract`,
-      );
-    }
-
-    return;
-  }
-
-  if (
-    !model.capabilities.inputModalities.includes('text') ||
-    !model.capabilities.outputModalities.includes('embedding') ||
-    !Number.isSafeInteger(model.capabilities.dimensions) ||
-    model.capabilities.dimensions <= 0 ||
-    !model.capabilities.adapterCompatibility.includes('openai-embeddings')
-  ) {
-    throw new ModelCatalogError(
-      `Model "${model.id}" does not satisfy the application embedding-model contract`,
-    );
-  }
-}
-
-function immutableCopy<T>(value: T): T {
-  return deepFreeze(structuredClone(value));
-}
-
-function deepFreeze<T>(value: T): T {
-  if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
-    for (const nested of Object.values(value)) deepFreeze(nested);
-    Object.freeze(value);
-  }
-
-  return value;
-}
-
-function validatePricingRevision(revision: ModelPricingRevision): void {
-  const from = instant(revision.effectiveFrom);
-  const to =
-    revision.effectiveTo === null ? null : instant(revision.effectiveTo);
-  if (to !== null && from >= to) {
-    throw new ModelCatalogError(
-      `Pricing revision "${revision.id}" has an empty or reversed interval`,
-    );
-  }
-
-  for (const rate of Object.values(revision.rates)) {
-    if (!Number.isSafeInteger(rate) || rate <= 0) {
-      throw new ModelCatalogError(
-        `Pricing revision "${revision.id}" has an invalid token rate`,
-      );
-    }
-  }
-}
-
-function validateNoOverlap(
-  modelId: ModelId,
-  revisions: readonly ModelPricingRevision[],
-): void {
-  for (let index = 1; index < revisions.length; index += 1) {
-    const previous = revisions[index - 1];
-    const current = revisions[index];
-    const previousEnd =
-      previous.effectiveTo === null
-        ? Number.POSITIVE_INFINITY
-        : instant(previous.effectiveTo);
-
-    if (previousEnd > instant(current.effectiveFrom)) {
-      throw new ModelCatalogError(
-        `Pricing revisions for model "${modelId}" overlap: "${previous.id}" and "${current.id}"`,
-      );
-    }
-  }
-}
-
-function instant(value: string): number {
-  const parsed = Date.parse(value);
-  if (!Number.isFinite(parsed) || new Date(parsed).toISOString() !== value) {
-    throw new ModelCatalogError(`Invalid ISO pricing instant "${value}"`);
-  }
-  return parsed;
-}
+};
