@@ -10,6 +10,7 @@ import {
   Textarea,
 } from '@repo/ui';
 import { Check, Lightbulb, Loader2, RefreshCw } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'use-intl';
@@ -113,6 +114,16 @@ const within = (value: string, least: number, most: number) => {
 const isCount = (value: number) =>
   Number.isInteger(value) && value >= 1 && LIMITS.numberOfIdeas >= value;
 
+/**
+ * Server state for this screen hangs off one prefix, so an organization's
+ * availability and its runs are cached, scoped and dropped together.
+ */
+const contentIdeasKey = (organizationId: string) =>
+  ['organizations', organizationId, 'content-ideas'] as const;
+
+const operationKeyFor = (organizationId: string, operationId: string | null) =>
+  [...contentIdeasKey(organizationId), 'operation', operationId] as const;
+
 const toRequest = (form: FormState): ContentIdeaRequest => ({
   topic: form.topic.trim(),
   goal: form.goal.trim(),
@@ -146,44 +157,31 @@ export function OrganizationContentIdeasBlock({
     [],
   );
 
-  const [held, setHeld] = useState<{
-    organizationId: string;
-    run: ContentIdeaOperation;
-  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [failure, setFailure] = useState<ContentIdeaFailure | null>(null);
   const [stopped, setStopped] = useState<Stopped | null>(null);
-  const [availability, setAvailability] =
-    useState<ContentIdeaAvailability | null>(null);
+  // The run this screen has just been given, so it is watched in the moment
+  // between the server accepting it and the address catching up.
+  const [accepted, setAccepted] = useState<{
+    organizationId: string;
+    operationId: string;
+  } | null>(null);
 
   const pendingKey = useRef<PendingSubmission | null>(null);
 
   const organizationId = organization.id;
+  const queryClient = useQueryClient();
 
   const routeOperationId = searchParams.get(OPERATION_PARAM);
 
-  const operation =
-    held !== null && held.organizationId === organizationId ? held.run : null;
-
-  const setOperation = useCallback(
-    (
-      next:
-        | ContentIdeaOperation
-        | ((held: ContentIdeaOperation | null) => ContentIdeaOperation),
-    ) =>
-      setHeld((previous) => {
-        const current =
-          previous !== null && previous.organizationId === organizationId
-            ? previous.run
-            : null;
-
-        return {
-          organizationId,
-          run: typeof next === 'function' ? next(current) : next,
-        };
-      }),
-    [organizationId],
-  );
+  // The address is authoritative whenever it names a run: a reader can put a
+  // different operation into it without leaving the screen. The accepted run
+  // covers only the gap before the rewrite lands.
+  const watchedId =
+    routeOperationId ??
+    (accepted !== null && accepted.organizationId === organizationId
+      ? accepted.operationId
+      : null);
 
   const putOperationInRoute = useCallback(
     (operationId: string | null) => {
@@ -202,55 +200,100 @@ export function OrganizationContentIdeasBlock({
     [organizationId, router, searchParams],
   );
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let current = true;
+  const availabilityQuery = useQuery({
+    queryKey: [...contentIdeasKey(organizationId), 'availability'],
+    queryFn: ({ signal }) => getContentIdeaAvailability(organizationId, signal),
+  });
 
-    getContentIdeaAvailability(organizationId, controller.signal)
-      .then((next) => {
-        if (current) setAvailability(next);
-      })
-      .catch(() => {
-        if (current) setAvailability(null);
-      });
+  const availability: ContentIdeaAvailability | null =
+    availabilityQuery.data ?? null;
 
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [organizationId]);
+  const operationKey = operationKeyFor(organizationId, watchedId);
 
-  useEffect(() => {
-    if (routeOperationId === null) return;
-    if (operation?.id === routeOperationId) return;
+  /**
+   * One read of one run, asked for again while that run is unfinished.
+   *
+   * The organization is part of the key, so a reader who moves to another
+   * organization is never shown the run they left behind, and the request for
+   * it is abandoned through the signal rather than raced.
+   *
+   * What a read *means* is decided here rather than in an effect, because
+   * here is where both the answer and what the screen already held are in
+   * hand at the same time.
+   */
+  const run = useQuery({
+    queryKey: operationKey,
+    queryFn: async ({ signal }) => {
+      // `enabled` keeps this unreachable while the screen watches nothing.
+      if (watchedId === null) return null;
 
-    const controller = new AbortController();
-    let current = true;
+      const held = queryClient.getQueryData<ContentIdeaOperation | null>(
+        operationKey,
+      );
 
-    getContentIdeaOperation(organizationId, routeOperationId, controller.signal)
-      .then((next) => {
-        if (!current) return;
+      try {
+        const next = await getContentIdeaOperation(
+          organizationId,
+          watchedId,
+          signal,
+        );
 
-        setFailure(null);
-        setStopped(null);
-        setHeld({ organizationId, run: next });
-      })
-      .catch((thrown: unknown) => {
-        if (!current || controller.signal.aborted) return;
+        // First sight of this run: whatever the last one refused or outlasted
+        // is not what the reader is looking at any more.
+        if (held == null) {
+          setFailure(null);
+          setStopped(null);
+        }
 
-        if (!isUnreadable(thrown)) return;
+        // A finished run is the last word on itself. Query already refuses to
+        // let an older read land after a newer one — it deduplicates fetches
+        // for a key and abandons the one in flight when the screen moves on —
+        // so this states the rule rather than being the only thing enforcing
+        // it, and keeps it true of the data whatever the scheduling does.
+        const settled = queryClient.getQueryData<ContentIdeaOperation | null>(
+          operationKey,
+        );
+
+        return settled != null && TERMINAL.includes(settled.status)
+          ? settled
+          : next;
+      } catch (thrown: unknown) {
+        // Anything the screen cannot read a verdict from — a rate limit, a
+        // broken server, a request that never arrived — is left to the next
+        // poll rather than shown to the reader.
+        if (!isUnreadable(thrown)) throw thrown;
 
         setFailure(classify(thrown));
-        putOperationInRoute(null);
-      });
 
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [organizationId, routeOperationId, operation?.id, putOperationInRoute]);
+        // A run that was being watched keeps its place in the address and
+        // simply stops being followed. One that could never be read at all is
+        // not this screen's to show, and leaves the address so a reload does
+        // not land on it again.
+        if (held == null) putOperationInRoute(null);
+        else setStopped('refused');
 
-  const operationId = operation?.id ?? null;
+        throw thrown;
+      }
+    },
+    enabled: watchedId !== null,
+    // Polling is what this query is for: it follows an unfinished run until
+    // the run finishes, the wait is given up on, or the server refuses it.
+    refetchInterval: ({ state }) => {
+      const current = state.data;
+      const unfinished = current != null && !TERMINAL.includes(current.status);
+
+      return unfinished && stopped === null ? pollIntervalMs : false;
+    },
+    // A run is followed whether or not the tab is in front, and whether or
+    // not the browser believes it is online — which is what the interval this
+    // replaced did. Somebody who switches tabs while an agent works comes
+    // back to the answer rather than to a stalled spinner.
+    refetchIntervalInBackground: true,
+    networkMode: 'always',
+  });
+
+  const operation = run.data ?? null;
+  const runId = operation?.id ?? null;
 
   const isUnfinished =
     operation !== null && !TERMINAL.includes(operation.status);
@@ -259,56 +302,15 @@ export function OrganizationContentIdeasBlock({
   const isAbandoned = isUnfinished && stopped === 'timeout';
 
   useEffect(() => {
-    if (operationId === null || !isPending) return;
+    if (!isPending) return;
 
-    const controller = new AbortController();
-    let current = true;
-    const startedAt = Date.now();
+    // The watch has a deadline rather than running for as long as the tab is
+    // open. It is measured from when this run started being followed, so a
+    // reader who asks to keep waiting is given the whole of it again.
+    const timer = setTimeout(() => setStopped('timeout'), pollTimeoutMs);
 
-    const read = () => {
-      if (Date.now() - startedAt > pollTimeoutMs) {
-        if (current) setStopped('timeout');
-
-        return;
-      }
-
-      getContentIdeaOperation(organizationId, operationId, controller.signal)
-        .then((next) => {
-          if (!current) return;
-
-          setOperation((previous) =>
-            previous !== null && TERMINAL.includes(previous.status)
-              ? previous
-              : next,
-          );
-        })
-        .catch((thrown: unknown) => {
-          if (!current || controller.signal.aborted) return;
-
-          if (!isUnreadable(thrown)) return;
-
-          setFailure(classify(thrown));
-          setStopped('refused');
-        });
-    };
-
-    read();
-
-    const timer = setInterval(read, pollIntervalMs);
-
-    return () => {
-      current = false;
-      controller.abort();
-      clearInterval(timer);
-    };
-  }, [
-    organizationId,
-    operationId,
-    isPending,
-    pollIntervalMs,
-    pollTimeoutMs,
-    setOperation,
-  ]);
+    return () => clearTimeout(timer);
+  }, [isPending, watchedId, pollTimeoutMs]);
 
   const submit = useCallback(async () => {
     if (!isSubmittable(form)) return;
@@ -316,7 +318,7 @@ export function OrganizationContentIdeasBlock({
     setIsSubmitting(true);
     setFailure(null);
     setStopped(null);
-    setHeld(null);
+    setAccepted(null);
     putOperationInRoute(null);
 
     const request = toRequest(form);
@@ -340,7 +342,14 @@ export function OrganizationContentIdeasBlock({
 
       pendingKey.current = null;
       clearPendingSubmission(organizationId);
-      setOperation(accepted);
+
+      // The accepted run is put where a read of it would have landed, so the
+      // screen shows it queued without asking for what it was just handed.
+      queryClient.setQueryData(
+        operationKeyFor(organizationId, accepted.id),
+        accepted,
+      );
+      setAccepted({ organizationId, operationId: accepted.id });
       putOperationInRoute(accepted.id);
     } catch (thrown: unknown) {
       if (isDecided(thrown)) {
@@ -353,14 +362,14 @@ export function OrganizationContentIdeasBlock({
       setFailure(classified);
 
       if (classified.kind === 'disabled') {
-        getContentIdeaAvailability(organizationId)
-          .then(setAvailability)
-          .catch(() => undefined);
+        void queryClient.invalidateQueries({
+          queryKey: [...contentIdeasKey(organizationId), 'availability'],
+        });
       }
     } finally {
       setIsSubmitting(false);
     }
-  }, [organizationId, form, setOperation, putOperationInRoute]);
+  }, [organizationId, form, queryClient, putOperationInRoute]);
 
   const [promoting, setPromoting] = useState<number | null>(null);
   const [promoted, setPromoted] = useState<Record<number, string>>({});
@@ -371,7 +380,7 @@ export function OrganizationContentIdeasBlock({
 
   const promote = useCallback(
     async (index: number) => {
-      if (operationId === null) return;
+      if (runId === null) return;
 
       setPromoting(index);
       setPromoteFailed(null);
@@ -379,13 +388,13 @@ export function OrganizationContentIdeasBlock({
       // Recorded up front, so a *failure* is attributed to this run too. Set
       // only on success, the outcome would be discarded by the scope check
       // below and nothing would render.
-      setPromotedFor(operationId);
+      setPromotedFor(runId);
 
       try {
         const project = await createContentProjectFromIdea(
           organizationId,
-          { sourceRunId: operationId, ideaIndex: index },
-          `promote:${operationId}:${index}`,
+          { sourceRunId: runId, ideaIndex: index },
+          `promote:${runId}:${index}`,
         );
 
         setPromoted((previous) => ({ ...previous, [index]: project.id }));
@@ -396,13 +405,13 @@ export function OrganizationContentIdeasBlock({
         setPromoting(null);
       }
     },
-    [operationId, organizationId],
+    [runId, organizationId],
   );
 
   const promotedNow =
-    promotedFor !== null && promotedFor === operationId ? promoted : {};
-  const promoteFailedNow = promotedFor === operationId ? promoteFailed : null;
-  const promoteFailureNow = promotedFor === operationId ? promoteFailure : null;
+    promotedFor !== null && promotedFor === runId ? promoted : {};
+  const promoteFailedNow = promotedFor === runId ? promoteFailed : null;
+  const promoteFailureNow = promotedFor === runId ? promoteFailure : null;
 
   const ideas = operation?.output?.ideas ?? [];
   const sources = operation?.output?.sources ?? [];
@@ -583,6 +592,11 @@ export function OrganizationContentIdeasBlock({
                   onClick={() => {
                     setStopped(null);
                     setFailure(null);
+                    // A resumed watch reads at once rather than waiting out an
+                    // interval first, so a run that finished while the screen
+                    // had given up shows straight away — and so a deadline of
+                    // nothing still buys one read.
+                    void run.refetch();
                   }}
                 >
                   <RefreshCw aria-hidden className="size-4" />
