@@ -550,4 +550,84 @@ describe('Better Auth (e2e)', () => {
       expect(logged.join('')).not.toContain(EMAIL);
     });
   });
+  // Security mail is due to move onto its own Control Plane worker and queue.
+  // What must survive that move is pinned here: the address the mail goes to,
+  // and the origin of the link inside it, are decided by server configuration
+  // and never by the request that triggered the send.
+  //
+  // Deliberately NOT asserted here: where following that link finally lands.
+  // A caller-supplied callbackURL is currently honoured without being checked
+  // against BETTER_AUTH_TRUSTED_ORIGINS, and the password-reset case carries
+  // the token to that foreign origin. That is a pre-existing defect, recorded
+  // in docs/exec-plans/restructuring-test-checklist.md. It is not fixed in
+  // this change, and it must not be pinned as correct by a test.
+  describe('security mail is addressed by configuration, not by the request', () => {
+    const authOrigin = new URL(process.env.BETTER_AUTH_URL ?? '').origin;
+    const FOREIGN = 'https://mail-link-probe.invalid/landing';
+
+    const linkFrom = (html: string): string => {
+      const match = /href="(https?:[^"]+)"/.exec(html);
+      if (!match) throw new Error('the mail carried no absolute link');
+      return match[1].replace(/&amp;/g, '&');
+    };
+
+    it('keeps the verification link on the configured auth origin', async () => {
+      const email = `link-verify-${Date.now()}@example.com`;
+      transport.reset();
+
+      const response = await request(server)
+        .post('/api/auth/sign-up/email')
+        .send({
+          name: 'Link Probe',
+          email,
+          password: PASSWORD,
+          callbackURL: FOREIGN,
+        });
+      expect(response.status).toBe(200);
+
+      await transport.settle();
+      expect(transport.last.meta.template).toBe('EMAIL_VERIFICATION');
+
+      // The recipient is the account address, not anything the body offered.
+      expect(transport.last.to).toBe(email);
+      expect(new URL(linkFrom(transport.last.html)).origin).toBe(authOrigin);
+
+      await prisma.user.deleteMany({ where: { email } });
+    });
+
+    it('keeps the password-reset link on the configured auth origin', async () => {
+      const email = `link-reset-${Date.now()}@example.com`;
+      await request(server)
+        .post('/api/auth/sign-up/email')
+        .send({ name: 'Link Probe', email, password: PASSWORD });
+      await transport.settle();
+
+      transport.reset();
+      const response = await request(server)
+        .post('/api/auth/request-password-reset')
+        .send({ email, redirectTo: FOREIGN });
+      expect(response.status).toBe(200);
+
+      await transport.settle();
+      expect(transport.last.meta.template).toBe('PASSWORD_RESET');
+      expect(transport.last.to).toBe(email);
+      expect(new URL(linkFrom(transport.last.html)).origin).toBe(authOrigin);
+
+      await prisma.user.deleteMany({ where: { email } });
+    });
+
+    it('sends nothing at all for an address that has no account', async () => {
+      transport.reset();
+
+      const response = await request(server)
+        .post('/api/auth/request-password-reset')
+        .send({ email: `absent-${Date.now()}@example.com` });
+
+      // The answer must not distinguish a known address from an unknown one.
+      expect(response.status).toBe(200);
+
+      await transport.settle();
+      expect(transport.sent).toEqual([]);
+    });
+  });
 });

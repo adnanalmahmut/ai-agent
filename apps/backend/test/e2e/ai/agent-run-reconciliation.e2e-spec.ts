@@ -11,7 +11,12 @@ import { Queue, Worker, type Job } from 'bullmq';
 import type { PinoLogger } from 'nestjs-pino';
 
 import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
-import type { CreateAgentRun } from '../../../src/ai/agents/agent.types';
+import {
+  AGENT_RUN_DRIVERS,
+  MCP_SESSION_RUNTIME,
+  MCP_SESSION_TTL_MS,
+  type CreateAgentRun,
+} from '../../../src/ai/agents/agent.types';
 import { AgentConfigurationError } from '../../../src/ai/agents/agent-configuration.error';
 import {
   AgentExecutionHandler,
@@ -702,6 +707,122 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
       expect(settled.lastError).toBe('Agent execution failed');
       const failedJob = await inspector.getJob(run.id);
       expect(failedJob?.failedReason).toBe('Agent execution failed');
+    }, 60_000);
+  });
+  // An MCP session is an AgentRun with no queue job behind it, so nothing in
+  // the transport can ever finish it. The reconciler is the only thing that
+  // closes one the client walked away from — and until it does, the session
+  // still counts against the organization's in-flight ceiling.
+  describe('an abandoned MCP session', () => {
+    const openSession = async (idempotencyKey: string, maxInFlight?: number) =>
+      runs.create({
+        ...request(idempotencyKey),
+        driver: AGENT_RUN_DRIVERS.mcpClient,
+        ...(maxInFlight === undefined ? {} : { maxInFlight }),
+      });
+
+    // Both timestamps are moved: createdAt is what decides expiry, updatedAt is
+    // what the staleness scan orders and filters by. Waiting out a one-hour TTL
+    // is not a test.
+    const age = (runId: string, byMs: number) => {
+      const at = new Date(Date.now() - byMs);
+      return prisma.agentRun.update({
+        where: { id: runId },
+        data: { createdAt: at, updatedAt: at },
+      });
+    };
+
+    // The suite shares one database, so a pass may also examine rows this spec
+    // did not create. Foreign worker runs are reported as still in transit,
+    // which makes the reconciler leave them exactly as they are; asking about a
+    // session at all would be the defect, so the ids are recorded and asserted
+    // against instead.
+    const passOver = async (): Promise<string[]> => {
+      const asked: string[] = [];
+
+      await new AgentRunReconciler(
+        runs,
+        {
+          jobTransportState: (_queue: unknown, runId: string) => {
+            asked.push(runId);
+            return Promise.resolve('pending');
+          },
+        } as unknown as QueueProducer,
+        agentsConfigWith(0),
+        silent,
+      ).reconcileOnce();
+
+      return asked;
+    };
+
+    it('is opened RUNNING with no queue job and no outbox event', async () => {
+      const session = await openSession('mcp-abandoned-shape');
+
+      const row = await rowOf(session.id);
+      expect(row.status).toBe('RUNNING');
+      expect(row.runtime).toBe(MCP_SESSION_RUNTIME);
+      expect(row.attemptCount).toBe(1);
+
+      const events = await prisma.outboxEvent.findMany({
+        where: { dedupeKey: session.id },
+      });
+      expect(events).toEqual([]);
+    }, 60_000);
+
+    it('is closed by expiry, while a session still inside its TTL is left open', async () => {
+      const live = await openSession('mcp-abandoned-live');
+      const expired = await openSession('mcp-abandoned-expired');
+
+      // Aged into the same scan, on opposite sides of the TTL. One pass
+      // deciding both is what proves the live one was examined and spared,
+      // rather than simply never reached.
+      await age(live.id, MCP_SESSION_TTL_MS - 60_000);
+      await age(expired.id, MCP_SESSION_TTL_MS);
+
+      const asked = await passOver();
+
+      expect(asked).not.toContain(live.id);
+      expect(asked).not.toContain(expired.id);
+
+      expect((await rowOf(live.id)).status).toBe('RUNNING');
+
+      const closed = await rowOf(expired.id);
+      expect(closed.status).toBe('SUCCEEDED');
+      expect(closed.completedAt).not.toBeNull();
+      expect(closed.output).toEqual({ closedBy: 'expiry' });
+    }, 60_000);
+
+    it('holds the organization in-flight ceiling until it is swept', async () => {
+      const session = await openSession('mcp-abandoned-holds-capacity', 1);
+      await age(session.id, MCP_SESSION_TTL_MS);
+
+      // Expired on the clock, but still RUNNING in PostgreSQL — and capacity is
+      // counted from the row, not from the clock.
+      await expect(
+        openSession('mcp-abandoned-blocked-by-capacity', 1),
+      ).rejects.toMatchObject({ code: 'TOO_MANY_REQUESTS' });
+
+      await passOver();
+      expect((await rowOf(session.id)).status).toBe('SUCCEEDED');
+
+      const next = await openSession('mcp-abandoned-after-sweep', 1);
+      expect(next.id).not.toBe(session.id);
+    }, 60_000);
+
+    it('leaves a session the client already closed exactly as it found it', async () => {
+      const session = await openSession('mcp-abandoned-client-closed');
+      await age(session.id, MCP_SESSION_TTL_MS);
+
+      const closed = await runs.closeMcpSession({
+        id: session.id,
+        organizationId,
+        closedBy: 'client',
+      });
+      expect(closed).toBe(true);
+
+      await passOver();
+
+      expect((await rowOf(session.id)).output).toEqual({ closedBy: 'client' });
     }, 60_000);
   });
 });
