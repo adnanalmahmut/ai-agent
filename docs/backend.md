@@ -29,6 +29,21 @@ installation/versioning, knowledge ingestion and retrieval, content ideas and
 projects, tool approvals, MCP sessions, and the platform control plane. The
 code-owned registry is the authority for agent, model, and tool identities.
 
+## Architectural checks
+
+`apps/backend/eslint.config.mjs` owns syntactic auth/mail boundaries through
+standard ESLint import, property, and syntax restrictions. It prevents private
+mail/provider imports, role-based authorization shortcuts, unpaired
+`RequireActiveOrg` decorators, hard-delete calls/routes, session cache/storage
+configuration, and Nest controllers on Better Auth routes. The CLI bootstrap
+and super-admin guard-table exceptions remain narrowly scoped.
+
+`test/unit/eslint-boundaries.spec.ts` exercises the actual configuration with
+allowed and prohibited TypeScript fixtures. Behavioral authorization, tenant
+isolation, mail delivery, and Nest composition stay in their existing Jest
+suites; the mail boundary suite checks the public export and injection contract
+at runtime.
+
 ## Request and execution flows
 
 A background agent request is accepted in one PostgreSQL transaction:
