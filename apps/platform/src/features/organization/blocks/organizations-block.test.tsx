@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import { refreshSpy, resetNavigationStub } from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
 import type { OrganizationsListData } from '../route-data';
@@ -159,7 +159,7 @@ describe('archived organizations', () => {
     await waitFor(() =>
       expect(restoreOrganization).toHaveBeenCalledWith('org_9'),
     );
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('report a failed restore in place', async () => {

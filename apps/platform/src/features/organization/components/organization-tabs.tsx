@@ -13,7 +13,7 @@ import type { ComponentType } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { ORGANIZATION_ROUTES } from '@/features/auth/routes';
-import { Link, useAppLocation } from '@/i18n/navigation';
+import { Link, usePathname } from '@/i18n/navigation';
 
 type Tab = {
   href: string;
@@ -28,7 +28,7 @@ export function OrganizationTabs({
   organizationId: string;
 }) {
   const t = useTranslations('Organization');
-  const { pathname } = useAppLocation();
+  const pathname = usePathname();
 
   const tabs: Tab[] = [
     {

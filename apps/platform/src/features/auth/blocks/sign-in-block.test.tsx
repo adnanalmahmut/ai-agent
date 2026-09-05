@@ -9,9 +9,9 @@ import {
 } from '@/test/auth-client-stub';
 import { renderWithProviders } from '@/test/render';
 import {
-  navigateSpy,
+  refreshSpy,
+  replaceSpy,
   resetNavigationStub,
-  revalidateSpy,
 } from '@/test/navigation-stub';
 
 vi.mock('@/features/auth/auth-client', async () => {
@@ -61,7 +61,7 @@ describe('signing in', () => {
     await fillAndSubmit();
 
     await waitFor(() => {
-      expect(navigateSpy).toHaveBeenCalledWith('/', { replace: true });
+      expect(replaceSpy).toHaveBeenCalledWith('/');
     });
   });
 
@@ -71,9 +71,7 @@ describe('signing in', () => {
     await fillAndSubmit();
 
     await waitFor(() => {
-      expect(navigateSpy).toHaveBeenCalledWith('/reports?filter=x', {
-        replace: true,
-      });
+      expect(replaceSpy).toHaveBeenCalledWith('/reports?filter=x');
     });
   });
 
@@ -83,7 +81,7 @@ describe('signing in', () => {
     await fillAndSubmit();
 
     await waitFor(() => {
-      expect(navigateSpy).toHaveBeenCalledWith('/', { replace: true });
+      expect(replaceSpy).toHaveBeenCalledWith('/');
     });
   });
 
@@ -92,7 +90,7 @@ describe('signing in', () => {
 
     await fillAndSubmit();
 
-    await waitFor(() => expect(revalidateSpy).toHaveBeenCalled());
+    await waitFor(() => expect(refreshSpy).toHaveBeenCalled());
   });
 });
 

@@ -9,9 +9,10 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import {
-  navigateSpy,
+  pushSpy,
+  refreshSpy,
+  replaceSpy,
   resetNavigationStub,
-  revalidateSpy,
 } from '@/test/navigation-stub';
 import { context } from '@/test/organization-fixtures';
 import { renderInOrganization } from '@/test/render';
@@ -104,7 +105,7 @@ describe('the profile form', () => {
     expect(
       await screen.findByText('Your changes were saved.'),
     ).toBeInTheDocument();
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('reports a taken address', async () => {
@@ -198,7 +199,7 @@ describe('the business defaults form', () => {
     expect(
       await screen.findByText('Business defaults were saved.'),
     ).toBeInTheDocument();
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   }, 15_000);
 
   it('reports a concurrent update instead of claiming success', async () => {
@@ -295,9 +296,7 @@ describe('archiving', () => {
       expect(archiveOrganization).toHaveBeenCalledWith('org_1', undefined),
     );
     await waitFor(() =>
-      expect(navigateSpy).toHaveBeenCalledWith('/organizations', {
-        replace: true,
-      }),
+      expect(replaceSpy).toHaveBeenCalledWith('/organizations'),
     );
   });
 
@@ -318,6 +317,7 @@ describe('archiving', () => {
         'You do not have permission to do that in this organization.',
       ),
     ).toBeInTheDocument();
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 });

@@ -26,7 +26,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
-import { useLocale, useTranslations } from 'use-intl';
+import { useTranslations } from 'use-intl';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { authClient } from '@/features/auth/auth-client';
@@ -40,7 +40,8 @@ import { SubmitButton } from '@/features/auth/components/submit-button';
 import { usePlatformSession } from '@/features/auth/use-platform-session';
 import { rememberLocale } from '@/i18n/locale-cookie';
 import { localeSwitchHref } from '@/i18n/locale-switch-href';
-import { useAppLocation, useAppNavigate } from '@/i18n/navigation';
+import { usePathname, useRouter } from '@/i18n/navigation';
+import { useAppLocale } from '@/i18n/use-app-locale';
 import { deactivateSelfAccount } from '@/lib/application-api';
 
 type ActiveSession = NonNullable<
@@ -54,9 +55,9 @@ export function ProfileSection() {
   const t = useTranslations('UserSettings.profile');
   const tAuth = useTranslations('Auth');
   const session = usePlatformSession();
-  const navigate = useAppNavigate();
-  const location = useAppLocation();
-  const activeLocale = useLocale() as AppLocale;
+  const router = useRouter();
+  const pathname = usePathname();
+  const activeLocale = useAppLocale();
 
   const initialLang = isAppLocale(session.user.preferredLanguage)
     ? session.user.preferredLanguage
@@ -92,10 +93,16 @@ export function ProfileSection() {
       setIsSaved(true);
 
       if (language !== activeLocale) {
-        navigate(localeSwitchHref(location.pathname, location), {
-          replace: true,
-          locale: language,
-        });
+        // Same page, same query, same anchor — only the language changes.
+        // The address is read at this moment rather than subscribed to; see
+        // the language switcher for why.
+        router.replace(
+          localeSwitchHref(pathname, {
+            search: window.location.search,
+            hash: window.location.hash,
+          }),
+          { locale: language },
+        );
       }
     } catch (err) {
       const code = normalizeAuthError(err);
@@ -462,7 +469,7 @@ export function SecuritySection() {
 
 export function SessionsSection() {
   const t = useTranslations('UserSettings.sessions');
-  const activeLocale = useLocale() as AppLocale;
+  const activeLocale = useAppLocale();
   const [sessions, setSessions] = useState<ActiveSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRevokingAll, setIsRevokingAll] = useState(false);

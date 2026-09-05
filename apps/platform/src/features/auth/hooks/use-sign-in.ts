@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 
-import { useAppNavigate, useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import { authClient } from '../auth-client';
 import { PLATFORM_ROUTES } from '../routes';
@@ -19,8 +19,7 @@ export type SignInInput = {
 };
 
 export function useSignIn(returnTo?: string | null) {
-  const navigate = useAppNavigate();
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { isPending, error, reset, run } = useAuthAction();
   const [issues, setIssues] = useState<FieldIssues<SignInValues>>({});
 
@@ -49,13 +48,13 @@ export function useSignIn(returnTo?: string | null) {
 
       const destination = safeReturnPath(returnTo, PLATFORM_ROUTES.dashboard);
 
-      navigate(destination, { replace: true });
+      router.replace(destination);
 
       // Refresh the server layouts so the newly created session becomes the
       // authority for the protected tree before it renders.
-      revalidate();
+      router.refresh();
     },
-    [navigate, returnTo, revalidate, run],
+    [returnTo, router, run],
   );
 
   return { submit, issues, error, isPending, attemptedEmail, reset };

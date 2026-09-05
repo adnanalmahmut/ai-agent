@@ -9,9 +9,10 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import {
-  navigateSpy,
+  pushSpy,
+  refreshSpy,
+  replaceSpy,
   resetNavigationStub,
-  revalidateSpy,
 } from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
@@ -169,11 +170,9 @@ describe('creating', () => {
     );
 
     await waitFor(() =>
-      expect(navigateSpy).toHaveBeenCalledWith('/organizations/org_7', {
-        replace: true,
-      }),
+      expect(replaceSpy).toHaveBeenCalledWith('/organizations/org_7'),
     );
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('reports a duplicate address in the reader’s language', async () => {
@@ -192,7 +191,8 @@ describe('creating', () => {
         'That address is already taken. Try another one.',
       ),
     ).toBeInTheDocument();
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 
   it('reports an organization limit', async () => {

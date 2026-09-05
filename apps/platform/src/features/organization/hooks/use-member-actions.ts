@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { authClient } from '@/features/auth/auth-client';
 import type { OrganizationRoleName } from '@/features/authorization/permissions';
 import { PLATFORM_ROUTES } from '@/features/auth/routes';
-import { useAppNavigate, useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import { useOrganizationAction } from './use-organization-action';
 
@@ -13,8 +13,7 @@ export function useMemberActions(input: {
 }) {
   const { organizationId, currentUserId } = input;
 
-  const navigate = useAppNavigate();
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { error, reset, run } = useOrganizationAction();
 
   const [pendingMemberId, setPendingMemberId] = useState<string | null>(null);
@@ -33,9 +32,9 @@ export function useMemberActions(input: {
 
       setPendingMemberId(null);
 
-      if (updated) revalidate();
+      if (updated) router.refresh();
     },
-    [organizationId, revalidate, run],
+    [organizationId, router, run],
   );
 
   const removeMember = useCallback(
@@ -55,12 +54,12 @@ export function useMemberActions(input: {
 
       if (userId === currentUserId) {
         // No longer a member: this organization's pages will all refuse.
-        navigate(PLATFORM_ROUTES.organizations, { replace: true });
+        router.replace(PLATFORM_ROUTES.organizations);
       }
 
-      revalidate();
+      router.refresh();
     },
-    [currentUserId, navigate, organizationId, revalidate, run],
+    [currentUserId, organizationId, router, run],
   );
 
   return { updateRole, removeMember, pendingMemberId, error, reset };

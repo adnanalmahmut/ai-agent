@@ -1,14 +1,13 @@
 import { useCallback } from 'react';
 
-import { useAppNavigate, useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import { authClient } from '../auth-client';
 import { AUTH_ROUTES } from '../routes';
 import { useAuthAction } from './use-auth-action';
 
 export function useSignOut() {
-  const navigate = useAppNavigate();
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const { isPending, error, reset, run } = useAuthAction();
 
   const submit = useCallback(async () => {
@@ -18,9 +17,9 @@ export function useSignOut() {
     const result = await run(() => authClient.signOut());
     if (!result) return;
 
-    navigate(AUTH_ROUTES.signIn, { replace: true });
-    revalidate();
-  }, [navigate, revalidate, run]);
+    router.replace(AUTH_ROUTES.signIn);
+    router.refresh();
+  }, [router, run]);
 
   return { submit, isPending, error, reset };
 }

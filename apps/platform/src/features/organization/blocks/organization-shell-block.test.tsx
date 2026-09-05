@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { PlatformSession } from '@/features/auth/session-types';
 import type { OrganizationData } from '../route-data';
-import { resetNavigationStub, revalidateSpy } from '@/test/navigation-stub';
+import { refreshSpy, resetNavigationStub } from '@/test/navigation-stub';
 import { organization } from '@/test/organization-fixtures';
 import { renderWithProviders } from '@/test/render';
 
@@ -145,7 +145,7 @@ describe('an archived organization', () => {
     await waitFor(() =>
       expect(restoreOrganization).toHaveBeenCalledWith('org_1'),
     );
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('renders no tab underneath', async () => {

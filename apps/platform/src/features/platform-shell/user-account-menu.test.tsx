@@ -8,9 +8,10 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import {
-  navigateSpy,
+  pushSpy,
+  refreshSpy,
+  replaceSpy,
   resetNavigationStub,
-  revalidateSpy,
 } from '@/test/navigation-stub';
 import { renderWithProviders } from '@/test/render';
 
@@ -111,9 +112,9 @@ describe('signing out', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
 
     await waitFor(() =>
-      expect(navigateSpy).toHaveBeenCalledWith('/sign-in', { replace: true }),
+      expect(replaceSpy).toHaveBeenCalledWith('/sign-in'),
     );
-    expect(revalidateSpy).toHaveBeenCalled();
+    expect(refreshSpy).toHaveBeenCalled();
   });
 
   it('stays put when the server refuses', async () => {
@@ -125,7 +126,8 @@ describe('signing out', () => {
     await user.click(await screen.findByRole('menuitem', { name: 'Sign out' }));
 
     await waitFor(() => expect(authClientStub.signOut).toHaveBeenCalled());
-    expect(navigateSpy).not.toHaveBeenCalled();
+    expect(replaceSpy).not.toHaveBeenCalled();
+    expect(pushSpy).not.toHaveBeenCalled();
   });
 });
 

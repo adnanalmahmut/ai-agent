@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { authClient } from '@/features/auth/auth-client';
 import { ORGANIZATION_ROUTES, PLATFORM_ROUTES } from '@/features/auth/routes';
-import { useAppNavigate, useRevalidate } from '@/i18n/navigation';
+import { useRouter } from '@/i18n/navigation';
 
 import {
   type InvitationFailure,
@@ -10,8 +10,7 @@ import {
 } from '../invitation-state';
 
 export function useInvitationResponse(invitationId: string) {
-  const navigate = useAppNavigate();
-  const revalidate = useRevalidate();
+  const router = useRouter();
   const [pending, setPending] = useState<'accept' | 'reject' | null>(null);
   const [failure, setFailure] = useState<InvitationFailure | null>(null);
   const [isAccepted, setIsAccepted] = useState(false);
@@ -32,8 +31,8 @@ export function useInvitationResponse(invitationId: string) {
             return;
           }
 
-          navigate(PLATFORM_ROUTES.organizations, { replace: true });
-          revalidate();
+          router.replace(PLATFORM_ROUTES.organizations);
+          router.refresh();
           return;
         }
 
@@ -53,20 +52,19 @@ export function useInvitationResponse(invitationId: string) {
         // honest fallback — it will contain the new organization either way.
         const organizationId = data?.member?.organizationId;
 
-        navigate(
+        router.replace(
           organizationId
             ? ORGANIZATION_ROUTES.overview(organizationId)
             : PLATFORM_ROUTES.organizations,
-          { replace: true },
         );
-        revalidate();
+        router.refresh();
       } catch (thrown) {
         setFailure(invitationFailureFrom(thrown));
       } finally {
         setPending(null);
       }
     },
-    [invitationId, navigate, revalidate],
+    [invitationId, router],
   );
 
   return {

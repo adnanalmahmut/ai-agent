@@ -37,7 +37,7 @@ import { ORGANIZATION_ROUTES, PLATFORM_ROUTES } from '@/features/auth/routes';
 import { useGlobalPermission } from '@/features/authorization/use-permissions';
 import { OrganizationSwitcher } from '@/features/organization/components/organization-switcher';
 import { UserAccountMenu } from '@/features/platform-shell/user-account-menu';
-import { Link, useAppLocation } from '@/i18n/navigation';
+import { Link, usePathname } from '@/i18n/navigation';
 
 import { useCurrentOrganization } from './use-current-organization';
 
@@ -52,7 +52,7 @@ type NavItem = {
 
 export function PlatformSidebar() {
   const t = useTranslations('Platform');
-  const { pathname } = useAppLocation();
+  const pathname = usePathname();
   const current = useCurrentOrganization();
   const canManageUsers = useGlobalPermission({ user: ['list'] });
   const canReadControlPlane = useGlobalPermission({ controlPlane: ['read'] });
