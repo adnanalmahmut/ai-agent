@@ -60,7 +60,7 @@ const AUTHORIZATION_SYNTAX = [
   },
   {
     // Only a key in this guard table is allowed; a call or value inside it is not.
-    selector: String.raw`Literal[value=/\u002Fadmin\u002Fremove-user/]:not(VariableDeclarator[id.name='SUPER_ADMIN_GUARDED_PATHS'] > ObjectExpression > Property > Literal.key), TemplateElement[value.cooked=/\u002Fadmin\u002Fremove-user/]`,
+    selector: String.raw`Literal[value=/\u002Fadmin\u002Fremove-user/]:not(ExportNamedDeclaration > VariableDeclaration[kind='const'] > VariableDeclarator[id.name='SUPER_ADMIN_GUARDED_PATHS'] > ObjectExpression > Property > Literal.key), TemplateElement[value.cooked=/\u002Fadmin\u002Fremove-user/]`,
     message:
       'The hard user-delete path is permitted only as a SUPER_ADMIN_GUARDED_PATHS key.',
   },

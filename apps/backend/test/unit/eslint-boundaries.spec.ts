@@ -269,6 +269,15 @@ describe('authorization syntax through the Backend ESLint configuration', () => 
     ).not.toEqual([]);
   });
 
+  it('does not grant the guard-table exception to a same-named local object', async () => {
+    expect(
+      await restrictions(
+        'const SUPER_ADMIN_GUARDED_PATHS = { "/admin/remove-user": "delete" };',
+        'src/infrastructure/auth/auth-hooks.ts',
+      ),
+    ).not.toEqual([]);
+  });
+
   it.each(['MemberHasPermission', 'UserHasPermission'])(
     'pairs RequireActiveOrg with %s in either decorator order',
     async (permission) => {
