@@ -1,4 +1,11 @@
 import { API_BASE_PATH, CONTROL_PLANE_PATH } from '@/config/paths';
+import {
+  readApiError,
+  unwrapEnvelope,
+  type ApiErrorDetails,
+} from '@/lib/api/response-protocol';
+
+export type { ApiErrorDetails };
 
 export class ApiUnavailableError extends Error {
   constructor(cause?: unknown) {
@@ -7,11 +14,6 @@ export class ApiUnavailableError extends Error {
     this.cause = cause;
   }
 }
-
-export type ApiErrorDetails = {
-  issues?: string[];
-  reason?: string;
-};
 
 export class ApiError extends Error {
   constructor(
@@ -52,7 +54,7 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const { code, details } = await readError(response);
+    const { code, details } = await readApiError(response);
 
     throw new ApiError(response.status, code, details);
   }
@@ -74,57 +76,6 @@ function requestHeaders(
   return Object.keys(merged).length === 0 ? undefined : merged;
 }
 
-function unwrapEnvelope(body: unknown): unknown {
-  if (typeof body !== 'object' || body === null) return body;
-
-  const record = body as Record<string, unknown>;
-
-  return record.success === true && 'data' in record ? record.data : body;
-}
-
-async function readError(
-  response: Response,
-): Promise<{ code: string | undefined; details: ApiErrorDetails }> {
-  try {
-    const body: unknown = await response.json();
-
-    if (typeof body !== 'object' || body === null) {
-      return { code: undefined, details: {} };
-    }
-
-    const record = body as Record<string, unknown>;
-    const nested = record.error;
-    const source =
-      typeof nested === 'object' && nested !== null
-        ? (nested as Record<string, unknown>)
-        : record;
-
-    return {
-      code: typeof source.code === 'string' ? source.code : undefined,
-      details: readDetails(source.details),
-    };
-  } catch {
-    return { code: undefined, details: {} };
-  }
-}
-
-function readDetails(value: unknown): ApiErrorDetails {
-  if (typeof value !== 'object' || value === null) return {};
-
-  const record = value as Record<string, unknown>;
-  const details: ApiErrorDetails = {};
-
-  if (
-    Array.isArray(record.issues) &&
-    record.issues.every((issue) => typeof issue === 'string')
-  ) {
-    details.issues = record.issues as string[];
-  }
-
-  if (typeof record.reason === 'string') details.reason = record.reason;
-
-  return details;
-}
 export const FEATURE_FLAG_SOURCES = [
   'organization',
   'platform',
