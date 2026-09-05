@@ -4,6 +4,7 @@ import { render, type RenderResult } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { IntlProvider } from 'use-intl';
 
+import { PlatformQueryProvider } from '@/components/platform-query-provider';
 import type { PlatformSession } from '@/features/auth/session-types';
 import { PlatformSessionProvider } from '@/features/auth/use-platform-session';
 import {
@@ -57,12 +58,16 @@ export function renderWithProviders(
     ui
   );
 
+  // Mirrors the protected layout: one query client per mounted tree, so no
+  // server state survives from one test into the next.
   const result = render(
     <IntlProvider locale={locale} messages={MESSAGES[locale]} timeZone="UTC">
       <DirectionProvider direction={direction}>
-        <PlatformSessionProvider session={session}>
-          {content}
-        </PlatformSessionProvider>
+        <PlatformQueryProvider>
+          <PlatformSessionProvider session={session}>
+            {content}
+          </PlatformSessionProvider>
+        </PlatformQueryProvider>
       </DirectionProvider>
     </IntlProvider>,
   );

@@ -1,20 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { ApiErrorDetails } from '@/lib/application-api';
+
 import {
-  ApiError,
-  type ApiErrorDetails,
-  ApiUnavailableError,
-} from '@/lib/application-api';
-
-export const CONTROL_PLANE_ERROR_KINDS = [
-  'unavailable',
-  'unauthenticated',
-  'forbidden',
-  'invalid',
-  'failed',
-] as const;
-
-export type ControlPlaneErrorKind = (typeof CONTROL_PLANE_ERROR_KINDS)[number];
+  type ControlPlaneErrorKind,
+  classifyControlPlaneError,
+  controlPlaneErrorDetails,
+} from './control-plane-errors';
 
 export type ControlPlaneResource<T> = {
   items: T[];
@@ -26,21 +18,6 @@ export type ControlPlaneResource<T> = {
   reload: () => void;
   mutate: (key: string, run: () => Promise<T>) => Promise<boolean>;
   dismissActionError: () => void;
-};
-
-const detailsOf = (thrown: unknown): ApiErrorDetails =>
-  thrown instanceof ApiError ? thrown.details : {};
-
-const classify = (thrown: unknown): ControlPlaneErrorKind => {
-  if (thrown instanceof ApiUnavailableError) return 'unavailable';
-
-  if (thrown instanceof ApiError) {
-    if (thrown.status === 401) return 'unauthenticated';
-    if (thrown.status === 403) return 'forbidden';
-    if (thrown.status === 400 || thrown.status === 422) return 'invalid';
-  }
-
-  return 'failed';
 };
 
 export function useControlPlaneResource<T extends { key: string }>(
@@ -84,7 +61,7 @@ export function useControlPlaneResource<T extends { key: string }>(
       .catch((thrown: unknown) => {
         if (!current) return;
 
-        setLoadError(classify(thrown));
+        setLoadError(classifyControlPlaneError(thrown));
         setIsLoading(false);
       });
 
@@ -138,8 +115,8 @@ export function useControlPlaneResource<T extends { key: string }>(
         if (!mountedRef.current) return false;
         if (sequenceRef.current.get(key) !== sequence) return false;
 
-        setActionError(classify(thrown));
-        setActionErrorDetails(detailsOf(thrown));
+        setActionError(classifyControlPlaneError(thrown));
+        setActionErrorDetails(controlPlaneErrorDetails(thrown));
 
         return false;
       } finally {

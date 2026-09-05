@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { PlatformQueryProvider } from '@/components/platform-query-provider';
 import { PlatformShell } from '@/features/platform-shell/platform-shell';
 import { AUTH_ROUTES, RETURN_TO_PARAM } from '@/features/auth/routes';
 import { getServerSession } from '@/features/auth/server-session';
@@ -41,5 +42,9 @@ export default async function ProtectedLayout({
     });
   }
 
-  return <PlatformShell session={session}>{children}</PlatformShell>;
+  return (
+    <PlatformQueryProvider>
+      <PlatformShell session={session}>{children}</PlatformShell>
+    </PlatformQueryProvider>
+  );
 }
