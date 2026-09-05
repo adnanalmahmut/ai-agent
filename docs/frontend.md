@@ -39,8 +39,8 @@ Interactive client screens hold their server state in TanStack Query. The
 authenticated tree is wrapped once, at the protected layout, by
 `src/components/platform-query-provider.tsx`, whose defaults are one request
 per mount with no automatic retry and no refetch on window focus or reconnect.
-The control-plane feature-flag panel reads and writes through it; the runtime
-settings and managed secrets panels still use the local
+The control-plane feature-flag and runtime-settings panels read and write
+through it; the managed secrets panel still uses the local
 `useControlPlaneResource` hook. Non-interactive server data continues to be
 fetched on the server.
 
