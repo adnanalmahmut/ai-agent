@@ -35,16 +35,37 @@ if [ "$#" -eq 0 ]; then
   exit 2
 fi
 
-# Reaching Compose through a wrapper would otherwise route around the agent
-# safety hook, which recognises the destructive form only when it is spelled as
-# a docker command. Refusing it here keeps the existing guarantee: these
-# commands never take local database volumes with them.
+# The file and the project name are what this interface owns, and Compose lets
+# a later flag win over an earlier one. Without this, a caller could point the
+# same command at another project — creating a second set of networks and
+# volumes — or merge another file into the real one.
+#
+# Reaching Compose through a wrapper would also route around the agent safety
+# hook, which recognises the destructive teardown only when it is spelled as a
+# docker command. Both long forms accept `--flag=value` as well as a separate
+# argument, so both spellings are matched.
+#
+# Scanning stops at a bare `--`, so a command being run inside a container can
+# still take flags of its own.
 teardown=false
 destructive=false
 for argument in "$@"; do
   case "$argument" in
+    --) break ;;
+    -f | -f?* | --file | --file=*)
+      echo "refusing --file: this interface owns the compose file" >&2
+      exit 2
+      ;;
+    -p | -p?* | --project-name | --project-name=*)
+      echo "refusing --project-name: this interface pins the project to $project_name" >&2
+      exit 2
+      ;;
+    --project-directory | --project-directory=*)
+      echo "refusing --project-directory: it moves how the project resolves" >&2
+      exit 2
+      ;;
     down) teardown=true ;;
-    -v | --volumes | --rmi) destructive=true ;;
+    -v | --volumes | --volumes=* | --rmi | --rmi=*) destructive=true ;;
   esac
 done
 

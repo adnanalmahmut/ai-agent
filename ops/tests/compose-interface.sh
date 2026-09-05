@@ -191,19 +191,59 @@ for network in data edge; do
   }
 done
 
-# A wrapper is a way around the safety hook, which only recognises the
-# destructive teardown when it is spelled as a docker command. It has to refuse
-# on its own.
-for destructive_flag in --volumes --rmi; do
-  if "$wrapper" down "$destructive_flag" >/dev/null 2>&1; then
-    echo "the compose interface accepted a destructive teardown: $destructive_flag" >&2
+# Everything below asserts a refusal. The wrapper is a way around the agent
+# safety hook, which recognises the destructive teardown only when it is
+# spelled as a docker command, and a way around the file and project identity
+# this interface exists to own. Both long forms take `--flag=value` as well as
+# a separate argument, so both spellings are covered: matching only the bare
+# flag would leave the `=` spelling working.
+# A file that renders cleanly on its own. Without it, a `--file` refusal could
+# pass because Compose could not read the substitute rather than because the
+# interface turned it down.
+cat >"$tmp_dir/other.yml" <<'OTHER'
+name: substituted-project
+services:
+  substituted:
+    image: busybox
+OTHER
+
+refuses() {
+  description=$1
+  shift
+
+  if "$wrapper" "$@" >/dev/null 2>&1; then
+    echo "the compose interface accepted $description: $*" >&2
     exit 1
   fi
-done
+}
 
-if "$wrapper" >/dev/null 2>&1; then
-  echo 'the compose interface accepted an empty argument list' >&2
+teardown=down
+refuses 'a volume-removing teardown' "$teardown" -v
+refuses 'a volume-removing teardown' "$teardown" --volumes
+refuses 'a volume-removing teardown' "$teardown" --volumes=true
+refuses 'an image-removing teardown' "$teardown" --rmi all
+refuses 'an image-removing teardown' "$teardown" --rmi=all
+refuses 'an image-removing teardown' "$teardown" --rmi=local
+
+refuses 'a project rename' --project-name other config
+refuses 'a project rename' --project-name=other config
+refuses 'a project rename' -p other config
+refuses 'a project rename' -pother config
+refuses 'a substituted compose file' --file "$tmp_dir/other.yml" config
+refuses 'a substituted compose file' --file="$tmp_dir/other.yml" config
+refuses 'a substituted compose file' -f "$tmp_dir/other.yml" config
+refuses 'a relocated project directory' --project-directory "$tmp_dir" config
+refuses 'a relocated project directory' --project-directory="$tmp_dir" config
+
+refuses 'an empty argument list'
+
+# The refusals must not have cost the ordinary flags their meaning.
+# shellcheck disable=SC2086
+env $unset_fixture "$wrapper" --env-file "$fixture" --profile development config \
+  >"$tmp_dir/still-works.yml"
+grep -Eq '^name: ai-agent$' "$tmp_dir/still-works.yml" || {
+  echo 'the refusals broke an ordinary invocation' >&2
   exit 1
-fi
+}
 
 echo 'compose interface checks passed'
