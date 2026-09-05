@@ -48,8 +48,8 @@ Writes invalidate the affected caches. Approvals also update the decided row
 from the response and defer refetch until revisit to retain the in-place
 confirmation. Knowledge writes restart the affected document list at its first
 page. Platform user search retains its 300 ms debounce and 100-user limit.
-Form fields, selection, and dialogs remain local UI state. Content ideas retain
-their existing request lifecycle. Non-interactive server data continues to be
+Form fields, selection, and dialogs remain local UI state. Content ideas follow
+their run through Query as well. Non-interactive server data continues to be
 fetched on the server.
 
 The boundaries above are enforced by standard tooling rather than by a

@@ -5,6 +5,7 @@ current code or subsystem documentation. They are not implementation diaries or
 status trackers.
 
 - [ADR 0001: Separate deployed state from target architecture](0001-environment-state-model.md)
+- [ADR 0002: Target service decomposition for the restructuring](0002-target-service-decomposition.md)
 
 Record a new ADR only for a durable decision with a meaningful rejected
 alternative. Update current subsystem documentation when the decision changes
