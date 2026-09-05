@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '@repo/ui';
 import { Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocale, useTranslations } from 'use-intl';
 
 import {
@@ -18,7 +18,6 @@ import {
   ApiUnavailableError,
   CONTROL_PLANE_AUDIT_ACTIONS,
   listControlPlaneAudit,
-  type ControlPlaneAuditEntry,
 } from '@/lib/application-api';
 
 import { displayableKeyVersion, recordsKeyVersion } from './audit-state';
@@ -96,54 +95,23 @@ function failureOf(error: unknown): LoadFailure {
 export function AuditPanel() {
   const t = useTranslations('ControlPlane');
   const locale = useLocale();
-  const [items, setItems] = useState<ControlPlaneAuditEntry[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [failure, setFailure] = useState<LoadFailure | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
+  const queryClient = useQueryClient();
+  const queryKey = ['control-plane', 'audit'] as const;
+  const audit = useInfiniteQuery({
+    queryKey,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      listControlPlaneAudit({ cursor: pageParam, signal }),
+    getNextPageParam: (page) => page.nextCursor,
+  });
+  const items = audit.data?.pages.flatMap((page) => page.items) ?? [];
+  const loading = audit.isFetching && !audit.isFetchingNextPage;
+  const loadingMore = audit.isFetchingNextPage;
+  const failure = audit.error === null ? null : failureOf(audit.error);
   const formatter = new Intl.DateTimeFormat(locale, {
     dateStyle: 'medium',
     timeStyle: 'short',
   });
-
-  const loadMore = useCallback(async (cursor: string) => {
-    setLoadingMore(true);
-
-    try {
-      const page = await listControlPlaneAudit({ cursor });
-      setItems((current) => [...current, ...page.items]);
-      setNextCursor(page.nextCursor);
-    } catch (error) {
-      setFailure(failureOf(error));
-    } finally {
-      setLoadingMore(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let current = true;
-
-    listControlPlaneAudit({ signal: controller.signal })
-      .then((page) => {
-        if (!current) return;
-        setItems(page.items);
-        setNextCursor(page.nextCursor);
-        setFailure(null);
-        setLoading(false);
-      })
-      .catch((error: unknown) => {
-        if (!current) return;
-        setFailure(failureOf(error));
-        setLoading(false);
-      });
-
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [reloadToken]);
 
   if (loading) {
     return (
@@ -166,9 +134,8 @@ export function AuditPanel() {
             size="sm"
             variant="outline"
             onClick={() => {
-              setLoading(true);
-              setFailure(null);
-              setReloadToken((token) => token + 1);
+              // Audit retry starts again at the first page, as before.
+              void queryClient.resetQueries({ queryKey, exact: true });
             }}
           >
             <RefreshCw aria-hidden className="size-4" />
@@ -226,12 +193,12 @@ export function AuditPanel() {
         </TableBody>
       </Table>
 
-      {nextCursor !== null ? (
+      {audit.hasNextPage ? (
         <Button
           size="sm"
           variant="outline"
           disabled={loadingMore}
-          onClick={() => void loadMore(nextCursor)}
+          onClick={() => void audit.fetchNextPage({ cancelRefetch: false })}
         >
           {loadingMore ? (
             <Loader2 aria-hidden className="size-4 animate-spin" />

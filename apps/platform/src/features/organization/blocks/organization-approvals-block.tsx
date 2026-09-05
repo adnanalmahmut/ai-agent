@@ -2,7 +2,13 @@
 
 import { Badge, Button, Card, CardContent, Textarea } from '@repo/ui';
 import { Loader2, ShieldCheck } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+} from '@tanstack/react-query';
+import { useState } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
@@ -21,8 +27,6 @@ import { useOrganizationContext } from '../organization-context';
 
 const PAGE_SIZE = 25;
 
-type LoadState = 'idle' | 'loading' | 'error';
-
 type Filter = AgentActionApprovalStatus | 'ALL';
 
 const FILTERS: readonly Filter[] = ['PENDING', 'APPROVED', 'REJECTED', 'ALL'];
@@ -37,94 +41,30 @@ export function OrganizationApprovalsBlock() {
   });
 
   const [filter, setFilter] = useState<Filter>('PENDING');
-  const currentFilter = useRef<Filter>(filter);
-
-  useEffect(() => {
-    currentFilter.current = filter;
-  }, [filter]);
-  const [items, setItems] = useState<AgentActionApproval[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [state, setState] = useState<LoadState>('loading');
-  const [isAppending, setIsAppending] = useState(false);
-  const [appendFailed, setAppendFailed] = useState(false);
-  const [reloadToken, setReloadToken] = useState(0);
-
-  const changeFilter = (next: Filter) => {
-    setFilter(next);
-    setItems([]);
-    setCursor(null);
-    setAppendFailed(false);
-    setState('loading');
-  };
-
-  const reload = () => {
-    setReloadToken((token) => token + 1);
-    setState('loading');
-  };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let current = true;
-
-    listAgentActionApprovals(
+  const approvals = useInfiniteQuery({
+    queryKey: [
+      'organizations',
       organizationId,
-      { limit: PAGE_SIZE, ...(filter === 'ALL' ? {} : { status: filter }) },
-      controller.signal,
-    )
-      .then((page) => {
-        if (!current) return;
-
-        setItems(page.items);
-        setCursor(page.nextCursor);
-        setState('idle');
-      })
-      .catch(() => {
-        if (!current) return;
-
-        setState('error');
-      });
-
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [organizationId, filter, reloadToken]);
-
-  const loadMore = useCallback(async () => {
-    if (cursor === null) return;
-
-    const requested = filter;
-    setIsAppending(true);
-    setAppendFailed(false);
-
-    try {
-      const page = await listAgentActionApprovals(organizationId, {
-        limit: PAGE_SIZE,
-        cursor,
-        ...(requested === 'ALL' ? {} : { status: requested }),
-      });
-
-      // A page for a filter the reader has since left belongs to nobody.
-      if (currentFilter.current !== requested) return;
-
-      setItems((previous) => [...previous, ...page.items]);
-      setCursor(page.nextCursor);
-    } catch {
-      if (currentFilter.current === requested) setAppendFailed(true);
-    } finally {
-      setIsAppending(false);
-    }
-  }, [cursor, filter, organizationId]);
-
-  const replace = useCallback((decided: AgentActionApproval) => {
-    setItems((previous) =>
-      previous.map((item) =>
-        item.toolExecutionId === decided.toolExecutionId ? decided : item,
+      'approvals',
+      { filter, limit: PAGE_SIZE },
+    ],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) =>
+      listAgentActionApprovals(
+        organizationId,
+        {
+          limit: PAGE_SIZE,
+          ...(filter === 'ALL' ? {} : { status: filter }),
+          ...(pageParam === undefined ? {} : { cursor: pageParam }),
+        },
+        signal,
       ),
-    );
-  }, []);
-
-  const isLoading = state === 'loading' || isAppending;
+    getNextPageParam: (page) => page.nextCursor,
+  });
+  const items = approvals.data?.pages.flatMap((page) => page.items) ?? [];
+  const isLoading = approvals.isFetching;
+  const loadFailed = approvals.isError && !approvals.isFetchNextPageError;
+  const appendFailed = approvals.isFetchNextPageError;
 
   return (
     <div className="space-y-4">
@@ -141,25 +81,29 @@ export function OrganizationApprovalsBlock() {
             size="sm"
             variant={filter === value ? 'default' : 'ghost'}
             aria-pressed={filter === value}
-            onClick={() => changeFilter(value)}
+            onClick={() => setFilter(value)}
           >
             {t(`filter.${value}`)}
           </Button>
         ))}
       </div>
 
-      {state === 'error' ? (
+      {loadFailed ? (
         <Card>
           <CardContent className="space-y-2 py-4 text-sm">
             <p className="text-destructive">{t('error.load')}</p>
-            <Button size="sm" variant="outline" onClick={reload}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void approvals.refetch()}
+            >
               {t('error.retry')}
             </Button>
           </CardContent>
         </Card>
       ) : null}
 
-      {items.length === 0 && !isLoading && state !== 'error' ? (
+      {items.length === 0 && !isLoading && !loadFailed ? (
         <EmptyState
           icon={<ShieldCheck aria-hidden className="size-5" />}
           title={t('empty.title')}
@@ -170,12 +114,11 @@ export function OrganizationApprovalsBlock() {
       {items.length > 0 ? (
         <ul className="space-y-3">
           {items.map((item) => (
-            <li key={item.toolExecutionId}>
+            <li key={`${organizationId}:${filter}:${item.toolExecutionId}`}>
               <ApprovalCard
                 item={item}
                 organizationId={organizationId}
                 canDecide={canDecide}
-                onDecided={replace}
               />
             </li>
           ))}
@@ -189,9 +132,15 @@ export function OrganizationApprovalsBlock() {
         </p>
       ) : null}
 
-      {cursor !== null && !isLoading ? (
+      {approvals.hasNextPage && !isLoading ? (
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => void loadMore()}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              void approvals.fetchNextPage({ cancelRefetch: false })
+            }
+          >
             {appendFailed ? t('error.retry') : t('loadMore')}
           </Button>
 
@@ -210,58 +159,64 @@ function isKnownFailure(
   return (TOOL_FAILURE_CODES as readonly string[]).includes(code);
 }
 
-type DecisionState =
-  | { kind: 'idle' }
-  | { kind: 'pending'; decision: 'approve' | 'reject' }
-  | { kind: 'conflict' }
-  | { kind: 'error' };
-
 function ApprovalCard({
   item,
   organizationId,
   canDecide,
-  onDecided,
 }: {
   item: AgentActionApproval;
   organizationId: string;
   canDecide: boolean;
-  onDecided: (decided: AgentActionApproval) => void;
 }) {
   const t = useTranslations('Approvals');
   const [note, setNote] = useState('');
-  const [decision, setDecision] = useState<DecisionState>({ kind: 'idle' });
+  const queryClient = useQueryClient();
+  const decision = useMutation({
+    mutationFn: ({
+      which,
+      note,
+    }: {
+      which: 'approve' | 'reject';
+      note: string;
+    }) =>
+      which === 'approve'
+        ? approveAgentAction(
+            organizationId,
+            item.toolExecutionId,
+            note.trim() || undefined,
+          )
+        : rejectAgentAction(
+            organizationId,
+            item.toolExecutionId,
+            note.trim() || undefined,
+          ),
+    onSuccess: async (decided) => {
+      const queryKey = ['organizations', organizationId, 'approvals'] as const;
+      await queryClient.cancelQueries({ queryKey });
+      queryClient.setQueriesData<
+        InfiniteData<Awaited<ReturnType<typeof listAgentActionApprovals>>>
+      >(
+        { queryKey },
+        (data) =>
+          data && {
+            ...data,
+            pages: data.pages.map((page) => ({
+              ...page,
+              items: page.items.map((row) =>
+                row.toolExecutionId === decided.toolExecutionId ? decided : row,
+              ),
+            })),
+          },
+      );
+      // Keep the decided card visible in place. Revisit/refetch reads the
+      // authoritative filtered list; all cached filters are now stale.
+      await queryClient.invalidateQueries({ queryKey, refetchType: 'none' });
+    },
+  });
+  const isPending = decision.isPending;
+  const conflict =
+    decision.error instanceof ApiError && decision.error.status === 409;
 
-  const decide = async (which: 'approve' | 'reject') => {
-    setDecision({ kind: 'pending', decision: which });
-
-    try {
-      const trimmed = note.trim();
-      const decided =
-        which === 'approve'
-          ? await approveAgentAction(
-              organizationId,
-              item.toolExecutionId,
-              trimmed || undefined,
-            )
-          : await rejectAgentAction(
-              organizationId,
-              item.toolExecutionId,
-              trimmed || undefined,
-            );
-
-      setDecision({ kind: 'idle' });
-      onDecided(decided);
-    } catch (thrown) {
-      setDecision({
-        kind:
-          thrown instanceof ApiError && thrown.status === 409
-            ? 'conflict'
-            : 'error',
-      });
-    }
-  };
-
-  const isPending = decision.kind === 'pending';
   const pendingDecision = item.approval.status === 'PENDING';
 
   return (
@@ -353,27 +308,27 @@ function ApprovalCard({
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
-                onClick={() => void decide('approve')}
+                onClick={() => decision.mutate({ which: 'approve', note })}
                 disabled={isPending}
-                aria-busy={isPending && decision.decision === 'approve'}
+                aria-busy={isPending && decision.variables?.which === 'approve'}
               >
                 {t('actions.approve')}
               </Button>
               <Button
                 size="sm"
                 variant="destructive"
-                onClick={() => void decide('reject')}
+                onClick={() => decision.mutate({ which: 'reject', note })}
                 disabled={isPending}
-                aria-busy={isPending && decision.decision === 'reject'}
+                aria-busy={isPending && decision.variables?.which === 'reject'}
               >
                 {t('actions.reject')}
               </Button>
-              {decision.kind === 'conflict' ? (
+              {conflict ? (
                 <span className="text-sm text-muted-foreground">
                   {t('error.conflict')}
                 </span>
               ) : null}
-              {decision.kind === 'error' ? (
+              {decision.isError && !conflict ? (
                 <span className="text-sm text-destructive">
                   {t('error.decide')}
                 </span>

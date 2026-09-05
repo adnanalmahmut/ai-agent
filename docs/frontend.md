@@ -39,9 +39,18 @@ Interactive client screens hold their server state in TanStack Query. The
 authenticated tree is wrapped once, at the protected layout, by
 `src/components/platform-query-provider.tsx`, whose defaults are one request
 per mount with no automatic retry and no refetch on window focus or reconnect.
-All three interactive control-plane panels — feature flags, runtime settings,
-and managed secrets — read and write through it directly, with no wrapper hook
-in between. Non-interactive server data continues to be fetched on the server.
+Feature flags, runtime settings, managed secrets, audit history, organization
+knowledge, approvals, content project lists/details, and platform users use
+Query directly, with no wrapper hook in between. Cursor lists use infinite
+queries; keys include organization, resource, filter, and search identity, and
+reads pass Query cancellation signals through the existing API boundary.
+Writes invalidate the affected caches. Approvals also update the decided row
+from the response and defer refetch until revisit to retain the in-place
+confirmation. Knowledge writes restart the affected document list at its first
+page. Platform user search retains its 300 ms debounce and 100-user limit.
+Form fields, selection, and dialogs remain local UI state. Content ideas retain
+their existing request lifecycle. Non-interactive server data continues to be
+fetched on the server.
 
 The boundaries above are enforced by standard tooling rather than by a
 repository policy suite. `apps/platform/eslint.config.mjs` restricts direct

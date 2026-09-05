@@ -2,20 +2,15 @@
 
 import { Badge, Button, Card, CardContent } from '@repo/ui';
 import { ArrowLeft, FileText, Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
 import { PageHeader } from '@/components/page-header';
 import { ORGANIZATION_ROUTES } from '@/features/auth/routes';
 import { Link } from '@/i18n/navigation';
-import {
-  getContentProject,
-  type ContentProjectDetail,
-} from '../organization-api';
+import { getContentProject } from '../organization-api';
 import { useOrganizationContext } from '../organization-context';
-
-type LoadState = 'loading' | 'loaded' | 'missing' | 'error';
 
 export function OrganizationContentProjectBlock({
   projectId,
@@ -26,38 +21,16 @@ export function OrganizationContentProjectBlock({
   const { organization } = useOrganizationContext();
   const organizationId = organization.id;
 
-  const [project, setProject] = useState<ContentProjectDetail | null>(null);
-  const [state, setState] = useState<LoadState>('loading');
-  const [reloadToken, setReloadToken] = useState(0);
-
-  const resolved: LoadState = projectId === undefined ? 'missing' : state;
-
-  useEffect(() => {
-    if (projectId === undefined) return;
-
-    const controller = new AbortController();
-    let current = true;
-
-    getContentProject(organizationId, projectId, controller.signal)
-      .then((found) => {
-        if (!current) return;
-
-        setProject(found);
-        setState('loaded');
-      })
-      .catch((error: unknown) => {
-        if (!current) return;
-
-        const status = (error as { status?: number } | null)?.status;
-
-        setState(status === 404 ? 'missing' : 'error');
-      });
-
-    return () => {
-      current = false;
-      controller.abort();
-    };
-  }, [organizationId, projectId, reloadToken]);
+  const detail = useQuery({
+    queryKey: ['organizations', organizationId, 'content-projects', projectId],
+    queryFn: ({ signal }) =>
+      getContentProject(organizationId, projectId, signal),
+    enabled: projectId !== undefined,
+  });
+  const project = detail.data;
+  const missing =
+    projectId === undefined ||
+    (detail.error as { status?: number } | null)?.status === 404;
 
   const backLink = (
     <Link
@@ -69,7 +42,7 @@ export function OrganizationContentProjectBlock({
     </Link>
   );
 
-  if (resolved === 'loading') {
+  if (!missing && detail.isFetching && project === undefined) {
     return (
       <div className="space-y-4">
         {backLink}
@@ -81,7 +54,7 @@ export function OrganizationContentProjectBlock({
     );
   }
 
-  if (resolved === 'missing') {
+  if (missing) {
     return (
       <div className="space-y-4">
         {backLink}
@@ -93,7 +66,7 @@ export function OrganizationContentProjectBlock({
     );
   }
 
-  if (resolved === 'error' || project === null) {
+  if (detail.isError || project === undefined) {
     return (
       <div className="space-y-4">
         {backLink}
@@ -103,7 +76,7 @@ export function OrganizationContentProjectBlock({
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setReloadToken((token) => token + 1)}
+              onClick={() => void detail.refetch()}
             >
               {t('error.retry')}
             </Button>

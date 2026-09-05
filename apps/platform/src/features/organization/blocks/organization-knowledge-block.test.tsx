@@ -1,4 +1,6 @@
-import { screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { OrganizationProvider } from '../organization-context';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -8,7 +10,7 @@ import {
   resetAuthClientStub,
 } from '@/test/auth-client-stub';
 import { context, organization } from '@/test/organization-fixtures';
-import { renderInOrganization } from '@/test/render';
+import { renderWithProviders, renderInOrganization } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
   const { authClientStub } = await import('@/test/auth-client-stub');
@@ -81,6 +83,11 @@ const render = () =>
 beforeEach(() => {
   resetAuthClientStub();
   vi.clearAllMocks();
+  listKnowledgeSpaces.mockReset();
+  listKnowledgeDocuments.mockReset();
+  ingestKnowledgeDocument.mockReset();
+  clearKnowledgeSpace.mockReset();
+  deleteKnowledgeDocument.mockReset();
 
   listKnowledgeSpaces.mockResolvedValue([space()]);
   listKnowledgeDocuments.mockResolvedValue(page([document()]));
@@ -471,7 +478,7 @@ describe('the knowledge screen', () => {
       expect(listKnowledgeDocuments).toHaveBeenLastCalledWith(
         organization().id,
         'brand.voice',
-        { cursor: 'cursor-1' },
+        { cursor: 'cursor-1', signal: expect.any(AbortSignal) },
       );
     });
 
@@ -521,3 +528,189 @@ describe('the knowledge screen', () => {
     });
   });
 });
+
+describe('knowledge query isolation', () => {
+  it.each(['organization', 'space'])(
+    'cancels a late page on %s switching',
+    async (identity) => {
+      allow('knowledge:read');
+      listKnowledgeSpaces.mockResolvedValue([space(), space({ slug: 'faq' })]);
+      let finish!: (value: unknown) => void;
+      listKnowledgeDocuments
+        .mockResolvedValueOnce(page([document()], 'cursor-1'))
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              finish = resolve;
+            }),
+        )
+        .mockResolvedValueOnce(
+          page([document({ title: 'Current documents' })]),
+        );
+      function Harness() {
+        const [id, setId] = useState('org_1');
+        return (
+          <OrganizationProvider
+            value={context({ organization: organization({ id }) })}
+          >
+            <button onClick={() => setId('org_2')}>Switch organization</button>
+            <OrganizationKnowledgeBlock />
+          </OrganizationProvider>
+        );
+      }
+      renderWithProviders(<Harness />);
+      await userEvent.click(
+        await screen.findByRole('button', { name: /load more/i }),
+      );
+      const signal = listKnowledgeDocuments.mock.calls[1]![2]
+        .signal as AbortSignal;
+      await userEvent.click(
+        screen.getByRole('button', {
+          name: identity === 'space' ? /faq/i : 'Switch organization',
+        }),
+      );
+      expect(signal.aborted).toBe(true);
+      await screen.findByText('Current documents');
+      await act(async () =>
+        finish(page([document({ title: 'Stale documents' })], 'old-cursor')),
+      );
+      expect(screen.queryByText('Stale documents')).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /load more/i }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('retries a failed next page without losing rows or changing its cursor', async () => {
+    allow('knowledge:read');
+    listKnowledgeDocuments
+      .mockResolvedValueOnce(page([document()], 'cursor-1'))
+      .mockRejectedValueOnce(new ApiUnavailableError())
+      .mockResolvedValueOnce(
+        page([document({ id: 'second', title: 'Second page' })]),
+      );
+    render();
+    await userEvent.click(
+      await screen.findByRole('button', { name: /load more/i }),
+    );
+    await screen.findByText(/could not be reached/i);
+    expect(screen.getByText('Policies')).toBeInTheDocument();
+    expect(listKnowledgeDocuments).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    await screen.findByText('Second page');
+    expect(screen.queryByText(/could not be reached/i)).not.toBeInTheDocument();
+    expect(listKnowledgeDocuments.mock.calls[2]![2]).toEqual({
+      cursor: 'cursor-1',
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it('invalidates spaces and resets document pagination after a successful write', async () => {
+    allow('knowledge:read', 'knowledge:write');
+    ingestKnowledgeDocument.mockResolvedValue({});
+    listKnowledgeDocuments
+      .mockResolvedValueOnce(page([document()], 'cursor-1'))
+      .mockResolvedValueOnce(
+        page([document({ id: 'second', title: 'Second page' })]),
+      )
+      .mockResolvedValueOnce(page([document({ title: 'Stored document' })]));
+    render();
+    await userEvent.click(
+      await screen.findByRole('button', { name: /load more/i }),
+    );
+    await screen.findByText('Second page');
+    await userEvent.type(screen.getByLabelText(/^title$/i), '  New title  ');
+    await userEvent.type(screen.getByLabelText(/^text$/i), 'New content');
+    await userEvent.click(
+      screen.getByRole('button', { name: /store document/i }),
+    );
+    await screen.findByText('Stored document');
+    expect(ingestKnowledgeDocument).toHaveBeenCalledWith(
+      'org_1',
+      'brand.voice',
+      { title: 'New title', content: 'New content' },
+    );
+    expect(listKnowledgeSpaces).toHaveBeenCalledTimes(2);
+    expect(listKnowledgeDocuments.mock.calls[2]![2]).toEqual({
+      signal: expect.any(AbortSignal),
+    });
+    expect(screen.queryByText('Second page')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByLabelText(/^title$/i)).toHaveValue(''),
+    );
+  });
+});
+
+it('keeps the selected space after clearing its last document', async () => {
+  allow('knowledge:read', 'knowledge:write');
+  listKnowledgeSpaces
+    .mockResolvedValueOnce([space(), space({ slug: 'faq' })])
+    .mockResolvedValueOnce([
+      space({ configured: false, documentCount: 0 }),
+      space({ slug: 'faq' }),
+    ]);
+  clearKnowledgeSpace.mockResolvedValue({ slug: 'brand.voice' });
+  render();
+  await userEvent.click(
+    await screen.findByRole('button', {
+      name: /delete everything in brand voice/i,
+    }),
+  );
+  await waitFor(() => expect(listKnowledgeSpaces).toHaveBeenCalledTimes(2));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('button', { name: /delete everything/i }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(
+    screen.getByRole('heading', { name: 'Documents in Brand voice' }),
+  ).toBeInTheDocument();
+  expect(
+    listKnowledgeDocuments.mock.calls.every(
+      (call) => call[1] === 'brand.voice',
+    ),
+  ).toBe(true);
+});
+
+it.each(['resolve', 'reject'])(
+  'isolates a knowledge write that later %ss after organization switching',
+  async (completion) => {
+    allow('knowledge:read', 'knowledge:write');
+    let resolve!: (value: unknown) => void;
+    let reject!: (error: Error) => void;
+    ingestKnowledgeDocument.mockImplementationOnce(
+      () =>
+        new Promise((yes, no) => {
+          resolve = yes;
+          reject = no;
+        }),
+    );
+    function Harness() {
+      const [id, setId] = useState('org_1');
+      return (
+        <OrganizationProvider
+          value={context({ organization: organization({ id }) })}
+        >
+          <button onClick={() => setId('org_2')}>Switch organization</button>
+          <OrganizationKnowledgeBlock />
+        </OrganizationProvider>
+      );
+    }
+    renderWithProviders(<Harness />);
+    await userEvent.type(await screen.findByLabelText(/^title$/i), 'Old title');
+    await userEvent.type(screen.getByLabelText(/^text$/i), 'Old text');
+    await userEvent.click(
+      screen.getByRole('button', { name: /store document/i }),
+    );
+    await userEvent.click(screen.getByText('Switch organization'));
+    await userEvent.type(await screen.findByLabelText(/^title$/i), 'New draft');
+    const reads = listKnowledgeSpaces.mock.calls.length;
+    await act(async () => {
+      if (completion === 'resolve') resolve({});
+      else reject(new ApiError(409, 'CONFLICT'));
+    });
+    expect(screen.getByLabelText(/^title$/i)).toHaveValue('New draft');
+    expect(screen.queryByText(/could not be stored/i)).not.toBeInTheDocument();
+    expect(listKnowledgeSpaces).toHaveBeenCalledTimes(reads);
+  },
+);

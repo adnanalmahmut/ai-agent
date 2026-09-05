@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -1100,5 +1100,68 @@ describe('the audit table projects the payload it is handed', () => {
     expect(
       screen.getByText('Configured → Configured (v2)'),
     ).toBeInTheDocument();
+  });
+});
+
+describe('audit query pagination', () => {
+  const event = (id: string) => ({
+    id,
+    actorUserId: id,
+    action: 'featureFlag.setPlatformOverride',
+    resourceKey: 'agents.enabled',
+    organizationId: null,
+    occurredAt: '2026-09-05T10:00:00Z',
+    before: null,
+    after: null,
+  });
+  it('appends with a cancellation signal and restarts at page one after failure', async () => {
+    allowGlobalPermissions('controlPlane:read');
+    listControlPlaneAudit
+      .mockResolvedValueOnce({ items: [event('first')], nextCursor: 'c1' })
+      .mockResolvedValueOnce({ items: [event('second')], nextCursor: 'c2' })
+      .mockRejectedValueOnce(new ApiUnavailableError())
+      .mockResolvedValueOnce({ items: [event('fresh')], nextCursor: null });
+    renderWithProviders(<ControlPlaneBlock />);
+    await openTab(/audit history/i);
+    await userEvent.click(
+      await screen.findByRole('button', { name: /load more/i }),
+    );
+    await screen.findByText('second');
+    expect(screen.getByText('first')).toBeInTheDocument();
+    expect(listControlPlaneAudit.mock.calls[1]![0]).toEqual({
+      cursor: 'c1',
+      signal: expect.any(AbortSignal),
+    });
+    await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+    await screen.findByText(/could not be reached/i);
+    expect(listControlPlaneAudit).toHaveBeenCalledTimes(3);
+    await userEvent.click(screen.getByRole('button', { name: /try again/i }));
+    await screen.findByText('fresh');
+    expect(screen.queryByText('first')).not.toBeInTheDocument();
+    expect(listControlPlaneAudit.mock.calls[3]![0].cursor).toBeUndefined();
+  });
+
+  it('cancels an append when the audit panel closes', async () => {
+    allowGlobalPermissions('controlPlane:read');
+    let finish!: (value: unknown) => void;
+    listControlPlaneAudit
+      .mockResolvedValueOnce({ items: [event('first')], nextCursor: 'c1' })
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+    const view = renderWithProviders(<ControlPlaneBlock />);
+    await openTab(/audit history/i);
+    await userEvent.click(
+      await screen.findByRole('button', { name: /load more/i }),
+    );
+    const signal = listControlPlaneAudit.mock.calls[1]![0]
+      .signal as AbortSignal;
+    view.unmount();
+    expect(signal.aborted).toBe(true);
+    await act(async () => finish({ items: [event('late')], nextCursor: null }));
+    expect(screen.queryByText('late')).not.toBeInTheDocument();
   });
 });

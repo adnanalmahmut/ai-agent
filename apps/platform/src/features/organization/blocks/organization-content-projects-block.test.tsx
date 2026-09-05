@@ -1,10 +1,12 @@
-import { screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import { OrganizationProvider } from '../organization-context';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
 import { context, organization } from '@/test/organization-fixtures';
-import { renderInOrganization } from '@/test/render';
+import { renderWithProviders, renderInOrganization } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
   const { authClientStub } = await import('@/test/auth-client-stub');
@@ -175,3 +177,61 @@ describe('organization content projects block', () => {
     );
   });
 });
+
+it.each(['resolve', 'reject'])(
+  'isolates an old organization append that later %ss',
+  async (completion) => {
+    let resolve!: (value: unknown) => void;
+    let reject!: (error: Error) => void;
+    listContentProjects
+      .mockResolvedValueOnce({ items: [project()], nextCursor: 'cursor-1' })
+      .mockImplementationOnce(
+        () =>
+          new Promise((yes, no) => {
+            resolve = yes;
+            reject = no;
+          }),
+      )
+      .mockResolvedValueOnce({
+        items: [project({ title: 'Other organization' })],
+        nextCursor: null,
+      });
+    function Harness() {
+      const [id, setId] = useState('org_1');
+      return (
+        <OrganizationProvider
+          value={context({ organization: organization({ id }) })}
+        >
+          <button onClick={() => setId('org_2')}>Switch organization</button>
+          <OrganizationContentProjectsBlock />
+        </OrganizationProvider>
+      );
+    }
+    renderWithProviders(<Harness />);
+    await userEvent.click(
+      await screen.findByRole('button', { name: /load more/i }),
+    );
+    const signal = listContentProjects.mock.calls[1]![2] as AbortSignal;
+    await userEvent.click(screen.getByText('Switch organization'));
+    expect(signal.aborted).toBe(true);
+    await screen.findByText('Other organization');
+    await act(async () => {
+      if (completion === 'resolve')
+        resolve({
+          items: [project({ title: 'Stale append' })],
+          nextCursor: 'old',
+        });
+      else reject(new Error('stale failure'));
+    });
+    expect(screen.queryByText('Stale append')).not.toBeInTheDocument();
+    expect(screen.queryByText(/could not be loaded/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /load more/i }),
+    ).not.toBeInTheDocument();
+    expect(listContentProjects.mock.calls[2]).toEqual([
+      'org_2',
+      { limit: 25 },
+      expect.any(AbortSignal),
+    ]);
+  },
+);

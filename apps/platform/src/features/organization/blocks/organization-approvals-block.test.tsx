@@ -1,11 +1,14 @@
-import { screen, waitFor } from '@testing-library/react';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { OrganizationProvider } from '../organization-context';
+import { act, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/lib/application-api';
 import { authClientStub, resetAuthClientStub } from '@/test/auth-client-stub';
 import { context, member, organization } from '@/test/organization-fixtures';
-import { renderInOrganization } from '@/test/render';
+import { renderWithProviders, renderInOrganization } from '@/test/render';
 
 vi.mock('@/features/auth/auth-client', async () => {
   const { authClientStub } = await import('@/test/auth-client-stub');
@@ -325,4 +328,153 @@ describe('organization approvals block', () => {
     expect(screen.queryByText('Late page')).toBeNull();
     expect(screen.queryByText('Kettle teardown is ready')).toBeNull();
   });
+});
+
+it('invalidates cached filters while retaining the decided card until navigation', async () => {
+  authClientStub.organization.checkRolePermission.mockReturnValue(true);
+  listAgentActionApprovals
+    .mockResolvedValueOnce({ items: [proposal()], nextCursor: null })
+    .mockResolvedValueOnce({ items: [], nextCursor: null })
+    .mockResolvedValueOnce({ items: [], nextCursor: null });
+  approveAgentAction.mockResolvedValue(
+    proposal({
+      executionStatus: 'APPROVED',
+      approval: {
+        ...proposal().approval,
+        status: 'APPROVED',
+      },
+    }),
+  );
+  let client!: QueryClient;
+  function Probe() {
+    client = useQueryClient();
+    return null;
+  }
+  renderWithProviders(
+    <>
+      <Probe />
+      <OrganizationApprovalsBlock />
+    </>,
+    {
+      organization: context({ organization: organization() }),
+    },
+  );
+  const otherKey = [
+    'organizations',
+    'org_2',
+    'approvals',
+    { filter: 'ALL', limit: 25 },
+  ];
+  client.setQueryData(otherKey, {
+    pages: [{ items: [], nextCursor: null }],
+    pageParams: [undefined],
+  });
+  await userEvent.click(
+    await screen.findByRole('button', { name: /approve and send/i }),
+  );
+  await screen.findByText('Queued to send');
+  expect(
+    client.getQueryState([
+      'organizations',
+      'org_1',
+      'approvals',
+      { filter: 'PENDING', limit: 25 },
+    ])?.isInvalidated,
+  ).toBe(true);
+  expect(client.getQueryState(otherKey)?.isInvalidated).toBe(false);
+  await userEvent.click(screen.getByRole('button', { name: 'All' }));
+  await screen.findByText(/nothing waiting/i);
+  await userEvent.click(screen.getByRole('button', { name: 'Pending' }));
+  await waitFor(() =>
+    expect(listAgentActionApprovals).toHaveBeenCalledTimes(3),
+  );
+  await waitFor(() =>
+    expect(screen.queryByText('Queued to send')).not.toBeInTheDocument(),
+  );
+});
+
+it('does not put a late decision or page into another organization', async () => {
+  authClientStub.organization.checkRolePermission.mockReturnValue(true);
+  let finishDecision!: (value: unknown) => void;
+  let finishPage!: (value: unknown) => void;
+  approveAgentAction.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finishDecision = resolve;
+      }),
+  );
+  listAgentActionApprovals
+    .mockResolvedValueOnce({ items: [proposal()], nextCursor: 'cursor-1' })
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishPage = resolve;
+        }),
+    )
+    .mockResolvedValueOnce({ items: [proposal()], nextCursor: null });
+  function Harness() {
+    const [id, setId] = useState('org_1');
+    return (
+      <OrganizationProvider
+        value={context({ organization: organization({ id }) })}
+      >
+        <button onClick={() => setId('org_2')}>Switch organization</button>
+        <OrganizationApprovalsBlock />
+      </OrganizationProvider>
+    );
+  }
+  renderWithProviders(<Harness />);
+  await userEvent.click(
+    await screen.findByRole('button', { name: /approve and send/i }),
+  );
+  await userEvent.click(screen.getByRole('button', { name: /load more/i }));
+  const signal = listAgentActionApprovals.mock.calls[1]![2] as AbortSignal;
+  await userEvent.click(screen.getByText('Switch organization'));
+  expect(signal.aborted).toBe(true);
+  await screen.findByRole('button', { name: /approve and send/i });
+  await act(async () => {
+    finishPage({
+      items: [proposal({ toolExecutionId: 'late' })],
+      nextCursor: 'old',
+    });
+    finishDecision(
+      proposal({
+        executionStatus: 'APPROVED',
+        approval: { ...proposal().approval, status: 'APPROVED' },
+      }),
+    );
+  });
+  expect(
+    screen.getByRole('button', { name: /approve and send/i }),
+  ).toBeEnabled();
+  expect(screen.queryByText('Queued to send')).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole('button', { name: /load more/i }),
+  ).not.toBeInTheDocument();
+  expect(listAgentActionApprovals.mock.calls[2]![0]).toBe('org_2');
+});
+
+it('keeps rows on append failure and retries the same cursor', async () => {
+  listAgentActionApprovals
+    .mockResolvedValueOnce({ items: [proposal()], nextCursor: 'cursor-1' })
+    .mockRejectedValueOnce(new Error('offline'))
+    .mockResolvedValueOnce({ items: [], nextCursor: null });
+  render();
+  await userEvent.click(
+    await screen.findByRole('button', { name: /load more/i }),
+  );
+  await screen.findByText(/next page could not be loaded/i);
+  expect(screen.getByText('Kettle teardown is ready')).toBeInTheDocument();
+  expect(listAgentActionApprovals).toHaveBeenCalledTimes(2);
+  await userEvent.click(screen.getByRole('button', { name: /try again/i }));
+  await waitFor(() =>
+    expect(
+      screen.queryByText(/next page could not be loaded/i),
+    ).not.toBeInTheDocument(),
+  );
+  expect(listAgentActionApprovals.mock.calls[2]).toEqual([
+    'org_1',
+    { limit: 25, status: 'PENDING', cursor: 'cursor-1' },
+    expect.any(AbortSignal),
+  ]);
 });
