@@ -1,6 +1,9 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { OrganizationProvider } from '@/features/organization/organization-context';
 
 import {
   allowOrganizationPermissions as allow,
@@ -72,6 +75,19 @@ const succeeded = (
 const after = <T,>(ms: number, value: T) =>
   new Promise<T>((resolve) => setTimeout(() => resolve(value), ms));
 
+/** A request that answers when the test says so, and never before. */
+const deferred = <T,>() => {
+  let settle!: (value: T) => void;
+  let refuse!: (reason: unknown) => void;
+
+  const promise = new Promise<T>((resolve, reject) => {
+    settle = resolve;
+    refuse = reject;
+  });
+
+  return { promise, settle, refuse };
+};
+
 const IDEA = {
   title: 'Why our kettle boils in ninety seconds',
   hook: 'Ninety seconds. Not a marketing number — a physics one.',
@@ -112,6 +128,46 @@ const submit = () =>
   userEvent.click(screen.getByRole('button', { name: /generate ideas/i }));
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, POLL_MS * 6));
+
+const OTHER_ORGANIZATION = 'org_elsewhere';
+
+/**
+ * The organization is context, not a prop, so a test that needs it to change
+ * has to change it where the screen reads it. The button is the test's own
+ * handle on that, standing in for the switcher the shell renders.
+ */
+function InOrganization({ pollTimeoutMs }: { pollTimeoutMs?: number }) {
+  const [organizationId, setOrganizationId] = useState(organization().id);
+
+  return (
+    <>
+      <button onClick={() => setOrganizationId(OTHER_ORGANIZATION)}>
+        switch organization
+      </button>
+      <OrganizationProvider
+        value={context({ organization: organization({ id: organizationId }) })}
+      >
+        <OrganizationContentIdeasBlock
+          pollIntervalMs={POLL_MS}
+          pollTimeoutMs={pollTimeoutMs}
+        />
+      </OrganizationProvider>
+    </>
+  );
+}
+
+const renderSwitchable = (
+  props: { pollTimeoutMs?: number } = {},
+  options: { initialEntries?: string[] } = {},
+) =>
+  renderInOrganization(
+    <InOrganization {...props} />,
+    context({ organization: organization() }),
+    options,
+  );
+
+const switchOrganization = () =>
+  userEvent.click(screen.getByRole('button', { name: /switch organization/i }));
 
 beforeEach(() => {
   resetAuthClientStub();
@@ -647,6 +703,321 @@ describe('the content ideas screen', () => {
       await settle();
 
       expect(getContentIdeaOperation).toHaveBeenCalledTimes(settled);
+    });
+  });
+
+  describe('the organization the run belongs to', () => {
+    it('reads the run named by the address against the organization in hand', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaOperation.mockResolvedValue(
+        operation({ id: 'op_1', status: 'RUNNING' }),
+      );
+
+      renderSwitchable({}, { initialEntries: ['/?operation=op_1'] });
+
+      expect(await screen.findByText('Running')).toBeVisible();
+      expect(getContentIdeaOperation).toHaveBeenCalledWith(
+        organization().id,
+        'op_1',
+        expect.anything(),
+      );
+
+      await switchOrganization();
+
+      await waitFor(() =>
+        expect(getContentIdeaOperation).toHaveBeenCalledWith(
+          OTHER_ORGANIZATION,
+          'op_1',
+          expect.anything(),
+        ),
+      );
+    });
+
+    it('shows nothing from the organization the reader has left', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      getContentIdeaOperation.mockImplementation((organizationId: string) =>
+        organizationId === organization().id
+          ? Promise.resolve(succeeded([IDEA], [], { id: 'op_1' }))
+          : new Promise(() => undefined),
+      );
+
+      renderSwitchable({}, { initialEntries: ['/?operation=op_1'] });
+
+      expect(await screen.findByText(IDEA.title)).toBeVisible();
+
+      await switchOrganization();
+
+      // The run belongs to the organization it was read for. Until the one in
+      // hand answers for itself, this screen has nothing to show.
+      expect(await screen.findByText(/no ideas requested yet/i)).toBeVisible();
+      expect(screen.queryByText(IDEA.title)).not.toBeInTheDocument();
+    });
+
+    it('asks the organization in hand about availability', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      renderSwitchable();
+
+      await waitFor(() =>
+        expect(getContentIdeaAvailability).toHaveBeenCalledWith(
+          organization().id,
+          expect.anything(),
+        ),
+      );
+
+      await switchOrganization();
+
+      await waitFor(() =>
+        expect(getContentIdeaAvailability).toHaveBeenCalledWith(
+          OTHER_ORGANIZATION,
+          expect.anything(),
+        ),
+      );
+    });
+  });
+
+  describe('a read the screen no longer needs', () => {
+    const hanging = () => {
+      const signals: AbortSignal[] = [];
+
+      getContentIdeaOperation.mockImplementation(
+        (_organizationId: string, _id: string, signal: AbortSignal) => {
+          signals.push(signal);
+
+          return new Promise(() => undefined);
+        },
+      );
+
+      return signals;
+    };
+
+    it('is abandoned through the signal when the screen goes away', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      const signals = hanging();
+
+      const view = render({}, { initialEntries: ['/?operation=op_1'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+      expect(signals[0]?.aborted).toBe(false);
+
+      view.unmount();
+
+      await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+    });
+
+    it('is abandoned when the reader moves to another organization', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      const signals = hanging();
+
+      renderSwitchable({}, { initialEntries: ['/?operation=op_1'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      await switchOrganization();
+
+      await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+    });
+
+    it('is abandoned when the address moves to another run', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+      const signals = hanging();
+
+      render({}, { initialEntries: ['/?operation=op_first'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      act(() => stubLocation('/?operation=op_second'));
+
+      await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+    });
+  });
+
+  describe('a read that lands late', () => {
+    it('does not show a run the reader has already moved on from', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      getContentIdeaOperation.mockImplementation((_org: string, id: string) =>
+        id === 'op_slow'
+          ? after(POLL_MS * 12, operation({ id: 'op_slow', status: 'RUNNING' }))
+          : Promise.resolve(succeeded([IDEA], [], { id })),
+      );
+
+      render({}, { initialEntries: ['/?operation=op_slow'] });
+
+      await waitFor(() => expect(getContentIdeaOperation).toHaveBeenCalled());
+
+      act(() => stubLocation('/?operation=op_done'));
+
+      expect(await screen.findByText(IDEA.title)).toBeVisible();
+
+      await settle();
+      await settle();
+
+      expect(screen.getByText(IDEA.title)).toBeVisible();
+      expect(screen.queryByText(/^running$/i)).not.toBeInTheDocument();
+    });
+
+    it('does not put a finished run back to pending', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      // The first read is still on its way, and still says queued, when the
+      // reader gives up on it and asks again. The answer it eventually brings
+      // back is older than the one already on the screen.
+      getContentIdeaOperation
+        .mockImplementationOnce(() => after(POLL_MS * 15, operation()))
+        .mockImplementation(() => Promise.resolve(succeeded([IDEA])));
+
+      render({ pollTimeoutMs: 0 });
+      await fillForm();
+      await submit();
+
+      await screen.findByText(/taking longer than expected/i);
+      await userEvent.click(
+        screen.getByRole('button', { name: /keep waiting/i }),
+      );
+
+      expect(await screen.findByText(IDEA.title)).toBeVisible();
+
+      await settle();
+      await settle();
+      await settle();
+
+      expect(screen.getByText(IDEA.title)).toBeVisible();
+      expect(screen.queryByText(/^queued$/i)).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/taking longer than expected/i),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('a cancelled read that answers anyway', () => {
+    /**
+     * Query drops the *result* of a read it has abandoned, and that is all it
+     * can do: a request that never looks at the signal, or one that settles
+     * inside the race with its own cancellation, still runs the rest of the
+     * query function. What that code says about failures, about giving up,
+     * and about the address has to be its own business to hold back.
+     */
+    it('does not refuse on behalf of the run the reader moved to', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const stale = deferred<unknown>();
+      const signals: AbortSignal[] = [];
+
+      getContentIdeaOperation.mockImplementation(
+        (_organizationId: string, id: string, signal: AbortSignal) => {
+          if (id !== 'op_stale') {
+            return Promise.resolve(operation({ id, status: 'RUNNING' }));
+          }
+
+          signals.push(signal);
+
+          return stale.promise;
+        },
+      );
+
+      render({}, { initialEntries: ['/?operation=op_stale'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      act(() => stubLocation('/?operation=op_current'));
+
+      expect(await screen.findByText('Running')).toBeVisible();
+      await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+
+      await act(async () => {
+        stale.refuse(new ApiError(404, 'NOT_FOUND'));
+        await Promise.resolve();
+      });
+
+      await settle();
+
+      expect(screen.queryByText(/could not be found/i)).not.toBeInTheDocument();
+      expect(currentUrl()).toContain('operation=op_current');
+      expect(screen.getByText('Running')).toBeVisible();
+    });
+
+    it('does not clear a refusal the reader is being shown', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const stale = deferred<unknown>();
+      const signals: AbortSignal[] = [];
+
+      getContentIdeaOperation.mockImplementation(
+        (organizationId: string, _id: string, signal: AbortSignal) => {
+          if (organizationId !== organization().id) {
+            return Promise.reject(new ApiError(404, 'NOT_FOUND'));
+          }
+
+          signals.push(signal);
+
+          return stale.promise;
+        },
+      );
+
+      renderSwitchable({}, { initialEntries: ['/?operation=op_1'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      await switchOrganization();
+
+      expect(await screen.findByText(/could not be found/i)).toBeVisible();
+      await waitFor(() => expect(signals[0]?.aborted).toBe(true));
+
+      await act(async () => {
+        stale.settle(succeeded([IDEA], [], { id: 'op_1' }));
+        await Promise.resolve();
+      });
+
+      await settle();
+
+      expect(screen.getByText(/could not be found/i)).toBeVisible();
+      expect(screen.queryByText(IDEA.title)).not.toBeInTheDocument();
+    });
+
+    it('does not put the screen back to watching a refused run', async () => {
+      allow('contentIdea:create', 'contentIdea:read');
+
+      const stale = deferred<unknown>();
+      const signals: AbortSignal[] = [];
+      let current = () =>
+        Promise.resolve(operation({ id: 'op_current', status: 'RUNNING' }));
+
+      getContentIdeaOperation.mockImplementation(
+        (_organizationId: string, id: string, signal: AbortSignal) => {
+          if (id !== 'op_stale') return current();
+
+          signals.push(signal);
+
+          return stale.promise;
+        },
+      );
+
+      render({}, { initialEntries: ['/?operation=op_stale'] });
+
+      await waitFor(() => expect(signals).toHaveLength(1));
+
+      act(() => stubLocation('/?operation=op_current'));
+
+      expect(await screen.findByText('Running')).toBeVisible();
+
+      current = () => Promise.reject(new ApiError(404, 'NOT_FOUND'));
+
+      expect(await screen.findByText(/could not be found/i)).toBeVisible();
+
+      const asked = getContentIdeaOperation.mock.calls.length;
+
+      await act(async () => {
+        stale.settle(succeeded([IDEA], [], { id: 'op_stale' }));
+        await Promise.resolve();
+      });
+
+      await settle();
+
+      // A run the reader left cannot start the watch up again on a run the
+      // server has already refused.
+      expect(getContentIdeaOperation).toHaveBeenCalledTimes(asked);
+      expect(screen.getByText(/could not be found/i)).toBeVisible();
     });
   });
 
