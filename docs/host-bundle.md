@@ -10,7 +10,7 @@ inventory is `ops/host-bundle/files`; the installed manifest is
 | `ops/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `ops/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 9 and the current minimum is 8. Bump `VERSION` whenever
+The current release ships bundle 10 and the current minimum is 8. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.

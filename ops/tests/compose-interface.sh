@@ -5,20 +5,31 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
 wrapper=infra/scripts/compose.sh
-compose_file=$root/docker-compose.yml
+compose_file=$root/infra/compose/compose.yaml
 
 test -x "$wrapper" || {
   echo "compose wrapper is missing or not executable: $wrapper" >&2
   exit 1
 }
 
-# Nothing outside the wrapper may name the compose file. The three workspace
-# scripts that used to do it were correct only from two levels down, which is
-# the fragility this interface exists to remove.
-if grep -rn -- '-f \.\./\.\./docker-compose\.yml' \
+# Nothing outside the wrapper may reach the compose file by relative path. The
+# three workspace scripts that used to do it were correct only from two levels
+# down, which is the fragility this interface exists to remove.
+#
+# `--` is deliberately absent before the pattern: it ends option parsing, so
+# the --include filters become file operands that do not exist, grep exits 2,
+# and the guard silently never fires however many callers are added. Two files
+# legitimately name the path and are excluded by name: the wrapper, which owns
+# it, and this test, which needs a direct invocation as its equivalence
+# baseline.
+offenders=$(grep -rn -e '\.\./\.\./\(docker-compose\.yml\|infra/compose/compose\.yaml\)' \
   --include '*.json' --include '*.sh' --include '*.md' \
-  --exclude-dir node_modules --exclude-dir .git . >/dev/null 2>&1; then
+  --exclude-dir node_modules --exclude-dir .git . |
+  grep -v '^\./ops/tests/compose-interface\.sh:' |
+  grep -v '^\./infra/scripts/compose\.sh:' || true)
+if [ -n "$offenders" ]; then
   echo 'a caller still reaches the compose file by relative path' >&2
+  echo "$offenders" >&2
   exit 1
 fi
 
@@ -73,7 +84,7 @@ ENV
 # Compose lets the ambient environment win over `--env-file`, so a developer or
 # runner that exports any interpolated name would otherwise turn this into an
 # assertion about their shell.
-unset_names=$(grep -oE '\$\{[A-Z][A-Z0-9_]*' docker-compose.yml | sed 's/^\${//' | sort -u)
+unset_names=$(grep -oE '\$\{[A-Z][A-Z0-9_]*' infra/compose/compose.yaml | sed 's/^\${//' | sort -u)
 unset_fixture=''
 for unset_name in $unset_names; do
   unset_fixture="$unset_fixture -u $unset_name"
@@ -101,7 +112,7 @@ for selected_profiles in '--profile development' '--profile test' \
   after=$tmp_dir/after-$selection.yml
 
   # shellcheck disable=SC2086
-  (cd apps/backend && env $unset_fixture docker compose -f ../../docker-compose.yml \
+  (cd apps/backend && env $unset_fixture docker compose -f ../../infra/compose/compose.yaml \
     --env-file "$fixture" $selected_profiles config) >"$before"
 
   # shellcheck disable=SC2086
@@ -122,7 +133,7 @@ for selected_profiles in '--profile development' '--profile test' \
 done
 
 # shellcheck disable=SC2086
-(cd apps/backend && env $unset_fixture docker compose -f ../../docker-compose.yml \
+(cd apps/backend && env $unset_fixture docker compose -f ../../infra/compose/compose.yaml \
   --env-file "$fixture" $profiles config) >"$tmp_dir/before.yml"
 
 # shellcheck disable=SC2086
@@ -140,7 +151,7 @@ fi
 # recreates every developer's containers on their next command.
 for service in postgres redis; do
   # shellcheck disable=SC2086
-  legacy_hash=$(cd apps/backend && env $unset_fixture docker compose -f ../../docker-compose.yml \
+  legacy_hash=$(cd apps/backend && env $unset_fixture docker compose -f ../../infra/compose/compose.yaml \
     --env-file "$fixture" --profile development config --hash="$service")
   # shellcheck disable=SC2086
   wrapper_hash=$(env $unset_fixture "$wrapper" \

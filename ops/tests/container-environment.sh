@@ -42,7 +42,7 @@ ENV
 # Compose gives the ambient shell environment precedence over `--env-file`, so
 # a caller that already exports any of these — CI exports several — would
 # silently render its own values instead of the fixture's and turn this suite
-# into an assertion about the runner rather than about docker-compose.yml.
+# into an assertion about the runner rather than about infra/compose/compose.yaml.
 #
 # Cleared by the union of the fixture's own names and every name the compose
 # file interpolates, not by the fixture's names alone. The compose file
@@ -61,7 +61,7 @@ unset_names=$(
       esac
       printf '%s\n' "$fixture_name"
     done <"$runtime"
-    grep -oE '\$\{[A-Z][A-Z0-9_]*' docker-compose.yml | sed 's/^\${//'
+    grep -oE '\$\{[A-Z][A-Z0-9_]*' infra/compose/compose.yaml | sed 's/^\${//'
   } | sort -u
 )
 unset_fixture=''

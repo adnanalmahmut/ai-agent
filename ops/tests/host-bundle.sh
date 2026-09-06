@@ -185,7 +185,7 @@ optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTI
 required_block=$(sed -n '/^required=/,/^$/p' ops/runtime-preflight.sh |
   tr -d "'" | sed 's/^required=//')
 
-for variable in $(grep -oE '\$\{[A-Z][A-Z0-9_]*:-\}' docker-compose.yml |
+for variable in $(grep -oE '\$\{[A-Z][A-Z0-9_]*:-\}' infra/compose/compose.yaml |
   sed -e 's/^\${//' -e 's/:-}$//' | sort -u); do
   classified=no
 
@@ -227,10 +227,10 @@ for variable in $required_block; do
   # against a real render in ops/tests/container-environment.sh; the two are
   # deliberately not merged, because that one needs `jq` and this one must keep
   # working without it.
-  grep -Fq "\${$variable}" docker-compose.yml ||
-    grep -Fq "\${$variable:" docker-compose.yml ||
-    grep -q "^      $variable:" docker-compose.yml ||
-    fail "the runtime preflight requires $variable and docker-compose.yml never passes it to any service"
+  grep -Fq "\${$variable}" infra/compose/compose.yaml ||
+    grep -Fq "\${$variable:" infra/compose/compose.yaml ||
+    grep -q "^      $variable:" infra/compose/compose.yaml ||
+    fail "the runtime preflight requires $variable and infra/compose/compose.yaml never passes it to any service"
 done
 
 # `CREATE EXTENSION` runs inside the migration container, which can only report
@@ -269,7 +269,7 @@ rewrite ops/host-preflight.sh "$tmp_dir/src/host-preflight.sh"
 rewrite ops/runtime-preflight.sh "$tmp_dir/src/runtime-preflight.sh"
 rewrite ops/lightsail/ai-agent-deploy-dispatch "$tmp_dir/src/ai-agent-deploy-dispatch"
 cp ops/lightsail/ai-agent-deploy.sudoers "$tmp_dir/src/ai-agent-deploy.sudoers"
-cp docker-compose.yml "$tmp_dir/src/docker-compose.yml"
+cp infra/compose/compose.yaml "$tmp_dir/src/docker-compose.yml"
 rewrite ops/lightsail/ai-agent-deploy "$tmp_dir/src/ai-agent-deploy"
 
 # Stands in for ai-agent-release-retention. Retention's own behaviour is owned by

@@ -1,6 +1,7 @@
 # Container foundation
 
-The repository has one Compose model: `docker-compose.yml`. Profiles select
+The repository has one Compose model: `infra/compose/compose.yaml`. Profiles
+select
 the process set without overlay files:
 
 - `development`: PostgreSQL and Redis on loopback for local development.

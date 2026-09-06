@@ -120,7 +120,7 @@ services:
     profiles: [staging, production]
     image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
     build:
-      context: .
+      context: ../..
       dockerfile: apps/backend/Dockerfile
       target: runtime
     command: [node, dist/src/api/main]
@@ -203,7 +203,7 @@ services:
     profiles: [staging, production]
     image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
     build:
-      context: .
+      context: ../..
       dockerfile: apps/backend/Dockerfile
       target: runtime
     command: [node, dist/src/workers/main]
@@ -277,7 +277,7 @@ services:
     profiles: [migration]
     image: ${BACKEND_MIGRATION_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend-migration:${IMAGE_TAG:-development}}
     build:
-      context: .
+      context: ../..
       dockerfile: apps/backend/Dockerfile
       target: migration
     command: [node, node_modules/prisma/build/index.js, migrate, deploy]
@@ -295,7 +295,7 @@ services:
     profiles: [staging, production]
     image: ${WEB_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/web:${IMAGE_TAG:-development}}
     build:
-      context: .
+      context: ../..
       dockerfile: apps/web/Dockerfile
     environment:
       HOSTNAME: 0.0.0.0
@@ -320,7 +320,7 @@ services:
     profiles: [staging, production]
     image: ${PLATFORM_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/platform:${IMAGE_TAG:-development}}
     build:
-      context: .
+      context: ../..
       dockerfile: apps/platform/Dockerfile
     environment:
       HOSTNAME: 0.0.0.0

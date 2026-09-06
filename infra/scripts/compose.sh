@@ -12,7 +12,7 @@ set -eu
 # anywhere else. The previous callers used `-f ../../docker-compose.yml` and
 # were correct only when run from a workspace two levels down.
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
-compose_file="$repo_root/docker-compose.yml"
+compose_file="$repo_root/infra/compose/compose.yaml"
 
 # The Compose project name owns the container, network, and volume names that
 # already exist on developer machines and on the host. It is stated here as
