@@ -5,19 +5,8 @@ import { Client } from 'pg';
 import { z } from 'zod';
 
 import { AgentDefinitionRegistry } from '../../../src/ai/agents/agent-definition.registry';
-import { OrganizationAgentInstallationService } from '../../../src/features/agent-management/organization-agent-installation.service';
 import type { AgentDefinition } from '../../../src/ai/agents/agent.types';
-import { APPLICATION_TOOL_DEFINITIONS } from '../../../src/features/agent-management/tools/definitions';
-import { NotificationSendTool } from '../../../src/features/agent-management/tools/notification-send.tool';
-import {
-  SideEffectExecutionHandler,
-  type SideEffectExecutionJob,
-} from '../../../src/workers/handlers/side-effect-execution.handler';
-import {
-  DeliverApprovedToolEffectUseCase,
-  EFFECT_RETRY_WINDOW_MS,
-  idempotencyKeyFor,
-} from '../../../src/modules/approvals';
+import { MODEL_IDS } from '../../../src/ai/models/model-catalog';
 import { ToolAuthorizationService } from '../../../src/ai/tools/tool-authorization.service';
 import { ToolExecutionService } from '../../../src/ai/tools/tool-execution.service';
 import {
@@ -25,12 +14,24 @@ import {
   ToolGateway,
 } from '../../../src/ai/tools/tool.gateway';
 import { ToolRegistry } from '../../../src/ai/tools/tool.registry';
+import { OrganizationAgentInstallationService } from '../../../src/features/agent-management/organization-agent-installation.service';
+import { APPLICATION_TOOL_DEFINITIONS } from '../../../src/features/agent-management/tools/definitions';
+import { NotificationSendTool } from '../../../src/features/agent-management/tools/notification-send.tool';
+import { NotificationSideEffectDeliveryAdapter } from '../../../src/features/agent-management/tools/notification-side-effect-delivery.adapter';
 import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
 } from '../../../src/infrastructure/mail/notification-delivery.port';
-import { MODEL_IDS } from '../../../src/ai/models/model-catalog';
+import {
+  DeliverApprovedToolEffectUseCase,
+  EFFECT_RETRY_WINDOW_MS,
+  idempotencyKeyFor,
+} from '../../../src/modules/approvals';
+import {
+  SideEffectExecutionHandler,
+  type SideEffectExecutionJob,
+} from '../../../src/workers/handlers/side-effect-execution.handler';
 import {
   as,
   createHarness,
@@ -129,6 +130,7 @@ describe('human approval and the idempotent side effect', () => {
 
   let executions: ToolExecutionService;
   let delivery: RecordingDelivery;
+  let deliveryAdapter: NotificationSideEffectDeliveryAdapter;
   let tool: NotificationSendTool;
   let gateway: ToolGateway;
   let handler: SideEffectExecutionHandler;
@@ -235,6 +237,7 @@ describe('human approval and the idempotent side effect', () => {
     harness = await createHarness();
     executions = new ToolExecutionService(harness.prisma);
     delivery = new RecordingDelivery();
+    deliveryAdapter = new NotificationSideEffectDeliveryAdapter(delivery);
     tool = new NotificationSendTool(harness.prisma, delivery);
 
     const registry = new ToolRegistry(APPLICATION_TOOL_DEFINITIONS);
@@ -252,6 +255,7 @@ describe('human approval and the idempotent side effect', () => {
           new AgentDefinitionRegistry(DEFINITIONS),
           implementations,
         ),
+        deliveryAdapter,
       ),
       silentLogger as never,
     );
@@ -1011,6 +1015,7 @@ describe('human approval and the idempotent side effect', () => {
               }),
             ],
           ),
+          deliveryAdapter,
         ),
         silentLogger as never,
       );
@@ -1213,6 +1218,7 @@ describe('human approval and the idempotent side effect', () => {
               tool,
             ],
           ),
+          deliveryAdapter,
         ),
         silentLogger as never,
       );
