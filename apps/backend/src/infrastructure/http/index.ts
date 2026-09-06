@@ -17,6 +17,11 @@ export type {
 } from './validation';
 
 export { apiSuccessSchema, wireSchemaOf } from './openapi-schema';
+export {
+  IDEMPOTENCY_KEY_HEADER,
+  idempotencyKeySchema,
+  isoDateTimeToDate,
+} from './wire-codecs';
 
 export { UnifiedExceptionFilter } from './errors';
 

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
+import type { z } from 'zod';
+
 import type { AgentRun, AgentValue } from '../../../ai/agents/agent.types';
 import { AgentRunService } from '../../../ai/execution/agent-run.service';
 import {
@@ -8,31 +10,22 @@ import {
   contentIdeaInput,
   type ContentIdeaInput,
 } from './agent-definitions';
+import {
+  contentIdeaAvailabilitySchema,
+  contentIdeaOperationSchema,
+} from './content-idea.contract';
 import { RuntimeConfigResolver } from '../../control-plane';
 import { AppException } from '../../../core/errors';
 
-export const CONTENT_IDEA_UNAVAILABLE_REASONS = [
-  'agents_disabled',
-  'content_ideas_disabled',
-  'agent_not_installed',
-  'agent_disabled',
-] as const;
+/*
+ * The payload contract is the definition; these are its application side, so
+ * a change to a schema surfaces here rather than drifting away from it.
+ */
+export type ContentIdeaAvailability = z.output<
+  typeof contentIdeaAvailabilitySchema
+>;
 
-export type ContentIdeaUnavailableReason =
-  (typeof CONTENT_IDEA_UNAVAILABLE_REASONS)[number];
-
-export type ContentIdeaAvailability = {
-  available: boolean;
-  reason: ContentIdeaUnavailableReason | null;
-};
-
-export type ContentIdeaOperation = {
-  id: string;
-  status: AgentRun['status'];
-  output: AgentValue | null;
-  createdAt: Date;
-  completedAt: Date | null;
-};
+export type ContentIdeaOperation = z.output<typeof contentIdeaOperationSchema>;
 
 @Injectable()
 export class ContentIdeaService {
@@ -134,7 +127,13 @@ function toOperation(run: AgentRun): ContentIdeaOperation {
   return {
     id: run.id,
     status: run.status,
-    output: run.status === 'SUCCEEDED' ? run.output : null,
+    // The runner stores what the agent's own output schema parsed, and only
+    // this agent's runs reach here, so a succeeded run's stored output is the
+    // declared result. The row type cannot say that; the runner enforces it.
+    output:
+      run.status === 'SUCCEEDED'
+        ? (run.output as ContentIdeaOperation['output'])
+        : null,
     createdAt: run.createdAt,
     completedAt: run.completedAt,
   };

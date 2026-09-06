@@ -7,25 +7,40 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiHeader,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
-import { z } from 'zod';
 
-import { contentIdeaInput } from './agent-definitions';
 import {
   OrganizationPermissionGuard,
   RequiresOrganizationPermission,
 } from '../../../infrastructure/auth';
 import { AppException } from '../../../core/errors';
-import { createZodDto } from '../../../infrastructure/http';
+import {
+  apiSuccessSchema,
+  createZodDto,
+  IDEMPOTENCY_KEY_HEADER,
+  idempotencyKeySchema,
+  wireSchemaOf,
+} from '../../../infrastructure/http';
 import { UserRateLimit } from '../../../infrastructure/rate-limit';
+import {
+  contentIdeaAvailabilitySchema,
+  contentIdeaOperationSchema,
+  requestContentIdeasSchema,
+} from './content-idea.contract';
 import { ContentIdeaService } from './content-idea.service';
 
-const requestSchema = contentIdeaInput;
+const requestSchema = requestContentIdeasSchema;
 
 class RequestContentIdeasDto extends createZodDto(requestSchema) {}
-
-const idempotencyKeySchema = z.string().trim().min(8).max(200);
 
 @ApiTags('Content ideas')
 @Controller('organizations/:organizationId/content-ideas')
@@ -41,6 +56,16 @@ export class ContentIdeaController {
     summary: 'Ask the content-idea agent for ideas',
   })
   @ApiParam({ name: 'organizationId' })
+  // The request body is described by the schema that already validates it.
+  // Required, and validated against the same schema the handler parses it
+  // with, so the document cannot describe bounds the endpoint does not hold.
+  @ApiHeader({
+    name: IDEMPOTENCY_KEY_HEADER,
+    required: true,
+    schema: wireSchemaOf(idempotencyKeySchema),
+  })
+  @ApiBody({ schema: wireSchemaOf(requestSchema) })
+  @ApiCreatedResponse({ schema: apiSuccessSchema(contentIdeaOperationSchema) })
   request(
     @Param('organizationId') organizationId: string,
     @Body() body: RequestContentIdeasDto,
@@ -74,6 +99,7 @@ export class ContentIdeaController {
     summary: 'Whether this organization may currently generate content ideas',
   })
   @ApiParam({ name: 'organizationId' })
+  @ApiOkResponse({ schema: apiSuccessSchema(contentIdeaAvailabilitySchema) })
   availability(@Param('organizationId') organizationId: string) {
     return this.contentIdeas.availability({ organizationId });
   }
@@ -86,6 +112,7 @@ export class ContentIdeaController {
   })
   @ApiParam({ name: 'organizationId' })
   @ApiParam({ name: 'operationId' })
+  @ApiOkResponse({ schema: apiSuccessSchema(contentIdeaOperationSchema) })
   operation(
     @Param('organizationId') organizationId: string,
     @Param('operationId') operationId: string,

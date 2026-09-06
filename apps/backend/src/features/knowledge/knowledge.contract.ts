@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { isoDateTimeToDate } from '../../infrastructure/http';
 import { KNOWLEDGE_SPACE_SLUGS } from './knowledge-space.registry';
 
 /**
@@ -10,18 +11,6 @@ import { KNOWLEDGE_SPACE_SLUGS } from './knowledge-space.registry';
  * Nothing here validates a response at runtime. It defines the contract and
  * types it; the interceptor still serializes whatever a handler returns.
  */
-
-/**
- * A timestamp at the HTTP boundary. The application side is a `Date`, which is
- * what Prisma returns and what handlers keep working with; the wire side is an
- * ISO-8601 string, which is what JSON serialization already emits. Expressing
- * both in one codec is what lets a single schema own the two representations
- * instead of a hand-maintained pair.
- */
-export const isoDateTimeToDate = z.codec(z.iso.datetime(), z.date(), {
-  decode: (value) => new Date(value),
-  encode: (value) => value.toISOString(),
-});
 
 // The canonical slug list stays the registry's; this only reads it.
 const knowledgeSpaceSlug = z.enum(KNOWLEDGE_SPACE_SLUGS);
