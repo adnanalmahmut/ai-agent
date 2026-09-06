@@ -16,6 +16,7 @@ import { useTranslations } from 'use-intl';
 
 import { useGlobalPermission } from '@/features/authorization/use-permissions';
 import {
+  NO_ERROR_DETAILS,
   type ApiErrorDetails,
   type RuntimeSettingState,
   listRuntimeSettings,
@@ -93,7 +94,7 @@ export function RuntimeSettingsPanel() {
       }
       onRetry={() => void settings.refetch()}
       actionError={actionFailure?.kind ?? null}
-      actionErrorDetails={actionFailure?.details ?? {}}
+      actionErrorDetails={actionFailure?.details ?? NO_ERROR_DETAILS}
       onDismissActionError={() => setActionFailure(null)}
       isEmpty={rows.length === 0}
       emptyLabel={t('settings.empty')}

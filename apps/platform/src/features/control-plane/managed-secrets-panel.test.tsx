@@ -177,7 +177,9 @@ describe('storing a credential', () => {
   it('empties both fields even when the server refused the credential', async () => {
     setManagedSecret.mockRejectedValue(
       new ApiError(422, 'VALIDATION_ERROR', {
-        reason: 'The value does not start with "sk-".',
+        kind: 'validation',
+        fields: [],
+        messages: ['The value does not start with "sk-".'],
       }),
     );
 

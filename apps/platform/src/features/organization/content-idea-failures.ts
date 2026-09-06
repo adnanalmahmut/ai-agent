@@ -1,4 +1,8 @@
-import { ApiError, ApiUnavailableError } from '@/lib/application-api';
+import {
+  ApiError,
+  ApiUnavailableError,
+  NO_ERROR_DETAILS,
+} from '@/lib/application-api';
 import type { ApiErrorDetails } from '@/lib/application-api';
 
 export const CONTENT_IDEA_FAILURES = [
@@ -22,7 +26,8 @@ export type ContentIdeaFailure = {
 export function classifyContentIdeaFailure(
   thrown: unknown,
 ): ContentIdeaFailure {
-  const details = thrown instanceof ApiError ? thrown.details : {};
+  const details =
+    thrown instanceof ApiError ? thrown.details : NO_ERROR_DETAILS;
 
   if (thrown instanceof ApiUnavailableError) {
     return { kind: 'unavailable', details };

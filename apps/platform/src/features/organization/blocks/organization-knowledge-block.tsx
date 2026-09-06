@@ -33,6 +33,8 @@ import { useOrganizationRolePermission } from '@/features/authorization/use-perm
 import {
   ApiError,
   ApiUnavailableError,
+  errorDetailLines,
+  NO_ERROR_DETAILS,
   type ApiErrorDetails,
 } from '@/lib/application-api';
 
@@ -60,7 +62,8 @@ type Failure = {
 };
 
 const classify = (thrown: unknown): Failure => {
-  const details = thrown instanceof ApiError ? thrown.details : {};
+  const details =
+    thrown instanceof ApiError ? thrown.details : NO_ERROR_DETAILS;
 
   if (thrown instanceof ApiUnavailableError) {
     return { kind: 'unavailable', details };
@@ -199,12 +202,7 @@ function OrganizationKnowledge() {
         <Card>
           <CardContent className="space-y-1 py-4 text-sm text-destructive">
             <p>{t(`error.${failure.kind}`)}</p>
-            {(
-              failure.details.issues ??
-              (failure.details.reason === undefined
-                ? []
-                : [failure.details.reason])
-            ).map((reason) => (
+            {errorDetailLines(failure.details).map((reason) => (
               <p key={reason} className="text-xs">
                 {reason}
               </p>

@@ -320,7 +320,9 @@ describe('Organization agent installations (e2e)', () => {
     });
     expect(disallowedCapability.status).toBe(400);
     expect(errorBody(disallowedCapability).error?.details).toEqual({
-      reason: 'invalid_model_selection',
+      kind: 'validation',
+      fields: [],
+      messages: ['invalid_model_selection'],
     });
   });
 
@@ -335,6 +337,7 @@ describe('Organization agent installations (e2e)', () => {
 
     expect(duplicate.status).toBe(409);
     expect(errorBody(duplicate).error?.details).toEqual({
+      kind: 'business',
       reason: 'already_installed',
     });
     await expect(

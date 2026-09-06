@@ -265,7 +265,9 @@ describe('the knowledge screen', () => {
     allow('knowledge:read', 'knowledge:write');
     ingestKnowledgeDocument.mockRejectedValue(
       new ApiError(400, 'VALIDATION_ERROR', {
-        reason: 'The document is 900000 bytes and the limit is 1048576.',
+        kind: 'validation',
+        fields: [],
+        messages: ['The document is 900000 bytes and the limit is 1048576.'],
       }),
     );
 

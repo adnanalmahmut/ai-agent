@@ -52,7 +52,7 @@ const errorBody = (response: Response): ErrorBody => {
       statusCode: response.status,
       errorCode: b.error.code,
       message: b.error.message,
-      errors: b.error.details,
+      errors: b.error.details?.fields,
       timestamp: b.meta?.timestamp,
     };
   }

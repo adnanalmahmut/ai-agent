@@ -182,7 +182,9 @@ describe('saving a runtime setting', () => {
   it('keeps a refused value in the field and leaves the cache untouched', async () => {
     setRuntimeSetting.mockRejectedValue(
       new ApiError(422, 'VALIDATION_ERROR', {
-        issues: ['Too big: expected number to be <=100'],
+        kind: 'validation',
+        fields: [],
+        messages: ['Too big: expected number to be <=100'],
       }),
     );
 

@@ -12,10 +12,53 @@
  * both sides of the `server-only` boundary.
  */
 
-export type ApiErrorDetails = {
-  issues?: string[];
-  reason?: string;
+/** A failure the caller can fix in one named field of the request. */
+export type ApiFieldError = {
+  field: string;
+  code: string;
+  message: string;
 };
+
+/**
+ * What a failing response said about itself, in the shape the interface can
+ * act on.
+ *
+ * The API declares `error.details` as a tagged object: a validated request
+ * that was refused, or a domain rule that said no. That tag is the whole point
+ * — a screen showing field errors and a screen showing a refusal are different
+ * screens, and telling them apart by whether the wire happened to carry an
+ * array is how field errors were silently dropped before the tag existed.
+ *
+ * `none` is the third case and not an absence: a body may be missing,
+ * malformed, or not JSON at all, and the status alone still describes the
+ * refusal.
+ */
+export type ApiErrorDetails =
+  | { kind: 'none' }
+  | { kind: 'validation'; fields: ApiFieldError[]; messages: string[] }
+  | { kind: 'business'; reason?: string };
+
+export const NO_ERROR_DETAILS: ApiErrorDetails = { kind: 'none' };
+
+/**
+ * The lines a screen can put under its own sentence, in the order the server
+ * meant them. Field messages first, because a caller reads the specific
+ * failure before the general one.
+ *
+ * These describe the rule and never the submitted value, which is what makes
+ * them safe to render.
+ */
+export function errorDetailLines(details: ApiErrorDetails): string[] {
+  if (details.kind === 'validation') {
+    return [...details.fields.map((field) => field.message), ...details.messages];
+  }
+
+  if (details.kind === 'business' && details.reason !== undefined) {
+    return [details.reason];
+  }
+
+  return [];
+}
 
 /**
  * Returns the payload the server wrapped, or the body untouched when it never
@@ -42,7 +85,7 @@ export async function readApiError(
     const body: unknown = await response.json();
 
     if (typeof body !== 'object' || body === null) {
-      return { code: undefined, details: {} };
+      return { code: undefined, details: NO_ERROR_DETAILS };
     }
 
     const record = body as Record<string, unknown>;
@@ -57,7 +100,7 @@ export async function readApiError(
       details: readApiErrorDetails(source.details),
     };
   } catch {
-    return { code: undefined, details: {} };
+    return { code: undefined, details: NO_ERROR_DETAILS };
   }
 }
 
@@ -65,21 +108,77 @@ export async function readApiError(
  * Keeps only the shapes the interface knows how to show. A field of the wrong
  * type is dropped rather than passed on, so a rendering never has to defend
  * itself against the wire.
+ *
+ * Both of the shapes this API published before it declared a tag are still
+ * read, because a rollback to an older release is a supported operation and
+ * the running interface has to survive one: the request pipe used to send a
+ * bare array of field errors, and a service validating its own input used to
+ * send `{ issues }`. Neither is produced any more, and neither is guessed at
+ * beyond what it plainly is.
  */
 function readApiErrorDetails(value: unknown): ApiErrorDetails {
-  if (typeof value !== 'object' || value === null) return {};
-
-  const record = value as Record<string, unknown>;
-  const details: ApiErrorDetails = {};
-
-  if (
-    Array.isArray(record.issues) &&
-    record.issues.every((issue) => typeof issue === 'string')
-  ) {
-    details.issues = record.issues as string[];
+  if (Array.isArray(value)) {
+    // Legacy: the request pipe's field errors, before they were tagged.
+    return { kind: 'validation', fields: readFieldErrors(value), messages: [] };
   }
 
-  if (typeof record.reason === 'string') details.reason = record.reason;
+  if (typeof value !== 'object' || value === null) return NO_ERROR_DETAILS;
 
-  return details;
+  const record = value as Record<string, unknown>;
+
+  if (record.kind === 'validation') {
+    return {
+      kind: 'validation',
+      fields: readFieldErrors(record.fields),
+      messages: readMessages(record.messages),
+    };
+  }
+
+  if (record.kind === 'business') {
+    return typeof record.reason === 'string'
+      ? { kind: 'business', reason: record.reason }
+      : { kind: 'business' };
+  }
+
+  // Legacy: an untagged bag, from a release that predates the contract.
+  const messages = readMessages(record.issues);
+  if (messages.length > 0) return { kind: 'validation', fields: [], messages };
+
+  if (typeof record.reason === 'string') {
+    return { kind: 'business', reason: record.reason };
+  }
+
+  return NO_ERROR_DETAILS;
+}
+
+/**
+ * All or nothing, here and in `readMessages`: a list with one entry of the
+ * wrong shape is a list from a server that is not speaking this contract, and
+ * showing the half of it that happens to parse asserts more about the failure
+ * than is known.
+ */
+function readFieldErrors(value: unknown): ApiFieldError[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.every(isFieldError) ? (value as ApiFieldError[]) : [];
+}
+
+function isFieldError(value: unknown): value is ApiFieldError {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.field === 'string' &&
+    typeof record.code === 'string' &&
+    typeof record.message === 'string'
+  );
+}
+
+function readMessages(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.every((entry) => typeof entry === 'string')
+    ? (value as string[])
+    : [];
 }

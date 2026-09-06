@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { API_BASE_PATH } from '@/config/paths';
-import { ApiError, ApiUnavailableError } from '@/lib/application-api';
+import {
+  ApiError,
+  ApiUnavailableError,
+  errorDetailLines,
+} from '@/lib/application-api';
 
 /**
  * The server transport is the same protocol read from the other side of the
@@ -132,16 +136,20 @@ describe('a server-rendered refusal', () => {
     );
 
     expect(thrown.code).toBe('FORBIDDEN');
-    expect(thrown.details).toEqual({});
+    expect(thrown.details).toEqual({ kind: 'none' });
   });
 
-  it('reads the issues a validation failure listed', async () => {
+  it('reads the reasons a validation failure listed', async () => {
     const thrown = await failure(
       jsonResponse(
         {
           error: {
             code: 'VALIDATION_ERROR',
-            details: { issues: ['Too big: expected number to be <=100'] },
+            details: {
+              kind: 'validation',
+              fields: [],
+              messages: ['Too big: expected number to be <=100'],
+            },
           },
         },
         422,
@@ -149,20 +157,20 @@ describe('a server-rendered refusal', () => {
     );
 
     expect(thrown.code).toBe('VALIDATION_ERROR');
-    expect(thrown.details.issues).toEqual([
+    expect(errorDetailLines(thrown.details)).toEqual([
       'Too big: expected number to be <=100',
     ]);
   });
 
-  it('reads a single reason from an unnested body', async () => {
+  it('reads a refusal from an unnested body', async () => {
     const thrown = await failure(
       jsonResponse(
-        { code: 'VALIDATION_ERROR', details: { reason: 'no' } },
-        422,
+        { code: 'CONFLICT', details: { kind: 'business', reason: 'no' } },
+        409,
       ),
     );
 
-    expect(thrown.details.reason).toBe('no');
+    expect(thrown.details).toEqual({ kind: 'business', reason: 'no' });
   });
 
   it('refuses details that are not the shape the interface shows', async () => {
@@ -177,7 +185,7 @@ describe('a server-rendered refusal', () => {
       ),
     );
 
-    expect(thrown.details).toEqual({});
+    expect(thrown.details).toEqual({ kind: 'none' });
   });
 
   it('survives a body that is not JSON at all', async () => {
@@ -191,7 +199,7 @@ describe('a server-rendered refusal', () => {
     expect(thrown).toBeInstanceOf(ApiError);
     expect(thrown.status).toBe(502);
     expect(thrown.code).toBeUndefined();
-    expect(thrown.details).toEqual({});
+    expect(thrown.details).toEqual({ kind: 'none' });
   });
 
   it('never puts the server’s message into the thrown error', async () => {

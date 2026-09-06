@@ -36,10 +36,49 @@ export interface ApiFieldError {
   message: string;
 }
 
+/**
+ * What `error.details` is allowed to be on the wire.
+ *
+ * It used to be `ApiFieldError[] | Record<string, unknown>`, which asked every
+ * reader to work out which one it had been handed. Two producers made that
+ * worse rather than academic: the request pipe reported a rejected body as an
+ * array of field errors, while a service validating its own input reported the
+ * same class of failure as `{ issues: string[] }`. A client could read one or
+ * the other, and the platform read the object -- so field errors arrived and
+ * were dropped without a trace.
+ *
+ * So details are always an object, and they always say which of the two things
+ * they are. `kind` is set by the exception filter and never by a producer,
+ * which is what makes it answerable.
+ */
+export interface ApiValidationErrorDetails {
+  kind: 'validation';
+
+  /** Failures located to a request field. Empty when none could be. */
+  fields: ApiFieldError[];
+
+  /** Reasons that belong to the request as a whole rather than to a field. */
+  messages: string[];
+}
+
+/**
+ * A domain refusal: the request was well formed and the rule still said no.
+ * The remaining keys are whatever the endpoint documents -- `reason` by
+ * convention, and values a caller can act on -- carried through as they are so
+ * that adding one to an endpoint is not a change to this contract.
+ */
+export interface ApiBusinessErrorDetails {
+  kind: 'business';
+  [key: string]: unknown;
+}
+
+export type ApiErrorDetails =
+  ApiValidationErrorDetails | ApiBusinessErrorDetails;
+
 export interface ApiErrorDetail {
   code: string;
   message: string;
-  details?: ApiFieldError[] | Record<string, unknown>;
+  details?: ApiErrorDetails;
 }
 
 export interface ApiErrorResponse {

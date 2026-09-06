@@ -1,11 +1,15 @@
 import { API_BASE_PATH, CONTROL_PLANE_PATH } from '@/config/paths';
 import {
+  errorDetailLines,
+  NO_ERROR_DETAILS,
   readApiError,
   unwrapEnvelope,
   type ApiErrorDetails,
+  type ApiFieldError,
 } from '@/lib/api/response-protocol';
 
-export type { ApiErrorDetails };
+export type { ApiErrorDetails, ApiFieldError };
+export { errorDetailLines, NO_ERROR_DETAILS };
 
 export class ApiUnavailableError extends Error {
   constructor(cause?: unknown) {
@@ -19,7 +23,7 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string | undefined,
-    readonly details: ApiErrorDetails = {},
+    readonly details: ApiErrorDetails = NO_ERROR_DETAILS,
   ) {
     super(`Platform API responded with ${status}`);
     this.name = 'ApiError';

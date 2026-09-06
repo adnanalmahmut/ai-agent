@@ -3,7 +3,7 @@ import { Loader2, RefreshCw, ShieldAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslations } from 'use-intl';
 
-import type { ApiErrorDetails } from '@/lib/application-api';
+import { errorDetailLines, type ApiErrorDetails } from '@/lib/application-api';
 
 import type { ControlPlaneErrorKind } from './control-plane-errors';
 
@@ -38,8 +38,7 @@ export function PanelState({
 }) {
   const t = useTranslations('ControlPlane');
 
-  const { issues, reason } = actionErrorDetails;
-  const reasons = issues ?? (reason === undefined ? [] : [reason]);
+  const reasons = errorDetailLines(actionErrorDetails);
 
   if (isLoading) {
     return (
