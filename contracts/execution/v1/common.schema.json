@@ -1,0 +1,335 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ai-agent.local/execution/v1/common.schema.json",
+  "title": "Execution v1 common definitions",
+  "description": "Primitives every execution v1 document is built from. Bounds are not invented here: each one is either a limit the deployment already enforces or an explicit conservative ceiling named in contracts/README.md.",
+  "$defs": {
+    "version": {
+      "title": "ExecutionVersion",
+      "description": "The contract this document is written against.",
+      "const": "1"
+    },
+    "identifier": {
+      "title": "ExecutionIdentifier",
+      "description": "An opaque identifier. The ceiling matches the idempotency-key bound the HTTP surface already enforces.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "toolRef": {
+      "title": "ExecutionToolRef",
+      "description": "A versioned tool reference, `id@version`.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 200,
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*@[1-9][0-9]{0,4}$"
+    },
+    "timestamp": {
+      "title": "ExecutionTimestamp",
+      "description": "An instant, as an ISO-8601 date-time string. Never a language date object: those do not survive JSON.",
+      "type": "string",
+      "format": "date-time",
+      "minLength": 20,
+      "maxLength": 40
+    },
+    "count": {
+      "title": "ExecutionCount",
+      "description": "A non-negative whole number, ceilinged at PostgreSQL's Int, which is the column type these values are stored in.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "attempt": {
+      "title": "ExecutionAttempt",
+      "description": "A delivery ordinal. Attempts start at one.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 2147483647
+    },
+    "shortText": {
+      "title": "ExecutionShortText",
+      "description": "Bounded human-readable text. The ceiling matches the longest free-text field the HTTP surface accepts today.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "sensitiveNamePattern": {
+      "title": "ExecutionSensitiveNamePattern",
+      "description": "Property names an execution document may never carry. Applied to every level of a payload, not only the top one.",
+      "type": "string",
+      "const": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+    },
+    "payload": {
+      "title": "ExecutionPayload",
+      "description": "Arbitrary agent data, bounded in width, depth and key naming. Total size is a separate budget the validator enforces, because JSON Schema cannot express bytes.",
+      "$ref": "#/$defs/payloadLevel6"
+    },
+    "payloadLevel0": {
+      "title": "ExecutionPayloadLevel0",
+      "description": "The deepest level a payload may reach: scalars only.",
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536
+        },
+        {
+          "type": "number",
+          "minimum": -1e+308,
+          "maximum": 1e+308
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "payloadLevel1": {
+      "title": "ExecutionPayloadLevel1",
+      "description": "A payload value with at most 1 further levels beneath it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536
+        },
+        {
+          "type": "number",
+          "minimum": -1e+308,
+          "maximum": 1e+308
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/payloadLevel0"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": {
+            "maxLength": 200,
+            "not": {
+              "pattern": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/payloadLevel0"
+          }
+        }
+      ]
+    },
+    "payloadLevel2": {
+      "title": "ExecutionPayloadLevel2",
+      "description": "A payload value with at most 2 further levels beneath it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536
+        },
+        {
+          "type": "number",
+          "minimum": -1e+308,
+          "maximum": 1e+308
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/payloadLevel1"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": {
+            "maxLength": 200,
+            "not": {
+              "pattern": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/payloadLevel1"
+          }
+        }
+      ]
+    },
+    "payloadLevel3": {
+      "title": "ExecutionPayloadLevel3",
+      "description": "A payload value with at most 3 further levels beneath it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536
+        },
+        {
+          "type": "number",
+          "minimum": -1e+308,
+          "maximum": 1e+308
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/payloadLevel2"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": {
+            "maxLength": 200,
+            "not": {
+              "pattern": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/payloadLevel2"
+          }
+        }
+      ]
+    },
+    "payloadLevel4": {
+      "title": "ExecutionPayloadLevel4",
+      "description": "A payload value with at most 4 further levels beneath it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536
+        },
+        {
+          "type": "number",
+          "minimum": -1e+308,
+          "maximum": 1e+308
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/payloadLevel3"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": {
+            "maxLength": 200,
+            "not": {
+              "pattern": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/payloadLevel3"
+          }
+        }
+      ]
+    },
+    "payloadLevel5": {
+      "title": "ExecutionPayloadLevel5",
+      "description": "A payload value with at most 5 further levels beneath it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536
+        },
+        {
+          "type": "number",
+          "minimum": -1e+308,
+          "maximum": 1e+308
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/payloadLevel4"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": {
+            "maxLength": 200,
+            "not": {
+              "pattern": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/payloadLevel4"
+          }
+        }
+      ]
+    },
+    "payloadLevel6": {
+      "title": "ExecutionPayloadLevel6",
+      "description": "A payload value with at most 6 further levels beneath it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 65536
+        },
+        {
+          "type": "number",
+          "minimum": -1e+308,
+          "maximum": 1e+308
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/payloadLevel5"
+          }
+        },
+        {
+          "type": "object",
+          "maxProperties": 128,
+          "propertyNames": {
+            "maxLength": 200,
+            "not": {
+              "pattern": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+            }
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/payloadLevel5"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "kind": "safeFailure",
+  "document": {
+    "version": "1",
+    "code": "output_rejected",
+    "detail": "The model returned three items where the request asked for five."
+  },
+  "why": "Detail strings cross trust boundaries and risk leaking sensitive provider data."
+}
+

@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ai-agent.local/execution/v1/runtime-step.schema.json",
+  "title": "RuntimeStep",
+  "description": "One unit of execution, described so a worker in any language can perform it. Everything it is pinned to was decided when the run was accepted; nothing here is a question the runtime gets to answer.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+    },
+    "stepId": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+    },
+    "runId": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+    },
+    "organizationId": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+    },
+    "attempt": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/attempt"
+    },
+    "acceptedAt": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/timestamp"
+    },
+    "agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "version": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/attempt"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ]
+    },
+    "model": {
+      "description": "The model pin, decided at acceptance.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "modelId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "pricingRevisionId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        }
+      },
+      "required": [
+        "policyId",
+        "modelId",
+        "pricingRevisionId"
+      ]
+    },
+    "input": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/payload"
+    },
+    "context": {
+      "description": "Retrieved passages. The ceilings are the context policy the deployed agent definitions already use.",
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "documentId": {
+            "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+          },
+          "chunkId": {
+            "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          }
+        },
+        "required": [
+          "documentId",
+          "chunkId",
+          "text"
+        ]
+      }
+    },
+    "grantedTools": {
+      "description": "Tools this step may propose. A reference the Control Plane did not put here is not made usable by asking for it.",
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/toolRef"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "stepId",
+    "runId",
+    "organizationId",
+    "attempt",
+    "acceptedAt",
+    "agent",
+    "model",
+    "input",
+    "context",
+    "grantedTools"
+  ]
+}

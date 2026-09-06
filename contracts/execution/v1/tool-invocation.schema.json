@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ai-agent.local/execution/v1/tool-invocation.schema.json",
+  "title": "ToolInvocation",
+  "description": "A runtime asking for a tool to be run. A proposal and nothing more: there is no field here that can carry an authorization decision, and no extra property is accepted, so a runtime cannot invent one.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+    },
+    "invocationId": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+    },
+    "tool": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/toolRef"
+    },
+    "input": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/payload"
+    }
+  },
+  "required": [
+    "version",
+    "invocationId",
+    "tool",
+    "input"
+  ]
+}

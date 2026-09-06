@@ -1,0 +1,9 @@
+{
+  "kind": "safeFailure",
+  "document": {
+    "version": "1",
+    "code": "internal_error",
+    "stack": "Error: boom\\n    at /srv/app/dist/src/main.js:1:1"
+  },
+  "why": "A stack trace names the deployment to whoever reads the failure."
+}

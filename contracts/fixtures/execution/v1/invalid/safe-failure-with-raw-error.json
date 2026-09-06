@@ -1,0 +1,10 @@
+{
+  "kind": "safeFailure",
+  "document": {
+    "version": "1",
+    "code": "internal_error",
+    "rawError": "ECONNREFUSED 127.0.0.1:5432"
+  },
+  "why": "Raw errors cross trust boundaries and leak internal network addresses."
+}
+

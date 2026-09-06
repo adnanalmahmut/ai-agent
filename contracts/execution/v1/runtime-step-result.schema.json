@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ai-agent.local/execution/v1/runtime-step-result.schema.json",
+  "title": "RuntimeStepResult",
+  "description": "What a step produced. Exactly one of three shapes, told apart by `outcome`, so a reader never has to guess which fields are meaningful.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/final"
+    },
+    {
+      "$ref": "#/$defs/toolRequest"
+    },
+    {
+      "$ref": "#/$defs/failed"
+    }
+  ],
+  "$defs": {
+    "final": {
+      "description": "The step finished and produced an answer.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+        },
+        "stepId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "runId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "attempt": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/attempt"
+        },
+        "outcome": {
+          "const": "final"
+        },
+        "output": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/payload"
+        },
+        "artifacts": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "https://contracts.ai-agent.local/execution/v1/artifact-ref.schema.json"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "stepId",
+        "runId",
+        "attempt",
+        "outcome",
+        "output",
+        "artifacts"
+      ]
+    },
+    "toolRequest": {
+      "description": "The step wants tools run before it can finish. Still a proposal.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+        },
+        "stepId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "runId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "attempt": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/attempt"
+        },
+        "outcome": {
+          "const": "tool_request"
+        },
+        "invocations": {
+          "description": "Proposals, bounded by the same per-attempt budget the in-process tool gateway enforces.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "$ref": "https://contracts.ai-agent.local/execution/v1/tool-invocation.schema.json"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "stepId",
+        "runId",
+        "attempt",
+        "outcome",
+        "invocations"
+      ]
+    },
+    "failed": {
+      "description": "The step could not produce an answer.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+        },
+        "stepId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "runId": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        },
+        "attempt": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/attempt"
+        },
+        "outcome": {
+          "const": "failed"
+        },
+        "failure": {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/safe-failure.schema.json"
+        }
+      },
+      "required": [
+        "version",
+        "stepId",
+        "runId",
+        "attempt",
+        "outcome",
+        "failure"
+      ]
+    }
+  }
+}

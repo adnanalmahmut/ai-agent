@@ -1,0 +1,10 @@
+{
+  "kind": "safeFailure",
+  "document": {
+    "version": "1",
+    "code": "provider_rejected",
+    "providerMessage": "Credit limit exceeded for billing account"
+  },
+  "why": "Raw provider messages leak provider account details and internals across boundaries."
+}
+

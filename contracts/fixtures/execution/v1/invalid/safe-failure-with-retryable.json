@@ -1,0 +1,10 @@
+{
+  "kind": "safeFailure",
+  "document": {
+    "version": "1",
+    "code": "provider_unavailable",
+    "retryable": true
+  },
+  "why": "Retryability is caller policy, not a property of the failure itself."
+}
+

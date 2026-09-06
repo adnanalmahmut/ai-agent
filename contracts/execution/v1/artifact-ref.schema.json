@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ai-agent.local/execution/v1/artifact-ref.schema.json",
+  "title": "ArtifactRef",
+  "description": "A pointer to stored bytes. Deliberately not a URL and not a credential: resolving a reference is a service boundary's job, and a signed link placed here would outlive the authorization that made it.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+    },
+    "ref": {
+      "description": "An opaque storage reference the Control Plane can resolve.",
+      "type": "string",
+      "allOf": [
+        {
+          "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+        }
+      ],
+      "pattern": "^[a-zA-Z0-9_.-]+$"
+    },
+    "contentType": {
+      "description": "An IANA media type, without parameters.",
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 255,
+      "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]{0,126}/[a-z0-9][a-z0-9!#$&^_.+-]{0,126}$"
+    },
+    "byteSize": {
+      "description": "Size of the stored bytes. The ceiling is an explicit conservative one; no existing limit governs artifacts yet.",
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 67108864
+    },
+    "digest": {
+      "description": "Lowercase hex SHA-256 of the stored bytes.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "version",
+    "ref",
+    "contentType",
+    "byteSize",
+    "digest"
+  ]
+}

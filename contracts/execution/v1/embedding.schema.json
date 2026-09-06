@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ai-agent.local/execution/v1/embedding.schema.json",
+  "title": "Embedding",
+  "description": "A vector produced for a piece of text. The dimension is fixed, not advisory: the deployed pgvector column rejects anything else.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+    },
+    "model": {
+      "description": "The provider model identifier the vector came from.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "vector": {
+      "description": "Exactly 1536 finite components.",
+      "type": "array",
+      "minItems": 1536,
+      "maxItems": 1536,
+      "items": {
+        "type": "number",
+        "minimum": -1e+308,
+        "maximum": 1e+308
+      }
+    }
+  },
+  "required": [
+    "version",
+    "model",
+    "vector"
+  ]
+}

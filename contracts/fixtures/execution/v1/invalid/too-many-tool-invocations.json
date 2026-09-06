@@ -1,0 +1,143 @@
+{
+  "kind": "runtimeStepResult",
+  "document": {
+    "version": "1",
+    "stepId": "step_01JQ8Z3N0000000000000001",
+    "runId": "run_01JQ8Z3N0000000000000001",
+    "attempt": 1,
+    "outcome": "tool_request",
+    "invocations": [
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000000",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000001",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000002",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000003",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000004",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000005",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000006",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000007",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000008",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000009",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000010",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000011",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      },
+      {
+        "version": "1",
+        "invocationId": "inv_000000000000000000000012",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      }
+    ]
+  },
+  "why": "One more than the per-attempt budget the tool gateway enforces."
+}
