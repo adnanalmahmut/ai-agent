@@ -1,16 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { AppException } from '../../core/errors';
 import { Prisma } from '../../generated/prisma/client';
-import {
-  isUniqueConstraintViolation,
-  PrismaService,
-} from '../../infrastructure/database';
-import { OutboxRepository } from '../../infrastructure/outbox';
+import { PrismaService } from '../../infrastructure/database';
 import { AgentConfigurationError } from '../agents/agent-configuration.error';
-import { AgentDefinitionRegistry } from '../agents/agent-definition.registry';
 import {
-  AGENT_RUN_DRIVERS,
   MCP_SESSION_RUNTIME,
   TERMINAL_TRANSPORT_FAILURE,
   type AgentConfiguration,
@@ -18,20 +11,8 @@ import {
   type AgentRun,
   type AgentRunStatus,
   type AgentValue,
-  type CreateAgentRun,
 } from '../agents/agent.types';
-import {
-  APPLICATION_MODEL_CATALOG,
-  type AgentModelId,
-} from '../models/model-catalog';
-
-const AGENT_RUN_QUEUED = 'agent-run.queued';
-
-export const AGENT_RUN_CAPACITY_LOCK = 4_310_001;
-
-type PersistedAgentRun = Awaited<
-  ReturnType<PrismaService['agentRun']['findUniqueOrThrow']>
->;
+import { toAgentRun } from './agent-run.mapper';
 
 export type StaleRunCursor = { updatedAt: Date; id: string };
 
@@ -47,111 +28,28 @@ export type StaleAgentRun = {
 
 @Injectable()
 export class AgentRunService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly outbox: OutboxRepository,
-    private readonly definitions: AgentDefinitionRegistry,
-  ) {}
-
-  async create(input: CreateAgentRun): Promise<AgentRun> {
-    const existing = await this.findByIdempotencyKey(input);
-    if (existing) return toAgentRun(existing);
-
-    try {
-      const run = await this.prisma.$transaction(async (tx) => {
-        // Serialize concurrent run requests per tenant to enforce organization
-        // concurrency limits atomically without coarse table-level locks.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${AGENT_RUN_CAPACITY_LOCK}, hashtext(${input.organizationId}))`;
-
-        const accepted = await tx.agentRun.findUnique({
-          where: {
-            organizationId_idempotencyKey: {
-              organizationId: input.organizationId,
-              idempotencyKey: input.idempotencyKey,
-            },
-          },
-        });
-
-        if (accepted) return accepted;
-
-        const effective = await this.resolveEffectiveVersion(tx, input);
-        await assertCapacity(tx, input);
-        const acceptedAt = new Date();
-        const pricingRevision = APPLICATION_MODEL_CATALOG.pricingRevision(
-          effective.modelId,
-          acceptedAt,
-        );
-
-        const session = input.driver === AGENT_RUN_DRIVERS.mcpClient;
-
-        const created = await tx.agentRun.create({
-          data: {
-            agentId: input.agentId,
-            agentVersion: effective.definitionVersion,
-            runtime: session ? MCP_SESSION_RUNTIME : effective.runtime,
-            organizationId: input.organizationId,
-            organizationAgentVersionId: effective.id,
-            modelPolicyId: effective.modelPolicyId,
-            modelId: effective.modelId,
-            modelPricingRevisionId: pricingRevision.id,
-            createdByUserId: input.createdByUserId,
-            input: input.input as Prisma.InputJsonValue,
-            idempotencyKey: input.idempotencyKey,
-            createdAt: acceptedAt,
-            ...(session
-              ? {
-                  status: 'RUNNING' as const,
-                  startedAt: acceptedAt,
-                  attemptCount: 1,
-                }
-              : {}),
-          },
-        });
-
-        if (!session) {
-          await this.outbox.append(tx, {
-            type: AGENT_RUN_QUEUED,
-            payload: { runId: created.id },
-            dedupeKey: created.id,
-          });
-        }
-
-        return created;
-      });
-
-      return toAgentRun(run);
-    } catch (error) {
-      if (!isUniqueConstraintViolation(error)) throw error;
-
-      const winner = await this.findByIdempotencyKey(input);
-
-      // The unique request key makes the first committed run authoritative.
-      if (!winner) throw error;
-
-      return toAgentRun(winner);
-    }
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   async claimExecutionAttempt(
     runId: string,
-    attemptsStarted: number,
+    attempt: number,
   ): Promise<AgentRun | null> {
-    if (!Number.isInteger(attemptsStarted) || attemptsStarted < 1) {
+    if (!Number.isInteger(attempt) || attempt < 1) {
       throw new Error(
         'Agent execution attempt number must be a positive integer',
       );
     }
 
-    // The BullMQ active-start ordinal is the durable claim's fencing token.
+    // The caller's delivery ordinal is the durable claim's fencing token.
     const queuedClaim = await this.prisma.agentRun.updateManyAndReturn({
       where: {
         id: runId,
         status: 'QUEUED',
-        attemptCount: { lt: attemptsStarted },
+        attemptCount: { lt: attempt },
       },
       data: {
         status: 'RUNNING',
-        attemptCount: attemptsStarted,
+        attemptCount: attempt,
         lastError: null,
         startedAt: new Date(),
       },
@@ -164,10 +62,10 @@ export class AgentRunService {
       where: {
         id: runId,
         status: 'RUNNING',
-        attemptCount: { lt: attemptsStarted },
+        attemptCount: { lt: attempt },
       },
       data: {
-        attemptCount: attemptsStarted,
+        attemptCount: attempt,
         lastError: null,
       },
     });
@@ -391,187 +289,4 @@ export class AgentRunService {
       toolGrants: version.toolGrants,
     };
   }
-
-  private async resolveEffectiveVersion(
-    tx: Prisma.TransactionClient,
-    input: CreateAgentRun,
-  ): Promise<{
-    id: string;
-    definitionVersion: number;
-    runtime: string;
-    modelPolicyId: string;
-    modelId: AgentModelId;
-  }> {
-    const installation = await tx.organizationAgentInstallation.findUnique({
-      where: {
-        organizationId_agentId: {
-          organizationId: input.organizationId,
-          agentId: input.agentId,
-        },
-      },
-      select: {
-        activeVersion: {
-          select: {
-            id: true,
-            definitionVersion: true,
-            enabled: true,
-            configuration: true,
-            modelPolicyId: true,
-            modelId: true,
-          },
-        },
-      },
-    });
-
-    const active = installation?.activeVersion;
-    if (!active) {
-      throw new AppException('NOT_FOUND', {
-        context: { resource: 'organizationAgentInstallation' },
-        publicDetails: { reason: 'agent_not_installed' },
-      });
-    }
-    if (!active.enabled) {
-      throw new AppException('FEATURE_DISABLED', {
-        context: { resource: 'organizationAgentInstallation' },
-        publicDetails: { reason: 'agent_disabled' },
-      });
-    }
-
-    let definition;
-    try {
-      definition = this.definitions.resolve(
-        input.agentId,
-        active.definitionVersion,
-      );
-      this.definitions.parseOrganizationConfiguration(
-        input.agentId,
-        active.definitionVersion,
-        active.configuration,
-      );
-    } catch (error) {
-      if (error instanceof AgentConfigurationError) {
-        throw new AppException('NOT_FOUND', {
-          context: { resource: 'agentDefinition' },
-          publicDetails: { reason: 'agent_definition_unavailable' },
-        });
-      }
-      throw new AppException('CONFLICT', {
-        context: { resource: 'organizationAgentConfiguration' },
-        publicDetails: { reason: 'invalid_active_configuration' },
-      });
-    }
-
-    const model = effectiveModelSelection(definition, active);
-
-    return {
-      id: active.id,
-      definitionVersion: definition.version,
-      runtime: definition.runtime,
-      modelPolicyId: model.modelPolicyId,
-      modelId: model.modelId,
-    };
-  }
-
-  private findByIdempotencyKey(
-    input: Pick<CreateAgentRun, 'organizationId' | 'idempotencyKey'>,
-  ) {
-    return this.prisma.agentRun.findUnique({
-      where: {
-        organizationId_idempotencyKey: {
-          organizationId: input.organizationId,
-          idempotencyKey: input.idempotencyKey,
-        },
-      },
-    });
-  }
-}
-
-async function assertCapacity(
-  tx: Pick<PrismaService, 'agentRun'>,
-  input: CreateAgentRun,
-): Promise<void> {
-  const { maxInFlight } = input;
-
-  if (maxInFlight === undefined) return;
-
-  const inFlight = await tx.agentRun.count({
-    where: {
-      organizationId: input.organizationId,
-      status: { in: ['QUEUED', 'RUNNING'] },
-    },
-  });
-
-  if (inFlight < maxInFlight) return;
-
-  throw new AppException('TOO_MANY_REQUESTS', {
-    context: { resource: 'agentRun', organizationId: input.organizationId },
-    publicDetails: {
-      reason:
-        'This organization already has the maximum number of agent runs in flight. Wait for one to finish.',
-    },
-  });
-}
-
-function toAgentRun(run: PersistedAgentRun): AgentRun {
-  return {
-    id: run.id,
-    agentId: run.agentId,
-    agentVersion: run.agentVersion,
-    organizationAgentVersionId: run.organizationAgentVersionId,
-    modelPolicyId: run.modelPolicyId,
-    modelId: run.modelId as AgentModelId | null,
-    modelPricingRevisionId: run.modelPricingRevisionId,
-    runtime: run.runtime,
-    status: run.status,
-    organizationId: run.organizationId,
-    createdByUserId: run.createdByUserId,
-    input: run.input as AgentValue,
-    output: run.output as AgentValue | null,
-    lastError: run.lastError,
-    attemptCount: run.attemptCount,
-    idempotencyKey: run.idempotencyKey,
-    startedAt: run.startedAt,
-    completedAt: run.completedAt,
-    createdAt: run.createdAt,
-    updatedAt: run.updatedAt,
-  };
-}
-
-function effectiveModelSelection(
-  definition: ReturnType<AgentDefinitionRegistry['resolve']>,
-  version: { modelPolicyId: string | null; modelId: string | null },
-): { modelPolicyId: string; modelId: AgentModelId } {
-  if (version.modelPolicyId === null && version.modelId === null) {
-    return {
-      modelPolicyId: definition.modelPolicy.id,
-      modelId: definition.model,
-    };
-  }
-  if (version.modelPolicyId === null || version.modelId === null) {
-    throw invalidActiveModelPolicy();
-  }
-  if (
-    version.modelPolicyId !== definition.modelPolicy.id ||
-    !definition.modelPolicy.allowedModelIds.includes(
-      version.modelId as AgentModelId,
-    )
-  ) {
-    throw invalidActiveModelPolicy();
-  }
-  try {
-    APPLICATION_MODEL_CATALOG.agentModel(version.modelId);
-  } catch {
-    throw invalidActiveModelPolicy();
-  }
-  return {
-    modelPolicyId: version.modelPolicyId,
-    modelId: version.modelId as AgentModelId,
-  };
-}
-
-function invalidActiveModelPolicy(): AppException {
-  return new AppException('CONFLICT', {
-    context: { resource: 'organizationAgentModelPolicy' },
-    publicDetails: { reason: 'invalid_active_model_policy' },
-  });
 }

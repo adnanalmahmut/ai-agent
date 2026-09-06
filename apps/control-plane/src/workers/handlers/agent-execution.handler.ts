@@ -3,25 +3,24 @@ import { UnrecoverableError, type Job } from 'bullmq';
 import { PinoLogger } from 'nestjs-pino';
 
 import { QUEUE_NAMES, type QueueJobHandler } from '../../infrastructure/queue';
-import { isAgentConfigurationError } from '../../ai/agents/agent-configuration.error';
-import {
-  AGENT_EXECUTION_FAILED,
-  type AgentRuntimeResult,
-} from '../../ai/agents/agent.types';
-import { isAgentOutputContractError } from '../../ai/execution/agent-output-contract.error';
-import { AgentRunService } from '../../ai/execution/agent-run.service';
-import { AgentRunner } from '../../ai/execution/agent-runner.service';
+import { ExecuteAgentRunUseCase } from '../../modules/runs';
 
 export type AgentExecutionJob = { runId: string };
 
+/**
+ * The queue side of running an agent: read what the delivery says, ask the
+ * Control Plane to execute, and say back in BullMQ's vocabulary what it
+ * decided. No policy lives here — which attempt is authoritative, whether a
+ * failure is worth another try, and what gets written are all answered behind
+ * `ExecuteAgentRunUseCase`.
+ */
 @Injectable()
 export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob> {
   readonly queue = QUEUE_NAMES.agentExecution;
   readonly jobName = 'execute';
 
   constructor(
-    private readonly runs: AgentRunService,
-    private readonly runner: AgentRunner,
+    private readonly execution: ExecuteAgentRunUseCase,
     private readonly logger: PinoLogger,
   ) {}
 
@@ -31,105 +30,61 @@ export class AgentExecutionHandler implements QueueJobHandler<AgentExecutionJob>
       throw new Error('Agent execution job requires a runId');
     }
 
-    const run = await this.runs.claimExecutionAttempt(
+    const attemptsStarted = job.attemptsStarted;
+
+    const outcome = await this.execution.execute({
       runId,
-      job.attemptsStarted,
-    );
-    if (!run) return;
+      attempt: attemptsStarted,
+      lastDelivery: job.attemptsMade + 1 >= (job.opts.attempts ?? 1),
+    });
 
-    const diagnostic = AGENT_EXECUTION_FAILED;
-    let result: AgentRuntimeResult;
+    if (outcome.status === 'not_claimed' || outcome.status === 'succeeded') {
+      return;
+    }
 
-    try {
-      result = await this.runner.run(run);
-    } catch (error) {
-      const deterministic = isAgentConfigurationError(error);
-
-      const contractViolation = isAgentOutputContractError(error);
-
-      const attempts = job.opts.attempts ?? 1;
-
-      const final = deterministic || job.attemptsMade + 1 >= attempts;
-
-      const recorded = await this.runs.recordExecutionFailure(
-        run.id,
-        run.attemptCount,
-        diagnostic,
-        final,
-      );
+    if (outcome.status === 'failed') {
+      const { run } = outcome;
 
       this.logger.warn(
         {
-          runId: run.id,
+          runId: run.runId,
           agentId: run.agentId,
           agentVersion: run.agentVersion,
           attemptCount: run.attemptCount,
-          attemptsStarted: job.attemptsStarted,
-          reason: reasonFor(deterministic, contractViolation, recorded),
-          final,
+          attemptsStarted,
+          reason: outcome.reason,
+          final: outcome.final,
         },
         'Agent execution attempt failed',
       );
 
-      if (deterministic && recorded) throw new UnrecoverableError(diagnostic);
+      // Retrying a settled deterministic failure would only burn deliveries.
+      if (outcome.exhausted) throw new UnrecoverableError(outcome.diagnostic);
 
       // BullMQ must see a rejection to preserve retries, but provider messages
       // and response bodies must not be copied into Redis failedReason or logs.
-      throw new Error(diagnostic);
+      throw new Error(outcome.diagnostic);
     }
 
-    let recorded: boolean;
+    const { run } = outcome;
 
-    try {
-      recorded = await this.runs.markExecutionSucceeded(
-        run.id,
-        run.attemptCount,
-        result.output,
-      );
-    } catch {
-      this.logger.warn(
-        {
-          runId: run.id,
-          attemptCount: run.attemptCount,
-          attemptsStarted: job.attemptsStarted,
-          reason: 'result_write_failed',
-        },
-        'Agent execution result could not be recorded',
-      );
-
-      throw new Error(diagnostic);
-    }
-
-    if (recorded) return;
-
-    // A newer delivery claimed the run while this model call was in flight, so
-    // that delivery owns the outcome and this worker records nothing — writing
-    // a failure here would target an attempt it no longer holds. BullMQ still
-    // needs a rejection, because this delivery did not complete the work.
     this.logger.warn(
       {
-        runId: run.id,
+        runId: run.runId,
         attemptCount: run.attemptCount,
-        attemptsStarted: job.attemptsStarted,
-        reason: 'claim_lost',
+        attemptsStarted,
+        reason:
+          outcome.status === 'result_unrecorded'
+            ? 'result_write_failed'
+            : 'claim_lost',
       },
-      'Agent execution attempt lost its claim before recording success',
+      outcome.status === 'result_unrecorded'
+        ? 'Agent execution result could not be recorded'
+        : 'Agent execution attempt lost its claim before recording success',
     );
 
-    throw new Error(diagnostic);
+    // This delivery did not complete the work, so BullMQ still needs a
+    // rejection even though the run itself may already be finished.
+    throw new Error(outcome.diagnostic);
   }
-}
-
-function reasonFor(
-  deterministic: boolean,
-  contractViolation: boolean,
-  recorded: boolean,
-):
-  | 'claim_lost'
-  | 'configuration_error'
-  | 'contract_violation'
-  | 'runtime_error' {
-  if (!recorded) return 'claim_lost';
-  if (deterministic) return 'configuration_error';
-  return contractViolation ? 'contract_violation' : 'runtime_error';
 }

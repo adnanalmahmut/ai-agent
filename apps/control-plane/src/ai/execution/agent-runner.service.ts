@@ -174,7 +174,9 @@ function parseConfiguration(
 ): AgentConfiguration {
   const contract = definition.organizationConfiguration;
 
-  // Only pinned compatibility runs may omit the installation contract.
+  // A definition with no contract was never installable, so only an
+  // unpinned compatibility run may reach one. A run pinned to an
+  // organization version of it contradicts its own durable identity.
   if (!contract) {
     if (!pinned) return {};
     throw new AgentConfigurationError(

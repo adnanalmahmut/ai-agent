@@ -113,6 +113,34 @@ const AUTH_IMPORT_PATTERNS = [
     message: 'Auth must not depend on Redis, queues, or outbox.',
   },
 ];
+// A use case is the Control Plane deciding something. It may own a database and
+// a domain, but the moment it names a broker or an SDK, the decision has moved
+// into whichever transport happened to deliver the work.
+const USE_CASE_IMPORT_PATTERNS = [
+  {
+    regex: '^(bullmq|ioredis)(/|$)',
+    message:
+      'Use cases must not depend on a queue client; a transport adapter translates deliveries for them.',
+  },
+  {
+    group: [
+      '**/infrastructure/queue',
+      '**/infrastructure/queue/**',
+      '**/queue',
+    ],
+    message:
+      'Use cases must not depend on queue infrastructure; publishing happens through the outbox.',
+  },
+  {
+    group: ['**/ai/infrastructure/runtimes/**'],
+    message:
+      'Use cases resolve a runtime through its port, never a concrete runtime implementation.',
+  },
+  {
+    group: ['**/api/**', '**/workers/**', '**/cli/**'],
+    message: 'Use cases must not depend on process composition roots.',
+  },
+];
 const MAIL_IMPORT_PATTERNS = [
   ...INFRASTRUCTURE_IMPORT_PATTERNS,
   {
@@ -254,6 +282,15 @@ export default tseslint.config(
             },
           ],
         },
+      ],
+    },
+  },
+  {
+    files: ['src/modules/**/*.use-case.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        { patterns: USE_CASE_IMPORT_PATTERNS },
       ],
     },
   },

@@ -18,6 +18,7 @@ src/
 ├── core/             application-independent primitives
 ├── ai/               agent definitions, model catalog, runtimes, and tools
 ├── features/         organization and product capabilities
+├── modules/          transport-neutral application use cases
 ├── infrastructure/   auth, config, database, HTTP, mail, Redis, queue, outbox
 ├── api/              HTTP composition root
 ├── workers/          worker composition root and handlers
@@ -31,8 +32,9 @@ code-owned registry is the authority for agent, model, and tool identities.
 
 ## Architectural checks
 
-`apps/control-plane/eslint.config.mjs` owns syntactic auth/mail boundaries through
-standard ESLint import, property, and syntax restrictions. It prevents private
+`apps/control-plane/eslint.config.mjs` owns syntactic auth/mail boundaries and the
+run use-case import boundary through standard ESLint import, property, and
+syntax restrictions. It prevents private
 mail/provider imports, role-based authorization shortcuts, unpaired
 `RequireActiveOrg` decorators, hard-delete calls/routes, session cache/storage
 configuration, and Nest controllers on Better Auth routes. The CLI bootstrap
@@ -55,11 +57,17 @@ A background agent request is accepted in one PostgreSQL transaction:
 3. Insert the `AgentRun` and matching outbox event.
 4. Commit before attempting any Redis operation.
 
+That transaction is `modules/runs/accept-agent-run.use-case.ts`. Nothing about
+how the work will be delivered takes part in it.
+
 The worker leases routable outbox rows, publishes `{ runId }` to BullMQ, and
 marks the event delivered only after publish succeeds. The consumer reloads all
 execution authority from PostgreSQL, conditionally claims the run, executes the
 pinned definition, validates the result, and conditionally writes the terminal
-state. See [Redis, queue, and outbox](redis-queue-outbox.md).
+state. That is `modules/runs/execute-agent-run.use-case.ts`; the BullMQ handler
+turns a delivery into a run id, an attempt ordinal and a last-delivery flag,
+and turns the returned outcome back into an acknowledgement or a rejection.
+See [Redis, queue, and outbox](redis-queue-outbox.md).
 
 Agent tools pass through one gateway. Exact versioned grants are narrowed by the
 organization installation. Read-only tools execute inline. Side-effect tools

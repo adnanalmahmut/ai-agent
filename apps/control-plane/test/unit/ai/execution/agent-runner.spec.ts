@@ -539,18 +539,79 @@ describe('AgentDefinitionRegistry', () => {
   });
 });
 
+// Which way round the installation contract works is easy to state backwards,
+// so state it as behaviour: a definition with no contract cannot have been
+// installed, and a run pinned to an installation of it is a contradiction.
+describe('a definition that declares no installation contract', () => {
+  const uninstallable = definition;
+
+  const runnerWith = () => {
+    const runtime: AgentRuntime = {
+      name: 'mastra',
+      run: () => Promise.resolve({ output: 'done' }),
+    };
+
+    return runnerFor([uninstallable], {
+      resolve: () => runtime,
+    } as unknown as AgentRuntimeRegistry);
+  };
+
+  it('runs an unpinned run with an empty configuration', async () => {
+    await expect(
+      runnerWith().run({
+        agentId: uninstallable.id,
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: 'org_1',
+        organizationAgentVersionId: null,
+        input: 'hello',
+      }),
+    ).resolves.toEqual({ output: 'done' });
+  });
+
+  it('refuses a run pinned to an organization version of it', async () => {
+    await expect(
+      runnerWith().run({
+        agentId: uninstallable.id,
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: 'org_1',
+        organizationAgentVersionId: 'org-version_1',
+        input: 'hello',
+      }),
+    ).rejects.toThrow(
+      'Pinned definition "test-support-agent@1" is not installable',
+    );
+  });
+
+  it('refuses it deterministically, so the attempt is not retried', async () => {
+    const error = await runnerWith()
+      .run({
+        agentId: uninstallable.id,
+        agentVersion: 1,
+        runtime: 'mastra',
+        organizationId: 'org_1',
+        organizationAgentVersionId: 'org-version_1',
+        input: 'hello',
+      })
+      .catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(AgentConfigurationError);
+  });
+});
+
 describe('AgentRuntimeRegistry', () => {
   it('resolves Mastra through the explicit mapping', () => {
     const mastra = new MastraRuntime(stubRuntimeConfig);
-    const registry = new AgentRuntimeRegistry(mastra);
+    const registry = new AgentRuntimeRegistry([mastra]);
 
     expect(registry.resolve('mastra')).toBe(mastra);
   });
 
   it('fails loudly for an unregistered runtime', () => {
-    const registry = new AgentRuntimeRegistry(
+    const registry = new AgentRuntimeRegistry([
       new MastraRuntime(stubRuntimeConfig),
-    );
+    ]);
 
     expect(() => registry.resolve('langgraph')).toThrow(
       'Agent runtime "langgraph" is not supported',
@@ -598,9 +659,9 @@ describe('deterministic configuration failures carry their own class', () => {
   });
 
   it('marks an unsupported runtime name as a configuration failure', () => {
-    const registry = new AgentRuntimeRegistry(
+    const registry = new AgentRuntimeRegistry([
       new MastraRuntime(stubRuntimeConfig),
-    );
+    ]);
 
     expect(() => registry.resolve('langgraph')).toThrow(
       AgentConfigurationError,

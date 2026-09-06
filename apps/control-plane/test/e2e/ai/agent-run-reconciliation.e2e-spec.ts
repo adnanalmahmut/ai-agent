@@ -12,6 +12,10 @@ import type { PinoLogger } from 'nestjs-pino';
 
 import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
 import {
+  AcceptAgentRunUseCase,
+  ExecuteAgentRunUseCase,
+} from '../../../src/modules/runs';
+import {
   AGENT_RUN_DRIVERS,
   MCP_SESSION_RUNTIME,
   MCP_SESSION_TTL_MS,
@@ -90,6 +94,7 @@ const until = async (
 describe('AgentRun terminal reconciliation (e2e)', () => {
   let prisma: PrismaService;
   let runs: AgentRunService;
+  let acceptance: AcceptAgentRunUseCase;
 
   const request = (idempotencyKey: string): CreateAgentRun => ({
     agentId: TEST_AGENT_ID,
@@ -133,7 +138,8 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     });
     await installTestAgent(prisma, organizationId);
 
-    runs = new AgentRunService(
+    runs = new AgentRunService(prisma);
+    acceptance = new AcceptAgentRunUseCase(
       prisma,
       new OutboxRepository(prisma),
       testAgentRegistry(),
@@ -186,7 +192,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     });
 
     it('is failed by BullMQ without the handler running, and the reconciler finalizes the run', async () => {
-      const run = await runs.create(request('stalled-exhaustion'));
+      const run = await acceptance.execute(request('stalled-exhaustion'));
       expect(run.status).toBe('QUEUED');
 
       const blockedRunner = {
@@ -194,7 +200,10 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
       } as unknown as AgentRunner;
 
       const handled: string[] = [];
-      const handler = new AgentExecutionHandler(runs, blockedRunner, silent);
+      const handler = new AgentExecutionHandler(
+        new ExecuteAgentRunUseCase(runs, blockedRunner),
+        silent,
+      );
       const dispatch = async (job: Job<AgentExecutionJob>) => {
         handled.push(job.id ?? '');
         await handler.handle(job);
@@ -349,7 +358,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     };
 
     it('finalizes a RUNNING run and sets completedAt', async () => {
-      const run = await runs.create(request('running-to-failed'));
+      const run = await acceptance.execute(request('running-to-failed'));
       await runs.claimExecutionAttempt(run.id, 1);
       expect((await rowOf(run.id)).status).toBe('RUNNING');
 
@@ -367,7 +376,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('finalizes a run that never left QUEUED', async () => {
-      const run = await runs.create(request('queued-to-failed'));
+      const run = await acceptance.execute(request('queued-to-failed'));
       expect((await rowOf(run.id)).status).toBe('QUEUED');
 
       await failJobFor(run.id);
@@ -382,7 +391,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('leaves a run the handler already failed exactly as it found it', async () => {
-      const run = await runs.create(request('handler-failed-first'));
+      const run = await acceptance.execute(request('handler-failed-first'));
       await runs.claimExecutionAttempt(run.id, 1);
       await runs.recordExecutionFailure(
         run.id,
@@ -411,7 +420,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('never converts a SUCCEEDED run into a failed one', async () => {
-      const run = await runs.create(request('succeeded-stays'));
+      const run = await acceptance.execute(request('succeeded-stays'));
       await runs.claimExecutionAttempt(run.id, 1);
       await runs.markExecutionSucceeded(run.id, 1, { answer: 'done' });
 
@@ -432,7 +441,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('is unchanged by repeated passes and by a freshly constructed reconciler', async () => {
-      const run = await runs.create(request('repeat-observation'));
+      const run = await acceptance.execute(request('repeat-observation'));
       await runs.claimExecutionAttempt(run.id, 1);
       await failJobFor(run.id);
 
@@ -455,7 +464,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('leaves a run alone while its job is still in the transport', async () => {
-      const run = await runs.create(request('still-pending'));
+      const run = await acceptance.execute(request('still-pending'));
       await runs.claimExecutionAttempt(run.id, 1);
 
       await producer.publish(
@@ -476,7 +485,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('leaves a run alone when the transport holds no record of its job', async () => {
-      const run = await runs.create(request('no-transport-record'));
+      const run = await acceptance.execute(request('no-transport-record'));
       await runs.claimExecutionAttempt(run.id, 1);
 
       expect(await inspector.getJobState(run.id)).toBe('unknown');
@@ -500,7 +509,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     it('pages through runs that share an updatedAt without skipping or repeating', async () => {
       const created = [];
       for (let index = 0; index < 5; index += 1) {
-        created.push(await runs.create(request(`paging-${index}`)));
+        created.push(await acceptance.execute(request(`paging-${index}`)));
       }
 
       const sharedInstant = new Date('2026-08-22T00:00:00.000Z');
@@ -527,7 +536,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('excludes a run that is not yet stale', async () => {
-      const fresh = await runs.create(request('paging-fresh'));
+      const fresh = await acceptance.execute(request('paging-fresh'));
 
       const candidates = await runs.findStaleNonTerminal(
         new Date(Date.now() - 60_000),
@@ -574,7 +583,10 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
       runner: AgentRunner,
     ): Promise<string[]> => {
       const invocations: string[] = [];
-      const handler = new AgentExecutionHandler(runs, runner, silent);
+      const handler = new AgentExecutionHandler(
+        new ExecuteAgentRunUseCase(runs, runner),
+        silent,
+      );
 
       await producer.publish(
         QUEUE_NAMES.agentExecution,
@@ -629,10 +641,11 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
       }) as Job<AgentExecutionJob>;
 
     it('finalizes the run on the first attempt instead of retrying', async () => {
-      const run = await runs.create(request('deterministic-first-attempt'));
+      const run = await acceptance.execute(
+        request('deterministic-first-attempt'),
+      );
       const handler = new AgentExecutionHandler(
-        runs,
-        configurationRunner,
+        new ExecuteAgentRunUseCase(runs, configurationRunner),
         silent,
       );
 
@@ -651,7 +664,9 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('does not send UnrecoverableError from a delivery that lost its claim', async () => {
-      const run = await runs.create(request('deterministic-stale-owner'));
+      const run = await acceptance.execute(
+        request('deterministic-stale-owner'),
+      );
 
       const supersededRunner = {
         run: async () => {
@@ -662,7 +677,10 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
         },
       } as unknown as AgentRunner;
 
-      const handler = new AgentExecutionHandler(runs, supersededRunner, silent);
+      const handler = new AgentExecutionHandler(
+        new ExecuteAgentRunUseCase(runs, supersededRunner),
+        silent,
+      );
 
       const rejection = handler.handle(job(run.id));
       await expect(rejection).rejects.toThrow('Agent execution failed');
@@ -679,7 +697,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('makes BullMQ stop after one attempt instead of spending three', async () => {
-      const run = await runs.create(request('deterministic-no-retry'));
+      const run = await acceptance.execute(request('deterministic-no-retry'));
 
       const invocations = await drain(run.id, configurationRunner);
 
@@ -692,7 +710,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
     }, 60_000);
 
     it('still spends the whole budget on an ordinary runtime failure', async () => {
-      const run = await runs.create(request('transient-uses-budget'));
+      const run = await acceptance.execute(request('transient-uses-budget'));
 
       const transientRunner = {
         run: () => Promise.reject(new Error('provider timed out')),
@@ -715,7 +733,7 @@ describe('AgentRun terminal reconciliation (e2e)', () => {
   // still counts against the organization's in-flight ceiling.
   describe('an abandoned MCP session', () => {
     const openSession = async (idempotencyKey: string, maxInFlight?: number) =>
-      runs.create({
+      acceptance.execute({
         ...request(idempotencyKey),
         driver: AGENT_RUN_DRIVERS.mcpClient,
         ...(maxInFlight === undefined ? {} : { maxInFlight }),

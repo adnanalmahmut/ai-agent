@@ -320,3 +320,48 @@ describe('authorization syntax through the Backend ESLint configuration', () => 
     ).toEqual([]);
   });
 });
+
+describe('run use-case imports through the Control Plane ESLint configuration', () => {
+  const USE_CASE = 'src/modules/runs/fixture.use-case.ts';
+  const COMPOSITION = 'src/modules/runs/fixture.module.ts';
+
+  it.each([
+    'bullmq',
+    'bullmq/dist/esm/classes/job',
+    'ioredis',
+    '../../infrastructure/queue',
+    '../../infrastructure/queue/queue-producer.service',
+    '../queue',
+    '../../ai/infrastructure/runtimes/mastra/mastra.runtime',
+    '../../workers/handlers/agent-execution.handler',
+    '../../api/main',
+    '../../cli/main',
+  ])('rejects use-case import syntax variations for %s', async (specifier) => {
+    for (const form of importForms) {
+      const messages = await restrictions(form(specifier), USE_CASE);
+
+      expect(messages).not.toEqual([]);
+    }
+  });
+
+  it.each([
+    '../../ai/execution/agent-run.service',
+    '../../ai/execution/agent-runtime',
+    '../../infrastructure/outbox/outbox.repository',
+    '../../infrastructure/database',
+    '@nestjs/common',
+  ])('allows a use case to depend on %s', async (specifier) => {
+    expect(
+      await restrictions(`import { X } from '${specifier}';`, USE_CASE),
+    ).toEqual([]);
+  });
+
+  it('leaves composition free to name the transports it wires', async () => {
+    expect(
+      await restrictions(
+        "import { QueueModule } from '../../infrastructure/queue';",
+        COMPOSITION,
+      ),
+    ).toEqual([]);
+  });
+});

@@ -39,15 +39,19 @@ HTTP listener.
 The backend source dependency direction is:
 
 ```text
-core <- ai <- features
-  ^      ^       ^
-  +-- infrastructure --+
+core <- ai <- features <- modules
+  ^      ^       ^           ^
+  +-- infrastructure --------+
 ```
 
 `core` contains application-independent primitives. `ai` owns agent,
 runtime, model, and tool contracts without product-specific knowledge.
-`features` owns organization capabilities. `infrastructure` supplies
-technical adapters and is assembled only at composition roots.
+`features` owns organization capabilities. `modules` holds the application
+use cases a composition root calls: they may own a database and a domain, but
+never a queue client, a broker, or a concrete runtime, so the same decision
+serves HTTP, a queue consumer, and a service-to-service caller alike.
+`infrastructure` supplies technical adapters and is assembled only at
+composition roots.
 
 ## Durable invariants
 

@@ -5,6 +5,7 @@ import type { z } from 'zod';
 
 import type { AgentRun, AgentValue } from '../../../ai/agents/agent.types';
 import { AgentRunService } from '../../../ai/execution/agent-run.service';
+import { AcceptAgentRunUseCase } from '../../../modules/runs';
 import {
   CONTENT_IDEA_AGENT_ID,
   contentIdeaInput,
@@ -31,6 +32,7 @@ export type ContentIdeaOperation = z.output<typeof contentIdeaOperationSchema>;
 export class ContentIdeaService {
   constructor(
     private readonly runs: AgentRunService,
+    private readonly acceptance: AcceptAgentRunUseCase,
     private readonly runtimeConfig: RuntimeConfigResolver,
   ) {}
 
@@ -92,7 +94,7 @@ export class ContentIdeaService {
       'agents.max_concurrent_runs_per_organization',
     );
 
-    const run = await this.runs.create({
+    const run = await this.acceptance.execute({
       maxInFlight,
       agentId: CONTENT_IDEA_AGENT_ID,
       organizationId: input.organizationId,

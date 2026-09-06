@@ -8,6 +8,7 @@ import {
 } from '@jest/globals';
 
 import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
+import { AcceptAgentRunUseCase } from '../../../src/modules/runs';
 import type { CreateAgentRun } from '../../../src/ai/agents/agent.types';
 import { OutboxRepository } from '../../../src/infrastructure/outbox';
 import { PrismaService } from '../../../src/infrastructure/database';
@@ -24,6 +25,7 @@ const organizationId = `${fixtureId}-org`;
 describe('AgentRun execution claim (e2e)', () => {
   let prisma: PrismaService;
   let service: AgentRunService;
+  let acceptance: AcceptAgentRunUseCase;
 
   const request = (idempotencyKey: string): CreateAgentRun => ({
     agentId: TEST_AGENT_ID,
@@ -67,7 +69,8 @@ describe('AgentRun execution claim (e2e)', () => {
     });
     await installTestAgent(prisma, organizationId);
 
-    service = new AgentRunService(
+    service = new AgentRunService(prisma);
+    acceptance = new AcceptAgentRunUseCase(
       prisma,
       new OutboxRepository(prisma),
       testAgentRegistry(),
@@ -89,7 +92,9 @@ describe('AgentRun execution claim (e2e)', () => {
     prisma.agentRun.findUniqueOrThrow({ where: { id: runId } });
 
   it('claims a later active start after an earlier one stalled before PostgreSQL', async () => {
-    const accepted = await service.create(request('skipped-ordinal-request'));
+    const accepted = await acceptance.execute(
+      request('skipped-ordinal-request'),
+    );
 
     const first = await service.claimExecutionAttempt(accepted.id, 1);
     expect(first).not.toBeNull();
@@ -122,7 +127,9 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('proves the exact-predecessor predicate is what wedged the run', async () => {
-    const accepted = await service.create(request('predecessor-regression'));
+    const accepted = await acceptance.execute(
+      request('predecessor-regression'),
+    );
     await service.claimExecutionAttempt(accepted.id, 1);
 
     const { count: exactPredecessorMatches } = await prisma.agentRun.updateMany(
@@ -140,7 +147,9 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('treats an equal or older active start as a safe no-op', async () => {
-    const accepted = await service.create(request('stale-delivery-request'));
+    const accepted = await acceptance.execute(
+      request('stale-delivery-request'),
+    );
     await service.claimExecutionAttempt(accepted.id, 1);
     await service.claimExecutionAttempt(accepted.id, 3);
 
@@ -158,7 +167,9 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('lets the first durable claim start at any ordinal', async () => {
-    const accepted = await service.create(request('late-first-claim-request'));
+    const accepted = await acceptance.execute(
+      request('late-first-claim-request'),
+    );
 
     const claimed = await service.claimExecutionAttempt(accepted.id, 3);
 
@@ -167,7 +178,7 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('refuses to reopen a terminal run', async () => {
-    const succeeded = await service.create(request('succeeded-request'));
+    const succeeded = await acceptance.execute(request('succeeded-request'));
     await service.claimExecutionAttempt(succeeded.id, 1);
     await service.markExecutionSucceeded(succeeded.id, 1, { answer: 'done' });
 
@@ -179,7 +190,7 @@ describe('AgentRun execution claim (e2e)', () => {
       attemptCount: 1,
     });
 
-    const failed = await service.create(request('failed-request'));
+    const failed = await acceptance.execute(request('failed-request'));
     await service.claimExecutionAttempt(failed.id, 1);
     await service.recordExecutionFailure(
       failed.id,
@@ -198,7 +209,9 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('rejects a completion or failure written against a superseded attempt', async () => {
-    const accepted = await service.create(request('superseded-writer-request'));
+    const accepted = await acceptance.execute(
+      request('superseded-writer-request'),
+    );
     await service.claimExecutionAttempt(accepted.id, 1);
     await service.claimExecutionAttempt(accepted.id, 3);
 
@@ -227,7 +240,9 @@ describe('AgentRun execution claim (e2e)', () => {
 
   it('refuses a finalizing write against a terminal run at the matching ordinal', async () => {
     //
-    const succeeded = await service.create(request('terminal-guard-succeeded'));
+    const succeeded = await acceptance.execute(
+      request('terminal-guard-succeeded'),
+    );
     await service.claimExecutionAttempt(succeeded.id, 1);
     await service.markExecutionSucceeded(succeeded.id, 1, { answer: 'done' });
 
@@ -245,7 +260,7 @@ describe('AgentRun execution claim (e2e)', () => {
       lastError: null,
     });
 
-    const failed = await service.create(request('terminal-guard-failed'));
+    const failed = await acceptance.execute(request('terminal-guard-failed'));
     await service.claimExecutionAttempt(failed.id, 1);
     await service.recordExecutionFailure(
       failed.id,
@@ -264,7 +279,7 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('keeps lastError scoped to the attempt that produced it', async () => {
-    const accepted = await service.create(request('last-error-lifecycle'));
+    const accepted = await acceptance.execute(request('last-error-lifecycle'));
     const first = await service.claimExecutionAttempt(accepted.id, 1);
     const startedAt = first?.startedAt;
 
@@ -302,7 +317,7 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('converges when two deliveries at different ordinals race', async () => {
-    const accepted = await service.create(request('concurrent-ordinals'));
+    const accepted = await acceptance.execute(request('concurrent-ordinals'));
     await service.claimExecutionAttempt(accepted.id, 1);
 
     await Promise.all([
@@ -328,11 +343,11 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('returns the existing run without re-queueing it once it has left QUEUED', async () => {
-    const accepted = await service.create(request('re-accept-terminal'));
+    const accepted = await acceptance.execute(request('re-accept-terminal'));
     await service.claimExecutionAttempt(accepted.id, 1);
     await service.markExecutionSucceeded(accepted.id, 1, { answer: 'done' });
 
-    const replayed = await service.create(request('re-accept-terminal'));
+    const replayed = await acceptance.execute(request('re-accept-terminal'));
 
     expect(replayed.id).toBe(accepted.id);
     expect(replayed.status).toBe('SUCCEEDED');
@@ -342,7 +357,9 @@ describe('AgentRun execution claim (e2e)', () => {
   });
 
   it('rejects a non-positive or non-integer active start ordinal', async () => {
-    const accepted = await service.create(request('invalid-ordinal-request'));
+    const accepted = await acceptance.execute(
+      request('invalid-ordinal-request'),
+    );
 
     await expect(service.claimExecutionAttempt(accepted.id, 0)).rejects.toThrow(
       'positive integer',
