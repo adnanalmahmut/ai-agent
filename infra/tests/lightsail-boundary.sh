@@ -24,7 +24,7 @@ if grep -Eq '^install .*(ai-agent-deploy|runtime-preflight|host-preflight|sudoer
   echo 'release-coupled host files must be installed by the bundle installer' >&2
   exit 1
 fi
-grep -Fq 'host-bundle.manifest' ops/host-preflight.sh
+grep -Fq 'host-bundle.manifest' infra/deploy/host-preflight.sh
 grep -Fq 'sha256sum' infra/deploy/install-host-bundle.sh
 grep -Fq 'gpasswd -d deploy docker' ops/lightsail/bootstrap-host.sh
 grep -Fq 'fallocate -l 2G /swapfile' ops/lightsail/bootstrap-host.sh
@@ -250,10 +250,11 @@ for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune.*--volumes' 'eval 
   fi
 done
 
-# Every host script, not just the ones under ops/lightsail and infra/deploy.
-# Retention lives at ops/release-retention.sh, so the narrower sweep above would
-# not have seen it — and it is the first script in this repository with any
-# reason to remove an image at all.
+# Every host script, not only the two directories the sweep above names. This
+# one walks them and the rest of ops/, so a host script that lands somewhere
+# new is covered on the day it arrives rather than when someone remembers to
+# widen a list — which is what happened to release retention, the first script
+# in this repository with any reason to remove an image at all.
 #
 # The patterns are deliberately wider than the ones above, which only caught a
 # system reclaim carrying --volumes. A bare system reclaim, an -a system
@@ -272,7 +273,7 @@ host_scripts=$(find ops infra/deploy -type f \( -name '*.sh' -o -name 'ai-agent-
 }
 # The sweep must actually include the scripts that could perform a reclaim, or
 # it is checking nothing.
-for required in ops/release-retention.sh infra/deploy/ai-agent-deploy; do
+for required in infra/deploy/release-retention.sh infra/deploy/ai-agent-deploy; do
   printf '%s\n' "$host_scripts" | grep -Fxq "$required" || {
     echo "unsafe-reclaim sweep does not cover $required" >&2
     exit 1

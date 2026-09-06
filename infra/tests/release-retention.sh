@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-# Drives ops/release-retention.sh against a Docker stub that models an image
+# Drives infra/deploy/release-retention.sh against a Docker stub that models an image
 # store: repositories, identities, RepoDigests, containers holding images, and
 # removal that refuses while a container references an image.
 #
@@ -16,7 +16,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
 registry=ghcr.io/adnanalmahmut/ai-agent
-source_script=ops/release-retention.sh
+source_script=infra/deploy/release-retention.sh
 
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
@@ -48,7 +48,7 @@ done
 
 # The repository-wide sweep must exist and must cover this script, or the
 # narrower assertion above is the only thing standing.
-grep -Fq 'ops/release-retention.sh' infra/tests/lightsail-boundary.sh ||
+grep -Fq 'infra/deploy/release-retention.sh' infra/tests/lightsail-boundary.sh ||
   fail 'the boundary test must cover the retention script in its unsafe-reclaim sweep'
 
 if grep -En 'image rm[^|]*(--force|[[:space:]]-f([[:space:]]|$))' "$source_script"; then

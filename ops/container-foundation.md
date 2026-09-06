@@ -54,7 +54,7 @@ docker compose \
 ```
 
 Before any staging or production startup, run
-`ops/runtime-preflight.sh <environment> /etc/ai-agent/runtime.env`. It validates
+`infra/deploy/runtime-preflight.sh <environment> /etc/ai-agent/runtime.env`. It validates
 required values without sourcing the file or printing their contents, and
 refuses the compose development database password and a `DATABASE_URL` that
 names a different role or database than the `POSTGRES_*` values.

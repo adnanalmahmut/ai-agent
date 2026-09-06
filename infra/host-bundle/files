@@ -15,7 +15,7 @@ infra/compose/compose.yaml /opt/ai-agent/docker-compose.yml 0644
 infra/compose/compose.deploy.yaml /opt/ai-agent/docker-compose.deploy.yml 0644
 infra/deploy/ai-agent-deploy /usr/local/sbin/ai-agent-deploy 0755
 infra/deploy/ai-agent-deploy-dispatch /usr/local/sbin/ai-agent-deploy-dispatch 0755
-ops/runtime-preflight.sh /usr/local/sbin/ai-agent-runtime-preflight 0755
-ops/host-preflight.sh /usr/local/sbin/ai-agent-host-preflight 0755
-ops/release-retention.sh /usr/local/sbin/ai-agent-release-retention 0755
+infra/deploy/runtime-preflight.sh /usr/local/sbin/ai-agent-runtime-preflight 0755
+infra/deploy/host-preflight.sh /usr/local/sbin/ai-agent-host-preflight 0755
+infra/deploy/release-retention.sh /usr/local/sbin/ai-agent-release-retention 0755
 infra/deploy/ai-agent-deploy.sudoers /etc/sudoers.d/ai-agent-deploy 0440

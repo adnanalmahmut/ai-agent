@@ -183,7 +183,7 @@ optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTI
 
 # The list is a single-quoted shell here-string, so the quotes and the
 # assignment prefix are stripped to leave one variable name per line.
-required_block=$(sed -n '/^required=/,/^$/p' ops/runtime-preflight.sh |
+required_block=$(sed -n '/^required=/,/^$/p' infra/deploy/runtime-preflight.sh |
   tr -d "'" | sed 's/^required=//')
 
 # The shared file and the deployment overlay together are what a host
@@ -206,7 +206,7 @@ for variable in $(grep -hoE '\$\{[A-Z][A-Z0-9_]*:-\}' $deploy_composition |
   for name in $conditional; do
     if [ "$name" = "$variable" ]; then
       classified=yes
-      grep -Fq "$variable" ops/runtime-preflight.sh ||
+      grep -Fq "$variable" infra/deploy/runtime-preflight.sh ||
         fail "conditionally required compose variable is unknown to the runtime preflight: $variable"
     fi
   done
@@ -275,8 +275,8 @@ rewrite() {
 
 # The sources the sandbox installs are pre-rewritten copies, so the manifest
 # records digests of exactly what a deploy in this sandbox will execute.
-rewrite ops/host-preflight.sh "$tmp_dir/src/host-preflight.sh"
-rewrite ops/runtime-preflight.sh "$tmp_dir/src/runtime-preflight.sh"
+rewrite infra/deploy/host-preflight.sh "$tmp_dir/src/host-preflight.sh"
+rewrite infra/deploy/runtime-preflight.sh "$tmp_dir/src/runtime-preflight.sh"
 rewrite infra/deploy/ai-agent-deploy-dispatch "$tmp_dir/src/ai-agent-deploy-dispatch"
 cp infra/deploy/ai-agent-deploy.sudoers "$tmp_dir/src/ai-agent-deploy.sudoers"
 cp infra/compose/compose.yaml "$tmp_dir/src/docker-compose.yml"
