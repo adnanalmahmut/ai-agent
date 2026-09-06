@@ -12,5 +12,6 @@ export type {
   ContentProjectBrief,
   ContentProjectDetail,
   ContentProjectFromIdeaInput,
+  ContentProjectPage,
   ContentProjectView,
 } from './content-project.service';

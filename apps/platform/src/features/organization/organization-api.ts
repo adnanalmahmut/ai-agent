@@ -189,67 +189,81 @@ export function deleteKnowledgeDocument(
   );
 }
 
-export const CONTENT_IDEA_LANGUAGES = ['ar', 'en'] as const;
+/* ---------------------------------------------------------------------------
+ * Content ideas
+ *
+ * Same rule as Knowledge: the Backend's Zod contract is the authored
+ * definition, and everything here is an alias of its generated form. A screen
+ * that reads a field the API stopped sending fails to compile.
+ * ------------------------------------------------------------------------- */
 
-export type ContentIdeaLanguage = (typeof CONTENT_IDEA_LANGUAGES)[number];
+type ContentIdeaAvailabilityData =
+  operations['getContentIdeaAvailability']['responses'][200]['content']['application/json']['data'];
 
-export const CONTENT_IDEA_FORMATS = ['carousel', 'post', 'video'] as const;
+/*
+ * Acceptance answers 201 and the status read answers 200 with the same
+ * operation, which is what lets one held value carry a request from
+ * acceptance through to a terminal state.
+ */
+type RequestContentIdeasData =
+  operations['requestContentIdeas']['responses'][201]['content']['application/json']['data'];
 
-export type ContentIdeaFormat = (typeof CONTENT_IDEA_FORMATS)[number];
+type GetContentIdeaOperationData =
+  operations['getContentIdeaOperation']['responses'][200]['content']['application/json']['data'];
 
-export type ContentIdeaRequest = {
-  topic: string;
-  goal: string;
-  language: ContentIdeaLanguage;
-  audience?: string;
-  guidance?: string;
-  numberOfIdeas: number;
-};
+export type ContentIdeaRequest =
+  operations['requestContentIdeas']['requestBody']['content']['application/json'];
 
-export type ContentIdea = {
-  title: string;
-  hook: string;
-  angle: string;
-  summary: string;
-  suggestedFormat: ContentIdeaFormat;
-};
+export type ContentIdeaAvailability = ContentIdeaAvailabilityData;
 
-export type ContentIdeaResult = {
-  ideas: ContentIdea[];
-  sources: string[];
-};
+export type ContentIdeaUnavailableReason = NonNullable<
+  ContentIdeaAvailability['reason']
+>;
+
+export type ContentIdeaOperation = RequestContentIdeasData &
+  GetContentIdeaOperationData;
+
+export type ContentIdeaStatus = ContentIdeaOperation['status'];
+
+export type ContentIdeaResult = NonNullable<ContentIdeaOperation['output']>;
+
+export type ContentIdea = ContentIdeaResult['ideas'][number];
+
+export type ContentIdeaLanguage = ContentIdeaRequest['language'];
+
+export type ContentIdeaFormat = ContentIdea['suggestedFormat'];
+
+/*
+ * The closed vocabularies as runtime values, which the types alone cannot
+ * provide: the form offers them and the message-catalogue test iterates them.
+ * `satisfies` holds each list answerable to the generated union, so a value
+ * the API does not accept cannot be added here, and one it starts accepting
+ * shows up as a missing translation rather than silently.
+ */
+export const CONTENT_IDEA_LANGUAGES = [
+  'ar',
+  'en',
+] as const satisfies readonly ContentIdeaLanguage[];
+
+export const CONTENT_IDEA_FORMATS = [
+  'carousel',
+  'post',
+  'video',
+] as const satisfies readonly ContentIdeaFormat[];
 
 export const CONTENT_IDEA_STATUSES = [
   'QUEUED',
   'RUNNING',
   'SUCCEEDED',
   'FAILED',
-] as const;
-
-export type ContentIdeaStatus = (typeof CONTENT_IDEA_STATUSES)[number];
-
-export type ContentIdeaOperation = {
-  id: string;
-  status: ContentIdeaStatus;
-  output: ContentIdeaResult | null;
-  createdAt: string;
-  completedAt: string | null;
-};
+] as const satisfies readonly ContentIdeaStatus[];
 
 export const CONTENT_IDEA_UNAVAILABLE_REASONS = [
   'agents_disabled',
   'content_ideas_disabled',
   'agent_not_installed',
   'agent_disabled',
-] as const;
-
-export type ContentIdeaUnavailableReason =
-  (typeof CONTENT_IDEA_UNAVAILABLE_REASONS)[number];
-
-export type ContentIdeaAvailability = {
-  available: boolean;
-  reason: ContentIdeaUnavailableReason | null;
-};
+] as const satisfies readonly ContentIdeaUnavailableReason[];
 
 const contentIdeasBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/content-ideas`;
@@ -292,55 +306,40 @@ export function getContentIdeaOperation(
  * One selected idea, promoted into work the organization has committed to.
  * ------------------------------------------------------------------------- */
 
-export type ContentDraft = {
-  id: string;
-  revision: number;
-  title: string;
-  format: ContentIdeaFormat;
-  language: ContentIdeaLanguage;
-  body: string | null;
-  createdAt: string;
-};
+type CreateContentProjectData =
+  operations['createContentProjectFromIdea']['responses'][201]['content']['application/json']['data'];
 
-export type ContentProject = {
-  id: string;
-  organizationId: string;
-  sourceRunId: string;
-  sourceIdeaIndex: number;
-  title: string;
-  hook: string;
-  angle: string;
-  summary: string;
-  suggestedFormat: ContentIdeaFormat;
-  language: ContentIdeaLanguage;
-  createdByUserId: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
+type ListContentProjectsData =
+  operations['listContentProjects']['responses'][200]['content']['application/json']['data'];
 
-export type ContentProjectBrief = {
-  topic: string;
-  goal: string;
-  audience: string | null;
-  guidance: string | null;
-};
+type GetContentProjectData =
+  operations['getContentProject']['responses'][200]['content']['application/json']['data'];
 
-export type ContentProjectDetail = ContentProject & {
-  brief: ContentProjectBrief;
-  drafts: ContentDraft[];
-};
+export type CreateContentProjectFromIdeaBody =
+  operations['createContentProjectFromIdea']['requestBody']['content']['application/json'];
 
-export type ContentProjectPage = {
-  items: ContentProject[];
-  nextCursor: string | null;
-};
+/** The documented query, plus cancellation, which HTTP does not describe. */
+type ListContentProjectsOptions = NonNullable<
+  operations['listContentProjects']['parameters']['query']
+>;
+
+export type ContentProjectDetail = CreateContentProjectData &
+  GetContentProjectData;
+
+export type ContentProjectPage = ListContentProjectsData;
+
+export type ContentProject = ContentProjectPage['items'][number];
+
+export type ContentProjectBrief = ContentProjectDetail['brief'];
+
+export type ContentDraft = ContentProjectDetail['drafts'][number];
 
 const contentProjectsBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/content-projects`;
 
 export function createContentProjectFromIdea(
   organizationId: string,
-  selection: { sourceRunId: string; ideaIndex: number },
+  selection: CreateContentProjectFromIdeaBody,
   idempotencyKey: string,
 ): Promise<ContentProjectDetail> {
   return apiRequest(`${contentProjectsBase(organizationId)}/from-idea`, {
@@ -352,7 +351,7 @@ export function createContentProjectFromIdea(
 
 export function listContentProjects(
   organizationId: string,
-  options: { cursor?: string; limit?: number } = {},
+  options: ListContentProjectsOptions = {},
   signal?: AbortSignal,
 ): Promise<ContentProjectPage> {
   const query = new URLSearchParams();

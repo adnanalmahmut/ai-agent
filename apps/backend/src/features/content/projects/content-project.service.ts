@@ -16,6 +16,13 @@ import {
 } from '../../../infrastructure/database';
 import { OrganizationAuditService } from '../../organizations/audit';
 import {
+  contentDraftSchema,
+  contentProjectBriefSchema,
+  contentProjectDetailSchema,
+  contentProjectPageSchema,
+  contentProjectSchema,
+} from './content-project.contract';
+import {
   beforePosition,
   encodeCursor,
   decodeCursor,
@@ -35,43 +42,19 @@ export type ContentProjectFromIdeaInput = z.infer<
   typeof contentProjectFromIdeaInput
 >;
 
-export type ContentDraftView = {
-  id: string;
-  revision: number;
-  title: string;
-  format: ContentIdeaFormat;
-  language: ContentIdeaLanguage;
-  body: string | null;
-  createdAt: Date;
-};
+/*
+ * The payload contract is the definition; these are its application side, so
+ * a change to a schema surfaces here rather than drifting away from it.
+ */
+export type ContentDraftView = z.output<typeof contentDraftSchema>;
 
-export type ContentProjectBrief = {
-  topic: string;
-  goal: string;
-  audience: string | null;
-  guidance: string | null;
-};
+export type ContentProjectBrief = z.output<typeof contentProjectBriefSchema>;
 
-export type ContentProjectView = {
-  id: string;
-  organizationId: string;
-  sourceRunId: string;
-  sourceIdeaIndex: number;
-  title: string;
-  hook: string;
-  angle: string;
-  summary: string;
-  suggestedFormat: ContentIdeaFormat;
-  language: ContentIdeaLanguage;
-  createdByUserId: string | null;
-  createdAt: Date;
-  updatedAt: Date;
-};
+export type ContentProjectView = z.output<typeof contentProjectSchema>;
 
-export type ContentProjectDetail = ContentProjectView & {
-  brief: ContentProjectBrief;
-  drafts: ContentDraftView[];
-};
+export type ContentProjectDetail = z.output<typeof contentProjectDetailSchema>;
+
+export type ContentProjectPage = z.output<typeof contentProjectPageSchema>;
 
 @Injectable()
 export class ContentProjectService {
@@ -189,7 +172,7 @@ export class ContentProjectService {
     organizationId: string;
     cursor?: string;
     limit?: number;
-  }): Promise<{ items: ContentProjectView[]; nextCursor: string | null }> {
+  }): Promise<ContentProjectPage> {
     const take = pageSize(input.limit);
     const after =
       input.cursor === undefined ? null : decodeCursor(input.cursor);

@@ -704,8 +704,6 @@ export interface components {
         FeatureFlagOverrideDto: Record<string, never>;
         RuntimeSettingValueDto: Record<string, never>;
         ManagedSecretDto: Record<string, never>;
-        RequestContentIdeasDto: Record<string, never>;
-        CreateContentProjectFromIdeaDto: Record<string, never>;
         ReplaceOrganizationBusinessProfileDto: Record<string, never>;
     };
     responses: never;
@@ -1503,7 +1501,16 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RequestContentIdeasDto"];
+                "application/json": {
+                    topic: string;
+                    goal: string;
+                    /** @enum {string} */
+                    language: "ar" | "en";
+                    audience?: string;
+                    guidance?: string;
+                    /** @default 5 */
+                    numberOfIdeas?: number;
+                };
             };
         };
         responses: {
@@ -1511,7 +1518,36 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            id: string;
+                            /** @enum {string} */
+                            status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+                            output: {
+                                ideas: {
+                                    title: string;
+                                    hook: string;
+                                    angle: string;
+                                    summary: string;
+                                    /** @enum {string} */
+                                    suggestedFormat: "carousel" | "post" | "video";
+                                }[];
+                                sources: string[];
+                            } | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            completedAt: string | null;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1530,7 +1566,21 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            available: boolean;
+                            reason: ("agents_disabled" | "content_ideas_disabled" | "agent_not_installed" | "agent_disabled") | null;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1550,7 +1600,36 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            id: string;
+                            /** @enum {string} */
+                            status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED";
+                            output: {
+                                ideas: {
+                                    title: string;
+                                    hook: string;
+                                    angle: string;
+                                    summary: string;
+                                    /** @enum {string} */
+                                    suggestedFormat: "carousel" | "post" | "video";
+                                }[];
+                                sources: string[];
+                            } | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            completedAt: string | null;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1565,7 +1644,10 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["CreateContentProjectFromIdeaDto"];
+                "application/json": {
+                    sourceRunId: string;
+                    ideaIndex: number;
+                };
             };
         };
         responses: {
@@ -1573,13 +1655,63 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            id: string;
+                            organizationId: string;
+                            sourceRunId: string;
+                            sourceIdeaIndex: number;
+                            title: string;
+                            hook: string;
+                            angle: string;
+                            summary: string;
+                            /** @enum {string} */
+                            suggestedFormat: "carousel" | "post" | "video";
+                            /** @enum {string} */
+                            language: "ar" | "en";
+                            createdByUserId: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                            brief: {
+                                topic: string;
+                                goal: string;
+                                audience: string | null;
+                                guidance: string | null;
+                            };
+                            drafts: {
+                                id: string;
+                                revision: number;
+                                title: string;
+                                /** @enum {string} */
+                                format: "carousel" | "post" | "video";
+                                /** @enum {string} */
+                                language: "ar" | "en";
+                                body: string | null;
+                                /** Format: date-time */
+                                createdAt: string;
+                            }[];
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
     listContentProjects: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                cursor?: string;
+            };
             header?: never;
             path: {
                 organizationId: string;
@@ -1592,7 +1724,39 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            items: {
+                                id: string;
+                                organizationId: string;
+                                sourceRunId: string;
+                                sourceIdeaIndex: number;
+                                title: string;
+                                hook: string;
+                                angle: string;
+                                summary: string;
+                                /** @enum {string} */
+                                suggestedFormat: "carousel" | "post" | "video";
+                                /** @enum {string} */
+                                language: "ar" | "en";
+                                createdByUserId: string | null;
+                                /** Format: date-time */
+                                createdAt: string;
+                                /** Format: date-time */
+                                updatedAt: string;
+                            }[];
+                            nextCursor: string | null;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1612,7 +1776,54 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            id: string;
+                            organizationId: string;
+                            sourceRunId: string;
+                            sourceIdeaIndex: number;
+                            title: string;
+                            hook: string;
+                            angle: string;
+                            summary: string;
+                            /** @enum {string} */
+                            suggestedFormat: "carousel" | "post" | "video";
+                            /** @enum {string} */
+                            language: "ar" | "en";
+                            createdByUserId: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            updatedAt: string;
+                            brief: {
+                                topic: string;
+                                goal: string;
+                                audience: string | null;
+                                guidance: string | null;
+                            };
+                            drafts: {
+                                id: string;
+                                revision: number;
+                                title: string;
+                                /** @enum {string} */
+                                format: "carousel" | "post" | "video";
+                                /** @enum {string} */
+                                language: "ar" | "en";
+                                body: string | null;
+                                /** Format: date-time */
+                                createdAt: string;
+                            }[];
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
