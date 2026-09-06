@@ -6,32 +6,37 @@ cd "$root"
 for script in \
   infra/deploy/ai-agent-deploy \
   infra/deploy/ai-agent-deploy-dispatch \
-  ops/lightsail/bootstrap-host.sh \
+  infra/deploy/bootstrap-host.sh \
   infra/deploy/install-host-bundle.sh \
-  ops/lightsail/install-nginx.sh \
-  ops/lightsail/issue-certificate.sh \
-  ops/lightsail/reload-nginx-after-renewal; do
+  infra/gateway/nginx/install-nginx.sh \
+  infra/gateway/nginx/issue-certificate.sh \
+  infra/gateway/nginx/reload-nginx-after-renewal; do
   sh -n "$script"
 done
 
-grep -Fq 'restrict,no-user-rc,command="/usr/local/sbin/ai-agent-deploy-dispatch"' ops/lightsail/bootstrap-host.sh
+grep -Fq 'restrict,no-user-rc,command="/usr/local/sbin/ai-agent-deploy-dispatch"' infra/deploy/bootstrap-host.sh
 # First-run bootstrap and every later bundle update must install the
 # release-coupled files by the same path, so that both record a manifest. When
 # bootstrap listed the `install` commands itself, nothing on the host recorded
 # which release its compose file and deploy script came from.
-grep -Fq 'infra/deploy/install-host-bundle.sh' ops/lightsail/bootstrap-host.sh
-if grep -Eq '^install .*(ai-agent-deploy|runtime-preflight|host-preflight|sudoers)' ops/lightsail/bootstrap-host.sh; then
+#
+# Matched on the installer's name rather than on a repository path: bootstrap
+# resolves it as its own neighbour now, so that it no longer depends on which
+# directory the operator was standing in. What has to stay true is that the
+# installer is what runs, not how the call spells its location.
+grep -Fq 'install-host-bundle.sh' infra/deploy/bootstrap-host.sh
+if grep -Eq '^install .*(ai-agent-deploy|runtime-preflight|host-preflight|sudoers)' infra/deploy/bootstrap-host.sh; then
   echo 'release-coupled host files must be installed by the bundle installer' >&2
   exit 1
 fi
 grep -Fq 'host-bundle.manifest' infra/deploy/host-preflight.sh
 grep -Fq 'sha256sum' infra/deploy/install-host-bundle.sh
-grep -Fq 'gpasswd -d deploy docker' ops/lightsail/bootstrap-host.sh
-grep -Fq 'fallocate -l 2G /swapfile' ops/lightsail/bootstrap-host.sh
-grep -Fq '/swapfile none swap sw 0 0' ops/lightsail/bootstrap-host.sh
-grep -Fq 'vm.swappiness=10' ops/lightsail/bootstrap-host.sh
-grep -Fq 'install_certbot_tls_asset options-ssl-nginx.conf /etc/letsencrypt/options-ssl-nginx.conf' ops/lightsail/issue-certificate.sh
-grep -Fq 'install_certbot_tls_asset ssl-dhparams.pem /etc/letsencrypt/ssl-dhparams.pem' ops/lightsail/issue-certificate.sh
+grep -Fq 'gpasswd -d deploy docker' infra/deploy/bootstrap-host.sh
+grep -Fq 'fallocate -l 2G /swapfile' infra/deploy/bootstrap-host.sh
+grep -Fq '/swapfile none swap sw 0 0' infra/deploy/bootstrap-host.sh
+grep -Fq 'vm.swappiness=10' infra/deploy/bootstrap-host.sh
+grep -Fq 'install_certbot_tls_asset options-ssl-nginx.conf /etc/letsencrypt/options-ssl-nginx.conf' infra/gateway/nginx/issue-certificate.sh
+grep -Fq 'install_certbot_tls_asset ssl-dhparams.pem /etc/letsencrypt/ssl-dhparams.pem' infra/gateway/nginx/issue-certificate.sh
 grep -Fq 'SHA must be 40 lowercase hex characters' infra/deploy/ai-agent-deploy
 grep -Fq 'digest must be 64 lowercase hex characters' infra/deploy/ai-agent-deploy
 grep -Fq 'runtime_env=/etc/ai-agent/runtime.env' infra/deploy/ai-agent-deploy
@@ -238,47 +243,63 @@ if grep -Eq 'ghcr\.io/.+:\$sha' infra/deploy/ai-agent-deploy; then
 fi
 grep -Fq 'storage: '\''database'\''' apps/backend/src/infrastructure/auth/auth.factory.ts
 
-# Both roots, since the deploy wrapper and the forced-command dispatcher moved
-# to infra/deploy while host provisioning and the gateway stayed under
-# ops/lightsail. Naming only the old directory would have quietly stopped
-# covering the two scripts this sweep exists for -- the dispatcher is the one
-# that must never `eval` what the SSH key sent it.
+# Everything an operator runs as root, gathered once and swept twice below.
+#
+# One list rather than a root list per sweep, because the two drifted apart
+# every time the tree moved. RF-06 took the deploy wrapper and the forced
+# -command dispatcher out of ops/lightsail -- the dispatcher being the one
+# script that must never `eval` what the SSH key sent it -- and RF-07 took the
+# gateway and backup scripts out of ops/ altogether. Each time a sweep naming
+# the old directory went on passing while covering less.
+#
+# Not restricted to `*.sh`: the renewal hook and the dispatcher carry no
+# extension, and a systemd unit runs a command as root as surely as a script
+# does. Only `.md` is excluded, because the runbooks name these commands
+# precisely to tell operators not to use them. Fragments are split so this file
+# does not contain the literals either.
+host_scripts=$(find ops infra/deploy infra/gateway infra/backup \
+  -type f ! -name '*.md' | sort)
+[ -n "$host_scripts" ] || {
+  echo 'found no host scripts to check' >&2
+  exit 1
+}
+# The sweeps must actually include the files that could do the damage, or they
+# are checking nothing. Named one per root, so a root that falls out of the
+# list above fails here instead of passing with less to check.
+for required in infra/deploy/release-retention.sh infra/deploy/ai-agent-deploy \
+  infra/deploy/ai-agent-deploy-dispatch infra/backup/restore-drill.sh \
+  infra/backup/backup-postgres.sh infra/backup/ai-agent-postgres-backup.service \
+  infra/gateway/nginx/install-nginx.sh infra/gateway/nginx/reload-nginx-after-renewal \
+  ops/lightsail/README.md; do
+  case $required in
+    *.md)
+      # The one exclusion, asserted so that widening it later is deliberate.
+      printf '%s\n' "$host_scripts" | grep -Fxq "$required" && {
+        echo "the sweep list must not include documentation: $required" >&2
+        exit 1
+      }
+      continue
+      ;;
+  esac
+  printf '%s\n' "$host_scripts" | grep -Fxq "$required" || {
+    echo "the host script sweep does not cover $required" >&2
+    exit 1
+  }
+done
+
 for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune.*--volumes' 'eval .*SSH_ORIGINAL_COMMAND'; do
-  if grep -ER "$forbidden" ops/lightsail infra/deploy >/dev/null; then
+  # shellcheck disable=SC2086
+  if printf '%s\n' "$host_scripts" | xargs grep -En "$forbidden"; then
     echo 'destructive or evaluative deployment command found' >&2
     exit 1
   fi
 done
 
-# Every host script, not only the two directories the sweep above names. This
-# one walks them and the rest of ops/, so a host script that lands somewhere
-# new is covered on the day it arrives rather than when someone remembers to
-# widen a list — which is what happened to release retention, the first script
-# in this repository with any reason to remove an image at all.
-#
-# The patterns are deliberately wider than the ones above, which only caught a
-# system reclaim carrying --volumes. A bare system reclaim, an -a system
-# reclaim, and an -a image reclaim all passed until now. None of them can
-# distinguish a rollback target from garbage, and rollback capability is exactly
-# what release retention exists to protect.
-#
-# The tests are outside both roots and so are the .md runbooks, which is what
-# keeps this from matching the places that name these commands only to forbid
-# them. Fragments are split so this file does not contain the literals either.
-host_scripts=$(find ops infra/deploy -type f \( -name '*.sh' -o -name 'ai-agent-deploy' \
-  -o -name 'ai-agent-deploy-dispatch' \) | sort)
-[ -n "$host_scripts" ] || {
-  echo 'found no host scripts to check for unsafe reclaims' >&2
-  exit 1
-}
-# The sweep must actually include the scripts that could perform a reclaim, or
-# it is checking nothing.
-for required in infra/deploy/release-retention.sh infra/deploy/ai-agent-deploy; do
-  printf '%s\n' "$host_scripts" | grep -Fxq "$required" || {
-    echo "unsafe-reclaim sweep does not cover $required" >&2
-    exit 1
-  }
-done
+# The patterns below are deliberately wider than the ones above, which only
+# caught a system reclaim carrying --volumes. A bare system reclaim, an -a
+# system reclaim, and an -a image reclaim all passed until they were added.
+# None of them can distinguish a rollback target from garbage, and rollback
+# capability is exactly what release retention exists to protect.
 
 for reclaim in \
   'system'' prune' \

@@ -9,7 +9,7 @@ or the transactional outbox.
 - Schedule daily Lightsail instance snapshots for each provisioned environment
   and define retention in the operator account. Snapshots are a coarse host
   recovery layer, not a substitute for logical database restores.
-- Install the systemd timer with `ops/backup/install-backups.sh`. It creates a
+- Install the systemd timer with `infra/backup/install-backups.sh`. It creates a
   custom-format `pg_dump` under a root-only directory, validates the archive
   catalog before atomically publishing it, writes SHA-256 metadata, and deletes
   local files older than `BACKUP_RETENTION_DAYS` (default 14).

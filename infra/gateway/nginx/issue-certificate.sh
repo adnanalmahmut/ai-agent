@@ -4,6 +4,9 @@ set -eu
 [ "$#" -eq 2 ] || { echo 'usage: issue-certificate.sh <domain> <operator-email>' >&2; exit 64; }
 domain=$1
 email=$2
+# Same as install-nginx.sh: the templates and the renewal hook are neighbours
+# of this script, not of whatever directory the operator ran it from.
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 install_certbot_tls_asset() {
   name=$1
@@ -25,10 +28,10 @@ install_certbot_tls_asset options-ssl-nginx.conf /etc/letsencrypt/options-ssl-ng
 install_certbot_tls_asset ssl-dhparams.pem /etc/letsencrypt/ssl-dhparams.pem
 site=$(mktemp)
 trap 'rm -f "$site"' EXIT
-sed "s/__DOMAIN__/$domain/g" ops/nginx/templates/site-http.conf.template >"$site"
-sed "s/__DOMAIN__/$domain/g" ops/nginx/templates/site-https.conf.template >>"$site"
+sed "s/__DOMAIN__/$domain/g" "$here/templates/site-http.conf.template" >"$site"
+sed "s/__DOMAIN__/$domain/g" "$here/templates/site-https.conf.template" >>"$site"
 install -o root -g root -m 0644 "$site" /etc/nginx/sites-available/ai-agent
-install -o root -g root -m 0755 ops/lightsail/reload-nginx-after-renewal /etc/letsencrypt/renewal-hooks/deploy/ai-agent-nginx
+install -o root -g root -m 0755 "$here/reload-nginx-after-renewal" /etc/letsencrypt/renewal-hooks/deploy/ai-agent-nginx
 nginx -t
 systemctl reload nginx
 certbot renew --dry-run

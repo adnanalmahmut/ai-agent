@@ -27,7 +27,7 @@ flowchart LR
    key for each environment; never reuse the private key between environments.
 4. From a reviewed checkout, run as root:
 
-   `ops/lightsail/bootstrap-host.sh <environment> <domain> <trusted-cidr> <deploy-public-key-file>`
+   `infra/deploy/bootstrap-host.sh <environment> <domain> <trusted-cidr> <deploy-public-key-file>`
 
    Bootstrap installs the versioned host bundle — the compose file, the deploy
    wrapper, the dispatcher, both preflights, and the sudoers fragment — and
@@ -39,8 +39,8 @@ flowchart LR
    If GHCR packages are private, authenticate root's Docker client once with a
    server-local, packages-read-only credential. Do not place that credential in
    GitHub Actions or the deploy user's home.
-6. Run `ops/lightsail/install-nginx.sh`, confirm the HTTP site from outside,
-   then run `ops/lightsail/issue-certificate.sh`. Certificate issuance needs
+6. Run `infra/gateway/nginx/install-nginx.sh`, confirm the HTTP site from outside,
+   then run `infra/gateway/nginx/issue-certificate.sh`. Certificate issuance needs
    working DNS and inbound port 80; it is intentionally operator-only.
 
 ## Updating the host bundle
