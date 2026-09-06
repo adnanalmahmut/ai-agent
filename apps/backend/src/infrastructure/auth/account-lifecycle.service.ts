@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { z } from 'zod';
 
 import { PrismaService } from '../database';
 import { AppException } from '../../core/errors';
@@ -7,12 +8,15 @@ import {
   lastSuperAdminException,
   wouldEmptySuperAdmins,
 } from './super-admin-floor';
+import { accountLifecycleResultSchema } from './account-lifecycle.contract';
 
-export type AccountLifecycleResult = {
-  userId: string;
-  deletedAt: Date | null;
-  revokedSessions: number;
-};
+/*
+ * The payload contract is the definition; this is its application side, so a
+ * change to the schema surfaces here rather than drifting away from it.
+ */
+export type AccountLifecycleResult = z.output<
+  typeof accountLifecycleResultSchema
+>;
 
 @Injectable()
 export class AccountLifecycleService {

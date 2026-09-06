@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import type { z } from 'zod';
 
 import { AppException } from '../../../core/errors';
 import { PrismaService } from '../../../infrastructure/database';
@@ -7,6 +8,7 @@ import {
   ControlPlaneAuditService,
   type ControlPlaneAuditState,
 } from '../audit/control-plane-audit.service';
+import { runtimeSettingStateSchema } from '../control-plane.contract';
 import {
   RUNTIME_SETTING_KEYS,
   type RuntimeSettingKey,
@@ -14,17 +16,11 @@ import {
   runtimeSettingDefinition,
 } from './runtime-setting.registry';
 
-export type RuntimeSettingState = {
-  key: RuntimeSettingKey;
-  description: string;
-  value: unknown;
-  isDefault: boolean;
-  storedValueRejected: boolean;
-  defaultValue: unknown;
-  sensitivity: string;
-  editable: boolean;
-  updatedAt: Date | undefined;
-};
+/*
+ * The payload contract is the definition; this is its application side, so a
+ * change to the schema surfaces here rather than drifting away from it.
+ */
+export type RuntimeSettingState = z.output<typeof runtimeSettingStateSchema>;
 
 @Injectable()
 export class RuntimeSettingService {

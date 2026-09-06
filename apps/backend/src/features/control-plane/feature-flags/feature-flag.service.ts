@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { z } from 'zod';
 
 import { AppException } from '../../../core/errors';
 import { PrismaService } from '../../../infrastructure/database';
@@ -6,6 +7,7 @@ import {
   ControlPlaneAuditService,
   type ControlPlaneAuditState,
 } from '../audit/control-plane-audit.service';
+import { featureFlagStateSchema } from '../control-plane.contract';
 import {
   FEATURE_FLAGS,
   FEATURE_FLAG_KEYS,
@@ -13,18 +15,13 @@ import {
   featureFlagDefinition,
 } from './feature-flag.registry';
 
-export type FeatureFlagSource = 'organization' | 'platform' | 'default';
+/*
+ * The payload contract is the definition; these are its application side, so
+ * a change to a schema surfaces here rather than drifting away from it.
+ */
+export type FeatureFlagState = z.output<typeof featureFlagStateSchema>;
 
-export type FeatureFlagState = {
-  key: FeatureFlagKey;
-  description: string;
-  enabled: boolean;
-  source: FeatureFlagSource;
-  defaultEnabled: boolean;
-  platformOverride: boolean | undefined;
-  organizationOverride: boolean | undefined;
-  organizationOverridable: boolean;
-};
+export type FeatureFlagSource = FeatureFlagState['source'];
 
 @Injectable()
 export class FeatureFlagService {
