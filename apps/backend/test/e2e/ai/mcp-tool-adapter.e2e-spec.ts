@@ -517,7 +517,8 @@ describe('MCP as an adapter over the governed tool gateway', () => {
 
       expect(response.status).toBe(400);
       expect(errorBody(response).error?.details).toMatchObject({
-        reason: 'idempotency_key_required',
+        kind: 'validation',
+        messages: ['idempotency_key_required'],
       });
     });
 

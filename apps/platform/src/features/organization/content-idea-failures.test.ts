@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { ApiError, ApiUnavailableError } from '@/lib/application-api';
+import {
+  ApiError,
+  ApiUnavailableError,
+  errorDetailLines,
+} from '@/lib/application-api';
 
 import {
   CONTENT_IDEA_FAILURES,
@@ -34,14 +38,18 @@ describe('classifying a content-idea refusal', () => {
 
   it('carries the reasons the server chose to send', () => {
     const failure = classify(
-      new ApiError(400, 'VALIDATION_ERROR', { issues: ['Too big'] }),
+      new ApiError(400, 'VALIDATION_ERROR', {
+        kind: 'validation',
+        fields: [],
+        messages: ['Too big'],
+      }),
     );
 
-    expect(failure.details.issues).toEqual(['Too big']);
+    expect(errorDetailLines(failure.details)).toEqual(['Too big']);
   });
 
   it('never invents details for a failure that carried none', () => {
-    expect(classify(new TypeError('x')).details).toEqual({});
+    expect(classify(new TypeError('x')).details).toEqual({ kind: 'none' });
   });
 
   it('produces only kinds the copy covers', () => {

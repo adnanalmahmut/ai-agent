@@ -1141,6 +1141,7 @@ describe('the content ideas screen', () => {
       allow('contentIdea:create', 'contentIdea:read');
       requestContentIdeas.mockRejectedValue(
         new ApiError(429, 'TOO_MANY_REQUESTS', {
+          kind: 'business',
           reason:
             'This organization already has the maximum number of agent runs in flight. Wait for one to finish.',
         }),
@@ -1158,7 +1159,7 @@ describe('the content ideas screen', () => {
     it('says only that a refused body was refused', async () => {
       allow('contentIdea:create', 'contentIdea:read');
       requestContentIdeas.mockRejectedValue(
-        new ApiError(400, 'VALIDATION_ERROR', {}),
+        new ApiError(400, 'VALIDATION_ERROR', { kind: 'none' }),
       );
 
       render();

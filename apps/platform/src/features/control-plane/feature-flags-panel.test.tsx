@@ -314,7 +314,9 @@ describe('a write that failed', () => {
   it('reports the refusal with its reasons, dismisses it, and keeps the table', async () => {
     setFeatureFlag.mockRejectedValue(
       new ApiError(422, 'VALIDATION_ERROR', {
-        issues: ['agents.enabled cannot be overridden here'],
+        kind: 'validation',
+        fields: [],
+        messages: ['agents.enabled cannot be overridden here'],
       }),
     );
 

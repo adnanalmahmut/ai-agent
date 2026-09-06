@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'use-intl';
 
 import { EmptyState } from '@/components/empty-state';
+import { errorDetailLines } from '@/lib/application-api';
 import { PageHeader } from '@/components/page-header';
 import { useOrganizationRolePermission } from '@/features/authorization/use-permissions';
 import {
@@ -447,12 +448,7 @@ export function OrganizationContentIdeasBlock({
         <Card>
           <CardContent className="space-y-1 py-4 text-sm text-destructive">
             <p>{t(`error.${failure.kind}`)}</p>
-            {(
-              failure.details.issues ??
-              (failure.details.reason === undefined
-                ? []
-                : [failure.details.reason])
-            ).map((reason) => (
+            {errorDetailLines(failure.details).map((reason) => (
               <p key={reason} className="text-xs">
                 {reason}
               </p>

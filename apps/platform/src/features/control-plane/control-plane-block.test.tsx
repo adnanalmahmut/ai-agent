@@ -391,7 +391,9 @@ describe('runtime settings', () => {
     allowGlobalPermissions('controlPlane:read', 'controlPlane:write');
     setRuntimeSetting.mockRejectedValue(
       new ApiError(422, 'VALIDATION_ERROR', {
-        issues: ['Too big: expected number to be <=100'],
+        kind: 'validation',
+        fields: [],
+        messages: ['Too big: expected number to be <=100'],
       }),
     );
 
@@ -624,8 +626,11 @@ describe('managed secrets', () => {
     allowGlobalPermissions('controlPlane:read', 'managedSecret:write');
     setManagedSecret.mockRejectedValue(
       new ApiError(422, 'VALIDATION_ERROR', {
-        reason:
+        kind: 'validation',
+        fields: [],
+        messages: [
           'The value does not start with "sk-", so it is probably a different provider\'s credential.',
+        ],
       }),
     );
 

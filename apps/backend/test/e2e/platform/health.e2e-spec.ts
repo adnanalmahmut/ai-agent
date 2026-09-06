@@ -158,6 +158,7 @@ describe('Health checks (e2e)', () => {
           .expect(503);
 
         expect(response.body.error.details).toEqual({
+          kind: 'business',
           process: { status: 'draining' },
         });
 

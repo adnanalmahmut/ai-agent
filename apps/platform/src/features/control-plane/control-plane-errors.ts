@@ -2,6 +2,7 @@ import {
   ApiError,
   type ApiErrorDetails,
   ApiUnavailableError,
+  NO_ERROR_DETAILS,
 } from '@/lib/application-api';
 
 /**
@@ -35,5 +36,5 @@ export function classifyControlPlaneError(
 }
 
 export function controlPlaneErrorDetails(thrown: unknown): ApiErrorDetails {
-  return thrown instanceof ApiError ? thrown.details : {};
+  return thrown instanceof ApiError ? thrown.details : NO_ERROR_DETAILS;
 }

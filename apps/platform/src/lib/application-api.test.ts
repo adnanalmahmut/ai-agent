@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { API_BASE_PATH } from '@/config/paths';
 
-import { ApiError, ApiUnavailableError, apiRequest } from './application-api';
+import {
+  ApiError,
+  ApiUnavailableError,
+  apiRequest,
+  errorDetailLines,
+} from './application-api';
 
 const fetchMock = vi.fn();
 
@@ -208,13 +213,62 @@ describe('an empty success', () => {
 });
 
 describe('the reasons a refusal carries', () => {
-  it('reads the issues a validation failure listed', async () => {
+  it('keeps the field errors a validation failure listed', async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(
         {
           error: {
             code: 'VALIDATION_ERROR',
-            details: { issues: ['Too big: expected number to be <=100'] },
+            details: {
+              kind: 'validation',
+              fields: [
+                {
+                  field: 'email',
+                  code: 'INVALID_EMAIL',
+                  message: 'Not an email',
+                },
+              ],
+              messages: [],
+            },
+          },
+        },
+        400,
+      ),
+    );
+
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
+
+    expect(failure.code).toBe('VALIDATION_ERROR');
+    expect(errorDetailLines(failure.details)).toEqual(['Not an email']);
+  });
+
+  it('reads a refusal from an unnested body', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { code: 'CONFLICT', details: { kind: 'business', reason: 'no' } },
+        409,
+      ),
+    );
+
+    const failure = (await apiRequest('/x').catch(
+      (e: unknown) => e,
+    )) as ApiError;
+
+    expect(failure.details).toEqual({ kind: 'business', reason: 'no' });
+  });
+
+  it('refuses messages that are not all strings', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            details: {
+              kind: 'validation',
+              fields: [],
+              messages: ['ok', { bad: 1 }],
+            },
           },
         },
         422,
@@ -225,37 +279,7 @@ describe('the reasons a refusal carries', () => {
       (e: unknown) => e,
     )) as ApiError;
 
-    expect(failure.code).toBe('VALIDATION_ERROR');
-    expect(failure.details.issues).toEqual([
-      'Too big: expected number to be <=100',
-    ]);
-  });
-
-  it('reads a single reason from an unnested body', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse(
-        { code: 'VALIDATION_ERROR', details: { reason: 'no' } },
-        422,
-      ),
-    );
-
-    const failure = (await apiRequest('/x').catch(
-      (e: unknown) => e,
-    )) as ApiError;
-
-    expect(failure.details.reason).toBe('no');
-  });
-
-  it('refuses issues that are not all strings', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({ error: { details: { issues: ['ok', { bad: 1 }] } } }, 422),
-    );
-
-    const failure = (await apiRequest('/x').catch(
-      (e: unknown) => e,
-    )) as ApiError;
-
-    expect(failure.details.issues).toBeUndefined();
+    expect(errorDetailLines(failure.details)).toEqual([]);
   });
 
   it('refuses a reason that is not a string', async () => {
@@ -267,7 +291,7 @@ describe('the reasons a refusal carries', () => {
       (e: unknown) => e,
     )) as ApiError;
 
-    expect(failure.details.reason).toBeUndefined();
+    expect(failure.details).toEqual({ kind: 'none' });
   });
 
   it('carries no details when the body has none', async () => {
@@ -280,7 +304,7 @@ describe('the reasons a refusal carries', () => {
     )) as ApiError;
 
     expect(failure.code).toBe('FORBIDDEN');
-    expect(failure.details).toEqual({});
+    expect(failure.details).toEqual({ kind: 'none' });
   });
 
   it('survives an error body that is not JSON at all', async () => {
@@ -296,6 +320,6 @@ describe('the reasons a refusal carries', () => {
     )) as ApiError;
 
     expect(failure).toBeInstanceOf(ApiError);
-    expect(failure.details).toEqual({});
+    expect(failure.details).toEqual({ kind: 'none' });
   });
 });

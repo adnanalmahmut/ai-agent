@@ -484,7 +484,7 @@ describe('Control plane (e2e)', () => {
         .expect(400);
 
       const body = errorBody(response);
-      const issues = (body.error?.details as { issues?: unknown })?.issues;
+      const issues = (body.error?.details as { messages?: unknown })?.messages;
 
       expect(body.errorCode).toBe('VALIDATION_ERROR');
       expect(Array.isArray(issues)).toBe(true);

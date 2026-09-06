@@ -640,6 +640,7 @@ describe('human approval and the idempotent side effect', () => {
       expect(second.status).toBe(409);
       expect(errorBody(second).errorCode).toBe('CONFLICT');
       expect(errorBody(second).error?.details).toEqual({
+        kind: 'business',
         reason: 'already_decided',
       });
 

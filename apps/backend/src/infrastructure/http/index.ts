@@ -26,9 +26,12 @@ export {
   ResponseInterceptor,
 } from './response';
 export type {
+  ApiBusinessErrorDetails,
   ApiErrorDetail,
+  ApiErrorDetails,
   ApiErrorResponse,
   ApiFieldError,
+  ApiValidationErrorDetails,
   ApiMeta,
   ApiResponse,
   ApiSuccessResponse,

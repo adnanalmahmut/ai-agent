@@ -12,7 +12,13 @@ import { I18nContext } from 'nestjs-i18n';
 
 import { AppException, type AppErrorCode } from '../../core/errors';
 import { ValidationException, type ValidationIssue } from './validation';
-import type { ApiErrorResponse, ApiFieldError } from './response';
+import type {
+  ApiBusinessErrorDetails,
+  ApiErrorDetails,
+  ApiErrorResponse,
+  ApiFieldError,
+  ApiValidationErrorDetails,
+} from './response';
 import { AppI18nService } from '../i18n/app-i18n.service';
 import {
   ERROR_STATUS_CODES,
@@ -24,6 +30,114 @@ import {
   nodeHeaderGetter,
   resolveLocaleFromHeaders,
 } from '../i18n/request-locale';
+
+/**
+ * How deep a public detail may nest. The readiness probe reports a dependency
+ * map, which is two, and nothing legitimate here is a tree.
+ */
+const MAX_DETAIL_DEPTH = 4;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const prototype: unknown = Object.getPrototypeOf(value);
+
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Keeps the part of a value that is safe to send, and returns `undefined` for
+ * the part that is not.
+ *
+ * A public detail is meant to be a sentence or a number the caller can act on.
+ * Anything else -- an Error, a Prisma exception, a Date, a class instance, a
+ * function -- is a value that was reached for rather than chosen, and
+ * serialising it is how a stack trace, a SQL fragment, or a provider payload
+ * leaves the process. So JSON scalars, plain objects, and arrays of those
+ * survive to a bounded depth, and everything else is dropped rather than
+ * described.
+ */
+function publicValue(value: unknown, depth: number): unknown {
+  if (value === null) return null;
+
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (depth >= MAX_DETAIL_DEPTH) return undefined;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => publicValue(item, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+
+  if (isPlainObject(value)) return publicRecord(value, depth + 1);
+
+  return undefined;
+}
+
+function publicRecord(
+  source: Record<string, unknown>,
+  depth: number,
+): Record<string, unknown> {
+  const kept: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(source)) {
+    // The discriminator belongs to the filter. A producer that sets it -- by
+    // accident or otherwise -- must not be able to make a business refusal
+    // read as a validated one.
+    if (key === 'kind') continue;
+
+    const cleaned = publicValue(value, depth);
+    if (cleaned !== undefined) kept[key] = cleaned;
+  }
+
+  return kept;
+}
+
+/**
+ * Reads a producer's `publicDetails` bag into the declared contract.
+ *
+ * The error code decides which of the two shapes it is: `VALIDATION_ERROR`
+ * means the caller sent something the endpoint could not accept, whatever the
+ * producer used to describe it, so `issues` and a single `reason` both become
+ * the same list of messages. Every other code is a domain refusal and keeps
+ * its bag as it stands.
+ */
+function publicDetails(
+  code: AppErrorCode,
+  source: unknown,
+): ApiErrorDetails | undefined {
+  if (!isPlainObject(source)) return undefined;
+
+  const kept = publicRecord(source, 0);
+
+  if (code === 'VALIDATION_ERROR') return validationDetails(kept);
+
+  return Object.keys(kept).length > 0
+    ? ({ kind: 'business', ...kept } satisfies ApiBusinessErrorDetails)
+    : undefined;
+}
+
+function validationDetails(
+  kept: Record<string, unknown>,
+): ApiValidationErrorDetails | undefined {
+  const messages: string[] = [];
+
+  if (Array.isArray(kept.issues)) {
+    for (const issue of kept.issues) {
+      if (typeof issue === 'string') messages.push(issue);
+    }
+  }
+
+  if (typeof kept.reason === 'string') messages.push(kept.reason);
+
+  return messages.length > 0
+    ? { kind: 'validation', fields: [], messages }
+    : undefined;
+}
 
 @Catch()
 export class UnifiedExceptionFilter implements ExceptionFilter {
@@ -78,7 +192,7 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
     locale: AppLocale,
     requestId: string,
   ): { status: number; body: ApiErrorResponse } {
-    const details = exception.issues.map((issue) =>
+    const fields = exception.issues.map((issue) =>
       this.toFieldError(issue, locale),
     );
 
@@ -87,7 +201,7 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
       'VALIDATION_ERROR',
       locale,
       requestId,
-      { details },
+      { details: { kind: 'validation', fields, messages: [] } },
     );
   }
 
@@ -101,7 +215,7 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
 
     return this.formatEnvelope(status, exception.code, locale, requestId, {
       args: exception.context,
-      details: exception.publicDetails,
+      details: publicDetails(exception.code, exception.publicDetails),
     });
   }
 
@@ -114,17 +228,14 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
     const code = errorCodeForStatus(status);
     const exceptionResponse = exception.getResponse();
 
-    let details: Record<string, unknown> | undefined;
-    if (
-      typeof exceptionResponse === 'object' &&
-      exceptionResponse !== null &&
-      'details' in exceptionResponse
-    ) {
-      details = (exceptionResponse as { details: Record<string, unknown> })
-        .details;
-    }
+    const carried =
+      typeof exceptionResponse === 'object' && exceptionResponse !== null
+        ? (exceptionResponse as { details?: unknown }).details
+        : undefined;
 
-    return this.formatEnvelope(status, code, locale, requestId, { details });
+    return this.formatEnvelope(status, code, locale, requestId, {
+      details: publicDetails(code, carried),
+    });
   }
 
   private fromUnknown(
@@ -168,7 +279,7 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
     locale: AppLocale,
     requestId: string,
     options?: {
-      details?: ApiFieldError[] | Record<string, unknown>;
+      details?: ApiErrorDetails;
       args?: Record<string, unknown>;
     },
   ): { status: number; body: ApiErrorResponse } {
