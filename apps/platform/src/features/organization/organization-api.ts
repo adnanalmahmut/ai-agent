@@ -214,6 +214,15 @@ type GetContentIdeaOperationData =
 export type ContentIdeaRequest =
   operations['requestContentIdeas']['requestBody']['content']['application/json'];
 
+/*
+ * Both create endpoints require an idempotency key, and now say so. Taking the
+ * header object from the operation means the name is the documented one rather
+ * than a literal that can drift from it; HTTP header names are
+ * case-insensitive, so what crosses the wire is unchanged.
+ */
+type RequestContentIdeasHeaders =
+  operations['requestContentIdeas']['parameters']['header'];
+
 export type ContentIdeaAvailability = ContentIdeaAvailabilityData;
 
 export type ContentIdeaUnavailableReason = NonNullable<
@@ -285,7 +294,9 @@ export function requestContentIdeas(
   return apiRequest(contentIdeasBase(organizationId), {
     method: 'POST',
     body: request,
-    headers: { 'idempotency-key': idempotencyKey },
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+    } satisfies RequestContentIdeasHeaders,
   });
 }
 
@@ -318,6 +329,9 @@ type GetContentProjectData =
 export type CreateContentProjectFromIdeaBody =
   operations['createContentProjectFromIdea']['requestBody']['content']['application/json'];
 
+type CreateContentProjectHeaders =
+  operations['createContentProjectFromIdea']['parameters']['header'];
+
 /** The documented query, plus cancellation, which HTTP does not describe. */
 type ListContentProjectsOptions = NonNullable<
   operations['listContentProjects']['parameters']['query']
@@ -345,7 +359,9 @@ export function createContentProjectFromIdea(
   return apiRequest(`${contentProjectsBase(organizationId)}/from-idea`, {
     method: 'POST',
     body: selection,
-    headers: { 'idempotency-key': idempotencyKey },
+    headers: {
+      'Idempotency-Key': idempotencyKey,
+    } satisfies CreateContentProjectHeaders,
   });
 }
 

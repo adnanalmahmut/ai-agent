@@ -2004,7 +2004,9 @@ export interface operations {
     requestContentIdeas: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
             path: {
                 organizationId: string;
             };
@@ -2147,7 +2149,9 @@ export interface operations {
     createContentProjectFromIdea: {
         parameters: {
             query?: never;
-            header?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
             path: {
                 organizationId: string;
             };
@@ -2392,7 +2396,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    reason?: string;
+                };
             };
         };
         responses: {
@@ -2463,7 +2469,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    reason?: string;
+                };
             };
         };
         responses: {

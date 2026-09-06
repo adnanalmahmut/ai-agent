@@ -184,20 +184,52 @@ export function listControlPlaneAudit(
   });
 }
 
-export async function deactivateUserAccount(userId: string): Promise<void> {
-  await apiRequest(`/admin/users/${encodeURIComponent(userId)}/deactivate`, {
+/* ---------------------------------------------------------------------------
+ * Account administration
+ *
+ * A deactivation is reversible and says what it did — which account, whether
+ * it is now deleted, and how many sessions it ended. These functions used to
+ * throw that away; the contract describes it, so they answer with it.
+ * ------------------------------------------------------------------------- */
+
+// All three are a POST with no `@HttpCode`, so the API answers 201.
+export type AccountLifecycleResult = Data<'deactivateUserAccount', 201>;
+
+/** The optional reason a deactivation may be given, as the contract has it. */
+export type AccountDeactivationReason = NonNullable<
+  operations['deactivateUserAccount']['requestBody']
+>['content']['application/json'];
+
+export function deactivateUserAccount(
+  userId: string,
+  reason?: string,
+): Promise<AccountLifecycleResult> {
+  return apiRequest(`/admin/users/${encodeURIComponent(userId)}/deactivate`, {
+    method: 'POST',
+    // An absent reason sends no body, which is what the endpoint already saw.
+    body:
+      reason === undefined
+        ? undefined
+        : ({ reason } satisfies AccountDeactivationReason),
+  });
+}
+
+export function restoreUserAccount(
+  userId: string,
+): Promise<AccountLifecycleResult> {
+  return apiRequest(`/admin/users/${encodeURIComponent(userId)}/restore`, {
     method: 'POST',
   });
 }
 
-export async function restoreUserAccount(userId: string): Promise<void> {
-  await apiRequest(`/admin/users/${encodeURIComponent(userId)}/restore`, {
+export function deactivateSelfAccount(
+  reason?: string,
+): Promise<AccountLifecycleResult> {
+  return apiRequest('/user/account/deactivate', {
     method: 'POST',
-  });
-}
-
-export async function deactivateSelfAccount(): Promise<void> {
-  await apiRequest('/user/account/deactivate', {
-    method: 'POST',
+    body:
+      reason === undefined
+        ? undefined
+        : ({ reason } satisfies AccountDeactivationReason),
   });
 }

@@ -160,8 +160,13 @@ describe('requesting ideas', () => {
       `${API_BASE_PATH}/organizations/${ORGANIZATION}/content-ideas`,
     );
     expect(init.method).toBe('POST');
+    // The contract spells it `Idempotency-Key`; HTTP is case-insensitive, so
+    // this reads it the way a server would rather than the way it was written.
     expect(new Headers(init.headers).get('idempotency-key')).toBe(
       'idem-12345678',
+    );
+    expect(Object.keys(init.headers as Record<string, string>)).toContain(
+      'Idempotency-Key',
     );
     expect(JSON.parse(String(init.body))).toEqual({
       topic: 'A topic',
@@ -350,8 +355,13 @@ describe('one content project', () => {
       `${API_BASE_PATH}/organizations/${ORGANIZATION}/content-projects/from-idea`,
     );
     expect(init.method).toBe('POST');
+    // The contract spells it `Idempotency-Key`; HTTP is case-insensitive, so
+    // this reads it the way a server would rather than the way it was written.
     expect(new Headers(init.headers).get('idempotency-key')).toBe(
       'idem-12345678',
+    );
+    expect(Object.keys(init.headers as Record<string, string>)).toContain(
+      'Idempotency-Key',
     );
     expect(JSON.parse(String(init.body))).toEqual({
       sourceRunId: 'run_1',

@@ -2,6 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 
+import {
+  AccountLifecycleController,
+  SelfAccountLifecycleController,
+} from '../../../../src/infrastructure/auth/lifecycle.controller';
 import { AgentActionApprovalController } from '../../../../src/features/agent-management/approvals/agent-action-approval.controller';
 import { AppModule } from '../../../../src/api/app.module';
 import { ControlPlaneController } from '../../../../src/features/control-plane/control-plane.controller';
@@ -48,6 +52,8 @@ type Operation = {
 };
 
 const CONTROL_PLANE = '/platform/control-plane';
+const ADMIN_USERS = '/admin/users/{userId}';
+const SELF_ACCOUNT = '/user/account/deactivate';
 const APPROVALS = '/organizations/{organizationId}/agent-action-approvals';
 
 let app: INestApplication;
@@ -465,6 +471,87 @@ describe('platform administration contract', () => {
   });
 });
 
+describe('account administration contract', () => {
+  it.each([
+    [`${ADMIN_USERS}/deactivate`, 'post', 'deactivateUserAccount'],
+    [`${ADMIN_USERS}/restore`, 'post', 'restoreUserAccount'],
+    [SELF_ACCOUNT, 'post', 'deactivateSelfAccount'],
+  ])('names %s %s as %s', (path, method, operationId) => {
+    expect(operation(path, method).operationId).toBe(operationId);
+  });
+
+  it.each([`${ADMIN_USERS}/deactivate`, `${ADMIN_USERS}/restore`])(
+    'takes the account from the path on %s',
+    (path) => {
+      const parameter = must(
+        (operation(path, 'post').parameters ?? []).find(
+          (candidate) => candidate.in === 'path' && candidate.name === 'userId',
+        ),
+        `a userId path parameter on ${path}`,
+      );
+
+      expect(parameter.required).toBe(true);
+    },
+  );
+
+  it('deactivating own account needs no path parameter', () => {
+    expect(
+      (operation(SELF_ACCOUNT, 'post').parameters ?? []).filter(
+        (parameter) => parameter.in === 'path',
+      ),
+    ).toEqual([]);
+  });
+
+  /*
+   * The reason is optional, but it is a described field. Documenting the body
+   * as a bare object generated `Record<string, never>`, which told a client
+   * the endpoint accepts nothing.
+   */
+  it.each([`${ADMIN_USERS}/deactivate`, SELF_ACCOUNT])(
+    'describes the optional reason on %s',
+    (path) => {
+      const body = requestSchema(path, 'post');
+
+      expect(keys(body, 'a reason')).toEqual(['reason']);
+      expect(body.properties?.reason).toMatchObject({
+        type: 'string',
+        minLength: 1,
+        maxLength: 500,
+      });
+      // Nothing is required, so a caller may send no body at all.
+      expect(body.required ?? []).toEqual([]);
+    },
+  );
+
+  it('invents no body for a restore, which accepts none', () => {
+    expect(
+      operation(`${ADMIN_USERS}/restore`, 'post').requestBody,
+    ).toBeUndefined();
+  });
+
+  it.each([
+    `${ADMIN_USERS}/deactivate`,
+    `${ADMIN_USERS}/restore`,
+    SELF_ACCOUNT,
+  ])('answers %s with what it did, at 201', (path) => {
+    // A POST with no `@HttpCode`, so Nest answers 201.
+    const data = successData(path, 'post', '201');
+
+    expect(keys(data, 'a lifecycle result')).toEqual([
+      'userId',
+      'deletedAt',
+      'revokedSessions',
+    ]);
+    expect(data.properties?.deletedAt?.anyOf).toEqual([
+      expect.objectContaining({ type: 'string', format: 'date-time' }),
+      { type: 'null' },
+    ]);
+    expect(data.properties?.revokedSessions).toMatchObject({
+      type: 'integer',
+    });
+  });
+});
+
 /**
  * Documenting a payload must not move who may ask for it. These read the
  * metadata the guards consume, so a decorator dropped while adding a response
@@ -523,4 +610,36 @@ describe('authorization is unchanged', () => {
       ).toEqual({ permissions: expected });
     },
   );
+
+  it.each([
+    ['deactivate', { accountLifecycle: ['deactivate'] }],
+    ['restore', { accountLifecycle: ['restore'] }],
+  ])(
+    'still requires a platform permission on accounts.%s',
+    (handler, expected) => {
+      expect(
+        permissionOf(
+          AccountLifecycleController,
+          handler,
+          'USER_HAS_PERMISSION',
+        ),
+      ).toEqual({ permissions: expected });
+    },
+  );
+
+  it('still lets any signed-in user deactivate their own account', () => {
+    // Deliberately unguarded: the session is the authorization, and a
+    // permission here would lock a user out of their own account. It is also
+    // not public — documenting the body must not have made it either.
+    expect(
+      permissionOf(
+        SelfAccountLifecycleController,
+        'deactivateSelf',
+        'USER_HAS_PERMISSION',
+      ),
+    ).toBeUndefined();
+    expect(
+      permissionOf(SelfAccountLifecycleController, 'deactivateSelf', 'PUBLIC'),
+    ).toBeUndefined();
+  });
 });
