@@ -35,7 +35,7 @@ import {
  *
  * Every type here is an alias of the generated OpenAPI contract, which the
  * Backend authors as Zod and
- * `apps/backend/test/unit/infrastructure/docs/administration-contract.spec.ts`
+ * `apps/control-plane/test/unit/infrastructure/docs/administration-contract.spec.ts`
  * pins from the producing side. These are the same payloads read from the
  * consuming one.
  */

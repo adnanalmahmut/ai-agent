@@ -19,27 +19,27 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # required by every image, including ones that do not depend on the patched
 # package, or `pnpm install` fails with ENOENT. See `patches/README.md`.
 COPY patches patches
-COPY apps/backend/package.json apps/backend/package.json
+COPY apps/control-plane/package.json apps/control-plane/package.json
 # The root prepare lifecycle builds workspace packages during install, so their
 # build inputs must already exist in the dependency layer.
 COPY packages/authz-policy packages/authz-policy
 COPY packages/i18n-core packages/i18n-core
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter backend...
+    pnpm install --frozen-lockfile --filter control-plane...
 
 FROM dependencies AS build
-COPY apps/backend apps/backend
+COPY apps/control-plane apps/control-plane
 RUN pnpm --filter @repo/authz-policy build \
     && pnpm --filter @repo/i18n-core build \
-    && DATABASE_URL=postgresql://build:build@localhost:5432/build pnpm --filter backend prisma:generate \
-    && pnpm --filter backend build \
-    && pnpm --filter backend deploy --legacy --prod /out/backend
+    && DATABASE_URL=postgresql://build:build@localhost:5432/build pnpm --filter control-plane prisma:generate \
+    && pnpm --filter control-plane build \
+    && pnpm --filter control-plane deploy --legacy --prod /out/control-plane
 
 FROM base AS runtime
 
 ENV NODE_ENV=production
 WORKDIR /app
-COPY --from=build --chown=node:node /out/backend ./
+COPY --from=build --chown=node:node /out/control-plane ./
 USER node
 EXPOSE 3002
 CMD ["node", "dist/src/api/main"]
@@ -47,6 +47,6 @@ CMD ["node", "dist/src/api/main"]
 FROM build AS migration
 
 ENV NODE_ENV=production
-WORKDIR /workspace/apps/backend
+WORKDIR /workspace/apps/control-plane
 USER node
 CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]

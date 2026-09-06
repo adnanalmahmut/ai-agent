@@ -5,7 +5,7 @@ Configuration belongs to four boundaries:
 | Boundary             | Source of truth                                             | May contain live secrets in Git? |
 | -------------------- | ----------------------------------------------------------- | -------------------------------- |
 | Build/tooling        | package manifests and `docker-bake.hcl`                     | No                               |
-| Local/test           | `apps/backend/.env.example`, CI fixtures, Compose defaults  | Only explicit throwaway values   |
+| Local/test           | `apps/control-plane/.env.example`, CI fixtures, Compose defaults  | Only explicit throwaway values   |
 | Deployment transport | GitHub Staging Environment variables and restricted SSH key | No runtime secrets               |
 | VPS runtime          | root-owned `/etc/ai-agent/runtime.env` (`0600`)             | Never committed or exposed       |
 
@@ -13,7 +13,7 @@ Production configuration does not exist because Production is not provisioned.
 See [deployment state](deployment-state.md).
 
 Backend environment values are parsed with Zod in
-`apps/backend/src/infrastructure/config/*.config.ts`. Missing or invalid
+`apps/control-plane/src/infrastructure/config/*.config.ts`. Missing or invalid
 active-provider values stop the relevant process at startup. The names-only VPS
 template is `ops/environments/runtime.env.example`; preflight checks values
 without printing them.

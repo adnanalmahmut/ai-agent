@@ -12,7 +12,7 @@ import {
  * sends. The implementation lives in `@repo/api-client`; the tests stay in the
  * application suite because that is the runner this repository already has,
  * and they exercise the package's own code either way. The backend's `UnifiedExceptionFilter` writes these shapes and
- * `apps/backend/test/unit/infrastructure/http/errors.spec.ts` pins them from
+ * `apps/control-plane/test/unit/infrastructure/http/errors.spec.ts` pins them from
  * the producing side; this is the same contract read from the consuming one,
  * so a change to either without the other fails on one side or the other.
  */
@@ -179,7 +179,7 @@ describe('a business rule that said no', () => {
 
   it('reads the same keys the API declares it may send', async () => {
     // The producing side is pinned in
-    // apps/backend/test/unit/infrastructure/http/errors.spec.ts; this is the
+    // apps/control-plane/test/unit/infrastructure/http/errors.spec.ts; this is the
     // same document read back, so neither side can quietly narrow the other.
     const read = await details(
       {

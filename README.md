@@ -9,7 +9,7 @@ side effects behind human approval.
 | -------------------- | -------------------------------------------------- | ------------------------- |
 | `apps/web`           | Public site                                        | Next.js 16                |
 | `apps/platform`      | Authenticated organization and platform operations | Next.js 16                |
-| `apps/backend`       | HTTP API, background worker, and operator CLI      | NestJS 11                 |
+| `apps/control-plane`       | HTTP API, background worker, and operator CLI      | NestJS 11                 |
 | `packages/ui`        | Shared React components and styles                 | React 19 / Tailwind CSS 4 |
 | `packages/i18n-core` | Shared locale contracts                            | TypeScript                |
 
@@ -21,7 +21,7 @@ agent runtime contract.
 ## Local development
 
 Requirements: Node.js 24, pnpm 10.29.3, Docker Compose, and the required values
-from `apps/backend/.env.example`.
+from `apps/control-plane/.env.example`.
 
 ```sh
 pnpm install
@@ -42,7 +42,7 @@ only applies committed migrations.
 pnpm typecheck
 pnpm lint
 pnpm test
-pnpm --filter backend test:e2e
+pnpm --filter control-plane test:e2e
 pnpm build
 infra/tests/documentation.sh
 ```

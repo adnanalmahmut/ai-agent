@@ -241,7 +241,7 @@ if grep -Eq 'ghcr\.io/.+:\$sha' infra/deploy/ai-agent-deploy; then
   echo 'deployment must not resolve a mutable SHA tag' >&2
   exit 1
 fi
-grep -Fq 'storage: '\''database'\''' apps/backend/src/infrastructure/auth/auth.factory.ts
+grep -Fq 'storage: '\''database'\''' apps/control-plane/src/infrastructure/auth/auth.factory.ts
 
 # Everything an operator runs as root, gathered once and swept twice below.
 #

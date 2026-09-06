@@ -1,6 +1,6 @@
 # Backend
 
-`apps/backend` is a NestJS 11 service with three entrypoints:
+`apps/control-plane` is a NestJS 11 service with three entrypoints:
 
 | Entrypoint            | Responsibility                                                                |
 | --------------------- | ----------------------------------------------------------------------------- |
@@ -31,7 +31,7 @@ code-owned registry is the authority for agent, model, and tool identities.
 
 ## Architectural checks
 
-`apps/backend/eslint.config.mjs` owns syntactic auth/mail boundaries through
+`apps/control-plane/eslint.config.mjs` owns syntactic auth/mail boundaries through
 standard ESLint import, property, and syntax restrictions. It prevents private
 mail/provider imports, role-based authorization shortcuts, unpaired
 `RequireActiveOrg` decorators, hard-delete calls/routes, session cache/storage
@@ -104,6 +104,6 @@ pnpm dev:backend
 pnpm dev:worker
 ```
 
-Use `pnpm --filter backend test`, `test:e2e`, `lint`, `typecheck`, and
+Use `pnpm --filter control-plane test`, `test:e2e`, `lint`, `typecheck`, and
 `build` for backend validation. The app-local command list is in
-[apps/backend/README.md](../apps/backend/README.md).
+[apps/control-plane/README.md](../apps/control-plane/README.md).

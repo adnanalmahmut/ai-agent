@@ -38,7 +38,7 @@ target "common" {
 target "backend" {
   inherits = ["common"]
   labels = { "io.ai-agent.component.name" = "backend" }
-  dockerfile = "apps/backend/Dockerfile"
+  dockerfile = "apps/control-plane/Dockerfile"
   target = "runtime"
   tags = ["${REGISTRY}/backend:${IMAGE_TAG}"]
 }
@@ -46,7 +46,7 @@ target "backend" {
 target "backend-migration" {
   inherits = ["common"]
   labels = { "io.ai-agent.component.name" = "backend-migration" }
-  dockerfile = "apps/backend/Dockerfile"
+  dockerfile = "apps/control-plane/Dockerfile"
   target = "migration"
   tags = ["${REGISTRY}/backend-migration:${IMAGE_TAG}"]
 }

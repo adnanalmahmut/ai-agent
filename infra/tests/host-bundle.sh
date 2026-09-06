@@ -247,7 +247,7 @@ done
 # that the image cannot provide it. The deploy script asks the running database
 # first; this keeps the two lists from parting company.
 for extension in $(grep -rhoiE 'create extension (if not exists )?[a-z_]+' \
-  apps/backend/prisma/migrations |
+  apps/control-plane/prisma/migrations |
   awk '{ print tolower($NF) }' | sort -u); do
   grep -Eq "^required_extensions=.*\\b${extension}\\b" infra/deploy/ai-agent-deploy ||
     fail "a migration creates the $extension extension and the deploy script does not require it"

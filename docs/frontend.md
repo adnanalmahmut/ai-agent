@@ -65,7 +65,7 @@ composition is convention, not a check.
 
 The Knowledge request, query, and response payload types the platform compiles
 against are generated, not written. The backend's Zod contracts in
-`apps/backend/src/features/knowledge/knowledge.contract.ts` are the authored
+`apps/control-plane/src/features/knowledge/knowledge.contract.ts` are the authored
 source; they become the Application OpenAPI document, which
 `openapi-typescript` turns into
 `apps/platform/src/generated/application-api.generated.ts`. The feature

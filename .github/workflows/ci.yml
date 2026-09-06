@@ -1,4 +1,4 @@
-# The merge gate for `apps/backend`.
+# The merge gate for `apps/control-plane`.
 #
 # Everything here is verify-only. No step writes to the repository, no step
 # carries a `--fix` flag, and no step reaches an external provider: a pipeline
@@ -178,7 +178,7 @@ jobs:
       # Validate before generate: an invalid schema should be reported as a
       # schema error, not as whatever the generator happens to do with it.
       - name: Validate Prisma schema
-        run: pnpm --filter backend run prisma:validate
+        run: pnpm --filter control-plane run prisma:validate
 
       # The generated client is committed, so this step is not about producing
       # it — it is about proving the committed copy is what the schema says it
@@ -186,38 +186,38 @@ jobs:
       # was written for it and fails only at runtime, on a column the adapter
       # cannot find.
       - name: Generate Prisma client
-        run: pnpm --filter backend run prisma:generate
+        run: pnpm --filter control-plane run prisma:generate
 
       # A generated client that differs from the committed one means the schema
       # changed without regenerating. Failing here says so plainly, instead of
       # letting the rest of the run pass against a client nobody has reviewed.
       - name: Check the committed Prisma client is current
-        run: git diff --exit-code -- apps/backend/src/generated/prisma
+        run: git diff --exit-code -- apps/control-plane/src/generated/prisma
 
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Lint
-        run: pnpm --filter backend run lint
+        run: pnpm --filter control-plane run lint
 
       - name: Unit tests
-        run: pnpm --filter backend run test
+        run: pnpm --filter control-plane run test
 
       # `migrate deploy` applies committed migrations and never generates one,
       # which is what makes it the right command here: a schema change pushed
       # without its migration fails the e2e step below instead of being
       # silently papered over by `migrate dev`.
       - name: Apply migrations
-        run: pnpm --filter backend run db:deploy
+        run: pnpm --filter control-plane run db:deploy
 
       - name: E2E tests
-        run: pnpm --filter backend run test:e2e
+        run: pnpm --filter control-plane run test:e2e
 
       # Last, and not redundant with the typecheck: `nest build` runs a
       # different tsconfig and also copies the i18n assets, so it can fail on a
       # translation file that `tsc --noEmit` never looks at.
       - name: Build
-        run: pnpm --filter backend run build
+        run: pnpm --filter control-plane run build
 
   platform:
     name: platform
@@ -296,8 +296,8 @@ jobs:
 
       - name: Load backend targets used by the degraded-startup test
         run: |
-          docker buildx build --load --file apps/backend/Dockerfile --target runtime --tag ghcr.io/adnanalmahmut/ai-agent/backend:development .
-          docker buildx build --load --file apps/backend/Dockerfile --target migration --tag ghcr.io/adnanalmahmut/ai-agent/backend-migration:development .
+          docker buildx build --load --file apps/control-plane/Dockerfile --target runtime --tag ghcr.io/adnanalmahmut/ai-agent/backend:development .
+          docker buildx build --load --file apps/control-plane/Dockerfile --target migration --tag ghcr.io/adnanalmahmut/ai-agent/backend-migration:development .
 
       - name: Prove the API starts while Redis is unavailable
         run: |

@@ -54,7 +54,7 @@ fi
 bare=$(grep -rn 'docker compose' \
   --include '*.yml' --include '*.yaml' --include '*.sh' --include '*.json' \
   --exclude-dir node_modules \
-  .github/workflows infra/tests package.json apps/backend/package.json |
+  .github/workflows infra/tests package.json apps/control-plane/package.json |
   grep -v -e '-f ' -e '--file' |
   grep -v '^infra/tests/compose-interface\.sh:' || true)
 if [ -n "$bare" ]; then
@@ -80,7 +80,7 @@ done
 for script in '"db:up": "pnpm -w run db:up"' \
   '"db:down": "pnpm -w run db:down"' \
   '"db:logs": "pnpm -w run db:logs"'; do
-  grep -Fq "$script" apps/backend/package.json || {
+  grep -Fq "$script" apps/control-plane/package.json || {
     echo "backend package.json must delegate: $script" >&2
     exit 1
   }

@@ -41,7 +41,7 @@ services:
     image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
     build:
       context: ../..
-      dockerfile: apps/backend/Dockerfile
+      dockerfile: apps/control-plane/Dockerfile
       target: runtime
     command: [node, dist/src/api/main]
     environment:
@@ -124,7 +124,7 @@ services:
     image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
     build:
       context: ../..
-      dockerfile: apps/backend/Dockerfile
+      dockerfile: apps/control-plane/Dockerfile
       target: runtime
     command: [node, dist/src/workers/main]
     environment:
@@ -198,7 +198,7 @@ services:
     image: ${BACKEND_MIGRATION_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend-migration:${IMAGE_TAG:-development}}
     build:
       context: ../..
-      dockerfile: apps/backend/Dockerfile
+      dockerfile: apps/control-plane/Dockerfile
       target: migration
     command: [node, node_modules/prisma/build/index.js, migrate, deploy]
     environment:

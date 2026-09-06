@@ -2,7 +2,7 @@
 
 PostgreSQL is the authority for identity, tenant data, configuration, accepted
 agent work, approvals, and audit history. The Prisma schema is
-`apps/backend/prisma/schema.prisma`; generated client code is committed and CI
+`apps/control-plane/prisma/schema.prisma`; generated client code is committed and CI
 checks that it is current.
 
 ## Model groups
