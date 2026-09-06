@@ -10,16 +10,24 @@ inventory is `ops/host-bundle/files`; the installed manifest is
 | `ops/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `ops/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 10 and the current minimum is 8. Bump `VERSION` whenever
+The current release ships bundle 11 and the current minimum is 11. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.
+
+Bundle 11 raises the minimum because it splits the Compose model: the deployment
+overlay is a second installed file, and a host carrying only bundle 10's single
+`docker-compose.yml` resolves the datastores and no application service at all.
+Install the bundle from the release checkout before deploying a release built
+from this commit or later; `ai-agent-deploy` refuses with
+`this release requires host bundle 11` until you do.
 
 ## Contents and installation
 
 The bundle installs:
 
-- `docker-compose.yml`;
+- `docker-compose.yml`, the shared Compose model;
+- `docker-compose.deploy.yml`, the deployment overlay merged over it;
 - `ai-agent-deploy` and its forced-command dispatcher;
 - runtime and host preflight scripts;
 - `ai-agent-release-retention`;

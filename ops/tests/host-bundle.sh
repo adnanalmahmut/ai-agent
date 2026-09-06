@@ -97,6 +97,7 @@ entries=$(grep -v '^[[:space:]]*#' "$inventory" | grep -v '^[[:space:]]*$' || tr
 
 for required in \
   /opt/ai-agent/docker-compose.yml \
+  /opt/ai-agent/docker-compose.deploy.yml \
   /usr/local/sbin/ai-agent-deploy \
   /usr/local/sbin/ai-agent-deploy-dispatch \
   /usr/local/sbin/ai-agent-runtime-preflight \
@@ -185,7 +186,15 @@ optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTI
 required_block=$(sed -n '/^required=/,/^$/p' ops/runtime-preflight.sh |
   tr -d "'" | sed 's/^required=//')
 
-for variable in $(grep -oE '\$\{[A-Z][A-Z0-9_]*:-\}' infra/compose/compose.yaml |
+# The shared file and the deployment overlay together are what a host
+# installs, so both contracts below are asserted against the pair. Asserting
+# the shared file alone would have gone quiet the moment the application
+# services moved into the overlay, which is where every one of these variables
+# now lives.
+deploy_composition='infra/compose/compose.yaml infra/compose/compose.deploy.yaml'
+
+# shellcheck disable=SC2086
+for variable in $(grep -hoE '\$\{[A-Z][A-Z0-9_]*:-\}' $deploy_composition |
   sed -e 's/^\${//' -e 's/:-}$//' | sort -u); do
   classified=no
 
@@ -227,10 +236,11 @@ for variable in $required_block; do
   # against a real render in ops/tests/container-environment.sh; the two are
   # deliberately not merged, because that one needs `jq` and this one must keep
   # working without it.
-  grep -Fq "\${$variable}" infra/compose/compose.yaml ||
-    grep -Fq "\${$variable:" infra/compose/compose.yaml ||
-    grep -q "^      $variable:" infra/compose/compose.yaml ||
-    fail "the runtime preflight requires $variable and infra/compose/compose.yaml never passes it to any service"
+  # shellcheck disable=SC2086
+  grep -Fq "\${$variable}" $deploy_composition ||
+    grep -Fq "\${$variable:" $deploy_composition ||
+    grep -q "^      $variable:" $deploy_composition ||
+    fail "the runtime preflight requires $variable and the deployment composition never passes it to any service"
 done
 
 # `CREATE EXTENSION` runs inside the migration container, which can only report
@@ -270,6 +280,7 @@ rewrite ops/runtime-preflight.sh "$tmp_dir/src/runtime-preflight.sh"
 rewrite ops/lightsail/ai-agent-deploy-dispatch "$tmp_dir/src/ai-agent-deploy-dispatch"
 cp ops/lightsail/ai-agent-deploy.sudoers "$tmp_dir/src/ai-agent-deploy.sudoers"
 cp infra/compose/compose.yaml "$tmp_dir/src/docker-compose.yml"
+cp infra/compose/compose.deploy.yaml "$tmp_dir/src/docker-compose.deploy.yml"
 rewrite ops/lightsail/ai-agent-deploy "$tmp_dir/src/ai-agent-deploy"
 
 # Stands in for ai-agent-release-retention. Retention's own behaviour is owned by
@@ -319,6 +330,7 @@ sed -i 's/^required_free_mib=.*/required_free_mib=1/' "$tmp_dir/src/ai-agent-dep
 
 {
   printf '%s %s %s\n' "$tmp_dir/src/docker-compose.yml" "$tmp_dir/opt/ai-agent/docker-compose.yml" 0644
+  printf '%s %s %s\n' "$tmp_dir/src/docker-compose.deploy.yml" "$tmp_dir/opt/ai-agent/docker-compose.deploy.yml" 0644
   printf '%s %s %s\n' "$tmp_dir/src/ai-agent-deploy" "$tmp_dir/sbin/ai-agent-deploy" 0755
   printf '%s %s %s\n' "$tmp_dir/src/ai-agent-deploy-dispatch" "$tmp_dir/sbin/ai-agent-deploy-dispatch" 0755
   printf '%s %s %s\n' "$tmp_dir/src/runtime-preflight.sh" "$tmp_dir/sbin/ai-agent-runtime-preflight" 0755
@@ -465,7 +477,7 @@ manifest=$tmp_dir/etc/ai-agent/host-bundle.manifest
 [ -f "$manifest" ] || fail 'the installer recorded no host bundle manifest'
 grep -Fxq "version $bundle_version" "$manifest" ||
   fail 'the recorded manifest does not carry the bundle version'
-[ "$(grep -c '^file ' "$manifest")" -eq 7 ] ||
+[ "$(grep -c '^file ' "$manifest")" -eq 8 ] ||
   fail 'the recorded manifest does not cover every installed file'
 
 preflight=$tmp_dir/sbin/ai-agent-host-preflight
@@ -909,9 +921,18 @@ cp "$tmp_dir/images.saved" "$control/compose_images"
 
 # A manifest that simply omits the release-coupled files must not verify.
 cp "$manifest" "$tmp_dir/manifest.saved"
-grep -v 'docker-compose.yml' "$tmp_dir/manifest.saved" >"$manifest"
+grep -v 'docker-compose\.yml' "$tmp_dir/manifest.saved" >"$manifest"
 refuses 'does not cover the installed compose file' \
   'a manifest that does not cover the installed compose file' attempt_deploy
+cp "$tmp_dir/manifest.saved" "$manifest"
+
+# The deployment overlay is the half carrying every application service, so an
+# unrecorded overlay is the same failure as an unrecorded compose file: the host
+# would resolve nothing but the datastores, and a tampered file would read as a
+# topology change rather than as tampering.
+grep -v 'docker-compose\.deploy\.yml' "$tmp_dir/manifest.saved" >"$manifest"
+refuses 'does not cover the installed deployment compose overlay' \
+  'a manifest that does not cover the installed deployment overlay' attempt_deploy
 cp "$tmp_dir/manifest.saved" "$manifest"
 
 # A near-miss entry must not satisfy the coverage check either: the recorded

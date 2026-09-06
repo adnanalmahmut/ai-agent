@@ -13,7 +13,7 @@ PostgreSQL, Redis/BullMQ, and shared UI and i18n packages.
 - Product and system behavior: `docs/` plus the relevant source and tests
 - Backend runtime contracts: `apps/backend/src/infrastructure/config/` and
   `apps/backend/prisma/schema.prisma`
-- Container topology: `infra/compose/compose.yaml` and `docker-bake.hcl`
+- Container topology: `infra/compose/` and `docker-bake.hcl`
 - Delivery behavior: `.github/workflows/` and `ops/`
 - Agent policies, roles, workflows, and skills: `.agents/`
 

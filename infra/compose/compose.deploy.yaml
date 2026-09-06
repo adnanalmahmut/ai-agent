@@ -1,0 +1,283 @@
+# Staging, production, and migration only, merged over compose.yaml for
+# `--profile staging`, `--profile production`, or `--profile migration`.
+#
+# Nothing a developer machine or CI needs is in here, and — the direction that
+# matters — nothing they define reaches this composition. The development
+# credential defaults live in compose.dev.yaml, which a deployment never loads,
+# so `POSTGRES_PASSWORD` has no fallback here: an absent value renders empty and
+# the database refuses to start, instead of silently coming up with a published
+# default password. `ops/runtime-preflight.sh` still rejects that value in
+# runtime.env, because an operator can always write it by hand.
+#
+# The throwaway `postgres-test` and `redis-test` are likewise absent, not merely
+# filtered out by a profile: a deployment composition cannot render them at all.
+#
+# Installed on a host as /opt/ai-agent/docker-compose.deploy.yml alongside the
+# shared file at /opt/ai-agent/docker-compose.yml. Both are release-coupled and
+# both are in ops/host-bundle/files; a host carrying only the shared file cannot
+# deploy this release, which is what the MIN_VERSION bump enforces.
+
+x-app-security: &app-security
+  restart: unless-stopped
+  init: true
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  tmpfs:
+    - /tmp:size=64m,mode=1777
+
+services:
+  postgres:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB:-}
+
+  backend:
+    <<: *app-security
+    profiles: [staging, production]
+    image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
+    build:
+      context: ../..
+      dockerfile: apps/backend/Dockerfile
+      target: runtime
+    command: [node, dist/src/api/main]
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_PORT: 3002
+      APP_NAME: ${APP_NAME:-API Service}
+      APP_PLATFORM_URL: ${APP_PLATFORM_URL:-}
+      APP_SHUTDOWN_READINESS_DELAY_MS: ${APP_SHUTDOWN_READINESS_DELAY_MS:-5000}
+      APP_SHUTDOWN_TIMEOUT_MS: ${APP_SHUTDOWN_TIMEOUT_MS:-30000}
+      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_CONNECT_TIMEOUT_MS: ${DATABASE_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-app}
+      REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_COMMAND_TIMEOUT_MS: ${REDIS_COMMAND_TIMEOUT_MS:-2000}
+      REDIS_MAX_RETRIES_PER_REQUEST: ${REDIS_MAX_RETRIES_PER_REQUEST:-2}
+      GEOIP_DATABASE_PATH: /usr/share/GeoIP/GeoLite2-City.mmdb
+      GEOIP_READER_RETRY_MS: ${GEOIP_READER_RETRY_MS:-60000}
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      RATE_LIMIT_POINTS: ${RATE_LIMIT_POINTS:-60}
+      RATE_LIMIT_DURATION_SEC: ${RATE_LIMIT_DURATION_SEC:-60}
+      RATE_LIMIT_HEADER_PREFIX: ${RATE_LIMIT_HEADER_PREFIX:-RateLimit}
+      RATE_LIMIT_REDIS_FAILURE_POLICY: ${RATE_LIMIT_REDIS_FAILURE_POLICY:-open}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_PRETTY: ${LOG_PRETTY:-false}
+      OPENAPI_ENABLED: ${OPENAPI_ENABLED:-false}
+      OPENAPI_PATH: ${OPENAPI_PATH:-/docs}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
+      APP_ENCRYPTION_ACTIVE_KEY_VERSION: ${APP_ENCRYPTION_ACTIVE_KEY_VERSION:-}
+      APP_ENCRYPTION_DECRYPT_KEYS: ${APP_ENCRYPTION_DECRYPT_KEYS:-}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-}
+      BETTER_AUTH_RATE_LIMIT_ENABLED: ${BETTER_AUTH_RATE_LIMIT_ENABLED:-true}
+      GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MAIL_DRIVER: ${MAIL_DRIVER:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-API Service}
+      MAIL_LOG_WRITE_HTML: ${MAIL_LOG_WRITE_HTML:-false}
+      MAIL_TIMEOUT_MS: ${MAIL_TIMEOUT_MS:-10000}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+    ports:
+      - 127.0.0.1:${BACKEND_HOST_PORT:-3002}:3002
+    volumes:
+      - type: volume
+        source: geoip_data
+        target: /usr/share/GeoIP
+        read_only: true
+    networks:
+      - edge
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3002/api/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    <<: *app-security
+    profiles: [staging, production]
+    image: ${BACKEND_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend:${IMAGE_TAG:-development}}
+    build:
+      context: ../..
+      dockerfile: apps/backend/Dockerfile
+      target: runtime
+    command: [node, dist/src/workers/main]
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_SHUTDOWN_TIMEOUT_MS: ${APP_SHUTDOWN_TIMEOUT_MS:-30000}
+      DATABASE_URL: ${DATABASE_URL:-}
+      DATABASE_CONNECT_TIMEOUT_MS: ${DATABASE_CONNECT_TIMEOUT_MS:-5000}
+      # The worker resolves provider credentials when it executes, not when the
+      # work was accepted, so it needs the master key the API needs.
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
+      APP_ENCRYPTION_ACTIVE_KEY_VERSION: ${APP_ENCRYPTION_ACTIVE_KEY_VERSION:-}
+      APP_ENCRYPTION_DECRYPT_KEYS: ${APP_ENCRYPTION_DECRYPT_KEYS:-}
+      REDIS_URL: ${REDIS_URL:-}
+      REDIS_KEY_PREFIX: ${REDIS_KEY_PREFIX:-app}
+      REDIS_CONNECT_TIMEOUT_MS: ${REDIS_CONNECT_TIMEOUT_MS:-5000}
+      REDIS_COMMAND_TIMEOUT_MS: ${REDIS_COMMAND_TIMEOUT_MS:-2000}
+      REDIS_MAX_RETRIES_PER_REQUEST: ${REDIS_MAX_RETRIES_PER_REQUEST:-2}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      LOG_PRETTY: ${LOG_PRETTY:-false}
+      QUEUE_PREFIX: ${QUEUE_PREFIX:-bmq}
+      QUEUE_WORKER_CONCURRENCY: ${QUEUE_WORKER_CONCURRENCY:-4}
+      QUEUE_JOB_ATTEMPTS: ${QUEUE_JOB_ATTEMPTS:-3}
+      QUEUE_JOB_BACKOFF_MS: ${QUEUE_JOB_BACKOFF_MS:-2000}
+      QUEUE_COMPLETED_AGE_SECONDS: ${QUEUE_COMPLETED_AGE_SECONDS:-3600}
+      QUEUE_COMPLETED_COUNT: ${QUEUE_COMPLETED_COUNT:-1000}
+      QUEUE_FAILED_AGE_SECONDS: ${QUEUE_FAILED_AGE_SECONDS:-604800}
+      QUEUE_FAILED_COUNT: ${QUEUE_FAILED_COUNT:-5000}
+      QUEUE_SHUTDOWN_GRACE_MS: ${QUEUE_SHUTDOWN_GRACE_MS:-25000}
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-1000}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-50}
+      OUTBOX_LEASE_MS: ${OUTBOX_LEASE_MS:-30000}
+      OUTBOX_WARN_AFTER_ATTEMPTS: ${OUTBOX_WARN_AFTER_ATTEMPTS:-10}
+      AGENT_RUN_RECONCILE_INTERVAL_MS: ${AGENT_RUN_RECONCILE_INTERVAL_MS:-60000}
+      AGENT_RUN_RECONCILE_STALE_AFTER_MS: ${AGENT_RUN_RECONCILE_STALE_AFTER_MS:-120000}
+      AGENT_RUN_RECONCILE_BATCH_SIZE: ${AGENT_RUN_RECONCILE_BATCH_SIZE:-50}
+      # The worker performs approved agent notifications through the same mail
+      # driver the API uses for auth mail, so it composes the same variables
+      # and must boot under whichever driver is configured. The Resend key is
+      # the one credential it needs. SES and SMTP cannot honour the idempotency
+      # contract and the effect fails closed on them, so their *credentials*
+      # are deliberately not passed — but their non-secret discriminators are,
+      # because the driver schema needs them to parse and a worker that cannot
+      # boot would take agent execution down with it.
+      MAIL_DRIVER: ${MAIL_DRIVER:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-API Service}
+      MAIL_TIMEOUT_MS: ${MAIL_TIMEOUT_MS:-10000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      AWS_REGION: ${AWS_REGION:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+    networks:
+      - edge
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "process.kill(1, 0)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  migrate:
+    <<: *app-security
+    profiles: [migration]
+    image: ${BACKEND_MIGRATION_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/backend-migration:${IMAGE_TAG:-development}}
+    build:
+      context: ../..
+      dockerfile: apps/backend/Dockerfile
+      target: migration
+    command: [node, node_modules/prisma/build/index.js, migrate, deploy]
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-}
+    networks:
+      - data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    <<: *app-security
+    profiles: [staging, production]
+    image: ${WEB_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/web:${IMAGE_TAG:-development}}
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+    ports:
+      - 127.0.0.1:${WEB_HOST_PORT:-3000}:3000
+    networks:
+      - edge
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/').then(r=>{if(r.status>=500)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  platform:
+    <<: *app-security
+    profiles: [staging, production]
+    image: ${PLATFORM_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/platform:${IMAGE_TAG:-development}}
+    build:
+      context: ../..
+      dockerfile: apps/platform/Dockerfile
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3001
+      PLATFORM_API_ORIGIN: http://backend:3002
+    ports:
+      - 127.0.0.1:${PLATFORM_HOST_PORT:-3001}:3001
+    networks:
+      - edge
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3001/platform/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  geoipupdate:
+    profiles: [staging, production]
+    image: ghcr.io/maxmind/geoipupdate:v7.1
+    restart: unless-stopped
+    environment:
+      GEOIPUPDATE_ACCOUNT_ID: ${GEOIPUPDATE_ACCOUNT_ID:-}
+      GEOIPUPDATE_LICENSE_KEY: ${GEOIPUPDATE_LICENSE_KEY:-}
+      GEOIPUPDATE_EDITION_IDS: GeoLite2-City
+      GEOIPUPDATE_FREQUENCY: "24"
+    volumes:
+      - geoip_data:/usr/share/GeoIP
+    networks:
+      - edge
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+volumes:
+  geoip_data:

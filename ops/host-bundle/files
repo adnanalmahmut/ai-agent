@@ -12,6 +12,7 @@
 #
 # Format: <source-in-repository> <installed-destination> <mode>
 infra/compose/compose.yaml /opt/ai-agent/docker-compose.yml 0644
+infra/compose/compose.deploy.yaml /opt/ai-agent/docker-compose.deploy.yml 0644
 ops/lightsail/ai-agent-deploy /usr/local/sbin/ai-agent-deploy 0755
 ops/lightsail/ai-agent-deploy-dispatch /usr/local/sbin/ai-agent-deploy-dispatch 0755
 ops/runtime-preflight.sh /usr/local/sbin/ai-agent-runtime-preflight 0755

@@ -19,6 +19,7 @@ mkdir -p "$readonly_root" "$config_root" "$state_dir" "$bin_dir" "$(dirname "$pr
 printf '%s\n' staging >"$config_root/environment"
 : >"$config_root/runtime.env"
 : >"$readonly_root/docker-compose.yml"
+: >"$readonly_root/docker-compose.deploy.yml"
 
 sed \
   -e "s#readonly_root=/opt/ai-agent#readonly_root=$readonly_root#" \

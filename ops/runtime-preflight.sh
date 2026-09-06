@@ -165,11 +165,13 @@ if [ -n "$decrypt_keys" ]; then
   done
 fi
 
-# `docker-compose.yml` falls back to POSTGRES_PASSWORD=postgres when the value
-# is absent, so a runtime file that merely forgets it does not fail any
-# non-empty check — it silently deploys the database with a published default
-# credential. The fallback exists for local development and has no business on a
-# host that answers from the internet.
+# The installed compose files no longer default POSTGRES_PASSWORD to anything:
+# the fallback to the published `postgres` lives in the development overlay,
+# which a host is never installed with, so a runtime file that forgets the
+# value now renders it empty and the database refuses to start. This stays
+# because the structural fix only removes the silent path — an operator can
+# still write the development password into runtime.env by hand, and it has no
+# business on a host that answers from the internet.
 [ "$(value_for POSTGRES_PASSWORD)" != 'postgres' ] ||
   die 'POSTGRES_PASSWORD must not be the compose development fallback'
 
