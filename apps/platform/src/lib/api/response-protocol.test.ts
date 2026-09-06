@@ -99,7 +99,9 @@ describe('a business rule that said no', () => {
     expect(errorDetailLines(read)).toEqual(['already_installed']);
   });
 
-  it('carries no reason when the refusal named none', async () => {
+  it('keeps the metadata a refusal carried instead of only its reason', async () => {
+    // The readiness probe answers with a dependency map and no reason at all.
+    // Dropping it left a screen with a generic sentence and nothing to show.
     const read = await details(
       {
         error: {
@@ -110,8 +112,161 @@ describe('a business rule that said no', () => {
       503,
     );
 
+    expect(read).toEqual({
+      kind: 'business',
+      process: { status: 'draining' },
+    });
+    expect(errorDetailLines(read)).toEqual([]);
+  });
+
+  it('keeps a reason alongside the rest rather than instead of it', async () => {
+    const read = await details(
+      {
+        error: {
+          code: 'TOO_MANY_REQUESTS',
+          details: { kind: 'business', reason: 'rate_limited', retryAfterSec: 30 },
+        },
+      },
+      429,
+    );
+
+    expect(read).toEqual({
+      kind: 'business',
+      reason: 'rate_limited',
+      retryAfterSec: 30,
+    });
+    expect(errorDetailLines(read)).toEqual(['rate_limited']);
+  });
+
+  it('keeps a refusal that carried nothing but a reason', async () => {
+    const read = await details(
+      { error: { code: 'CONFLICT', details: { kind: 'business', reason: 'x' } } },
+      409,
+    );
+
+    expect(read).toEqual({ kind: 'business', reason: 'x' });
+  });
+
+  it('keeps safe scalars and arrays, at any of the depths the API sends', async () => {
+    const read = await details(
+      {
+        error: {
+          code: 'CONFLICT',
+          details: {
+            kind: 'business',
+            attempted: 3,
+            allowed: false,
+            missing: null,
+            conflicts: ['a', 'b'],
+            limits: { window: { seconds: 60, max: 5 } },
+          },
+        },
+      },
+      409,
+    );
+
+    expect(read).toEqual({
+      kind: 'business',
+      attempted: 3,
+      allowed: false,
+      missing: null,
+      conflicts: ['a', 'b'],
+      limits: { window: { seconds: 60, max: 5 } },
+    });
+  });
+
+  it('reads the same keys the API declares it may send', async () => {
+    // The producing side is pinned in
+    // apps/backend/test/unit/infrastructure/http/errors.spec.ts; this is the
+    // same document read back, so neither side can quietly narrow the other.
+    const read = await details(
+      {
+        error: {
+          code: 'SERVICE_UNAVAILABLE',
+          details: {
+            kind: 'business',
+            postgres: { status: 'down' },
+            redis: { status: 'up' },
+          },
+        },
+      },
+      503,
+    );
+
+    expect(Object.keys(read).sort()).toEqual(['kind', 'postgres', 'redis']);
+  });
+});
+
+describe('what a refusal is not allowed to smuggle in', () => {
+  // Read without a JSON round trip on the way in. `response.json()` would
+  // flatten these to whatever survives serialization, which is not the
+  // question: the decoder is also handed objects in-process, and the rule it
+  // applies has to be its own rather than a side effect of the transport.
+  const readDirect = async (value: unknown): Promise<ApiErrorDetails> => {
+    const response = {
+      json: () =>
+        Promise.resolve({ error: { code: 'CONFLICT', details: value } }),
+    } as unknown as Response;
+
+    return (await readApiError(response)).details;
+  };
+
+  it('drops a value that is not JSON', async () => {
+    const read = await readDirect({
+      kind: 'business',
+      reason: 'unreachable',
+      cause: new Error('connect ECONNREFUSED 10.0.0.5:5432'),
+      retry: () => undefined,
+    });
+
+    expect(read).toEqual({ kind: 'business', reason: 'unreachable' });
+  });
+
+  it('drops a class instance rather than reading its fields', async () => {
+    class DriverError extends Error {
+      readonly code = 'P2002';
+      readonly meta = { query: 'SELECT * FROM "User"' };
+    }
+
+    const read = await readDirect({
+      kind: 'business',
+      reason: 'duplicate',
+      error: new DriverError('unique constraint'),
+    });
+
+    expect(read).toEqual({ kind: 'business', reason: 'duplicate' });
+    expect(JSON.stringify(read)).not.toContain('SELECT');
+  });
+
+  it('stops descending before an unbounded graph does', async () => {
+    const read = (await readDirect({
+      kind: 'business',
+      a: { b: { c: { d: { shown: 'kept', e: { f: 'too deep' } } } } },
+    })) as Record<string, unknown>;
+
+    // The same bound the API applies on the way out, so a document that
+    // survived one side is never truncated only by the other.
+    expect(read).toEqual({
+      kind: 'business',
+      a: { b: { c: { d: { shown: 'kept' } } } },
+    });
+    expect(JSON.stringify(read)).not.toContain('too deep');
+  });
+
+  it('drops a reason the wire made something other than a sentence', async () => {
+    const read = await readDirect({ kind: 'business', reason: { text: 'no' } });
+
     expect(read).toEqual({ kind: 'business' });
     expect(errorDetailLines(read)).toEqual([]);
+  });
+
+  it('reads malformed business details without throwing', async () => {
+    await expect(readDirect({ kind: 'business' })).resolves.toEqual({
+      kind: 'business',
+    });
+    await expect(
+      readDirect({ kind: 'business', nested: undefined }),
+    ).resolves.toEqual({ kind: 'business' });
   });
 });
 

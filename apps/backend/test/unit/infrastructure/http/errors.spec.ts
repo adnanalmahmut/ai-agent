@@ -187,6 +187,24 @@ describe('what may not leave the process', () => {
     expect(JSON.stringify(caught.body)).not.toContain('P2002');
   });
 
+  it('stops descending before an unbounded graph does', () => {
+    // The platform decoder applies the same bound on the way in
+    // (apps/platform/src/lib/api/response-protocol.test.ts), so a document
+    // that survived one side is never truncated only by the other.
+    const caught = raise(
+      new AppException('CONFLICT', {
+        publicDetails: {
+          a: { b: { c: { d: { shown: 'kept', e: { f: 'too deep' } } } } },
+        },
+      }),
+    );
+
+    expect(detailsOf(caught)).toEqual({
+      kind: 'business',
+      a: { b: { c: { d: { shown: 'kept' } } } },
+    });
+  });
+
   it('will not let a producer set the discriminator itself', () => {
     const caught = raise(
       new AppException('CONFLICT', {
