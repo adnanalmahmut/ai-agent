@@ -4,11 +4,12 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
-compose_files=$(find . -name docker-compose.yml -o -name docker-compose.yaml)
-test "$compose_files" = './docker-compose.yml'
+compose_files=$(find . -path ./node_modules -prune -o \
+  \( -name 'docker-compose.y*ml' -o -name 'compose.y*ml' \) -print)
+test "$compose_files" = './infra/compose/compose.yaml'
 
 for port in 3000 3001 3002 5432 6379; do
-  if grep -En "^[[:space:]]*-[[:space:]]*['\"]?[^#]*:${port}:${port}" docker-compose.yml \
+  if grep -En "^[[:space:]]*-[[:space:]]*['\"]?[^#]*:${port}:${port}" infra/compose/compose.yaml \
     | grep -Ev '127\.0\.0\.1:' >/dev/null; then
     echo "port ${port} has a non-loopback host binding" >&2
     exit 1
@@ -21,32 +22,32 @@ for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune --volumes'; do
     --include '*.yml' \
     --include '*.yaml' \
     --exclude container-foundation.sh \
-    .github ops docker-compose.yml >/dev/null; then
+    .github ops infra/compose/compose.yaml >/dev/null; then
     echo "destructive volume command found: $forbidden" >&2
     exit 1
   fi
 done
 
-grep -Eq '^  data:$' docker-compose.yml
-grep -Eq '^    internal: true$' docker-compose.yml
-grep -Eq '^  postgres_data:$' docker-compose.yml
-grep -Eq '^  redis_data:$' docker-compose.yml
-grep -Eq '^  geoip_data:$' docker-compose.yml
-grep -Eq 'command: \[node, dist/src/api/main\]' docker-compose.yml
-grep -Eq 'command: \[node, dist/src/workers/main\]' docker-compose.yml
+grep -Eq '^  data:$' infra/compose/compose.yaml
+grep -Eq '^    internal: true$' infra/compose/compose.yaml
+grep -Eq '^  postgres_data:$' infra/compose/compose.yaml
+grep -Eq '^  redis_data:$' infra/compose/compose.yaml
+grep -Eq '^  geoip_data:$' infra/compose/compose.yaml
+grep -Eq 'command: \[node, dist/src/api/main\]' infra/compose/compose.yaml
+grep -Eq 'command: \[node, dist/src/workers/main\]' infra/compose/compose.yaml
 grep -Fq 'CMD ["node", "dist/src/api/main"]' apps/backend/Dockerfile
-grep -Eq 'command: \[node, node_modules/prisma/build/index.js, migrate, deploy\]' docker-compose.yml
-grep -Eq '^[[:space:]]+APP_PORT: 3002$' docker-compose.yml
-if grep -Eq '^[[:space:]]+PORT: 3002$' docker-compose.yml; then
+grep -Eq 'command: \[node, node_modules/prisma/build/index.js, migrate, deploy\]' infra/compose/compose.yaml
+grep -Eq '^[[:space:]]+APP_PORT: 3002$' infra/compose/compose.yaml
+if grep -Eq '^[[:space:]]+PORT: 3002$' infra/compose/compose.yaml; then
   echo 'backend compose service must configure APP_PORT, not PORT' >&2
   exit 1
 fi
-backend_block=$(sed -n '/^  backend:/,/^  worker:/p' docker-compose.yml)
+backend_block=$(sed -n '/^  backend:/,/^  worker:/p' infra/compose/compose.yaml)
 if printf '%s\n' "$backend_block" | grep -Fq 'redis:'; then
   echo 'backend must not hard-depend on Redis health' >&2
   exit 1
 fi
-if grep -Fq 'env_file:' docker-compose.yml; then
+if grep -Fq 'env_file:' infra/compose/compose.yaml; then
   echo 'containers must receive explicit environment allowlists' >&2
   exit 1
 fi

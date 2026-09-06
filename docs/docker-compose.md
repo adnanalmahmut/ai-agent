@@ -1,6 +1,7 @@
 # Docker Compose
 
-The repository has exactly one root `docker-compose.yml`. Profiles select
+The repository has exactly one Compose file, `infra/compose/compose.yaml`.
+Profiles select
 development, test, staging, production, and one-shot migration behavior; there
 are no environment-specific Compose files.
 

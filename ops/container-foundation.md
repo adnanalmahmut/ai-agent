@@ -1,6 +1,7 @@
 # Container foundation
 
-The repository has one Compose model: `docker-compose.yml`. Profiles select
+The repository has one Compose model: `infra/compose/compose.yaml`. Profiles
+select
 the process set without overlay files:
 
 - `development`: PostgreSQL and Redis on loopback for local development.
@@ -23,10 +24,10 @@ startup.
 ## Local verification
 
 ```bash
-docker compose --profile development config
-docker compose --profile test config
-docker compose --profile staging --profile migration config
-docker compose build backend web platform migrate
+infra/scripts/compose.sh --profile development config
+infra/scripts/compose.sh --profile test config
+infra/scripts/compose.sh --profile staging --profile migration config
+infra/scripts/compose.sh build backend web platform migrate
 ```
 
 The staging/production runtime file is server-local. Start Compose with an
