@@ -75,9 +75,35 @@ describe('auth mail callbacks', () => {
         to: 'recipient@example.com',
         variables: {
           name: 'Adnan',
-          actionUrl: 'https://api.example.com/api/auth/verify-email?token=abc',
+          actionUrl:
+            'https://api.example.com/api/auth/verify-email?token=abc' +
+            '&callbackURL=https%3A%2F%2Fplatform.example.com%2Fplatform%2Far%2Fverify-email%3Fstatus%3Dverified',
         },
       });
+    });
+
+    it('overwrites a caller-supplied callbackURL with the platform route', async () => {
+      await callbacks.sendVerificationEmail(
+        {
+          user: user(),
+          url:
+            'https://api.example.com/api/auth/verify-email?token=abc' +
+            '&callbackURL=https%3A%2F%2Fattacker.example%2Fsteal',
+          token: 'abc',
+        },
+        request({ 'x-app-locale': 'en' }),
+      );
+
+      const actionUrl = new URL(mail.last().variables.actionUrl);
+
+      expect(actionUrl.searchParams.get('callbackURL')).toBe(
+        'https://platform.example.com/platform/en/verify-email?status=verified',
+      );
+      // The route and the token Better Auth chose are left alone.
+      expect(actionUrl.origin + actionUrl.pathname).toBe(
+        'https://api.example.com/api/auth/verify-email',
+      );
+      expect(actionUrl.searchParams.get('token')).toBe('abc');
     });
 
     it('resolves immediately rather than waiting on delivery', async () => {
@@ -106,6 +132,29 @@ describe('auth mail callbacks', () => {
         to: 'recipient@example.com',
         variables: { expiresInMinutes: 60 },
       });
+    });
+
+    it('overwrites a caller-supplied redirect with the platform route', async () => {
+      await callbacks.sendResetPassword(
+        {
+          user: user(),
+          url:
+            `https://api.example.com/api/auth/reset-password/${RESET_TOKEN}` +
+            '?callbackURL=https%3A%2F%2Fattacker.example%2Fsteal',
+          token: RESET_TOKEN,
+        },
+        request({ 'x-app-locale': 'en' }),
+      );
+
+      const actionUrl = new URL(mail.last().variables.actionUrl);
+
+      expect(actionUrl.searchParams.get('callbackURL')).toBe(
+        'https://platform.example.com/platform/en/reset-password',
+      );
+      expect(actionUrl.origin + actionUrl.pathname).toBe(
+        `https://api.example.com/api/auth/reset-password/${RESET_TOKEN}`,
+      );
+      expect(mail.last().variables.actionUrl).not.toContain('attacker.example');
     });
 
     it('quotes the configured expiry rather than a hard-coded one', async () => {
