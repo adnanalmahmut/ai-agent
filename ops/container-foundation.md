@@ -62,7 +62,7 @@ names a different role or database than the `POSTGRES_*` values.
 The two compose files installed at `/opt/ai-agent/docker-compose.yml` and
 `/opt/ai-agent/docker-compose.deploy.yml` are part of the
 versioned host bundle, so they are installed and recorded by
-`ops/lightsail/install-host-bundle.sh` rather than copied by hand; the deploy
+`infra/deploy/install-host-bundle.sh` rather than copied by hand; the deploy
 wrapper refuses a release whose recorded digest no longer matches. See
 [the host bundle document](../docs/host-bundle.md).
 

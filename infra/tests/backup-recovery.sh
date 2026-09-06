@@ -13,7 +13,7 @@ grep -Fq 'isolated-non-production' ops/backup/restore-drill.sh
 grep -Fq '_restore_drill' ops/backup/restore-drill.sh
 grep -Fq 'unsafe_object_count' ops/backup/restore-drill.sh
 grep -Fq 'target resolves to the live runtime database' ops/backup/restore-drill.sh
-grep -Fq 'ops/tests/restore-drill-safety.sh' .github/workflows/ci.yml
+grep -Fq 'infra/tests/restore-drill-safety.sh' .github/workflows/ci.yml
 grep -Fq 'Persistent=true' ops/backup/ai-agent-postgres-backup.timer
 grep -Fq 'BACKUP_RETENTION_DAYS=14' ops/backup/backup.conf.example
 

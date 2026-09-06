@@ -2,7 +2,7 @@
 #
 # Every file here is part of the contract between a release and the VPS it runs
 # on: change one and a host that has not been updated can no longer be trusted
-# to deploy the release that expects it. `ops/host-bundle/VERSION` is bumped
+# to deploy the release that expects it. `infra/host-bundle/VERSION` is bumped
 # whenever this inventory or any listed file changes; `MIN_VERSION` is bumped
 # only when a release genuinely stops working on an older bundle.
 #
@@ -13,9 +13,9 @@
 # Format: <source-in-repository> <installed-destination> <mode>
 infra/compose/compose.yaml /opt/ai-agent/docker-compose.yml 0644
 infra/compose/compose.deploy.yaml /opt/ai-agent/docker-compose.deploy.yml 0644
-ops/lightsail/ai-agent-deploy /usr/local/sbin/ai-agent-deploy 0755
-ops/lightsail/ai-agent-deploy-dispatch /usr/local/sbin/ai-agent-deploy-dispatch 0755
+infra/deploy/ai-agent-deploy /usr/local/sbin/ai-agent-deploy 0755
+infra/deploy/ai-agent-deploy-dispatch /usr/local/sbin/ai-agent-deploy-dispatch 0755
 ops/runtime-preflight.sh /usr/local/sbin/ai-agent-runtime-preflight 0755
 ops/host-preflight.sh /usr/local/sbin/ai-agent-host-preflight 0755
 ops/release-retention.sh /usr/local/sbin/ai-agent-release-retention 0755
-ops/lightsail/ai-agent-deploy.sudoers /etc/sudoers.d/ai-agent-deploy 0440
+infra/deploy/ai-agent-deploy.sudoers /etc/sudoers.d/ai-agent-deploy 0440

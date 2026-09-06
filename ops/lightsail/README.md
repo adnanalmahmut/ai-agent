@@ -48,9 +48,9 @@ flowchart LR
 Whenever a release changes the compose file or any host script, check out that
 release on the host and run, as root:
 
-`ops/lightsail/install-host-bundle.sh`
+`infra/deploy/install-host-bundle.sh`
 
-It reinstalls every file in `ops/host-bundle/files` and rewrites the recorded
+It reinstalls every file in `infra/host-bundle/files` and rewrites the recorded
 manifest. Bundle 2 added `ai-agent-release-retention`, installed and invoked by
 nothing; bundle 3 has the deploy wrapper run it after a successful deployment has
 rotated its release state. Retention only starts running once the bundle carrying

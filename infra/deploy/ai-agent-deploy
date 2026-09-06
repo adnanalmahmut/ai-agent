@@ -27,7 +27,7 @@ required_free_mib=4096
 
 # Extensions a migration in this release creates and therefore cannot create
 # itself if the image does not carry them. Kept in sync with the migrations by
-# ops/tests/host-bundle.sh, because `CREATE EXTENSION vector` failing inside the
+# infra/tests/host-bundle.sh, because `CREATE EXTENSION vector` failing inside the
 # migration container is exactly the failure this list exists to prevent.
 required_extensions='vector'
 
@@ -348,7 +348,7 @@ case "${1:-}" in
     # Deliberately absent from ai-agent-deploy-dispatch's allowlist, so it is
     # NOT reachable over the CI deploy key — only by someone with local root on
     # the host. Minting the platform's root credential must require host
-    # access, not possession of a deployment secret. ops/tests/
+    # access, not possession of a deployment secret. infra/tests/
     # lightsail-boundary.sh asserts that exclusion.
     #
     # `--interactive --tty` so the backend detects a terminal and takes its
@@ -380,7 +380,7 @@ case "${1:-}" in
     # Also deliberately absent from ai-agent-deploy-dispatch's allowlist: this
     # touches every credential the platform holds, so it must require local root
     # on the host rather than possession of the CI deploy key.
-    # ops/tests/lightsail-boundary.sh asserts that exclusion.
+    # infra/tests/lightsail-boundary.sh asserts that exclusion.
     #
     # No pty, unlike the bootstrap: this command prompts for nothing and prints
     # a report. The remaining arguments are forwarded to the backend command,

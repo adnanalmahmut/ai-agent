@@ -45,7 +45,7 @@ chmod 0644 /etc/ai-agent/environment
 # take the same path and record the same manifest. Before this, bootstrap was
 # the only thing that ever installed them, and nothing recorded which release
 # they came from.
-ops/lightsail/install-host-bundle.sh
+infra/deploy/install-host-bundle.sh
 
 install -d -o deploy -g deploy -m 0700 /home/deploy/.ssh
 {

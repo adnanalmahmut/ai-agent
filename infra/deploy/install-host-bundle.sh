@@ -5,7 +5,7 @@ set -eu
 #
 # Run from a checkout of the release you are about to deploy, as root:
 #
-#   sudo ops/lightsail/install-host-bundle.sh
+#   sudo infra/deploy/install-host-bundle.sh
 #
 # Before this existed, ops/lightsail/bootstrap-host.sh installed the host
 # scripts once at host creation and there was no supported way to update them.
@@ -20,8 +20,8 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
-inventory=ops/host-bundle/files
-version_file=ops/host-bundle/VERSION
+inventory=infra/host-bundle/files
+version_file=infra/host-bundle/VERSION
 manifest=/etc/ai-agent/host-bundle.manifest
 
 die() { echo "host bundle installation failed: $*" >&2; exit 64; }

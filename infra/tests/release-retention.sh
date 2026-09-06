@@ -30,7 +30,7 @@ fail() { echo "release retention test: $*" >&2; exit 1; }
 sh -n "$source_script" || fail 'retention script is not valid POSIX sh'
 
 # No blanket reclaim of any kind in the retention script itself. The repository
-# wide sweep across every host script is owned by ops/tests/lightsail-boundary.sh
+# wide sweep across every host script is owned by infra/tests/lightsail-boundary.sh
 # so the two do not drift; this asserts the property for the subject of this
 # test. Fragments are split so this file does not contain the literals it
 # forbids.
@@ -48,7 +48,7 @@ done
 
 # The repository-wide sweep must exist and must cover this script, or the
 # narrower assertion above is the only thing standing.
-grep -Fq 'ops/release-retention.sh' ops/tests/lightsail-boundary.sh ||
+grep -Fq 'ops/release-retention.sh' infra/tests/lightsail-boundary.sh ||
   fail 'the boundary test must cover the retention script in its unsafe-reclaim sweep'
 
 if grep -En 'image rm[^|]*(--force|[[:space:]]-f([[:space:]]|$))' "$source_script"; then
@@ -86,8 +86,8 @@ fi
 # Host bundle state: the capability is shipped and now invoked
 # ===========================================================================
 
-bundle_version=$(sed -n '1p' ops/host-bundle/VERSION)
-bundle_minimum=$(sed -n '1p' ops/host-bundle/MIN_VERSION)
+bundle_version=$(sed -n '1p' infra/host-bundle/VERSION)
+bundle_minimum=$(sed -n '1p' infra/host-bundle/MIN_VERSION)
 # Retention was wired into the wrapper at bundle 3, which is the floor these two
 # numbers have to respect from retention's side.
 #
@@ -104,27 +104,27 @@ bundle_minimum=$(sed -n '1p' ops/host-bundle/MIN_VERSION)
 [ "$bundle_minimum" -ge 2 ] || fail \
   'host bundle MIN_VERSION must be at least 2: the retention capability first exists in bundle 2'
 
-grep -Fq '/usr/local/sbin/ai-agent-release-retention' ops/host-bundle/files ||
+grep -Fq '/usr/local/sbin/ai-agent-release-retention' infra/host-bundle/files ||
   fail 'the retention script must be in the host bundle inventory'
 
 # Activation. The wrapper must call retention, and must call the entry point that
 # re-locks the descriptor it already holds -- `reclaim` would open the lock file
 # again, be refused by the very deployment calling it, and never run.
-grep -Fq '"$retention" reclaim-locked' ops/lightsail/ai-agent-deploy ||
+grep -Fq '"$retention" reclaim-locked' infra/deploy/ai-agent-deploy ||
   fail 'ai-agent-deploy must invoke retention through the inherited-lock entry point'
-grep -Fq 'retention=/usr/local/sbin/ai-agent-release-retention' ops/lightsail/ai-agent-deploy ||
+grep -Fq 'retention=/usr/local/sbin/ai-agent-release-retention' infra/deploy/ai-agent-deploy ||
   fail 'ai-agent-deploy must resolve retention by its fixed installed path'
 
 # The forced-command grammar is the trust boundary for the CI deploy key, and it
 # is unchanged: neither retention verb appears in it.
-if grep -Eq 'retention|reclaim' ops/lightsail/ai-agent-deploy-dispatch; then
+if grep -Eq 'retention|reclaim' infra/deploy/ai-agent-deploy-dispatch; then
   fail 'retention must not be reachable through the forced-command grammar'
 fi
 # Nor through sudo: the deploy user is permitted exactly one program.
-if grep -Eq 'retention|reclaim' ops/lightsail/ai-agent-deploy.sudoers; then
+if grep -Eq 'retention|reclaim' infra/deploy/ai-agent-deploy.sudoers; then
   fail 'the deploy user must not be permitted to run retention under sudo'
 fi
-dispatch_allowlist=$(sed -n "/grep -Eq/s/.*grep -Eq '\([^']*\)'.*/\1/p" ops/lightsail/ai-agent-deploy-dispatch)
+dispatch_allowlist=$(sed -n "/grep -Eq/s/.*grep -Eq '\([^']*\)'.*/\1/p" infra/deploy/ai-agent-deploy-dispatch)
 [ -n "$dispatch_allowlist" ] || fail 'could not extract the forced-command allowlist'
 for rejected in 'reclaim staging' 'reclaim production' 'reclaim-locked staging' \
                 'release-retention staging' 'deploy staging reclaim-locked'; do

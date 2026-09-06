@@ -44,7 +44,7 @@ pnpm lint
 pnpm test
 pnpm --filter backend test:e2e
 pnpm build
-ops/tests/documentation.sh
+infra/tests/documentation.sh
 ```
 
 Backend E2E tests use isolated PostgreSQL and Redis services from the Compose

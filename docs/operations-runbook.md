@@ -96,7 +96,7 @@ slot through the Platform after verifying it is obsolete.
 From a checkout of the release to install, with no deployment active:
 
 ```sh
-sudo ops/lightsail/install-host-bundle.sh
+sudo infra/deploy/install-host-bundle.sh
 sudo ai-agent-host-preflight integrity
 sudo ai-agent-runtime-preflight staging /etc/ai-agent/runtime.env
 ```

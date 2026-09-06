@@ -125,7 +125,7 @@ jobs:
         run: |
           # One line per composition, and every one of them names its profile:
           # the wrapper picks the overlay from that and nothing here depends on
-          # Compose finding a file by itself. `ops/tests/compose-interface.sh`
+          # Compose finding a file by itself. `infra/tests/compose-interface.sh`
           # below is what proves the three are actually distinct — that the test
           # composition renders under its own project, with no service, network,
           # or volume identity in common with development, and that a deployment
@@ -133,23 +133,23 @@ jobs:
           infra/scripts/compose.sh --profile development config >/dev/null
           infra/scripts/compose.sh --profile test config >/dev/null
           infra/scripts/compose.sh --profile staging --profile migration config >/dev/null
-          ops/tests/container-foundation.sh
-          ops/tests/compose-interface.sh
-          ops/tests/container-environment.sh
-          ops/tests/runtime-preflight.sh
-          ops/tests/nginx-real-ip.sh
-          ops/tests/lightsail-boundary.sh
-          ops/tests/deploy-service-health.sh
-          ops/tests/image-publishing.sh
-          ops/tests/staging-cd.sh
-          ops/tests/production-cd.sh
-          ops/tests/artifact-contract.sh
-          ops/tests/release-manifest.sh
-          ops/tests/host-bundle.sh
-          ops/tests/release-retention.sh
-          ops/tests/backup-recovery.sh
-          ops/tests/restore-drill-safety.sh
-          ops/tests/documentation.sh
+          infra/tests/container-foundation.sh
+          infra/tests/compose-interface.sh
+          infra/tests/container-environment.sh
+          infra/tests/runtime-preflight.sh
+          infra/tests/nginx-real-ip.sh
+          infra/tests/lightsail-boundary.sh
+          infra/tests/deploy-service-health.sh
+          infra/tests/image-publishing.sh
+          infra/tests/staging-cd.sh
+          infra/tests/production-cd.sh
+          infra/tests/artifact-contract.sh
+          infra/tests/release-manifest.sh
+          infra/tests/host-bundle.sh
+          infra/tests/release-retention.sh
+          infra/tests/backup-recovery.sh
+          infra/tests/restore-drill-safety.sh
+          infra/tests/documentation.sh
 
       # Before setup-node, so its pnpm store cache has a package manager to
       # locate. The version comes from `packageManager` in the root manifest.

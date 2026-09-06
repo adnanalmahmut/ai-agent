@@ -4,10 +4,10 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
 for script in \
-  ops/lightsail/ai-agent-deploy \
-  ops/lightsail/ai-agent-deploy-dispatch \
+  infra/deploy/ai-agent-deploy \
+  infra/deploy/ai-agent-deploy-dispatch \
   ops/lightsail/bootstrap-host.sh \
-  ops/lightsail/install-host-bundle.sh \
+  infra/deploy/install-host-bundle.sh \
   ops/lightsail/install-nginx.sh \
   ops/lightsail/issue-certificate.sh \
   ops/lightsail/reload-nginx-after-renewal; do
@@ -19,37 +19,37 @@ grep -Fq 'restrict,no-user-rc,command="/usr/local/sbin/ai-agent-deploy-dispatch"
 # release-coupled files by the same path, so that both record a manifest. When
 # bootstrap listed the `install` commands itself, nothing on the host recorded
 # which release its compose file and deploy script came from.
-grep -Fq 'ops/lightsail/install-host-bundle.sh' ops/lightsail/bootstrap-host.sh
+grep -Fq 'infra/deploy/install-host-bundle.sh' ops/lightsail/bootstrap-host.sh
 if grep -Eq '^install .*(ai-agent-deploy|runtime-preflight|host-preflight|sudoers)' ops/lightsail/bootstrap-host.sh; then
   echo 'release-coupled host files must be installed by the bundle installer' >&2
   exit 1
 fi
 grep -Fq 'host-bundle.manifest' ops/host-preflight.sh
-grep -Fq 'sha256sum' ops/lightsail/install-host-bundle.sh
+grep -Fq 'sha256sum' infra/deploy/install-host-bundle.sh
 grep -Fq 'gpasswd -d deploy docker' ops/lightsail/bootstrap-host.sh
 grep -Fq 'fallocate -l 2G /swapfile' ops/lightsail/bootstrap-host.sh
 grep -Fq '/swapfile none swap sw 0 0' ops/lightsail/bootstrap-host.sh
 grep -Fq 'vm.swappiness=10' ops/lightsail/bootstrap-host.sh
 grep -Fq 'install_certbot_tls_asset options-ssl-nginx.conf /etc/letsencrypt/options-ssl-nginx.conf' ops/lightsail/issue-certificate.sh
 grep -Fq 'install_certbot_tls_asset ssl-dhparams.pem /etc/letsencrypt/ssl-dhparams.pem' ops/lightsail/issue-certificate.sh
-grep -Fq 'SHA must be 40 lowercase hex characters' ops/lightsail/ai-agent-deploy
-grep -Fq 'digest must be 64 lowercase hex characters' ops/lightsail/ai-agent-deploy
-grep -Fq 'runtime_env=/etc/ai-agent/runtime.env' ops/lightsail/ai-agent-deploy
-grep -Fq 'ai-agent-runtime-preflight' ops/lightsail/ai-agent-deploy
-grep -Fq 'BACKEND_MIGRATION_IMAGE="$registry/backend-migration@sha256:$migration_digest"' ops/lightsail/ai-agent-deploy
-grep -Fq 'for service in platform web backend migrate; do' ops/lightsail/ai-agent-deploy
-grep -Fq 'compose pull "$service"' ops/lightsail/ai-agent-deploy
-if grep -Fq 'compose pull backend worker web platform migrate' ops/lightsail/ai-agent-deploy; then
+grep -Fq 'SHA must be 40 lowercase hex characters' infra/deploy/ai-agent-deploy
+grep -Fq 'digest must be 64 lowercase hex characters' infra/deploy/ai-agent-deploy
+grep -Fq 'runtime_env=/etc/ai-agent/runtime.env' infra/deploy/ai-agent-deploy
+grep -Fq 'ai-agent-runtime-preflight' infra/deploy/ai-agent-deploy
+grep -Fq 'BACKEND_MIGRATION_IMAGE="$registry/backend-migration@sha256:$migration_digest"' infra/deploy/ai-agent-deploy
+grep -Fq 'for service in platform web backend migrate; do' infra/deploy/ai-agent-deploy
+grep -Fq 'compose pull "$service"' infra/deploy/ai-agent-deploy
+if grep -Fq 'compose pull backend worker web platform migrate' infra/deploy/ai-agent-deploy; then
   echo 'release images must not be pulled concurrently on small hosts' >&2
   exit 1
 fi
-grep -Fq 'compose up -d --wait postgres redis geoipupdate' ops/lightsail/ai-agent-deploy
-grep -Fq 'running=$(compose ps --status running --services "$service")' ops/lightsail/ai-agent-deploy
-grep -Fq '[ "$running" = "$service" ] || die "$service is not running"' ops/lightsail/ai-agent-deploy
-grep -Fq 'compose up -d --wait --no-deps backend' ops/lightsail/ai-agent-deploy
-grep -Fq 'compose up -d --wait --no-deps worker' ops/lightsail/ai-agent-deploy
-grep -Fq 'compose up -d --wait --no-deps web platform' ops/lightsail/ai-agent-deploy
-if grep -Fq 'compose ps --status running worker >/dev/null' ops/lightsail/ai-agent-deploy; then
+grep -Fq 'compose up -d --wait postgres redis geoipupdate' infra/deploy/ai-agent-deploy
+grep -Fq 'running=$(compose ps --status running --services "$service")' infra/deploy/ai-agent-deploy
+grep -Fq '[ "$running" = "$service" ] || die "$service is not running"' infra/deploy/ai-agent-deploy
+grep -Fq 'compose up -d --wait --no-deps backend' infra/deploy/ai-agent-deploy
+grep -Fq 'compose up -d --wait --no-deps worker' infra/deploy/ai-agent-deploy
+grep -Fq 'compose up -d --wait --no-deps web platform' infra/deploy/ai-agent-deploy
+if grep -Fq 'compose ps --status running worker >/dev/null' infra/deploy/ai-agent-deploy; then
   echo 'deployment must compare the returned running service name' >&2
   exit 1
 fi
@@ -58,10 +58,10 @@ fi
 # forced-command allowlist is what enforces that: if bootstrap-super-admin ever
 # becomes remotely dispatchable, a compromised deployment secret becomes a
 # platform takeover.
-grep -Fq 'bootstrap-super-admin)' ops/lightsail/ai-agent-deploy
+grep -Fq 'bootstrap-super-admin)' infra/deploy/ai-agent-deploy
 # Extracted from the shipped dispatch script rather than restated here, so
 # widening the real allowlist fails this test instead of passing beside it.
-dispatch_allowlist=$(sed -n "/grep -Eq/s/.*grep -Eq '\([^']*\)'.*/\1/p" ops/lightsail/ai-agent-deploy-dispatch)
+dispatch_allowlist=$(sed -n "/grep -Eq/s/.*grep -Eq '\([^']*\)'.*/\1/p" infra/deploy/ai-agent-deploy-dispatch)
 [ -n "$dispatch_allowlist" ] || {
   echo 'could not read the forced-command allowlist from the dispatch script' >&2
   exit 1
@@ -77,7 +77,7 @@ done
 # master key in the container's environment. It is a local-root operation for
 # the same reason the bootstrap is: a compromised deployment secret must not
 # reach the credential table.
-grep -Fq 'rotate-managed-secret-keys)' ops/lightsail/ai-agent-deploy || {
+grep -Fq 'rotate-managed-secret-keys)' infra/deploy/ai-agent-deploy || {
   echo 'the wrapper must expose the managed-secret rotation subcommand' >&2
   exit 1
 }
@@ -94,6 +94,96 @@ printf '%s\n' 'status staging' | grep -Eq "$dispatch_allowlist" || {
   exit 1
 }
 
+# The grammar itself, pinned. Everything above reads the allowlist out of the
+# shipped script, which catches a widening but moves with the script if the
+# pattern is ever rewritten. RF-06 moved this file from ops/lightsail to
+# infra/deploy, and a relocation must not be able to change what the CI deploy
+# key can say -- so the pattern is also compared against the literal that
+# shipped before the move. Editing this string is the deliberate act of changing
+# the forced-command grammar, and it should be reviewed as one.
+expected_allowlist='^(deploy (staging|production) [0-9a-f]{40}( [0-9a-f]{64}){4}|(status|health|rollback) (staging|production))$'
+[ "$dispatch_allowlist" = "$expected_allowlist" ] || {
+  echo 'the forced-command grammar changed' >&2
+  echo "  expected: $expected_allowlist" >&2
+  echo "  actual:   $dispatch_allowlist" >&2
+  exit 1
+}
+
+# And the script's own behaviour, not only its pattern: the argument-count arms
+# after the match are part of the grammar too. Run against a fake `sudo` that
+# records what it was asked to run, so an accepted command proves the exact
+# wrapper invocation and no privileged command is ever actually reached.
+dispatch_dir=$(mktemp -d)
+trap 'rm -rf "$dispatch_dir"' EXIT HUP INT TERM
+dispatched=$dispatch_dir/dispatched
+: >"$dispatched"
+cat >"$dispatch_dir/sudo" <<SUDO
+#!/bin/sh
+printf '%s\n' "\$*" >>"$dispatched"
+SUDO
+chmod +x "$dispatch_dir/sudo"
+
+sha=$(printf 'a%.0s' $(seq 40))
+upper_sha=$(printf 'A%.0s' $(seq 40))
+digest=$(printf 'b%.0s' $(seq 64))
+digests="$digest $digest $digest $digest"
+
+dispatches() {
+  expected=$1
+  : >"$dispatched"
+  SSH_ORIGINAL_COMMAND="$2" PATH="$dispatch_dir:$PATH" \
+    infra/deploy/ai-agent-deploy-dispatch >/dev/null 2>&1 || {
+    echo "the dispatcher rejected a command it has always accepted: $2" >&2
+    exit 1
+  }
+  [ "$(cat "$dispatched")" = "$expected" ] || {
+    echo "the dispatcher ran something else for: $2" >&2
+    echo "  expected: $expected" >&2
+    echo "  actual:   $(cat "$dispatched")" >&2
+    exit 1
+  }
+}
+
+rejects() {
+  : >"$dispatched"
+  if SSH_ORIGINAL_COMMAND="$1" PATH="$dispatch_dir:$PATH" \
+    infra/deploy/ai-agent-deploy-dispatch >/dev/null 2>&1; then
+    echo "the dispatcher accepted a command it must refuse: $1" >&2
+    exit 1
+  fi
+  # A refusal that still reached sudo is not a refusal.
+  [ ! -s "$dispatched" ] || {
+    echo "the dispatcher reached sudo while refusing: $1" >&2
+    exit 1
+  }
+}
+
+for environment in staging production; do
+  dispatches "-n /usr/local/sbin/ai-agent-deploy deploy $environment $sha $digests" \
+    "deploy $environment $sha $digests"
+  for verb in status health rollback; do
+    dispatches "-n /usr/local/sbin/ai-agent-deploy $verb $environment" "$verb $environment"
+  done
+done
+
+rejects ''
+rejects 'deploy staging'
+rejects "deploy staging $sha"
+rejects "deploy staging $sha $digest $digest $digest"
+rejects "deploy staging $sha $digests $digest"
+rejects "deploy development $sha $digests"
+rejects "deploy staging ${sha}a $digests"
+rejects "DEPLOY staging $sha $digests"
+rejects "deploy staging $upper_sha $digests"
+rejects 'status staging; id'
+rejects 'status staging && id'
+rejects 'status staging $(id)'
+rejects 'status staging production'
+rejects 'health'
+rejects 'bootstrap-super-admin staging'
+rejects 'rotate-managed-secret-keys staging'
+rejects 'reclaim-locked staging'
+
 # The same question asked of every verb the wrapper implements, rather than of
 # the two that happened to warrant their own loop above. A third local-only verb
 # would otherwise arrive with no boundary assertion at all, and whether the
@@ -104,7 +194,7 @@ printf '%s\n' 'status staging' | grep -Eq "$dispatch_allowlist" || {
 # that same style -- `  dump-secrets) do_thing "$@" ;;` -- is idiomatic here,
 # and an extraction anchored to end-of-line would silently drop it. That is
 # precisely the verb this sweep exists to catch, so it would fail open.
-wrapper_verbs=$(sed -n 's/^  \([a-z0-9][a-z0-9|_-]*\)).*$/\1/p' ops/lightsail/ai-agent-deploy |
+wrapper_verbs=$(sed -n 's/^  \([a-z0-9][a-z0-9|_-]*\)).*$/\1/p' infra/deploy/ai-agent-deploy |
   tr '|' '\n' | sort -u)
 [ -n "$wrapper_verbs" ] ||
   { echo 'could not read the verbs the deploy wrapper implements' >&2; exit 1; }
@@ -128,37 +218,42 @@ done
 # again, get a distinct open file description, and be refused by the deployment
 # that is calling it -- every time, silently, so retention would simply never
 # run. `reclaim-locked` re-locks the inherited description instead.
-grep -Fq '"$retention" reclaim-locked' ops/lightsail/ai-agent-deploy ||
+grep -Fq '"$retention" reclaim-locked' infra/deploy/ai-agent-deploy ||
   { echo 'the wrapper must invoke retention through the inherited-lock entry point' >&2; exit 1; }
-if grep -Eq '\$retention"? +reclaim( |$)' ops/lightsail/ai-agent-deploy; then
+if grep -Eq '\$retention"? +reclaim( |$)' infra/deploy/ai-agent-deploy; then
   echo 'the wrapper must not invoke the standalone retention entry point; it already holds the lock' >&2
   exit 1
 fi
 # Retention must not be asked to take the deployment's word for it: the inherited
 # descriptor is the lock, and a variable saying it is held would only be a claim.
 # Asserted from retention's side, where it is a property rather than a pattern --
-# ops/tests/release-retention.sh requires that the script expand no environment
+# infra/tests/release-retention.sh requires that the script expand no environment
 # variable at all, which leaves the wrapper nothing it could assert through.
 
-grep -Fq 'CURRENT_RELEASE.json' ops/lightsail/ai-agent-deploy
-grep -Fq 'PREVIOUS_RELEASE.json' ops/lightsail/ai-agent-deploy
-if grep -Eq 'ghcr\.io/.+:\$sha' ops/lightsail/ai-agent-deploy; then
+grep -Fq 'CURRENT_RELEASE.json' infra/deploy/ai-agent-deploy
+grep -Fq 'PREVIOUS_RELEASE.json' infra/deploy/ai-agent-deploy
+if grep -Eq 'ghcr\.io/.+:\$sha' infra/deploy/ai-agent-deploy; then
   echo 'deployment must not resolve a mutable SHA tag' >&2
   exit 1
 fi
 grep -Fq 'storage: '\''database'\''' apps/backend/src/infrastructure/auth/auth.factory.ts
 
+# Both roots, since the deploy wrapper and the forced-command dispatcher moved
+# to infra/deploy while host provisioning and the gateway stayed under
+# ops/lightsail. Naming only the old directory would have quietly stopped
+# covering the two scripts this sweep exists for -- the dispatcher is the one
+# that must never `eval` what the SSH key sent it.
 for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune.*--volumes' 'eval .*SSH_ORIGINAL_COMMAND'; do
-  if grep -ER "$forbidden" ops/lightsail >/dev/null; then
+  if grep -ER "$forbidden" ops/lightsail infra/deploy >/dev/null; then
     echo 'destructive or evaluative deployment command found' >&2
     exit 1
   fi
 done
 
-# Every host script, not just the ones under ops/lightsail. Retention lives at
-# ops/release-retention.sh, so the narrower sweep above would not have seen it —
-# and it is the first script in this repository with any reason to remove an
-# image at all.
+# Every host script, not just the ones under ops/lightsail and infra/deploy.
+# Retention lives at ops/release-retention.sh, so the narrower sweep above would
+# not have seen it — and it is the first script in this repository with any
+# reason to remove an image at all.
 #
 # The patterns are deliberately wider than the ones above, which only caught a
 # system reclaim carrying --volumes. A bare system reclaim, an -a system
@@ -166,18 +261,18 @@ done
 # distinguish a rollback target from garbage, and rollback capability is exactly
 # what release retention exists to protect.
 #
-# ops/tests is excluded because the tests name these commands to forbid them,
-# and .md files because the runbooks name them to tell operators not to use
+# The tests are outside both roots and so are the .md runbooks, which is what
+# keeps this from matching the places that name these commands only to forbid
 # them. Fragments are split so this file does not contain the literals either.
-host_scripts=$(find ops -type f \( -name '*.sh' -o -name 'ai-agent-deploy' \
-  -o -name 'ai-agent-deploy-dispatch' \) -not -path 'ops/tests/*' | sort)
+host_scripts=$(find ops infra/deploy -type f \( -name '*.sh' -o -name 'ai-agent-deploy' \
+  -o -name 'ai-agent-deploy-dispatch' \) | sort)
 [ -n "$host_scripts" ] || {
   echo 'found no host scripts to check for unsafe reclaims' >&2
   exit 1
 }
 # The sweep must actually include the scripts that could perform a reclaim, or
 # it is checking nothing.
-for required in ops/release-retention.sh ops/lightsail/ai-agent-deploy; do
+for required in ops/release-retention.sh infra/deploy/ai-agent-deploy; do
   printf '%s\n' "$host_scripts" | grep -Fxq "$required" || {
     echo "unsafe-reclaim sweep does not cover $required" >&2
     exit 1

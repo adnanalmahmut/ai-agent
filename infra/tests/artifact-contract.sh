@@ -74,7 +74,7 @@ while IFS= read -r reference; do
   [ "$major" -ge "$floor" ] ||
     fail "actions/$action@$version still runs on the Node 20 runtime; $action needs v$floor or later"
   [ "$major" -eq "$expected" ] ||
-    fail "actions/$action is pinned to v$major but this repository expects v$expected; update ops/tests/artifact-contract.sh deliberately if that is intended"
+    fail "actions/$action is pinned to v$major but this repository expects v$expected; update infra/tests/artifact-contract.sh deliberately if that is intended"
 done <"$work"
 
 # --- The steps exist, and there is exactly one of each --------------------
