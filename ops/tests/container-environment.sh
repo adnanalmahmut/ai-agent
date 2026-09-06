@@ -72,7 +72,8 @@ done
 # Intentionally unquoted: the accumulated `-u NAME` pairs must word-split into
 # separate arguments to `env`.
 # shellcheck disable=SC2086
-env $unset_fixture docker compose --env-file "$runtime" --profile staging --profile migration config --format json >"$rendered"
+env $unset_fixture infra/scripts/compose.sh --env-file "$runtime" \
+  --profile staging --profile migration config --format json >"$rendered"
 
 # `jq -e` exits non-zero on a false result but prints nothing, so a bare
 # assertion failure gives no clue which one failed or what the actual value

@@ -2,9 +2,8 @@
 # The repository's single entry point for Docker Compose.
 #
 # Callers reach Compose through here rather than naming the file themselves.
-# The file is still at the repository root and this change does not move it;
-# centralising the invocation first is what makes that move one edit here
-# instead of a search across workspaces.
+# Centralising the invocation is what made moving the file out of the
+# repository root a single edit here instead of a search across workspaces.
 set -eu
 
 # Derived from this script's own location, not from the caller's directory, so

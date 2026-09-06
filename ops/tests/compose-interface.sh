@@ -33,6 +33,25 @@ if [ -n "$offenders" ]; then
   exit 1
 fi
 
+# A caller that names no file at all is the other half of the same rule, and
+# the one that survives a search for the path: `docker compose ...` used to
+# work by falling back to a compose file in the repository root. There is none
+# now, so it fails at run time with "no configuration file provided" instead.
+# Only lines that name a file explicitly with -f/--file are allowed, which is
+# what the equivalence baselines below do. Host tooling addressing the
+# installed /opt/ai-agent copy is out of scope and is not searched.
+bare=$(grep -rn 'docker compose' \
+  --include '*.yml' --include '*.yaml' --include '*.sh' --include '*.json' \
+  --exclude-dir node_modules \
+  .github/workflows ops/tests package.json apps/backend/package.json |
+  grep -v -e '-f ' -e '--file' |
+  grep -v '^ops/tests/compose-interface\.sh:' || true)
+if [ -n "$bare" ]; then
+  echo 'a repository caller invokes Compose without naming a file; use the wrapper' >&2
+  echo "$bare" >&2
+  exit 1
+fi
+
 # The root manifest is the interface: the documented commands go through the
 # wrapper, and the backend workspace delegates rather than keeping a second
 # copy of the invocation.
@@ -62,7 +81,7 @@ command -v docker >/dev/null 2>&1 || {
   exit 0
 }
 docker compose version >/dev/null 2>&1 || {
-  echo 'docker compose unavailable: compose interface render checks skipped'
+  echo 'Docker Compose unavailable: compose interface render checks skipped'
   exit 0
 }
 
