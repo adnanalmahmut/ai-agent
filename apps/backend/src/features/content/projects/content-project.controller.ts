@@ -11,6 +11,7 @@ import {
 import {
   ApiBody,
   ApiCreatedResponse,
+  ApiHeader,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -18,7 +19,6 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Session, type UserSession } from '@thallesp/nestjs-better-auth';
-import { z } from 'zod';
 
 import {
   OrganizationPermissionGuard,
@@ -28,6 +28,8 @@ import { AppException } from '../../../core/errors';
 import {
   apiSuccessSchema,
   createZodDto,
+  IDEMPOTENCY_KEY_HEADER,
+  idempotencyKeySchema,
   wireSchemaOf,
 } from '../../../infrastructure/http';
 import { UserRateLimit } from '../../../infrastructure/rate-limit';
@@ -44,8 +46,6 @@ import {
 class CreateContentProjectFromIdeaDto extends createZodDto(
   contentProjectFromIdeaInput,
 ) {}
-
-const idempotencyKeySchema = z.string().trim().min(8).max(200);
 
 const listQuerySchema = listContentProjectsQuerySchema;
 
@@ -66,6 +66,13 @@ export class ContentProjectController {
   })
   @ApiParam({ name: 'organizationId' })
   // The request body is described by the schema that already validates it.
+  // Required, and validated against the same schema the handler parses it
+  // with, so the document cannot describe bounds the endpoint does not hold.
+  @ApiHeader({
+    name: IDEMPOTENCY_KEY_HEADER,
+    required: true,
+    schema: wireSchemaOf(idempotencyKeySchema),
+  })
   @ApiBody({ schema: wireSchemaOf(contentProjectFromIdeaInput) })
   @ApiCreatedResponse({ schema: apiSuccessSchema(contentProjectDetailSchema) })
   createFromIdea(

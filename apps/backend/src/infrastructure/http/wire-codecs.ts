@@ -18,3 +18,15 @@ export const isoDateTimeToDate = z.codec(z.iso.datetime(), z.date(), {
   decode: (value) => new Date(value),
   encode: (value) => value.toISOString(),
 });
+
+/**
+ * The caller-supplied key that makes a create request safe to retry.
+ *
+ * Two endpoints require it, and both validated it against their own copy of
+ * these bounds. One definition is what lets the OpenAPI document describe the
+ * header the handler actually enforces rather than a second opinion about it.
+ */
+export const idempotencyKeySchema = z.string().trim().min(8).max(200);
+
+/** The header that carries it. Case is not significant on the wire. */
+export const IDEMPOTENCY_KEY_HEADER = 'Idempotency-Key';
