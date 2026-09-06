@@ -5,11 +5,13 @@ import {
   readApiError,
   unwrapEnvelope,
   type ApiErrorDetails,
-} from './response-protocol';
+} from '@repo/api-client';
 
 /**
  * The wire contract for `error.details`, read from the bodies the API actually
- * sends. The backend's `UnifiedExceptionFilter` writes these shapes and
+ * sends. The implementation lives in `@repo/api-client`; the tests stay in the
+ * application suite because that is the runner this repository already has,
+ * and they exercise the package's own code either way. The backend's `UnifiedExceptionFilter` writes these shapes and
  * `apps/backend/test/unit/infrastructure/http/errors.spec.ts` pins them from
  * the producing side; this is the same contract read from the consuming one,
  * so a change to either without the other fails on one side or the other.

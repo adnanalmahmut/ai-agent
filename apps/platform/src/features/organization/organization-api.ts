@@ -1,4 +1,4 @@
-import type { operations } from '@/generated/application-api.generated';
+import type { operations } from '@repo/api-client/generated';
 import { apiRequest } from '@/lib/application-api';
 
 import type {

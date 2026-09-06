@@ -17,10 +17,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const appDirectory = fileURLToPath(new URL('..', import.meta.url));
+const packageDirectory = fileURLToPath(new URL('..', import.meta.url));
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const outputPath = join(
-  appDirectory,
+  packageDirectory,
   'src/generated/application-api.generated.ts',
 );
 
@@ -47,7 +47,7 @@ try {
   run(
     'pnpm',
     ['exec', 'openapi-typescript', documentPath, '--output', outputPath],
-    appDirectory,
+    packageDirectory,
   );
 } catch (error) {
   console.error(`\n${error.message}`);
