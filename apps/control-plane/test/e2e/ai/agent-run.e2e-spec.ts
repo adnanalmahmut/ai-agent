@@ -9,6 +9,7 @@ import {
 } from '@jest/globals';
 
 import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
+import { AcceptAgentRunUseCase } from '../../../src/modules/runs';
 import type { CreateAgentRun } from '../../../src/ai/agents/agent.types';
 import { AgentConfigurationError } from '../../../src/ai/agents/agent-configuration.error';
 import type { AgentRuntime } from '../../../src/ai/execution/agent-runtime';
@@ -55,6 +56,7 @@ class AppendThenFailOutboxRepository extends OutboxRepository {
 describe('AgentRun foundation (e2e)', () => {
   let prisma: PrismaService;
   let service: AgentRunService;
+  let acceptance: AcceptAgentRunUseCase;
   const baselineVersions = new Map<string, string>();
 
   const cleanRuns = async () => {
@@ -139,7 +141,8 @@ describe('AgentRun foundation (e2e)', () => {
       baselineVersions.set(organizationId, installed.versionId);
     }
 
-    service = new AgentRunService(
+    service = new AgentRunService(prisma);
+    acceptance = new AcceptAgentRunUseCase(
       prisma,
       new OutboxRepository(prisma),
       testAgentRegistry(),
@@ -186,7 +189,7 @@ describe('AgentRun foundation (e2e)', () => {
       APPLICATION_MODEL_CATALOG,
       'pricingRevision',
     );
-    const result = await service.create(request('committed-request'));
+    const result = await acceptance.execute(request('committed-request'));
 
     const persisted = await prisma.agentRun.findUniqueOrThrow({
       where: { id: result.id },
@@ -236,14 +239,14 @@ describe('AgentRun foundation (e2e)', () => {
 
   it('rolls back both the AgentRun and outbox event when append fails', async () => {
     const failingOutbox = new AppendThenFailOutboxRepository(prisma);
-    const failingService = new AgentRunService(
+    const failingAcceptance = new AcceptAgentRunUseCase(
       prisma,
       failingOutbox,
       testAgentRegistry(),
     );
 
     await expect(
-      failingService.create(request('rolled-back-request')),
+      failingAcceptance.execute(request('rolled-back-request')),
     ).rejects.toThrow('forced outbox append failure');
 
     expect(failingOutbox.attemptedDedupeKey).toBeDefined();
@@ -267,7 +270,7 @@ describe('AgentRun foundation (e2e)', () => {
   it('returns one logical run for concurrent same-organization retries', async () => {
     const results = await Promise.all(
       Array.from({ length: 6 }, () =>
-        service.create(request('concurrent-request')),
+        acceptance.execute(request('concurrent-request')),
       ),
     );
     const runIds = new Set(results.map(({ id }) => id));
@@ -290,8 +293,8 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('returns the same run for a sequential retry without re-queueing it', async () => {
-    const first = await service.create(request('sequential-retry'));
-    const second = await service.create(request('sequential-retry'));
+    const first = await acceptance.execute(request('sequential-retry'));
+    const second = await acceptance.execute(request('sequential-retry'));
 
     expect(second.id).toBe(first.id);
     await expect(
@@ -311,7 +314,7 @@ describe('AgentRun foundation (e2e)', () => {
     'refuses %s without creating durable work',
     async (_name, agentId, code) => {
       await expect(
-        service.create(
+        acceptance.execute(
           request('missing-installation', organizationIds[0], { agentId }),
         ),
       ).rejects.toMatchObject({
@@ -332,7 +335,7 @@ describe('AgentRun foundation (e2e)', () => {
     });
 
     await expect(
-      service.create(request('disabled-installation')),
+      acceptance.execute(request('disabled-installation')),
     ).rejects.toMatchObject({
       code: 'FEATURE_DISABLED',
       publicDetails: { reason: 'agent_disabled' },
@@ -345,7 +348,7 @@ describe('AgentRun foundation (e2e)', () => {
   it('refuses an unregistered active definition and invalid configuration', async () => {
     await activateTestAgentVersion(prisma, organizationIds[0], 7);
     await expect(
-      service.create(request('unregistered-definition')),
+      acceptance.execute(request('unregistered-definition')),
     ).rejects.toMatchObject({
       code: 'NOT_FOUND',
       publicDetails: { reason: 'agent_definition_unavailable' },
@@ -355,7 +358,7 @@ describe('AgentRun foundation (e2e)', () => {
       configuration: { unexpected: true },
     });
     await expect(
-      service.create(request('invalid-configuration')),
+      acceptance.execute(request('invalid-configuration')),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       publicDetails: { reason: 'invalid_active_configuration' },
@@ -366,7 +369,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('pins each accepted run to the active immutable definition version', async () => {
-    const first = await service.create(
+    const first = await acceptance.execute(
       request('pinned-v1', organizationIds[0]),
     );
     const versionTwo = await activateTestAgentVersion(
@@ -374,7 +377,7 @@ describe('AgentRun foundation (e2e)', () => {
       organizationIds[0],
       2,
     );
-    const second = await service.create(
+    const second = await acceptance.execute(
       request('pinned-v2', organizationIds[0]),
     );
 
@@ -405,15 +408,17 @@ describe('AgentRun foundation (e2e)', () => {
       1,
       { configuration: { marker: 'A' } },
     );
-    const first = await service.create(request('effective-version-retry'));
+    const first = await acceptance.execute(request('effective-version-retry'));
     const versionB = await activateTestAgentVersion(
       prisma,
       organizationIds[0],
       2,
       { configuration: { marker: 'B' } },
     );
-    const retry = await service.create(request('effective-version-retry'));
-    const second = await service.create(request('effective-version-second'));
+    const retry = await acceptance.execute(request('effective-version-retry'));
+    const second = await acceptance.execute(
+      request('effective-version-second'),
+    );
     const { runner, runtimeRun } = runnerWith();
 
     const claimedA1 = await service.claimExecutionAttempt(first.id, 1);
@@ -474,7 +479,7 @@ describe('AgentRun foundation (e2e)', () => {
   it('linearizes a concurrent pointer switch to one valid immutable version', async () => {
     const initialVersionId = baselineVersions.get(organizationIds[0]);
     const [accepted, switched] = await Promise.all([
-      service.create(request('concurrent-pointer-switch')),
+      acceptance.execute(request('concurrent-pointer-switch')),
       activateTestAgentVersion(prisma, organizationIds[0], 2, {
         configuration: { marker: 'B' },
       }),
@@ -496,7 +501,7 @@ describe('AgentRun foundation (e2e)', () => {
       { legacyModelPin: true },
     );
 
-    const accepted = await service.create(request('legacy-policy-version'));
+    const accepted = await acceptance.execute(request('legacy-policy-version'));
 
     expect(accepted.organizationAgentVersionId).toBe(legacyVersion.versionId);
     expect(accepted.modelPolicyId).toBe(`${TEST_AGENT_ID}.model-policy.1`);
@@ -512,7 +517,7 @@ describe('AgentRun foundation (e2e)', () => {
     });
 
     await expect(
-      service.create(request('partial-active-policy')),
+      acceptance.execute(request('partial-active-policy')),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       publicDetails: { reason: 'invalid_active_model_policy' },
@@ -526,7 +531,7 @@ describe('AgentRun foundation (e2e)', () => {
       },
     });
     await expect(
-      service.create(request('partial-active-model')),
+      acceptance.execute(request('partial-active-model')),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       publicDetails: { reason: 'invalid_active_model_policy' },
@@ -537,7 +542,7 @@ describe('AgentRun foundation (e2e)', () => {
       data: { modelPolicyId: 'tampered-policy' },
     });
     await expect(
-      service.create(request('tampered-active-policy')),
+      acceptance.execute(request('tampered-active-policy')),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       publicDetails: { reason: 'invalid_active_model_policy' },
@@ -550,7 +555,7 @@ describe('AgentRun foundation (e2e)', () => {
       },
     });
     await expect(
-      service.create(request('unknown-active-model')),
+      acceptance.execute(request('unknown-active-model')),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       publicDetails: { reason: 'invalid_active_model_policy' },
@@ -560,7 +565,7 @@ describe('AgentRun foundation (e2e)', () => {
       data: { modelId: MODEL_IDS.openAiTextEmbedding3Small },
     });
     await expect(
-      service.create(request('incompatible-active-model')),
+      acceptance.execute(request('incompatible-active-model')),
     ).rejects.toMatchObject({
       code: 'CONFLICT',
       publicDetails: { reason: 'invalid_active_model_policy' },
@@ -594,7 +599,7 @@ describe('AgentRun foundation (e2e)', () => {
       1,
       { configuration: { marker: 'valid' } },
     );
-    const accepted = await service.create(request('worker-tampering'));
+    const accepted = await acceptance.execute(request('worker-tampering'));
 
     await expect(
       service.pinnedVersionFor({ ...accepted, agentId: 'another-agent' }),
@@ -655,7 +660,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('accepts a run with no authenticated initiating user', async () => {
-    const result = await service.create(
+    const result = await acceptance.execute(
       request('system-initiated-request', organizationIds[0], {
         createdByUserId: null,
       }),
@@ -677,7 +682,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('preserves the User relation for a user-initiated run', async () => {
-    const result = await service.create(request('user-initiated-request'));
+    const result = await acceptance.execute(request('user-initiated-request'));
 
     const persisted = await prisma.agentRun.findUniqueOrThrow({
       where: { id: result.id },
@@ -705,7 +710,7 @@ describe('AgentRun foundation (e2e)', () => {
   it('allows different organizations to reuse an idempotency key', async () => {
     const [first, second] = await Promise.all(
       organizationIds.map((organizationId) =>
-        service.create(request('shared-request', organizationId)),
+        acceptance.execute(request('shared-request', organizationId)),
       ),
     );
 
@@ -726,7 +731,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('allows only one delivery to claim the same execution attempt', async () => {
-    const accepted = await service.create(request('concurrent-claim'));
+    const accepted = await acceptance.execute(request('concurrent-claim'));
 
     const claims = await Promise.all([
       service.claimExecutionAttempt(accepted.id, 1),
@@ -740,7 +745,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('makes terminal duplicate delivery a durable no-op', async () => {
-    const accepted = await service.create(request('terminal-duplicate'));
+    const accepted = await acceptance.execute(request('terminal-duplicate'));
     await prisma.agentRun.update({
       where: { id: accepted.id },
       data: {
@@ -763,7 +768,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('records successful output only for the active durable claim', async () => {
-    const accepted = await service.create(request('successful-attempt'));
+    const accepted = await acceptance.execute(request('successful-attempt'));
     const claimed = await service.claimExecutionAttempt(accepted.id, 1);
 
     expect(claimed).toMatchObject({ status: 'RUNNING', attemptCount: 1 });
@@ -782,7 +787,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('keeps an intermediate failure retryable and permits a successful retry', async () => {
-    const accepted = await service.create(request('successful-retry'));
+    const accepted = await acceptance.execute(request('successful-retry'));
     await service.claimExecutionAttempt(accepted.id, 1);
 
     await expect(
@@ -811,7 +816,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('records FAILED only when the caller classifies the attempt as final', async () => {
-    const accepted = await service.create(request('final-failure'));
+    const accepted = await acceptance.execute(request('final-failure'));
     await service.claimExecutionAttempt(accepted.id, 1);
 
     await expect(
@@ -833,7 +838,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('reclaims a stalled delivery after the prior worker durably claimed it', async () => {
-    const accepted = await service.create(request('stall-after-claim'));
+    const accepted = await acceptance.execute(request('stall-after-claim'));
     await service.claimExecutionAttempt(accepted.id, 1);
 
     await expect(
@@ -842,7 +847,7 @@ describe('AgentRun foundation (e2e)', () => {
   });
 
   it('claims a later active start when an earlier worker stalled before the database', async () => {
-    const accepted = await service.create(request('stall-before-claim'));
+    const accepted = await acceptance.execute(request('stall-before-claim'));
 
     await expect(
       service.claimExecutionAttempt(accepted.id, 2),

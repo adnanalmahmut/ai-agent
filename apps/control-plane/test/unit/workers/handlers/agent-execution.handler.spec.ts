@@ -12,6 +12,10 @@ import {
 } from '../../../../src/workers/handlers/agent-execution.handler';
 import type { AgentRunService } from '../../../../src/ai/execution/agent-run.service';
 import { AgentRunner } from '../../../../src/ai/execution/agent-runner.service';
+import {
+  ExecuteAgentRunUseCase,
+  type ExecuteAgentRunCommand,
+} from '../../../../src/modules/runs';
 import type {
   AgentDefinition,
   AgentOutputContract,
@@ -89,8 +93,10 @@ function harness() {
   const warn = jest.fn();
   const logger = { warn } as unknown as PinoLogger;
   const handler = new AgentExecutionHandler(
-    runs as unknown as AgentRunService,
-    runner as unknown as AgentRunner,
+    new ExecuteAgentRunUseCase(
+      runs as unknown as AgentRunService,
+      runner as unknown as AgentRunner,
+    ),
     logger,
   );
 
@@ -455,8 +461,10 @@ describe('a declared output contract violation, through the worker', () => {
     runs.recordExecutionFailure.mockResolvedValue(true);
 
     const handlerWithRealRunner = new AgentExecutionHandler(
-      runs as unknown as AgentRunService,
-      realRunner({ items: ['only', 'two'] }),
+      new ExecuteAgentRunUseCase(
+        runs as unknown as AgentRunService,
+        realRunner({ items: ['only', 'two'] }),
+      ),
       { warn } as unknown as PinoLogger,
     );
 
@@ -488,8 +496,10 @@ describe('a declared output contract violation, through the worker', () => {
     runs.markExecutionSucceeded.mockResolvedValue(true);
 
     const handlerWithRealRunner = new AgentExecutionHandler(
-      runs as unknown as AgentRunService,
-      realRunner({ items: ['a', 'b', 'c'] }),
+      new ExecuteAgentRunUseCase(
+        runs as unknown as AgentRunService,
+        realRunner({ items: ['a', 'b', 'c'] }),
+      ),
       { warn: jest.fn() } as unknown as PinoLogger,
     );
 
@@ -503,5 +513,97 @@ describe('a declared output contract violation, through the worker', () => {
       { items: ['a', 'b', 'c'] },
     );
     expect(runs.recordExecutionFailure).not.toHaveBeenCalled();
+  });
+});
+
+describe('what the queue adapter hands the Control Plane', () => {
+  const spyHarness = () => {
+    const execute =
+      jest.fn<
+        (
+          command: ExecuteAgentRunCommand,
+        ) => Promise<{ status: 'not_claimed'; runId: string }>
+      >();
+    execute.mockResolvedValue({ status: 'not_claimed', runId: run.id });
+
+    const handler = new AgentExecutionHandler(
+      { execute } as unknown as ExecuteAgentRunUseCase,
+      { warn: jest.fn() } as unknown as PinoLogger,
+    );
+
+    return { handler, execute };
+  };
+
+  it('translates the delivery into a run id, an ordinal and a last-delivery flag', async () => {
+    const { handler, execute } = spyHarness();
+
+    await handler.handle(job(1, 3, 2));
+
+    expect(execute).toHaveBeenCalledWith({
+      runId: 'run-1',
+      attempt: 2,
+      lastDelivery: false,
+    });
+  });
+
+  it('says so when the queue has no redelivery left', async () => {
+    const { handler, execute } = spyHarness();
+
+    await handler.handle(job(2, 3, 3));
+
+    expect(execute).toHaveBeenCalledWith({
+      runId: 'run-1',
+      attempt: 3,
+      lastDelivery: true,
+    });
+  });
+
+  it('treats a job configured without an attempt budget as a single delivery', async () => {
+    const { handler, execute } = spyHarness();
+
+    await handler.handle({
+      data: { runId: run.id },
+      attemptsMade: 0,
+      attemptsStarted: 1,
+      opts: {},
+    } as Job<AgentExecutionJob>);
+
+    expect(execute).toHaveBeenCalledWith({
+      runId: 'run-1',
+      attempt: 1,
+      lastDelivery: true,
+    });
+  });
+
+  it('passes no part of the job itself', async () => {
+    const { handler, execute } = spyHarness();
+
+    await handler.handle(job(0, 3));
+
+    const [command] = execute.mock.calls[0];
+
+    expect(Object.keys(command).sort()).toEqual([
+      'attempt',
+      'lastDelivery',
+      'runId',
+    ]);
+    for (const value of Object.values(command)) {
+      expect(['string', 'number', 'boolean']).toContain(typeof value);
+    }
+  });
+
+  it('rejects a job with no run id before asking the Control Plane anything', async () => {
+    const { handler, execute } = spyHarness();
+
+    await expect(
+      handler.handle({
+        data: {},
+        attemptsMade: 0,
+        attemptsStarted: 1,
+        opts: { attempts: 3 },
+      } as Job<AgentExecutionJob>),
+    ).rejects.toThrow('Agent execution job requires a runId');
+
+    expect(execute).not.toHaveBeenCalled();
   });
 });

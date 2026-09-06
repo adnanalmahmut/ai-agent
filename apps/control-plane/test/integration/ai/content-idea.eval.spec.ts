@@ -147,7 +147,7 @@ const buildHarness = (): Harness => {
   );
   const assembler = new AgentContextAssembler(spaces, retrieval, embeddingPort);
   const definitions = new AgentDefinitionRegistry([contentIdeaAgent]);
-  const runtimes = new AgentRuntimeRegistry(new MastraRuntime(runtimeConfig));
+  const runtimes = new AgentRuntimeRegistry([new MastraRuntime(runtimeConfig)]);
   const runner = new AgentRunner(
     definitions,
     runtimes,

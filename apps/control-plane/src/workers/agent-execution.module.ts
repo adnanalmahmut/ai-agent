@@ -8,13 +8,17 @@ import { AI_RUNTIME_CONFIG } from '../ai/infrastructure/runtime-config.port';
 import { MastraRuntime } from '../ai/infrastructure/runtimes/mastra/mastra.runtime';
 import { AgentRunReconciler } from '../ai/execution/agent-run-reconciler.service';
 import { AgentRunner } from '../ai/execution/agent-runner.service';
-import { AgentRuntimeRegistry } from '../ai/execution/agent-runtime.registry';
+import {
+  AGENT_RUNTIMES,
+  AgentRuntimeRegistry,
+} from '../ai/execution/agent-runtime.registry';
 import { DatabaseModule } from '../infrastructure/database';
 import { QueueModule } from '../infrastructure/queue';
 import { KnowledgeCoreModule } from '../features/knowledge';
 import { AgentDefinitionsModule } from '../features/agent-management/agent-definitions.module';
 import { AgentsModule } from '../features/agent-management/agents.module';
 import { AgentToolsModule } from '../features/agent-management/tools/agent-tools.module';
+import { ExecuteAgentRunUseCase } from '../modules/runs';
 import { AgentExecutionHandler } from './handlers/agent-execution.handler';
 import { SideEffectExecutionHandler } from './handlers/side-effect-execution.handler';
 
@@ -31,13 +35,20 @@ import { SideEffectExecutionHandler } from './handlers/side-effect-execution.han
   providers: [
     { provide: AI_RUNTIME_CONFIG, useExisting: RuntimeConfigResolver },
     MastraRuntime,
+    {
+      provide: AGENT_RUNTIMES,
+      useFactory: (mastra: MastraRuntime) => [mastra],
+      inject: [MastraRuntime],
+    },
     AgentRuntimeRegistry,
     AgentRunner,
+    ExecuteAgentRunUseCase,
     AgentExecutionHandler,
     SideEffectExecutionHandler,
     AgentRunReconciler,
   ],
   exports: [
+    ExecuteAgentRunUseCase,
     AgentExecutionHandler,
     SideEffectExecutionHandler,
     AgentRunReconciler,

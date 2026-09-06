@@ -29,6 +29,7 @@ import { AgentRunReconciler } from '../../../src/ai/execution/agent-run-reconcil
 import { AgentRunService } from '../../../src/ai/execution/agent-run.service';
 import { AgentRunner } from '../../../src/ai/execution/agent-runner.service';
 import { AgentRuntimeRegistry } from '../../../src/ai/execution/agent-runtime.registry';
+import { ExecuteAgentRunUseCase } from '../../../src/modules/runs';
 import type { AgentDefinition } from '../../../src/ai/agents/agent.types';
 import { AgentsModule } from '../../../src/features/agent-management/agents.module';
 import { PRODUCTION_AGENT_DEFINITIONS } from '../../../src/features/content/ideas/agent-definitions';
@@ -295,6 +296,7 @@ describe('AppModule agent composition', () => {
     }
 
     for (const provider of [
+      ExecuteAgentRunUseCase,
       AgentRunner,
       AgentRuntimeRegistry,
       MastraRuntime,

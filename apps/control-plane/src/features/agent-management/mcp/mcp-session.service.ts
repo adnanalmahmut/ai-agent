@@ -13,6 +13,7 @@ import {
   type AgentValue,
 } from '../../../ai/agents/agent.types';
 import { AgentRunService } from '../../../ai/execution/agent-run.service';
+import { AcceptAgentRunUseCase } from '../../../modules/runs';
 import { ToolExecutionService } from '../../../ai/tools/tool-execution.service';
 import {
   ToolExecutionFailure,
@@ -44,6 +45,7 @@ export class McpSessionService {
 
   constructor(
     private readonly runs: AgentRunService,
+    private readonly acceptance: AcceptAgentRunUseCase,
     private readonly definitions: AgentDefinitionRegistry,
     private readonly gateway: ToolGateway,
     @Inject(ToolExecutionService)
@@ -85,7 +87,7 @@ export class McpSessionService {
       'agents.max_concurrent_runs_per_organization',
     );
 
-    const run = await this.runs.create({
+    const run = await this.acceptance.execute({
       maxInFlight,
       driver: AGENT_RUN_DRIVERS.mcpClient,
       agentId: input.payload.agentId,
