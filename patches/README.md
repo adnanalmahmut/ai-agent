@@ -71,7 +71,7 @@ therefore `COPY patches patches`, and `.dockerignore` must keep the directory in
 the build context.
 
 **What proves it.** `malformed tool-call arguments in application logs` in
-`apps/backend/src/agents/runtime/mastra/__tests__/mastra.containment.spec.ts`
+`apps/control-plane/src/agents/runtime/mastra/__tests__/mastra.containment.spec.ts`
 drives the real installed SDK down this exact branch with canaries in the
 argument and asserts they reach no console sink. Reverting the patch fails it.
 Two sibling tests assert valid and repairable calls still behave as before.

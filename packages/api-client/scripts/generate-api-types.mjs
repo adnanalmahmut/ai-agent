@@ -38,10 +38,10 @@ const scratch = await mkdtemp(join(tmpdir(), 'application-openapi-'));
 const documentPath = join(scratch, 'openapi.json');
 
 try {
-  run('pnpm', ['--filter', 'backend', 'run', 'build'], repositoryRoot);
+  run('pnpm', ['--filter', 'control-plane', 'run', 'build'], repositoryRoot);
   run(
     'pnpm',
-    ['--filter', 'backend', 'run', 'openapi:emit', documentPath],
+    ['--filter', 'control-plane', 'run', 'openapi:emit', documentPath],
     repositoryRoot,
   );
   run(

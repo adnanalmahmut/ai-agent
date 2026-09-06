@@ -587,7 +587,7 @@ describe('provider-facing tool-error serialization', () => {
     expect(serialized).not.toMatch(/\bat\s+\/\S+:\d+:\d+/);
     expect(serialized).not.toContain('node_modules');
     expect(serialized).not.toContain('.ts:');
-    expect(serialized).not.toContain('apps/backend');
+    expect(serialized).not.toContain('apps/control-plane');
     expect(serialized).not.toContain(process.cwd());
   });
 
@@ -599,7 +599,7 @@ describe('provider-facing tool-error serialization', () => {
     const error = reifiedToolError(chunks);
 
     expect(error.message).toContain('Tool "knowledge_search_v1" failed');
-    expect(error.stack ?? '').not.toContain('apps/backend');
+    expect(error.stack ?? '').not.toContain('apps/control-plane');
 
     const serialized = dump(error);
 
@@ -607,7 +607,7 @@ describe('provider-facing tool-error serialization', () => {
       expect(serialized).not.toContain(secret);
     }
 
-    expect(serialized).not.toContain('apps/backend');
+    expect(serialized).not.toContain('apps/control-plane');
     expect(serialized).not.toContain('tool.gateway');
     expect(serialized).not.toContain(process.cwd());
   });
@@ -681,9 +681,9 @@ describe('provider-facing tool-error serialization', () => {
     const stack = errors[0]?.stack ?? '';
 
     expect(stack).not.toContain('tool.gateway');
-    expect(stack).not.toContain('apps/backend');
+    expect(stack).not.toContain('apps/control-plane');
     expect(stack).not.toContain('mastra.containment');
-    expect(dump(prompts[1])).not.toContain('apps/backend');
+    expect(dump(prompts[1])).not.toContain('apps/control-plane');
   });
 
   it('carries the driver material into the SDK failure when uncontained', async () => {
@@ -861,7 +861,7 @@ describe('malformed tool-call arguments in application logs', () => {
     expect(total).toBe(1);
     expect(serialized).toContain('Tool call input could not be parsed');
 
-    expect(serialized).not.toContain('apps/backend');
+    expect(serialized).not.toContain('apps/control-plane');
     expect(serialized).not.toContain('node_modules');
     expect(serialized).not.toContain(process.cwd());
     expect(serialized).not.toMatch(/\bat\s+\S+\s+\(/);

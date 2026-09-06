@@ -28,7 +28,7 @@ HTTP listener.
 - `apps/web` serves the public localized site.
 - `apps/platform` serves authenticated account, organization, content, and
   platform-administration screens under `/platform`.
-- `apps/backend` has separate API, worker, and CLI composition roots. The API
+- `apps/control-plane` has separate API, worker, and CLI composition roots. The API
   accepts requests and commits state. The worker dispatches the outbox and
   consumes BullMQ jobs. The CLI performs host-authorized operator actions.
 - `packages/ui` and `packages/i18n-core` contain shared presentation and

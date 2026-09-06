@@ -81,7 +81,7 @@ test('runs identical completion checks from root and nested working directories'
   const originalCwd = process.cwd();
 
   try {
-    for (const cwd of ['', 'apps/backend', 'apps/web']) {
+    for (const cwd of ['', 'apps/control-plane', 'apps/web']) {
       process.chdir(resolve(testRoot, cwd));
       const calls = [];
       const failures = runCompletionChecks((command, args, options) => {

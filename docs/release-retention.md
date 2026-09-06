@@ -66,5 +66,5 @@ The deploy wrapper runs retention only after the new release is healthy and
 `CURRENT_RELEASE.json`/`PREVIOUS_RELEASE.json` have rotated. Retention never
 fails the deployment at that point: it reports failure and returns success
 because the deployed release is already complete. The next deployment's disk
-preflight remains the hard gate. Retention remains current at host bundle 13; see
+preflight remains the hard gate. Retention remains current at host bundle 14; see
 [host bundle](host-bundle.md).

@@ -6,8 +6,8 @@
 ## Context
 
 The repository is one pnpm monorepo whose backend runs as three composition
-roots out of a single NestJS source tree (`apps/backend/src/api/main.ts`,
-`apps/backend/src/workers/main.ts`, `apps/backend/src/cli/main.ts`). Product
+roots out of a single NestJS source tree (`apps/control-plane/src/api/main.ts`,
+`apps/control-plane/src/workers/main.ts`, `apps/control-plane/src/cli/main.ts`). Product
 data, agent execution, and tool side effects share one Prisma client and one
 database. A restructuring will separate those responsibilities, and the
 separation only stays coherent if the destination is agreed before any file

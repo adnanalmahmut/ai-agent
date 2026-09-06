@@ -51,7 +51,7 @@ grep -Eq '^  redis_data:$' "$base"
 grep -Eq '^  geoip_data:$' "$deploy_overlay"
 grep -Eq 'command: \[node, dist/src/api/main\]' "$deploy_overlay"
 grep -Eq 'command: \[node, dist/src/workers/main\]' "$deploy_overlay"
-grep -Fq 'CMD ["node", "dist/src/api/main"]' apps/backend/Dockerfile
+grep -Fq 'CMD ["node", "dist/src/api/main"]' apps/control-plane/Dockerfile
 grep -Eq 'command: \[node, node_modules/prisma/build/index.js, migrate, deploy\]' "$deploy_overlay"
 grep -Eq '^[[:space:]]+APP_PORT: 3002$' "$deploy_overlay"
 # shellcheck disable=SC2086
@@ -71,7 +71,7 @@ if grep -Fq 'env_file:' $all_compose; then
 fi
 
 for dockerfile in \
-  apps/backend/Dockerfile \
+  apps/control-plane/Dockerfile \
   apps/web/Dockerfile \
   apps/platform/Dockerfile; do
   test -f "$dockerfile"
@@ -101,7 +101,7 @@ package_directory() {
   return 1
 }
 
-for application in backend web platform; do
+for application in control-plane web platform; do
   for dependency in $(workspace_dependencies "apps/$application/package.json"); do
     directory=$(package_directory "$dependency") || {
       echo "apps/$application depends on $dependency, which is not in packages/" >&2
@@ -114,8 +114,8 @@ for application in backend web platform; do
     }
   done
 done
-grep -Fq 'CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]' apps/backend/Dockerfile
-if grep -Fq 'CMD ["pnpm",' apps/backend/Dockerfile; then
+grep -Fq 'CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]' apps/control-plane/Dockerfile
+if grep -Fq 'CMD ["pnpm",' apps/control-plane/Dockerfile; then
   echo 'migration runtime must not depend on a mutable Corepack cache' >&2
   exit 1
 fi

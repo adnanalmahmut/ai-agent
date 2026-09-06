@@ -11,8 +11,8 @@ PostgreSQL, Redis/BullMQ, and shared UI and i18n packages.
 ## Sources of truth
 
 - Product and system behavior: `docs/` plus the relevant source and tests
-- Backend runtime contracts: `apps/backend/src/infrastructure/config/` and
-  `apps/backend/prisma/schema.prisma`
+- Backend runtime contracts: `apps/control-plane/src/infrastructure/config/` and
+  `apps/control-plane/prisma/schema.prisma`
 - Container topology: `infra/compose/` and `docker-bake.hcl`
 - Delivery behavior: `.github/workflows/`, `infra/deploy/`, `infra/host-bundle/`
   and the host and gateway tooling that remains in `ops/`
@@ -46,7 +46,7 @@ pnpm agents:check
 pnpm typecheck
 pnpm lint
 pnpm test
-pnpm --filter backend test:e2e
+pnpm --filter control-plane test:e2e
 pnpm build
 infra/tests/documentation.sh
 ```

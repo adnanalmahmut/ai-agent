@@ -31,7 +31,7 @@ or environment value.
 For local development:
 
 ```sh
-pnpm --filter backend cli:dev super-admin:create \
+pnpm --filter control-plane cli:dev super-admin:create \
   --email <address> --name '<display name>'
 ```
 

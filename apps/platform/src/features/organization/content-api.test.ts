@@ -25,7 +25,7 @@ import {
  *
  * Every type in `organization-api.ts` for these families is now an alias of
  * the generated OpenAPI contract, which the Backend authors as Zod and
- * `apps/backend/test/unit/infrastructure/docs/content-contract.spec.ts` pins
+ * `apps/control-plane/test/unit/infrastructure/docs/content-contract.spec.ts` pins
  * from the producing side. These are the same payloads read from the
  * consuming one: a field the API stops sending fails to compile here, and a
  * URL, method or header that moves fails at runtime here.

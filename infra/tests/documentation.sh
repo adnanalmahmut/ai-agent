@@ -73,7 +73,7 @@ fi
 if grep -ERn --include='*.md' \
   'BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|ghp_[A-Za-z0-9]{20}' \
   README.md docs \
-  apps/backend/README.md apps/platform/README.md apps/web/README.md; then
+  apps/control-plane/README.md apps/platform/README.md apps/web/README.md; then
   echo 'documentation contains material that resembles a committed credential' >&2
   exit 1
 fi

@@ -10,7 +10,7 @@ inventory is `infra/host-bundle/files`; the installed manifest is
 | `infra/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `infra/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 13 and the current minimum is 11. Bump `VERSION` whenever
+The current release ships bundle 14 and the current minimum is 11. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.
@@ -34,6 +34,16 @@ and the flat release record an older wrapper writes stays readable by the new
 one. So the minimum does not move. Reinstalling gets the component record and
 the wrong-component refusal; not reinstalling costs neither correctness nor
 rollback.
+
+Bundle 14 records a source path, not a behaviour. The NestJS workspace moved
+from `apps/backend` to `apps/control-plane`, so the `build:` stanzas in
+`compose.deploy.yaml` name a different Dockerfile. Nothing a host does changes:
+it deploys by image, the service is still called `backend`, the image is still
+`.../backend`, the component names are still `backend` and `backend-migration`,
+and the forced-command grammar is untouched. The version moves because the
+ledger covers every inventoried file, which is the point of the ledger; the
+minimum stays at 11 because a host on 11, 12 or 13 deploys this release
+unchanged.
 
 ## Contents and installation
 

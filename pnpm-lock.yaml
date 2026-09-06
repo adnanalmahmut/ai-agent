@@ -13,7 +13,7 @@ importers:
 
   .: {}
 
-  apps/backend:
+  apps/control-plane:
     dependencies:
       '@aws-sdk/client-sesv2':
         specifier: ^3.1111.0

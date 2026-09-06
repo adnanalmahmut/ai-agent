@@ -77,8 +77,8 @@ export const runtimeSettingValueSchema = z
  * A managed secret is write-only. This schema is the whole of what the API
  * answers with, and it carries no plaintext, no decrypted value, no
  * ciphertext, and no key material — only whether a slot is filled and whether
- * the value in it can still be used. `apps/backend/test/unit/infrastructure/
- * docs/administration-contract.spec.ts` holds that closed.
+ * the value in it can still be used. The administration contract test under
+ * `apps/control-plane/test/unit/infrastructure/docs/` holds that closed.
  */
 export const managedSecretDescriptionSchema = z.object({
   key: managedSecretKey,
