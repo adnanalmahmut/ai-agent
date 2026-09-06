@@ -34,7 +34,12 @@ Validation runs in four checks, in this order:
    the gateway's `client_max_body_size`. JSON Schema cannot express bytes, so
    this is separate on purpose.
 3. **The schema.** Validated against the strict JSON Schema Draft 2020-12
-   definition with `additionalProperties: false`.
+   definition. Protocol/envelope objects are closed
+   (`additionalProperties: false`); `ExecutionPayload` remains arbitrary bounded
+   JSON, so payload objects may carry bounded additional properties — subject to
+   the depth, width and sensitive-property-name rules — and JSON `null` is a
+   valid payload value. Protocol/envelope fields are non-nullable unless a schema
+   declares otherwise.
 4. **Aggregate context budget.** For `RuntimeStep`, the sum of Unicode code
    points across all passages in `context` cannot exceed 12 000
    (`EXECUTION_CONTEXT_BUDGET_CODE_POINTS`). JSON Schema cannot sum lengths
@@ -51,9 +56,10 @@ emitted wire shapes are frozen.
 
 - **Backward reader compatibility:** Newer readers accept older documents as
   long as added fields are optional.
-- **Rolling forward compatibility:** Because v1 objects are closed
-  (`additionalProperties: false`) and enums are closed, adding fields or enum
-  values is **not** forward-compatible without coordinated phased deployment.
+- **Rolling forward compatibility:** Because v1 protocol/envelope objects are
+  closed (`additionalProperties: false`) and enums are closed, adding fields or
+  enum values is **not** forward-compatible without coordinated phased
+  deployment.
 
 ## What this package is not
 

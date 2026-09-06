@@ -61,7 +61,24 @@ const VALIDATORS = {
   embedding: compiled('embedding.schema.json'),
 } as const;
 
-export type ExecutionDocumentKind = keyof typeof VALIDATORS;
+/**
+ * The document each kind names. Validation is one runtime check, so the kind a
+ * caller passes has to be what decides the result type — otherwise a caller
+ * could name `runtimeStep` and be handed back any type it asked for.
+ */
+export type ExecutionDocumentByKind = {
+  runtimeStep: RuntimeStep;
+  runtimeStepResult: RuntimeStepResult;
+  toolInvocation: ToolInvocation;
+  safeFailure: SafeFailure;
+  artifactRef: ArtifactRef;
+  embedding: Embedding;
+};
+
+export type ExecutionDocumentKind = keyof ExecutionDocumentByKind;
+
+const VALIDATORS_BY_KIND: Record<ExecutionDocumentKind, ValidateFunction> =
+  VALIDATORS;
 
 function issuesFrom(
   errors: readonly ErrorObject[] | null | undefined,
@@ -80,10 +97,10 @@ function issuesFrom(
  * express. Then the schema itself. Each pass stops the next, so an issue list
  * describes one problem rather than the consequences of an earlier one.
  */
-export function validateExecutionDocument<T>(
-  kind: ExecutionDocumentKind,
+export function validateExecutionDocument<K extends ExecutionDocumentKind>(
+  kind: K,
   value: unknown,
-): ContractResult<T> {
+): ContractResult<ExecutionDocumentByKind[K]> {
   const unsafe = jsonSafetyProblems(value);
 
   if (unsafe.length > 0) {
@@ -110,7 +127,7 @@ export function validateExecutionDocument<T>(
     };
   }
 
-  const validate = VALIDATORS[kind];
+  const validate = VALIDATORS_BY_KIND[kind];
 
   if (!validate(value)) return { ok: false, issues: issuesFrom(validate.errors) };
 
@@ -135,23 +152,23 @@ export function validateExecutionDocument<T>(
     }
   }
 
-  return { ok: true, value: value as T };
+  return { ok: true, value: value as ExecutionDocumentByKind[K] };
 }
 
 export const validateRuntimeStep = (value: unknown) =>
-  validateExecutionDocument<RuntimeStep>('runtimeStep', value);
+  validateExecutionDocument('runtimeStep', value);
 
 export const validateRuntimeStepResult = (value: unknown) =>
-  validateExecutionDocument<RuntimeStepResult>('runtimeStepResult', value);
+  validateExecutionDocument('runtimeStepResult', value);
 
 export const validateToolInvocation = (value: unknown) =>
-  validateExecutionDocument<ToolInvocation>('toolInvocation', value);
+  validateExecutionDocument('toolInvocation', value);
 
 export const validateSafeFailure = (value: unknown) =>
-  validateExecutionDocument<SafeFailure>('safeFailure', value);
+  validateExecutionDocument('safeFailure', value);
 
 export const validateArtifactRef = (value: unknown) =>
-  validateExecutionDocument<ArtifactRef>('artifactRef', value);
+  validateExecutionDocument('artifactRef', value);
 
 export const validateEmbedding = (value: unknown) =>
-  validateExecutionDocument<Embedding>('embedding', value);
+  validateExecutionDocument('embedding', value);

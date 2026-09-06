@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test-d.json",
     "execution:contracts": "node scripts/generate.mjs",
     "execution:contracts:check": "git ls-files --error-unmatch src/generated/schemas.ts src/generated/types.ts && node scripts/generate.mjs && git diff --exit-code -- src/generated",
     "test": "pnpm run build && node --test test/*.test.mjs"

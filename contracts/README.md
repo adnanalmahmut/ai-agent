@@ -41,11 +41,16 @@ Six documents:
 - **Numbers** are finite JSON numbers. No `NaN`, no `Infinity`, no `BigInt` —
   none of the three has a JSON literal, and each one either changes value or
   throws on the way out.
-- **`undefined` never appears.** A property that has no value is omitted. No field
-  in v1 is nullable.
-- **Every object is closed.** `additionalProperties: false` throughout, so a
-  field nobody agreed on is a validation error rather than something a reader
-  silently ignores and a writer silently depends on.
+- **`undefined` never appears.** A property that has no value is omitted.
+  Protocol/envelope fields are non-nullable unless a schema declares otherwise;
+  JSON `null` remains a valid value inside `ExecutionPayload`, whose values are
+  arbitrary bounded JSON.
+- **Protocol/envelope objects are closed.** `additionalProperties: false`
+  throughout the envelope, so a field nobody agreed on is a validation error
+  rather than something a reader silently ignores and a writer silently depends
+  on. `ExecutionPayload` is the deliberate exception: payload objects may carry
+  bounded additional properties, subject to the depth, width and
+  sensitive-property-name rules.
 - **The version is explicit.** Every document carries `"version": "1"`.
 
 ### Bounds, and where they came from
@@ -99,10 +104,11 @@ Crucially, distinguish **backward reader compatibility** (a newer reader accepts
 an older document) from **rolling forward compatibility** (an older reader
 accepting a newer writer's document):
 
-- Because every object in v1 is closed (`additionalProperties: false`) and
-  vocabularies are closed `enum`s, **optional field widening or enum widening is
-  NOT forward-compatible without coordination**: an older reader will reject
-  documents containing newly introduced properties or enum members.
+- Because every v1 protocol/envelope object is closed
+  (`additionalProperties: false`) and vocabularies are closed `enum`s, **optional
+  field widening or enum widening is NOT forward-compatible without
+  coordination**: an older reader will reject documents containing newly
+  introduced properties or enum members.
 - Backward reader compatibility: A newer reader definition accepts older
   documents if added fields are optional and removed enum members are preserved.
 - Rolling forward compatibility: Requires phased rollout (updating readers first

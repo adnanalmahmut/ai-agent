@@ -32,8 +32,10 @@ const KIND_TO_ID = {
 const BASE = 'https://contracts.ai-agent.local/execution/v1/';
 
 /**
- * The one mechanical question a compatibility rule reduces to: does every
- * document that was valid under the published contract still validate?
+ * The mechanical question for backward-reader compatibility: does every
+ * document valid under the published contract still validate under the
+ * candidate reader? Rolling forward compatibility is a separate direction, and
+ * the old-reader tests below cover it.
  *
  * This is not a schema-diff engine and is not trying to be. It applies a
  * candidate change to a copy of the schemas and re-runs the published corpus.
