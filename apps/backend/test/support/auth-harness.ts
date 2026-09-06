@@ -230,19 +230,40 @@ export const errorBody = (response: Response): ErrorBody => {
   return b as ErrorBody;
 };
 
+// The origin a browser running the platform application would report. Taken
+// from the same configuration the application trusts, so the harness cannot
+// drift from `BETTER_AUTH_TRUSTED_ORIGINS` by hard-coding a string.
+export const trustedBrowserOrigin = new URL(
+  process.env.APP_PLATFORM_URL ?? 'http://localhost:3001/platform',
+).origin;
+
+// Requests made through `as()` stand for a signed-in browser, and a browser
+// attaches `Origin` to every state-changing request it sends. Better Auth's
+// origin check is pinned on in every environment, including tests, so omitting
+// it here would model something no browser does. Tests that exist to pin the
+// missing- or foreign-Origin behavior build their request directly instead of
+// going through this helper.
 export const as = (harness: Harness, user: Pick<TestUser, 'cookie'>) => ({
   get: (path: string) =>
-    request(harness.server).get(path).set('Cookie', user.cookie),
+    request(harness.server)
+      .get(path)
+      .set('Cookie', user.cookie)
+      .set('Origin', trustedBrowserOrigin),
   post: (path: string, body?: unknown) =>
     request(harness.server)
       .post(path)
       .set('Cookie', user.cookie)
+      .set('Origin', trustedBrowserOrigin)
       .send(body ?? {}),
   put: (path: string, body?: unknown) =>
     request(harness.server)
       .put(path)
       .set('Cookie', user.cookie)
+      .set('Origin', trustedBrowserOrigin)
       .send(body ?? {}),
   del: (path: string) =>
-    request(harness.server).delete(path).set('Cookie', user.cookie),
+    request(harness.server)
+      .delete(path)
+      .set('Cookie', user.cookie)
+      .set('Origin', trustedBrowserOrigin),
 });

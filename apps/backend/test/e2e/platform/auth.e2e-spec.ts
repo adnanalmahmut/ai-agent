@@ -27,6 +27,7 @@ import type {
   OutboundMail,
 } from '../../../src/infrastructure/mail/mail.types';
 import { PrismaService } from '../../../src/infrastructure/database';
+import { trustedBrowserOrigin } from '../../support/auth-harness';
 
 const SENTINELS = [
   'LEAKY_RESEND_KEY',
@@ -328,7 +329,10 @@ describe('Better Auth (e2e)', () => {
       const response = await request(server)
         .post('/api/auth/request-password-reset')
         .set('X-App-Locale', 'ar')
-        .send({ email: EMAIL, redirectTo: 'https://app.example.com/reset' });
+        .send({
+          email: EMAIL,
+          redirectTo: `${trustedBrowserOrigin}/platform/ar/reset-password`,
+        });
 
       expect(response.status).toBe(200);
 
@@ -395,6 +399,7 @@ describe('Better Auth (e2e)', () => {
       await request(server)
         .post('/api/auth/request-password-reset')
         .set('Cookie', 'APP_LOCALE=ar')
+        .set('Origin', trustedBrowserOrigin)
         .send({ email: EMAIL });
 
       await transport.settle();
@@ -462,6 +467,7 @@ describe('Better Auth (e2e)', () => {
       const updateRes = await request(server)
         .post('/api/auth/update-user')
         .set('Cookie', cookie ?? [])
+        .set('Origin', trustedBrowserOrigin)
         .send({ preferredLanguage: 'ar' });
 
       expect(updateRes.status).toBe(200);
@@ -495,6 +501,7 @@ describe('Better Auth (e2e)', () => {
       const updateRes = await request(server)
         .post('/api/auth/update-user')
         .set('Cookie', cookie ?? [])
+        .set('Origin', trustedBrowserOrigin)
         .send({ preferredLanguage: 'klingon' });
 
       expect(updateRes.status).toBe(400);
@@ -558,7 +565,13 @@ describe('Better Auth (e2e)', () => {
   // Where following that link lands is asserted by the block after this one.
   describe('security mail is addressed by configuration, not by the request', () => {
     const authOrigin = new URL(process.env.BETTER_AUTH_URL ?? '').origin;
-    const FOREIGN = 'https://mail-link-probe.invalid/landing';
+
+    // A destination the caller is entitled to name — it sits on a trusted
+    // origin, so Better Auth's own check lets it through — but that the product
+    // never chose. It is the case that isolates the second layer: what the
+    // server decides, rather than what the trusted-origin list permits. A
+    // foreign destination is refused upstream instead, covered further down.
+    const CALLER_CHOSEN = `${trustedBrowserOrigin}/platform/en/somewhere-else`;
 
     const linkFrom = (html: string): string => {
       const match = /href="(https?:[^"]+)"/.exec(html);
@@ -576,7 +589,7 @@ describe('Better Auth (e2e)', () => {
           name: 'Link Probe',
           email,
           password: PASSWORD,
-          callbackURL: FOREIGN,
+          callbackURL: CALLER_CHOSEN,
         });
       expect(response.status).toBe(200);
 
@@ -585,7 +598,11 @@ describe('Better Auth (e2e)', () => {
 
       // The recipient is the account address, not anything the body offered.
       expect(transport.last.to).toBe(email);
-      expect(new URL(linkFrom(transport.last.html)).origin).toBe(authOrigin);
+
+      const link = new URL(linkFrom(transport.last.html));
+      expect(link.origin).toBe(authOrigin);
+      // Trusted origin or not, the caller's destination is discarded.
+      expect(link.searchParams.get('callbackURL')).not.toBe(CALLER_CHOSEN);
 
       await prisma.user.deleteMany({ where: { email } });
     });
@@ -600,13 +617,16 @@ describe('Better Auth (e2e)', () => {
       transport.reset();
       const response = await request(server)
         .post('/api/auth/request-password-reset')
-        .send({ email, redirectTo: FOREIGN });
+        .send({ email, redirectTo: CALLER_CHOSEN });
       expect(response.status).toBe(200);
 
       await transport.settle();
       expect(transport.last.meta.template).toBe('PASSWORD_RESET');
       expect(transport.last.to).toBe(email);
-      expect(new URL(linkFrom(transport.last.html)).origin).toBe(authOrigin);
+
+      const link = new URL(linkFrom(transport.last.html));
+      expect(link.origin).toBe(authOrigin);
+      expect(link.searchParams.get('callbackURL')).not.toBe(CALLER_CHOSEN);
 
       await prisma.user.deleteMany({ where: { email } });
     });
@@ -878,7 +898,10 @@ describe('Better Auth (e2e)', () => {
 
       await request(server)
         .post('/api/auth/request-password-reset')
-        .send({ email, redirectTo: 'https://attacker.example/steal' })
+        .send({
+          email,
+          redirectTo: `${trustedBrowserOrigin}/platform/en/somewhere-else`,
+        })
         .expect(200);
 
       await transport.settle();
