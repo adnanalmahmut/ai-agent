@@ -75,9 +75,9 @@ describe('ExecuteAgentRunUseCase', () => {
   it('refuses a delivery that names no run', async () => {
     const { useCase, runs } = harness();
 
-    await expect(
-      useCase.execute({ ...delivery(), runId: '' }),
-    ).rejects.toThrow('Agent execution job requires a runId');
+    await expect(useCase.execute({ ...delivery(), runId: '' })).rejects.toThrow(
+      'Agent execution job requires a runId',
+    );
     expect(runs.claimExecutionAttempt).not.toHaveBeenCalled();
   });
 
@@ -234,7 +234,13 @@ describe('ExecuteAgentRunUseCase', () => {
     it('names a broken output contract as its own cause, and keeps retrying', async () => {
       const { useCase, runs, run } = harness();
       runs.claimExecutionAttempt.mockResolvedValue(claimed);
-      run.mockRejectedValue(new AgentOutputContractError('count_mismatch'));
+      run.mockRejectedValue(
+        new AgentOutputContractError({
+          code: 'count_mismatch',
+          expected: 3,
+          received: 2,
+        }),
+      );
       runs.recordExecutionFailure.mockResolvedValue(true);
 
       await expect(useCase.execute(delivery())).resolves.toMatchObject({
