@@ -439,17 +439,18 @@ export type ToolFailureCode = NonNullable<
 
 /*
  * The closed vocabularies as runtime values: the filter offers the approval
- * statuses and the message-catalogue test iterates all three lists. Each is
- * `satisfies` its generated union, so a value the API does not send cannot be
- * translated here.
+ * statuses and the message-catalogue test iterates all three lists.
+ * `everyValueOf` holds each level with its generated union in both directions,
+ * so neither an invented value nor a missing one compiles.
  */
-export const AGENT_ACTION_APPROVAL_STATUSES = [
-  'PENDING',
-  'APPROVED',
-  'REJECTED',
-] as const satisfies readonly AgentActionApprovalStatus[];
+export const AGENT_ACTION_APPROVAL_STATUSES =
+  everyValueOf<AgentActionApprovalStatus>()([
+    'PENDING',
+    'APPROVED',
+    'REJECTED',
+  ]);
 
-export const TOOL_EXECUTION_STATUSES = [
+export const TOOL_EXECUTION_STATUSES = everyValueOf<ToolExecutionStatus>()([
   'STARTED',
   'AWAITING_APPROVAL',
   'APPROVED',
@@ -457,9 +458,9 @@ export const TOOL_EXECUTION_STATUSES = [
   'SUCCEEDED',
   'FAILED',
   'OUTCOME_UNKNOWN',
-] as const satisfies readonly ToolExecutionStatus[];
+]);
 
-export const TOOL_FAILURE_CODES = [
+export const TOOL_FAILURE_CODES = everyValueOf<ToolFailureCode>()([
   'precondition_organization',
   'precondition_authority',
   'precondition_approval',
@@ -468,7 +469,7 @@ export const TOOL_FAILURE_CODES = [
   'provider_rejected',
   'implementation_error',
   'output_rejected',
-] as const satisfies readonly ToolFailureCode[];
+]);
 
 const approvalsBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/agent-action-approvals`;
