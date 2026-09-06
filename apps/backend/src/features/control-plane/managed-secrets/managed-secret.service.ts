@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PinoLogger } from 'nestjs-pino';
+import type { z } from 'zod';
 
 import { AppException } from '../../../core/errors';
 import { PrismaService } from '../../../infrastructure/database';
@@ -7,6 +8,7 @@ import {
   ControlPlaneAuditService,
   type ControlPlaneAuditState,
 } from '../audit/control-plane-audit.service';
+import { managedSecretDescriptionSchema } from '../control-plane.contract';
 import {
   MANAGED_SECRET_KEYS,
   type ManagedSecretKey,
@@ -15,17 +17,14 @@ import {
 import { SecretDecryptionError } from './secret-cipher';
 import { ManagedSecretKeyring } from './managed-secret-keyring';
 
-export type ManagedSecretDescription = {
-  key: ManagedSecretKey;
-  description: string;
-  configured: boolean;
-  label: string | undefined;
-  algorithm: string | undefined;
-  keyVersion: string | undefined;
-  lastRotatedAt: Date | undefined;
-  updatedAt: Date | undefined;
-  usable: boolean;
-};
+/*
+ * The payload contract is the definition; this is its application side. It
+ * carries no secret value, which is what makes returning one a type error
+ * rather than a review question.
+ */
+export type ManagedSecretDescription = z.output<
+  typeof managedSecretDescriptionSchema
+>;
 
 @Injectable()
 export class ManagedSecretService {

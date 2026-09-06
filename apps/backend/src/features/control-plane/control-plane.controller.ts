@@ -7,7 +7,14 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   Session,
   UserHasPermission,
@@ -16,11 +23,22 @@ import {
 import { z } from 'zod';
 
 import { AppException } from '../../core/errors';
-import { createZodDto } from '../../infrastructure/http';
 import {
-  CONTROL_PLANE_AUDIT_RESOURCES,
-  ControlPlaneAuditService,
-} from './audit/control-plane-audit.service';
+  apiSuccessSchema,
+  createZodDto,
+  wireSchemaOf,
+} from '../../infrastructure/http';
+import { ControlPlaneAuditService } from './audit/control-plane-audit.service';
+import {
+  controlPlaneAuditPageSchema,
+  controlPlaneAuditQuerySchema,
+  featureFlagOverrideSchema,
+  featureFlagStateSchema,
+  managedSecretDescriptionSchema,
+  managedSecretInputSchema,
+  runtimeSettingStateSchema,
+  runtimeSettingValueSchema,
+} from './control-plane.contract';
 import {
   FEATURE_FLAG_KEYS,
   type FeatureFlagKey,
@@ -40,34 +58,23 @@ import {
 } from './runtime-settings/runtime-setting.registry';
 import { RuntimeSettingService } from './runtime-settings/runtime-setting.service';
 
-const enabledSchema = z.object({ enabled: z.boolean() }).strict();
+const enabledSchema = featureFlagOverrideSchema;
 class FeatureFlagOverrideDto extends createZodDto(enabledSchema) {}
 
-const settingValueSchema = z
-  .object({
-    value: z.unknown(),
-  })
-  .strict();
+const settingValueSchema = runtimeSettingValueSchema;
 class RuntimeSettingValueDto extends createZodDto(settingValueSchema) {}
 
-const secretSchema = z
-  .object({
-    value: z.string().min(1),
-    label: z.string().trim().min(1).max(120).optional(),
-  })
-  .strict();
+const secretSchema = managedSecretInputSchema;
 class ManagedSecretDto extends createZodDto(secretSchema) {}
 
-const auditQuerySchema = z
-  .object({
-    cursor: z.string().trim().min(1).max(512).optional(),
-    limit: z.coerce.number().int().optional(),
-    resource: z.enum(CONTROL_PLANE_AUDIT_RESOURCES).optional(),
-    resourceKey: z.string().trim().min(1).max(120).optional(),
-    organizationId: z.string().trim().min(1).max(120).optional(),
-  })
-  .strict();
+const auditQuerySchema = controlPlaneAuditQuerySchema;
 class AuditQueryDto extends createZodDto(auditQuerySchema) {}
+
+const flagResponse = { schema: apiSuccessSchema(featureFlagStateSchema) };
+const settingResponse = { schema: apiSuccessSchema(runtimeSettingStateSchema) };
+const secretResponse = {
+  schema: apiSuccessSchema(managedSecretDescriptionSchema),
+};
 
 function assertKnown<T extends string>(
   value: string,
@@ -101,6 +108,9 @@ export class ControlPlaneController {
     operationId: 'listFeatureFlags',
     summary: 'List every feature flag with its resolved platform value',
   })
+  @ApiOkResponse({
+    schema: apiSuccessSchema(z.array(featureFlagStateSchema)),
+  })
   listFeatureFlags() {
     return this.flags.listAll();
   }
@@ -112,6 +122,9 @@ export class ControlPlaneController {
     summary: 'List every feature flag as one organization resolves it',
   })
   @ApiParam({ name: 'organizationId' })
+  @ApiOkResponse({
+    schema: apiSuccessSchema(z.array(featureFlagStateSchema)),
+  })
   listFeatureFlagsForOrganization(
     @Param('organizationId') organizationId: string,
   ) {
@@ -125,6 +138,8 @@ export class ControlPlaneController {
     summary: 'Set the platform-wide override for a feature flag',
   })
   @ApiParam({ name: 'key', enum: FEATURE_FLAG_KEYS })
+  @ApiBody({ schema: wireSchemaOf(enabledSchema) })
+  @ApiOkResponse(flagResponse)
   setFeatureFlag(
     @Param('key') key: string,
     @Body() body: FeatureFlagOverrideDto,
@@ -144,6 +159,7 @@ export class ControlPlaneController {
     summary: 'Remove the platform override and fall back to the code default',
   })
   @ApiParam({ name: 'key', enum: FEATURE_FLAG_KEYS })
+  @ApiOkResponse(flagResponse)
   clearFeatureFlag(@Param('key') key: string, @Session() session: UserSession) {
     return this.flags.clearPlatformOverride({
       key: assertKnown<FeatureFlagKey>(key, isFeatureFlagKey, 'feature-flag'),
@@ -159,6 +175,8 @@ export class ControlPlaneController {
   })
   @ApiParam({ name: 'key', enum: FEATURE_FLAG_KEYS })
   @ApiParam({ name: 'organizationId' })
+  @ApiBody({ schema: wireSchemaOf(enabledSchema) })
+  @ApiOkResponse(flagResponse)
   setOrganizationFeatureFlag(
     @Param('key') key: string,
     @Param('organizationId') organizationId: string,
@@ -181,6 +199,7 @@ export class ControlPlaneController {
   })
   @ApiParam({ name: 'key', enum: FEATURE_FLAG_KEYS })
   @ApiParam({ name: 'organizationId' })
+  @ApiOkResponse(flagResponse)
   clearOrganizationFeatureFlag(
     @Param('key') key: string,
     @Param('organizationId') organizationId: string,
@@ -201,6 +220,9 @@ export class ControlPlaneController {
     operationId: 'listRuntimeSettings',
     summary: 'List every runtime setting with its resolved value',
   })
+  @ApiOkResponse({
+    schema: apiSuccessSchema(z.array(runtimeSettingStateSchema)),
+  })
   listSettings() {
     return this.settings.listAll();
   }
@@ -212,6 +234,8 @@ export class ControlPlaneController {
     summary: 'Set a runtime setting, validated by its registered schema',
   })
   @ApiParam({ name: 'key', enum: RUNTIME_SETTING_KEYS })
+  @ApiBody({ schema: wireSchemaOf(settingValueSchema) })
+  @ApiOkResponse(settingResponse)
   setSetting(
     @Param('key') key: string,
     @Body() body: RuntimeSettingValueDto,
@@ -235,6 +259,7 @@ export class ControlPlaneController {
     summary: 'Remove a stored setting and fall back to the code default',
   })
   @ApiParam({ name: 'key', enum: RUNTIME_SETTING_KEYS })
+  @ApiOkResponse(settingResponse)
   resetSetting(@Param('key') key: string, @Session() session: UserSession) {
     return this.settings.reset({
       key: assertKnown<RuntimeSettingKey>(
@@ -254,6 +279,9 @@ export class ControlPlaneController {
     operationId: 'listManagedSecrets',
     summary: 'List credential slots and whether each is configured and usable',
   })
+  @ApiOkResponse({
+    schema: apiSuccessSchema(z.array(managedSecretDescriptionSchema)),
+  })
   listSecrets() {
     return this.secrets.describeAll();
   }
@@ -265,6 +293,10 @@ export class ControlPlaneController {
     summary: 'Store or rotate a provider credential',
   })
   @ApiParam({ name: 'key', enum: MANAGED_SECRET_KEYS })
+  // The credential crosses only in this direction: the response schema
+  // carries no value, so returning one would not typecheck.
+  @ApiBody({ schema: wireSchemaOf(secretSchema) })
+  @ApiOkResponse(secretResponse)
   setSecret(
     @Param('key') key: string,
     @Body() body: ManagedSecretDto,
@@ -285,6 +317,7 @@ export class ControlPlaneController {
     summary: 'Remove a stored provider credential',
   })
   @ApiParam({ name: 'key', enum: MANAGED_SECRET_KEYS })
+  @ApiOkResponse(secretResponse)
   removeSecret(@Param('key') key: string, @Session() session: UserSession) {
     return this.secrets.remove({
       key: assertKnown<ManagedSecretKey>(key, isManagedSecretKey, 'secret'),
@@ -300,6 +333,34 @@ export class ControlPlaneController {
     operationId: 'listControlPlaneAudit',
     summary: 'List one bounded page of control-plane change history',
   })
+  // Names, optionality and value semantics come from the same Zod schema
+  // that validates the query, so the two cannot describe different things.
+  @ApiQuery({
+    name: 'cursor',
+    required: false,
+    schema: wireSchemaOf(auditQuerySchema.shape.cursor),
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    schema: wireSchemaOf(auditQuerySchema.shape.limit),
+  })
+  @ApiQuery({
+    name: 'resource',
+    required: false,
+    schema: wireSchemaOf(auditQuerySchema.shape.resource),
+  })
+  @ApiQuery({
+    name: 'resourceKey',
+    required: false,
+    schema: wireSchemaOf(auditQuerySchema.shape.resourceKey),
+  })
+  @ApiQuery({
+    name: 'organizationId',
+    required: false,
+    schema: wireSchemaOf(auditQuerySchema.shape.organizationId),
+  })
+  @ApiOkResponse({ schema: apiSuccessSchema(controlPlaneAuditPageSchema) })
   listAudit(@Query() query: AuditQueryDto) {
     return this.audit.list({
       cursor: query.cursor,

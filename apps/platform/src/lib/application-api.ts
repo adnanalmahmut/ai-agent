@@ -7,6 +7,7 @@ import {
   type ApiFieldError,
 } from '@repo/api-client';
 import { createBrowserTransport } from '@repo/api-client/browser';
+import type { operations } from '@repo/api-client/generated';
 
 import { API_BASE_PATH, CONTROL_PLANE_PATH } from '@/config/paths';
 
@@ -26,48 +27,56 @@ export const apiRequest = createBrowserTransport({
   basePath: API_BASE_PATH,
 });
 
+/* ---------------------------------------------------------------------------
+ * Platform administration
+ *
+ * The Backend's Zod contract is the authored definition of these payloads.
+ * They arrive here as generated OpenAPI types, so everything below is an alias
+ * of that contract rather than a second description of it: change a schema,
+ * run `pnpm api:types`, and the difference surfaces as a type error at
+ * whichever caller it actually breaks.
+ * ------------------------------------------------------------------------- */
+
+type Data<O extends keyof operations, S extends number> = operations[O] extends {
+  responses: Record<S, { content: { 'application/json': { data: infer D } } }>;
+}
+  ? D
+  : never;
+
+export type FeatureFlagState = Data<'listFeatureFlags', 200>[number];
+
+export type FeatureFlagSource = FeatureFlagState['source'];
+
+export type RuntimeSettingState = Data<'listRuntimeSettings', 200>[number];
+
+/**
+ * What an operator may learn about a stored credential.
+ *
+ * A managed secret is write-only, and this alias is the whole of what the API
+ * answers with: no plaintext, no decrypted value, no ciphertext, no key
+ * material. Reading one would not compile, which is the point of taking the
+ * type from the contract instead of restating it.
+ */
+export type ManagedSecretDescription = Data<'listManagedSecrets', 200>[number];
+
+export type ControlPlaneAuditPage = Data<'listControlPlaneAudit', 200>;
+
+export type ControlPlaneAuditEntry = ControlPlaneAuditPage['items'][number];
+
+/**
+ * The vocabularies as runtime values, which the types alone cannot provide.
+ *
+ * `source` is a wire enum, so this list is `satisfies` it. The audit actions
+ * are not: an event written by an earlier version carries whatever that
+ * version called it, so the contract documents `action` as a string and the
+ * screen already falls back to an "unknown action" label. This list is the set
+ * this release can translate, not a claim about what the history contains.
+ */
 export const FEATURE_FLAG_SOURCES = [
   'organization',
   'platform',
   'default',
-] as const;
-
-export type FeatureFlagSource = (typeof FEATURE_FLAG_SOURCES)[number];
-
-export type FeatureFlagState = {
-  key: string;
-  description: string;
-  enabled: boolean;
-  source: FeatureFlagSource;
-  defaultEnabled: boolean;
-  platformOverride: boolean | undefined;
-  organizationOverride: boolean | undefined;
-  organizationOverridable: boolean;
-};
-
-export type RuntimeSettingState = {
-  key: string;
-  description: string;
-  value: unknown;
-  isDefault: boolean;
-  storedValueRejected: boolean;
-  defaultValue: unknown;
-  sensitivity: string;
-  editable: boolean;
-  updatedAt: string | undefined;
-};
-
-export type ManagedSecretDescription = {
-  key: string;
-  description: string;
-  configured: boolean;
-  label: string | undefined;
-  algorithm: string | undefined;
-  keyVersion: string | undefined;
-  lastRotatedAt: string | undefined;
-  updatedAt: string | undefined;
-  usable: boolean;
-};
+] as const satisfies readonly FeatureFlagSource[];
 
 export const CONTROL_PLANE_AUDIT_ACTIONS = [
   'featureFlag.setPlatformOverride',
@@ -84,23 +93,6 @@ export const CONTROL_PLANE_AUDIT_ACTIONS = [
 
 export type ControlPlaneAuditAction =
   (typeof CONTROL_PLANE_AUDIT_ACTIONS)[number];
-
-export type ControlPlaneAuditEntry = {
-  id: string;
-  occurredAt: string;
-  actorUserId: string | null;
-  resource: 'featureFlag' | 'runtimeSetting' | 'managedSecret';
-  action: ControlPlaneAuditAction;
-  resourceKey: string;
-  organizationId: string | null;
-  before: unknown;
-  after: unknown;
-};
-
-export type ControlPlaneAuditPage = {
-  items: ControlPlaneAuditEntry[];
-  nextCursor: string | null;
-};
 
 const key = (value: string) => encodeURIComponent(value);
 

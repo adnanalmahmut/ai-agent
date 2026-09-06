@@ -699,11 +699,7 @@ export interface components {
     schemas: {
         CreateOrganizationAgentInstallationDto: Record<string, never>;
         ReplaceOrganizationAgentInstallationDto: Record<string, never>;
-        AgentActionDecisionDto: Record<string, never>;
         OpenMcpSessionDto: Record<string, never>;
-        FeatureFlagOverrideDto: Record<string, never>;
-        RuntimeSettingValueDto: Record<string, never>;
-        ManagedSecretDto: Record<string, never>;
         ReplaceOrganizationBusinessProfileDto: Record<string, never>;
     };
     responses: never;
@@ -819,7 +815,11 @@ export interface operations {
     };
     listAgentActionApprovals: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                cursor?: string;
+                status?: "PENDING" | "APPROVED" | "REJECTED";
+            };
             header?: never;
             path: {
                 organizationId: string;
@@ -832,7 +832,57 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            items: {
+                                toolExecutionId: string;
+                                organizationId: string;
+                                agentRunId: string;
+                                agentId: string;
+                                agentVersion: number;
+                                toolId: string;
+                                toolVersion: number;
+                                /** @enum {string} */
+                                executionStatus: "STARTED" | "SUCCEEDED" | "FAILED" | "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "OUTCOME_UNKNOWN";
+                                approval: {
+                                    /** @enum {string} */
+                                    status: "PENDING" | "APPROVED" | "REJECTED";
+                                    /** Format: date-time */
+                                    requestedAt: string;
+                                    decidedAt: string | null;
+                                    decidedByUserId: string | null;
+                                    decisionNote: string | null;
+                                };
+                                proposal: {
+                                    /** @constant */
+                                    kind: "notification.send@1";
+                                    recipient: {
+                                        memberId: string;
+                                        name: string;
+                                        email: string;
+                                    } | null;
+                                    subject: string;
+                                    body: string;
+                                } | null;
+                                effect: {
+                                    attemptCount: number;
+                                    firstAttemptedAt: string | null;
+                                    completedAt: string | null;
+                                    failureCode: ("implementation_error" | "output_rejected" | "precondition_organization" | "precondition_authority" | "precondition_approval" | "precondition_recipient" | "delivery_unsupported" | "provider_rejected") | null;
+                                };
+                            }[];
+                            nextCursor: string | null;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -852,7 +902,54 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            toolExecutionId: string;
+                            organizationId: string;
+                            agentRunId: string;
+                            agentId: string;
+                            agentVersion: number;
+                            toolId: string;
+                            toolVersion: number;
+                            /** @enum {string} */
+                            executionStatus: "STARTED" | "SUCCEEDED" | "FAILED" | "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "OUTCOME_UNKNOWN";
+                            approval: {
+                                /** @enum {string} */
+                                status: "PENDING" | "APPROVED" | "REJECTED";
+                                /** Format: date-time */
+                                requestedAt: string;
+                                decidedAt: string | null;
+                                decidedByUserId: string | null;
+                                decisionNote: string | null;
+                            };
+                            proposal: {
+                                /** @constant */
+                                kind: "notification.send@1";
+                                recipient: {
+                                    memberId: string;
+                                    name: string;
+                                    email: string;
+                                } | null;
+                                subject: string;
+                                body: string;
+                            } | null;
+                            effect: {
+                                attemptCount: number;
+                                firstAttemptedAt: string | null;
+                                completedAt: string | null;
+                                failureCode: ("implementation_error" | "output_rejected" | "precondition_organization" | "precondition_authority" | "precondition_approval" | "precondition_recipient" | "delivery_unsupported" | "provider_rejected") | null;
+                            };
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -868,7 +965,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AgentActionDecisionDto"];
+                "application/json": {
+                    note?: string;
+                };
             };
         };
         responses: {
@@ -876,7 +975,54 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            toolExecutionId: string;
+                            organizationId: string;
+                            agentRunId: string;
+                            agentId: string;
+                            agentVersion: number;
+                            toolId: string;
+                            toolVersion: number;
+                            /** @enum {string} */
+                            executionStatus: "STARTED" | "SUCCEEDED" | "FAILED" | "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "OUTCOME_UNKNOWN";
+                            approval: {
+                                /** @enum {string} */
+                                status: "PENDING" | "APPROVED" | "REJECTED";
+                                /** Format: date-time */
+                                requestedAt: string;
+                                decidedAt: string | null;
+                                decidedByUserId: string | null;
+                                decisionNote: string | null;
+                            };
+                            proposal: {
+                                /** @constant */
+                                kind: "notification.send@1";
+                                recipient: {
+                                    memberId: string;
+                                    name: string;
+                                    email: string;
+                                } | null;
+                                subject: string;
+                                body: string;
+                            } | null;
+                            effect: {
+                                attemptCount: number;
+                                firstAttemptedAt: string | null;
+                                completedAt: string | null;
+                                failureCode: ("implementation_error" | "output_rejected" | "precondition_organization" | "precondition_authority" | "precondition_approval" | "precondition_recipient" | "delivery_unsupported" | "provider_rejected") | null;
+                            };
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -892,7 +1038,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AgentActionDecisionDto"];
+                "application/json": {
+                    note?: string;
+                };
             };
         };
         responses: {
@@ -900,7 +1048,54 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            toolExecutionId: string;
+                            organizationId: string;
+                            agentRunId: string;
+                            agentId: string;
+                            agentVersion: number;
+                            toolId: string;
+                            toolVersion: number;
+                            /** @enum {string} */
+                            executionStatus: "STARTED" | "SUCCEEDED" | "FAILED" | "AWAITING_APPROVAL" | "APPROVED" | "REJECTED" | "OUTCOME_UNKNOWN";
+                            approval: {
+                                /** @enum {string} */
+                                status: "PENDING" | "APPROVED" | "REJECTED";
+                                /** Format: date-time */
+                                requestedAt: string;
+                                decidedAt: string | null;
+                                decidedByUserId: string | null;
+                                decisionNote: string | null;
+                            };
+                            proposal: {
+                                /** @constant */
+                                kind: "notification.send@1";
+                                recipient: {
+                                    memberId: string;
+                                    name: string;
+                                    email: string;
+                                } | null;
+                                subject: string;
+                                body: string;
+                            } | null;
+                            effect: {
+                                attemptCount: number;
+                                firstAttemptedAt: string | null;
+                                completedAt: string | null;
+                                failureCode: ("implementation_error" | "output_rejected" | "precondition_organization" | "precondition_authority" | "precondition_approval" | "precondition_recipient" | "delivery_unsupported" | "provider_rejected") | null;
+                            };
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1039,7 +1234,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.enabled" | "knowledge.enabled" | "content_ideas.enabled" | "mcp.enabled";
+                            description: string;
+                            enabled: boolean;
+                            /** @enum {string} */
+                            source: "organization" | "platform" | "default";
+                            defaultEnabled: boolean;
+                            platformOverride?: boolean;
+                            organizationOverride?: boolean;
+                            organizationOverridable: boolean;
+                        }[];
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1058,7 +1275,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.enabled" | "knowledge.enabled" | "content_ideas.enabled" | "mcp.enabled";
+                            description: string;
+                            enabled: boolean;
+                            /** @enum {string} */
+                            source: "organization" | "platform" | "default";
+                            defaultEnabled: boolean;
+                            platformOverride?: boolean;
+                            organizationOverride?: boolean;
+                            organizationOverridable: boolean;
+                        }[];
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1073,7 +1312,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["FeatureFlagOverrideDto"];
+                "application/json": {
+                    enabled: boolean;
+                };
             };
         };
         responses: {
@@ -1081,7 +1322,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.enabled" | "knowledge.enabled" | "content_ideas.enabled" | "mcp.enabled";
+                            description: string;
+                            enabled: boolean;
+                            /** @enum {string} */
+                            source: "organization" | "platform" | "default";
+                            defaultEnabled: boolean;
+                            platformOverride?: boolean;
+                            organizationOverride?: boolean;
+                            organizationOverridable: boolean;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1100,7 +1363,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.enabled" | "knowledge.enabled" | "content_ideas.enabled" | "mcp.enabled";
+                            description: string;
+                            enabled: boolean;
+                            /** @enum {string} */
+                            source: "organization" | "platform" | "default";
+                            defaultEnabled: boolean;
+                            platformOverride?: boolean;
+                            organizationOverride?: boolean;
+                            organizationOverridable: boolean;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1116,7 +1401,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["FeatureFlagOverrideDto"];
+                "application/json": {
+                    enabled: boolean;
+                };
             };
         };
         responses: {
@@ -1124,7 +1411,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.enabled" | "knowledge.enabled" | "content_ideas.enabled" | "mcp.enabled";
+                            description: string;
+                            enabled: boolean;
+                            /** @enum {string} */
+                            source: "organization" | "platform" | "default";
+                            defaultEnabled: boolean;
+                            platformOverride?: boolean;
+                            organizationOverride?: boolean;
+                            organizationOverridable: boolean;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1144,7 +1453,29 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.enabled" | "knowledge.enabled" | "content_ideas.enabled" | "mcp.enabled";
+                            description: string;
+                            enabled: boolean;
+                            /** @enum {string} */
+                            source: "organization" | "platform" | "default";
+                            defaultEnabled: boolean;
+                            platformOverride?: boolean;
+                            organizationOverride?: boolean;
+                            organizationOverridable: boolean;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1161,7 +1492,31 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.max_concurrent_runs_per_organization" | "knowledge.retrieval_max_chunks" | "knowledge.ingestion_max_document_bytes";
+                            description: string;
+                            value: unknown;
+                            isDefault: boolean;
+                            storedValueRejected: boolean;
+                            defaultValue: unknown;
+                            /** @enum {string} */
+                            sensitivity: "public" | "internal";
+                            editable: boolean;
+                            /** Format: date-time */
+                            updatedAt?: string;
+                        }[];
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1176,7 +1531,9 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["RuntimeSettingValueDto"];
+                "application/json": {
+                    value: unknown;
+                };
             };
         };
         responses: {
@@ -1184,7 +1541,31 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.max_concurrent_runs_per_organization" | "knowledge.retrieval_max_chunks" | "knowledge.ingestion_max_document_bytes";
+                            description: string;
+                            value: unknown;
+                            isDefault: boolean;
+                            storedValueRejected: boolean;
+                            defaultValue: unknown;
+                            /** @enum {string} */
+                            sensitivity: "public" | "internal";
+                            editable: boolean;
+                            /** Format: date-time */
+                            updatedAt?: string;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1203,7 +1584,31 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "agents.max_concurrent_runs_per_organization" | "knowledge.retrieval_max_chunks" | "knowledge.ingestion_max_document_bytes";
+                            description: string;
+                            value: unknown;
+                            isDefault: boolean;
+                            storedValueRejected: boolean;
+                            defaultValue: unknown;
+                            /** @enum {string} */
+                            sensitivity: "public" | "internal";
+                            editable: boolean;
+                            /** Format: date-time */
+                            updatedAt?: string;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1220,7 +1625,31 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "openai.api_key";
+                            description: string;
+                            configured: boolean;
+                            label?: string;
+                            algorithm?: string;
+                            keyVersion?: string;
+                            /** Format: date-time */
+                            lastRotatedAt?: string;
+                            /** Format: date-time */
+                            updatedAt?: string;
+                            usable: boolean;
+                        }[];
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1235,7 +1664,10 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ManagedSecretDto"];
+                "application/json": {
+                    value: string;
+                    label?: string;
+                };
             };
         };
         responses: {
@@ -1243,7 +1675,31 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "openai.api_key";
+                            description: string;
+                            configured: boolean;
+                            label?: string;
+                            algorithm?: string;
+                            keyVersion?: string;
+                            /** Format: date-time */
+                            lastRotatedAt?: string;
+                            /** Format: date-time */
+                            updatedAt?: string;
+                            usable: boolean;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1262,13 +1718,43 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            /** @enum {string} */
+                            key: "openai.api_key";
+                            description: string;
+                            configured: boolean;
+                            label?: string;
+                            algorithm?: string;
+                            keyVersion?: string;
+                            /** Format: date-time */
+                            lastRotatedAt?: string;
+                            /** Format: date-time */
+                            updatedAt?: string;
+                            usable: boolean;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
     listControlPlaneAudit: {
         parameters: {
-            query?: never;
+            query?: {
+                organizationId?: string;
+                resourceKey?: string;
+                resource?: "featureFlag" | "runtimeSetting" | "managedSecret";
+                limit?: number;
+                cursor?: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1279,7 +1765,32 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            items: {
+                                id: string;
+                                /** Format: date-time */
+                                occurredAt: string;
+                                actorUserId: string | null;
+                                resource: string;
+                                action: string;
+                                resourceKey: string;
+                                organizationId: string | null;
+                                before: unknown;
+                                after: unknown;
+                            }[];
+                            nextCursor: string | null;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1889,7 +2400,22 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            userId: string;
+                            deletedAt: string | null;
+                            revokedSessions: number;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1909,7 +2435,22 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            userId: string;
+                            deletedAt: string | null;
+                            revokedSessions: number;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };
@@ -1930,7 +2471,22 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        success: true;
+                        data: {
+                            userId: string;
+                            deletedAt: string | null;
+                            revokedSessions: number;
+                        };
+                        meta: {
+                            requestId: string;
+                            /** Format: date-time */
+                            timestamp: string;
+                        };
+                    };
+                };
             };
         };
     };

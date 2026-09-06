@@ -376,14 +376,60 @@ export function getContentProject(
   );
 }
 
+/* ---------------------------------------------------------------------------
+ * Agent action approvals
+ *
+ * Same rule again: the Backend's Zod contract is the authored definition and
+ * these are aliases of its generated form. Nothing here decides anything —
+ * the guards and the service own approval authority, and this is only what an
+ * approver may read and send.
+ * ------------------------------------------------------------------------- */
+
+type ListAgentActionApprovalsData =
+  operations['listAgentActionApprovals']['responses'][200]['content']['application/json']['data'];
+
+type GetAgentActionApprovalData =
+  operations['getAgentActionApproval']['responses'][200]['content']['application/json']['data'];
+
+// A decision is a POST with no `@HttpCode`, so it answers 201.
+type ApproveAgentActionData =
+  operations['approveAgentAction']['responses'][201]['content']['application/json']['data'];
+
+export type AgentActionDecision =
+  operations['approveAgentAction']['requestBody']['content']['application/json'];
+
+/** The documented query, plus cancellation, which HTTP does not describe. */
+type ListAgentActionApprovalsOptions = NonNullable<
+  operations['listAgentActionApprovals']['parameters']['query']
+>;
+
+export type AgentActionApprovalPage = ListAgentActionApprovalsData;
+
+export type AgentActionApproval = GetAgentActionApprovalData &
+  ApproveAgentActionData;
+
+export type AgentActionProposal = NonNullable<AgentActionApproval['proposal']>;
+
+export type AgentActionApprovalStatus =
+  AgentActionApproval['approval']['status'];
+
+export type ToolExecutionStatus = AgentActionApproval['executionStatus'];
+
+export type ToolFailureCode = NonNullable<
+  AgentActionApproval['effect']['failureCode']
+>;
+
+/*
+ * The closed vocabularies as runtime values: the filter offers the approval
+ * statuses and the message-catalogue test iterates all three lists. Each is
+ * `satisfies` its generated union, so a value the API does not send cannot be
+ * translated here.
+ */
 export const AGENT_ACTION_APPROVAL_STATUSES = [
   'PENDING',
   'APPROVED',
   'REJECTED',
-] as const;
-
-export type AgentActionApprovalStatus =
-  (typeof AGENT_ACTION_APPROVAL_STATUSES)[number];
+] as const satisfies readonly AgentActionApprovalStatus[];
 
 export const TOOL_EXECUTION_STATUSES = [
   'STARTED',
@@ -393,9 +439,7 @@ export const TOOL_EXECUTION_STATUSES = [
   'SUCCEEDED',
   'FAILED',
   'OUTCOME_UNKNOWN',
-] as const;
-
-export type ToolExecutionStatus = (typeof TOOL_EXECUTION_STATUSES)[number];
+] as const satisfies readonly ToolExecutionStatus[];
 
 export const TOOL_FAILURE_CODES = [
   'precondition_organization',
@@ -406,57 +450,14 @@ export const TOOL_FAILURE_CODES = [
   'provider_rejected',
   'implementation_error',
   'output_rejected',
-] as const;
-
-export type ToolFailureCode = (typeof TOOL_FAILURE_CODES)[number];
-
-export type AgentActionProposal = {
-  kind: 'notification.send@1';
-  recipient: { memberId: string; name: string; email: string } | null;
-  subject: string;
-  body: string;
-};
-
-export type AgentActionApproval = {
-  toolExecutionId: string;
-  organizationId: string;
-  agentRunId: string;
-  agentId: string;
-  agentVersion: number;
-  toolId: string;
-  toolVersion: number;
-  executionStatus: ToolExecutionStatus;
-  approval: {
-    status: AgentActionApprovalStatus;
-    requestedAt: string;
-    decidedAt: string | null;
-    decidedByUserId: string | null;
-    decisionNote: string | null;
-  };
-  proposal: AgentActionProposal | null;
-  effect: {
-    attemptCount: number;
-    firstAttemptedAt: string | null;
-    completedAt: string | null;
-    failureCode: string | null;
-  };
-};
-
-export type AgentActionApprovalPage = {
-  items: AgentActionApproval[];
-  nextCursor: string | null;
-};
+] as const satisfies readonly ToolFailureCode[];
 
 const approvalsBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/agent-action-approvals`;
 
 export function listAgentActionApprovals(
   organizationId: string,
-  options: {
-    status?: AgentActionApprovalStatus;
-    cursor?: string;
-    limit?: number;
-  } = {},
+  options: ListAgentActionApprovalsOptions = {},
   signal?: AbortSignal,
 ): Promise<AgentActionApprovalPage> {
   const query = new URLSearchParams();

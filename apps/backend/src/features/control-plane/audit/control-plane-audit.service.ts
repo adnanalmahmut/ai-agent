@@ -1,8 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import type { z } from 'zod';
 
 import { AppException } from '../../../core/errors';
 import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../infrastructure/database';
+import {
+  controlPlaneAuditEntrySchema,
+  controlPlaneAuditPageSchema,
+  type ControlPlaneAuditResource,
+} from '../control-plane.contract';
+
+// The filter vocabulary lives with the contract that documents it; callers
+// keep reading it from here.
+export {
+  CONTROL_PLANE_AUDIT_RESOURCES,
+  type ControlPlaneAuditResource,
+} from '../control-plane.contract';
 
 export const CONTROL_PLANE_AUDIT_ACTIONS = [
   'featureFlag.setPlatformOverride',
@@ -20,15 +33,6 @@ export const CONTROL_PLANE_AUDIT_ACTIONS = [
 export type ControlPlaneAuditAction =
   (typeof CONTROL_PLANE_AUDIT_ACTIONS)[number];
 
-export const CONTROL_PLANE_AUDIT_RESOURCES = [
-  'featureFlag',
-  'runtimeSetting',
-  'managedSecret',
-] as const;
-
-export type ControlPlaneAuditResource =
-  (typeof CONTROL_PLANE_AUDIT_RESOURCES)[number];
-
 export type ControlPlaneAuditState =
   | { kind: 'featureFlagOverride'; enabled: boolean }
   | { kind: 'runtimeSettingValue'; value: unknown }
@@ -40,17 +44,17 @@ export type ControlPlaneAuditState =
       keyVersion?: string | null;
     };
 
-export type ControlPlaneAuditEntry = {
-  id: string;
-  occurredAt: Date;
-  actorUserId: string | null;
-  resource: string;
-  action: string;
-  resourceKey: string;
-  organizationId: string | null;
-  before: unknown;
-  after: unknown;
-};
+/*
+ * The payload contract is the definition; these are its application side, so
+ * a change to a schema surfaces here rather than drifting away from it.
+ */
+export type ControlPlaneAuditEntry = z.output<
+  typeof controlPlaneAuditEntrySchema
+>;
+
+export type ControlPlaneAuditPage = z.output<
+  typeof controlPlaneAuditPageSchema
+>;
 
 export const AUDIT_PAGE_SIZE = 25;
 export const MAX_AUDIT_PAGE_SIZE = 100;
@@ -91,7 +95,7 @@ export class ControlPlaneAuditService {
     resource?: string;
     resourceKey?: string;
     organizationId?: string;
-  }): Promise<{ items: ControlPlaneAuditEntry[]; nextCursor: string | null }> {
+  }): Promise<ControlPlaneAuditPage> {
     const take = auditPageSize(input.limit);
     const after =
       input.cursor === undefined ? null : decodeCursor(input.cursor);

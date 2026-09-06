@@ -1,22 +1,32 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiCreatedResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   MemberHasPermission,
   Session,
   UserHasPermission,
   type UserSession,
 } from '@thallesp/nestjs-better-auth';
-import { z } from 'zod';
-
-import { createZodDto } from '../http';
+import { apiSuccessSchema, createZodDto } from '../http';
+import {
+  accountLifecycleReasonSchema,
+  accountLifecycleResultSchema,
+} from './account-lifecycle.contract';
 import { AccountLifecycleService } from './account-lifecycle.service';
 import { OrganizationLifecycleService } from './organization-lifecycle.service';
 
-const reasonSchema = z
-  .object({ reason: z.string().trim().min(1).max(500).optional() })
-  .strict();
+const reasonSchema = accountLifecycleReasonSchema;
 
 class LifecycleReasonDto extends createZodDto(reasonSchema) {}
+
+const accountResponse = {
+  schema: apiSuccessSchema(accountLifecycleResultSchema),
+};
 
 @ApiTags('Account lifecycle')
 @Controller('admin/users')
@@ -31,6 +41,7 @@ export class AccountLifecycleController {
   })
   @ApiParam({ name: 'userId', description: 'Id of the account to deactivate' })
   @ApiBody({ required: false, schema: { type: 'object' } })
+  @ApiCreatedResponse(accountResponse)
   deactivate(
     @Param('userId') userId: string,
     @Body() body: LifecycleReasonDto,
@@ -50,6 +61,7 @@ export class AccountLifecycleController {
     summary: 'Restore a deactivated user account',
   })
   @ApiParam({ name: 'userId', description: 'Id of the account to restore' })
+  @ApiCreatedResponse(accountResponse)
   restore(@Param('userId') userId: string) {
     return this.accounts.restore({ userId });
   }
@@ -66,6 +78,7 @@ export class SelfAccountLifecycleController {
     summary: 'Deactivate own user account',
   })
   @ApiBody({ required: false, schema: { type: 'object' } })
+  @ApiCreatedResponse(accountResponse)
   deactivateSelf(
     @Body() body: LifecycleReasonDto,
     @Session() session: UserSession,

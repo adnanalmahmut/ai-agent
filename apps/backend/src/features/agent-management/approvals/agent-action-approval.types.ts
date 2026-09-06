@@ -1,17 +1,17 @@
 import { z } from 'zod';
 
 import { AppException } from '../../../core/errors';
-import type { ToolExecutionStatus } from '../../../generated/prisma/client';
-import type { ToolFailureCode } from '../../../ai/tools/tool.types';
+import {
+  AGENT_ACTION_APPROVAL_STATUSES,
+  agentActionApprovalPageSchema,
+  agentActionApprovalSchema,
+  agentActionProposalSchema,
+} from './agent-action-approval.contract';
 
-export const AGENT_ACTION_APPROVAL_STATUSES = [
-  'PENDING',
-  'APPROVED',
-  'REJECTED',
-] as const;
-
-export type AgentActionApprovalStatus =
-  (typeof AGENT_ACTION_APPROVAL_STATUSES)[number];
+export {
+  AGENT_ACTION_APPROVAL_STATUSES,
+  type AgentActionApprovalStatus,
+} from './agent-action-approval.contract';
 
 export const agentActionDecisionInput = z
   .object({
@@ -29,42 +29,21 @@ export const agentActionApprovalQuery = z
   })
   .strict();
 
-export type AgentActionProposalView = {
-  kind: 'notification.send@1';
-  recipient: { memberId: string; name: string; email: string } | null;
-  subject: string;
-  body: string;
-};
+/*
+ * The payload contract is the definition; these are its application side, so
+ * a change to a schema surfaces here rather than drifting away from it.
+ */
+export type AgentActionProposalView = z.output<
+  typeof agentActionProposalSchema
+>;
 
-export type AgentActionApprovalView = {
-  toolExecutionId: string;
-  organizationId: string;
-  agentRunId: string;
-  agentId: string;
-  agentVersion: number;
-  toolId: string;
-  toolVersion: number;
-  executionStatus: ToolExecutionStatus;
-  approval: {
-    status: AgentActionApprovalStatus;
-    requestedAt: Date;
-    decidedAt: Date | null;
-    decidedByUserId: string | null;
-    decisionNote: string | null;
-  };
-  proposal: AgentActionProposalView | null;
-  effect: {
-    attemptCount: number;
-    firstAttemptedAt: Date | null;
-    completedAt: Date | null;
-    failureCode: ToolFailureCode | null;
-  };
-};
+export type AgentActionApprovalView = z.output<
+  typeof agentActionApprovalSchema
+>;
 
-export type AgentActionApprovalPage = {
-  items: AgentActionApprovalView[];
-  nextCursor: string | null;
-};
+export type AgentActionApprovalPage = z.output<
+  typeof agentActionApprovalPageSchema
+>;
 
 export const AGENT_ACTION_APPROVAL_PAGE_SIZE = 25;
 export const MAX_AGENT_ACTION_APPROVAL_PAGE_SIZE = 100;
