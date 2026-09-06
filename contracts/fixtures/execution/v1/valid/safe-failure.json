@@ -1,0 +1,8 @@
+{
+  "kind": "safeFailure",
+  "document": {
+    "version": "1",
+    "code": "provider_unavailable",
+    "retryable": true
+  }
+}

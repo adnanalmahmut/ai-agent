@@ -1,0 +1,30 @@
+{
+  "kind": "runtimeStep",
+  "document": {
+    "version": "1",
+    "stepId": "step_01JQ8Z3N0000000000000001",
+    "runId": "run_01JQ8Z3N0000000000000001",
+    "organizationId": "org_01JQ8Z3N0000000000000001",
+    "attempt": 1,
+    "acceptedAt": "2026-09-07T00:00:00.000Z",
+    "agent": {
+      "id": "content-idea",
+      "version": 1
+    },
+    "input": {
+      "topic": "spring campaign",
+      "count": 3
+    },
+    "context": [
+      {
+        "documentId": "doc_01JQ8Z3N0000000000000001",
+        "chunkId": "chunk_01JQ8Z3N0000000000000001",
+        "text": "The spring campaign ran from March to May."
+      }
+    ],
+    "grantedTools": [
+      "knowledge.search@1"
+    ]
+  },
+  "why": "A step with no model pin would let the runtime choose one."
+}

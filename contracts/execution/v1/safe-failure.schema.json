@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://contracts.ai-agent.local/execution/v1/safe-failure.schema.json",
+  "title": "SafeFailure",
+  "description": "What went wrong, in terms both sides already agreed on. No stack, no raw error, no provider response: a failure crosses a trust boundary, and whatever it carries is the part an attacker gets to read.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/version"
+    },
+    "code": {
+      "description": "A closed vocabulary. Anything unrecognised is not a code.",
+      "enum": [
+        "input_rejected",
+        "output_rejected",
+        "contract_violation",
+        "configuration_error",
+        "tool_unavailable",
+        "provider_unavailable",
+        "provider_rejected",
+        "timeout",
+        "cancelled",
+        "internal_error"
+      ]
+    },
+    "retryable": {
+      "description": "Whether another attempt could reach a different answer.",
+      "type": "boolean"
+    },
+    "detail": {
+      "description": "Optional bounded text written by the Control Plane for an operator. Omit it rather than sending null; never copy a provider message into it.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  },
+  "required": [
+    "version",
+    "code",
+    "retryable"
+  ]
+}

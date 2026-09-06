@@ -1,0 +1,14 @@
+{
+  "kind": "toolInvocation",
+  "document": {
+    "version": "1",
+    "invocationId": "inv_01JQ8Z3N0000000000000001",
+    "tool": "notification.send@1",
+    "input": {
+      "headers": {
+        "Set-Cookie": "session=abc"
+      }
+    }
+  },
+  "why": "Tool proposals are payloads too."
+}

@@ -51,6 +51,35 @@ jobs:
       - name: Validate portable agent harness
         run: pnpm agents:check
 
+  contracts:
+    name: contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # No services. The execution contracts are files, and a step here that
+    # needed a database or a broker would fail rather than quietly acquire one.
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check the committed execution contracts are current
+        run: pnpm execution:contracts:check
+
+      - name: Contract tests
+        run: pnpm --filter @repo/execution-contracts test
+
   backend:
     name: backend
     runs-on: ubuntu-latest

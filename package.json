@@ -20,6 +20,8 @@
     "build:web": "pnpm run build:packages && pnpm --filter web build",
     "api:types": "pnpm --filter @repo/api-client run api:types",
     "api:types:check": "pnpm --filter @repo/api-client run api:types:check",
+    "execution:contracts": "pnpm --filter @repo/execution-contracts run execution:contracts",
+    "execution:contracts:check": "pnpm --filter @repo/execution-contracts run execution:contracts:check",
     "typecheck": "pnpm --recursive run typecheck",
     "agents:check": "node .agents/scripts/agents-check.mjs && node --test .agents/hooks/__tests__/*.test.mjs .agents/scripts/__tests__/*.test.mjs",
     "agents:resume": "node .agents/scripts/resume-task.mjs",

@@ -1,0 +1,21 @@
+{
+  "kind": "runtimeStepResult",
+  "document": {
+    "version": "1",
+    "stepId": "step_01JQ8Z3N0000000000000001",
+    "runId": "run_01JQ8Z3N0000000000000001",
+    "attempt": 1,
+    "outcome": "final",
+    "output": {
+      "ideas": [
+        {
+          "title": "Spring, revisited",
+          "sources": [
+            "doc_1"
+          ]
+        }
+      ]
+    },
+    "artifacts": []
+  }
+}

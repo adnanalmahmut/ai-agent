@@ -1,0 +1,9 @@
+{
+  "kind": "safeFailure",
+  "document": {
+    "version": "1",
+    "code": "kaboom",
+    "retryable": false
+  },
+  "why": "The vocabulary is closed on purpose."
+}

@@ -1,0 +1,22 @@
+{
+  "kind": "runtimeStepResult",
+  "document": {
+    "version": "1",
+    "stepId": "step_01JQ8Z3N0000000000000001",
+    "runId": "run_01JQ8Z3N0000000000000001",
+    "attempt": 1,
+    "outcome": "tool_request",
+    "invocations": [
+      {
+        "version": "1",
+        "invocationId": "inv_01JQ8Z3N0000000000000001",
+        "tool": "notification.send@1",
+        "input": {
+          "to": "someone@example.test",
+          "subject": "Hello",
+          "body": "Hi."
+        }
+      }
+    ]
+  }
+}
