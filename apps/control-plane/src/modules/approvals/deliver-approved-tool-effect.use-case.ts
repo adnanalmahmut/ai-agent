@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
-import type { ToolExecutionStatus } from '../../generated/prisma/client';
 import type { AgentDefinition } from '../../ai/agents/agent.types';
+import {
+  SIDE_EFFECT_DELIVERY,
+  type SideEffectDeliveryPort,
+} from '../../ai/tools/side-effect-delivery.port';
 import {
   isToolAuthorizationRefusal,
   ToolAuthorizationService,
@@ -19,6 +22,8 @@ import {
   type ToolFailureCode,
   type ToolInvocationContext,
 } from '../../ai/tools/tool.types';
+import type { ExternalEffectOutcome } from '../../core/external-effect';
+import type { ToolExecutionStatus } from '../../generated/prisma/client';
 
 /**
  * How long a first attempt stays replayable. Past it, a provider that never
@@ -68,15 +73,18 @@ export type DeliverApprovedToolEffectOutcome = {
  * runtime, or a job payload — approval is read from the row, and revalidated
  * against durable state in the same breath.
  *
- * The provider adapter itself receives one thing: an idempotency key. It has no
- * database, no approval record, and no organization state, so a future move of
- * delivery out of this process moves an adapter and not an authority.
+ * The provider adapter itself receives an authorized, data-only delivery
+ * command and an idempotency key. It has no database, no approval record, and
+ * no organization state, so a future move of delivery out of this process moves
+ * an adapter and not an authority.
  */
 @Injectable()
 export class DeliverApprovedToolEffectUseCase {
   constructor(
     private readonly executions: ToolExecutionService,
     private readonly authorization: ToolAuthorizationService,
+    @Inject(SIDE_EFFECT_DELIVERY)
+    private readonly delivery: SideEffectDeliveryPort,
   ) {}
 
   async execute(
@@ -186,10 +194,13 @@ export class DeliverApprovedToolEffectUseCase {
       return { status: 'retry', records };
     }
 
-    let outcome: Awaited<ReturnType<PreparedEffect['deliver']>>;
+    let outcome: ExternalEffectOutcome;
 
     try {
-      outcome = await prepared.deliver(idempotencyKeyFor(row));
+      outcome = await this.delivery.deliver(
+        prepared.command,
+        idempotencyKeyFor(row),
+      );
     } catch {
       // The port answers with a classification and does not throw; a throw is a
       // defect in an adapter, and the only safe reading of it is "unknown".
@@ -237,7 +248,7 @@ export class DeliverApprovedToolEffectUseCase {
     };
 
     try {
-      return await authorized.implementation.prepareEffect(row.input, context);
+      return await authorized.preparer.prepareEffect(row.input, context);
     } catch (error) {
       if (isSideEffectPreconditionError(error)) {
         return { failureCode: error.code };

@@ -1,10 +1,13 @@
 import type { ZodType } from 'zod';
 
-import type { ExternalEffectOutcome } from '../../core/external-effect';
 import type { AgentDefinition, AgentValue } from '../agents/agent.types';
 import type { ToolRef } from './tool-ref';
 
-export { TOOL_REFS, isToolRef, toolRef } from './tool-ref';
+export {
+  SIDE_EFFECT_DELIVERY,
+  type SideEffectDeliveryPort,
+} from './side-effect-delivery.port';
+export { isToolRef, TOOL_REFS, toolRef } from './tool-ref';
 export type { ToolRef } from './tool-ref';
 
 export const TOOL_RISKS = ['read_only', 'side_effect'] as const;
@@ -57,12 +60,35 @@ export function isSideEffectPreconditionError(
   return value instanceof SideEffectPreconditionError;
 }
 
-export type PreparedEffect = {
-  payloadDigest: string;
-  deliver: (idempotencyKey: string) => Promise<ExternalEffectOutcome>;
+export type NotificationDeliveryPayload = {
+  readonly to: string;
+  readonly subject: string;
+  readonly text: string;
+  readonly html: string;
 };
 
-export interface SideEffectToolImplementation {
+export type NotificationSendDeliveryCommand = {
+  readonly tool: 'notification.send@1';
+  readonly payloadDigest: string;
+  readonly payload: NotificationDeliveryPayload;
+};
+
+export type SideEffectDeliveryCommand = NotificationSendDeliveryCommand;
+
+export type PreparedEffect = {
+  readonly payloadDigest: string;
+  readonly command: SideEffectDeliveryCommand;
+};
+
+export interface SideEffectPreparer {
+  readonly ref: ToolRef;
+  prepareEffect(
+    input: AgentValue,
+    context: ToolInvocationContext,
+  ): Promise<PreparedEffect>;
+}
+
+export interface SideEffectToolImplementation extends SideEffectPreparer {
   readonly ref: ToolRef;
   readonly kind: 'side_effect';
   propose(input: AgentValue, context: ToolInvocationContext): Promise<void>;

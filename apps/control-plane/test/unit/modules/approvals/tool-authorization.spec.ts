@@ -5,11 +5,16 @@ import type {
   SideEffectExecutionRow,
   ToolExecutionService,
 } from '../../../../src/ai/tools/tool-execution.service';
-import type {
-  PreparedEffect,
-  SideEffectToolImplementation,
-  ToolFailureCode,
+import {
+  SideEffectPreconditionError,
+  type PreparedEffect,
+  type SideEffectDeliveryCommand,
+  type SideEffectDeliveryPort,
+  type SideEffectPreparer,
+  type ToolFailureCode,
 } from '../../../../src/ai/tools/tool.types';
+import { NotificationSideEffectDeliveryAdapter } from '../../../../src/features/agent-management/tools/notification-side-effect-delivery.adapter';
+import type { NotificationDelivery } from '../../../../src/infrastructure/mail/notification-delivery.port';
 import { DeliverApprovedToolEffectUseCase } from '../../../../src/modules/approvals';
 
 const row = (
@@ -35,30 +40,59 @@ const row = (
   ...overrides,
 });
 
+const defaultCommandPayload: SideEffectDeliveryCommand = {
+  tool: 'notification.send@1',
+  payloadDigest: 'digest-a',
+  payload: {
+    to: 'sara@example.com',
+    subject: 'Handoff ready',
+    text: 'Please review the draft.',
+    html: '<p>Please review the draft.</p>',
+  },
+};
+
 function harness(
   authorization: Partial<{
     authorize: jest.Mock<ToolAuthorizationService['authorize']>;
   }> = {},
+  deliveryOverrides: Partial<{
+    deliver: jest.Mock<SideEffectDeliveryPort['deliver']>;
+  }> = {},
+  preparerOverrides: Partial<{
+    prepareEffect: jest.Mock<SideEffectPreparer['prepareEffect']>;
+  }> = {},
 ) {
-  const deliver = jest.fn<PreparedEffect['deliver']>(() =>
-    Promise.resolve({ kind: 'accepted', providerMessageId: 'msg_1' } as const),
-  );
-  const prepareEffect = jest.fn<SideEffectToolImplementation['prepareEffect']>(
-    () => Promise.resolve({ payloadDigest: 'digest-a', deliver }),
-  );
-  const implementation = {
+  const delivery = {
+    deliver:
+      deliveryOverrides.deliver ??
+      jest.fn<SideEffectDeliveryPort['deliver']>(() =>
+        Promise.resolve({
+          kind: 'accepted',
+          providerMessageId: 'msg_1',
+        } as const),
+      ),
+  };
+
+  const prepareEffect =
+    preparerOverrides.prepareEffect ??
+    jest.fn<SideEffectPreparer['prepareEffect']>(() =>
+      Promise.resolve({
+        payloadDigest: 'digest-a',
+        command: defaultCommandPayload,
+      }),
+    );
+
+  const preparer: SideEffectPreparer = {
     ref: 'notification.send@1',
-    kind: 'side_effect',
-    propose: () => Promise.resolve(),
     prepareEffect,
-  } as SideEffectToolImplementation;
+  };
 
   const authorize =
     authorization.authorize ??
     jest.fn<ToolAuthorizationService['authorize']>(() =>
       Promise.resolve({
         ref: 'notification.send@1',
-        implementation,
+        preparer,
         definition: {} as never,
       }),
     );
@@ -78,9 +112,18 @@ function harness(
   const useCase = new DeliverApprovedToolEffectUseCase(
     executions as unknown as ToolExecutionService,
     { authorize } as unknown as ToolAuthorizationService,
+    delivery,
   );
 
-  return { useCase, executions, authorize, prepareEffect, deliver };
+  return {
+    useCase,
+    executions,
+    authorize,
+    prepareEffect,
+    deliver: delivery.deliver,
+    delivery,
+    commandPayload: defaultCommandPayload,
+  };
 }
 
 const command = {
@@ -118,14 +161,17 @@ describe('what stands between an approval and a provider', () => {
     },
   );
 
-  it('asks authorization before it can name a tool implementation at all', async () => {
-    const { useCase, authorize, prepareEffect } = harness();
+  it('asks authorization before it can prepare or deliver the effect', async () => {
+    const { useCase, authorize, prepareEffect, deliver } = harness();
 
     await useCase.execute(command);
 
     expect(authorize).toHaveBeenCalledTimes(1);
     expect(authorize.mock.invocationCallOrder[0]).toBeLessThan(
       prepareEffect.mock.invocationCallOrder[0],
+    );
+    expect(prepareEffect.mock.invocationCallOrder[0]).toBeLessThan(
+      deliver.mock.invocationCallOrder[0],
     );
   });
 
@@ -159,14 +205,95 @@ describe('what stands between an approval and a provider', () => {
     expect(executions.settleEffect).not.toHaveBeenCalled();
   });
 
-  it('hands the provider adapter one idempotency key and nothing else', async () => {
-    const { useCase, deliver } = harness();
+  it('hands the provider delivery port an authorized data command and stable idempotency identity', async () => {
+    const { useCase, deliver, commandPayload } = harness();
 
     await useCase.execute(command);
 
     expect(deliver).toHaveBeenCalledTimes(1);
-    expect(deliver.mock.calls[0]).toEqual(['notification.send@1:exec_1']);
-    expect(typeof deliver.mock.calls[0][0]).toBe('string');
+    expect(deliver).toHaveBeenCalledWith(
+      commandPayload,
+      'notification.send@1:exec_1',
+    );
+    expect(typeof deliver.mock.calls[0][1]).toBe('string');
+  });
+
+  it('ensures prepared effect and delivery command are function-free serializable data', async () => {
+    const { useCase, prepareEffect } = harness();
+
+    await useCase.execute(command);
+
+    const prepared = (await prepareEffect.mock.results[0]
+      .value) as PreparedEffect;
+
+    expect(prepared).toBeDefined();
+    // Prepared effect contains no deliver function or closures
+    expect(typeof (prepared as unknown as { deliver?: unknown }).deliver).toBe(
+      'undefined',
+    );
+    expect(typeof prepared.command).toBe('object');
+    // Command contains no executable functions
+    for (const key of Object.keys(prepared.command)) {
+      expect(
+        typeof prepared.command[key as keyof typeof prepared.command],
+      ).not.toBe('function');
+    }
+    // Command is pure JSON serializable data
+    expect(JSON.parse(JSON.stringify(prepared.command))).toEqual(
+      prepared.command,
+    );
+    // Command carries no durable authority objects
+    expect(prepared.command).not.toHaveProperty('definition');
+    expect(prepared.command).not.toHaveProperty('approval');
+    expect(prepared.command).not.toHaveProperty('organization');
+    expect(prepared.command).not.toHaveProperty('status');
+  });
+
+  it('ensures delivery adapter does not require or receive durable authority', async () => {
+    const mailDeliver = jest.fn<NotificationDelivery['deliver']>(() =>
+      Promise.resolve({
+        kind: 'accepted' as const,
+        providerMessageId: 'prov_1',
+      }),
+    );
+    const mockMailDelivery: NotificationDelivery = {
+      idempotent: true,
+      sender: 'Acme <no-reply@example.test>',
+      deliver: mailDeliver,
+    };
+
+    // Delivery adapter has no dependency on PrismaService, approvals, or AgentDefinition
+    const adapter = new NotificationSideEffectDeliveryAdapter(mockMailDelivery);
+
+    const outcome = await adapter.deliver(
+      defaultCommandPayload,
+      'notification.send@1:exec_1',
+    );
+
+    expect(outcome).toEqual({ kind: 'accepted', providerMessageId: 'prov_1' });
+    expect(mailDeliver).toHaveBeenCalledWith({
+      to: defaultCommandPayload.payload.to,
+      subject: defaultCommandPayload.payload.subject,
+      text: defaultCommandPayload.payload.text,
+      html: defaultCommandPayload.payload.html,
+      idempotencyKey: 'notification.send@1:exec_1',
+    });
+  });
+
+  it('keeps recipient resolution in CP preparation before provider boundary', async () => {
+    const prepareEffect = jest.fn<SideEffectPreparer['prepareEffect']>(() =>
+      Promise.reject(new SideEffectPreconditionError('precondition_recipient')),
+    );
+    const { useCase, deliver, executions } = harness({}, {}, { prepareEffect });
+
+    await useCase.execute(command);
+
+    expect(prepareEffect).toHaveBeenCalledTimes(1);
+    expect(deliver).not.toHaveBeenCalled();
+    expect(executions.settleEffect).toHaveBeenCalledWith('exec_1', 'org_1', {
+      status: 'FAILED',
+      failureCode: 'precondition_recipient',
+    });
   });
 
   it('claims the attempt before the effect leaves the process', async () => {

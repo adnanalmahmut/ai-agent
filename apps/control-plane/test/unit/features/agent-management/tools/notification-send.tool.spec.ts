@@ -3,18 +3,19 @@ import { z } from 'zod';
 
 import type { AgentDefinition } from '../../../../../src/ai/agents/agent.types';
 import { MODEL_IDS } from '../../../../../src/ai/models/model-catalog';
-import type {
-  ExternalEffectOutcome,
-  NotificationMessage,
-} from '../../../../../src/infrastructure/mail/notification-delivery.port';
-import {
-  NotificationSendTool,
-  renderNotification,
-} from '../../../../../src/features/agent-management/tools/notification-send.tool';
 import {
   SideEffectPreconditionError,
   type ToolInvocationContext,
 } from '../../../../../src/ai/tools/tool.types';
+import {
+  NotificationSendTool,
+  renderNotification,
+} from '../../../../../src/features/agent-management/tools/notification-send.tool';
+import { NotificationSideEffectDeliveryAdapter } from '../../../../../src/features/agent-management/tools/notification-side-effect-delivery.adapter';
+import type {
+  ExternalEffectOutcome,
+  NotificationMessage,
+} from '../../../../../src/infrastructure/mail/notification-delivery.port';
 
 const definition: AgentDefinition = {
   id: 'test-agent',
@@ -121,10 +122,44 @@ describe('NotificationSendTool', () => {
   });
 
   describe('prepareEffect', () => {
-    it('digests the effective payload and delivers exactly that payload', async () => {
+    it('digests the effective payload and returns an authorized data command', async () => {
       const prepared = await tool().prepareEffect(input, context);
 
-      await prepared.deliver('notification.send@1:exec_1');
+      expect(prepared.payloadDigest).toMatch(/^[0-9a-f]{64}$/);
+      expect(prepared.command).toEqual({
+        tool: 'notification.send@1',
+        payloadDigest: prepared.payloadDigest,
+        payload: {
+          to: 'sara@example.com',
+          subject: 'Handoff ready',
+          text: input.body,
+          html: expect.any(String),
+        },
+      });
+      // The prepared effect contains no functions or closures
+      expect(
+        typeof (prepared as unknown as { deliver?: unknown }).deliver,
+      ).toBe('undefined');
+      expect(typeof prepared.command).toBe('object');
+      // Delivery command is serializable data
+      expect(JSON.parse(JSON.stringify(prepared.command))).toEqual(
+        prepared.command,
+      );
+    });
+
+    it('delivers the authorized command through the delivery adapter', async () => {
+      const prepared = await tool().prepareEffect(input, context);
+      const adapter = new NotificationSideEffectDeliveryAdapter({
+        get idempotent() {
+          return idempotent;
+        },
+        get sender() {
+          return sender;
+        },
+        deliver,
+      });
+
+      await adapter.deliver(prepared.command, 'notification.send@1:exec_1');
 
       expect(deliver).toHaveBeenCalledTimes(1);
       const [message] = deliver.mock.calls[0];
@@ -133,8 +168,6 @@ describe('NotificationSendTool', () => {
       expect(message.subject).toBe('Handoff ready');
       expect(message.text).toBe(input.body);
       expect(message.idempotencyKey).toBe('notification.send@1:exec_1');
-      expect(prepared.payloadDigest).toMatch(/^[0-9a-f]{64}$/);
-      expect(JSON.stringify(prepared)).not.toContain('sara@example.com');
     });
 
     it('changes the digest when the recipient address changes', async () => {

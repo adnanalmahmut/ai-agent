@@ -11,19 +11,19 @@ import {
   isSideEffectImplementation,
   isToolRef,
   type AnyToolImplementation,
-  type SideEffectToolImplementation,
+  type SideEffectPreparer,
   type ToolFailureCode,
   type ToolRef,
 } from './tool.types';
 
 /**
- * What authorization hands back: the adapter that may run, and the pinned
- * definition it runs under. A caller cannot reach either without asking, which
- * is what stops a delivery path from assembling its own authority.
+ * What authorization hands back: the preparer that may assemble the effect, and
+ * the pinned definition it runs under. A caller cannot reach either without
+ * asking, which is what stops a delivery path from assembling its own authority.
  */
 export type AuthorizedToolEffect = {
   readonly ref: ToolRef;
-  readonly implementation: SideEffectToolImplementation;
+  readonly preparer: SideEffectPreparer;
   readonly definition: AgentDefinition;
 };
 
@@ -46,10 +46,7 @@ export function isToolAuthorizationRefusal(
  */
 @Injectable()
 export class ToolAuthorizationService {
-  private readonly implementations: ReadonlyMap<
-    ToolRef,
-    SideEffectToolImplementation
-  >;
+  private readonly preparers: ReadonlyMap<ToolRef, SideEffectPreparer>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -58,7 +55,7 @@ export class ToolAuthorizationService {
     @Inject(TOOL_IMPLEMENTATIONS)
     implementations: readonly AnyToolImplementation[],
   ) {
-    const indexed = new Map<ToolRef, SideEffectToolImplementation>();
+    const indexed = new Map<ToolRef, SideEffectPreparer>();
 
     for (const implementation of implementations) {
       if (isSideEffectImplementation(implementation)) {
@@ -66,7 +63,7 @@ export class ToolAuthorizationService {
       }
     }
 
-    this.implementations = indexed;
+    this.preparers = indexed;
   }
 
   async authorize(
@@ -99,9 +96,9 @@ export class ToolAuthorizationService {
       return { refusal: 'precondition_authority' };
     }
 
-    const implementation = this.implementations.get(ref);
+    const preparer = this.preparers.get(ref);
 
-    if (!implementation) return { refusal: 'precondition_authority' };
+    if (!preparer) return { refusal: 'precondition_authority' };
 
     let definition: AgentDefinition;
 
@@ -139,6 +136,6 @@ export class ToolAuthorizationService {
       return { refusal: 'precondition_authority' };
     }
 
-    return { ref, implementation, definition };
+    return { ref, preparer, definition };
   }
 }
