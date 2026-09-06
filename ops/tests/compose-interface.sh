@@ -237,6 +237,40 @@ refuses 'a relocated project directory' --project-directory="$tmp_dir" config
 
 refuses 'an empty argument list'
 
+# The guards above are position-sensitive, and asserting only the text of the
+# manifest entries missed that: `-f` before the subcommand selects the compose
+# file, but the documented `db:logs` spells `logs -f` for follow. Run the real
+# argument shapes, with `--dry-run` so nothing starts, and require that none of
+# them is turned away.
+#
+# `logs` does not honour `--dry-run`, so it is bounded by a timeout instead and
+# judged on whether the wrapper refused it, not on its exit status.
+while IFS='|' read -r label shape; do
+  test -n "$label" || continue
+
+  # shellcheck disable=SC2086
+  refusal=$(env $unset_fixture "$wrapper" --env-file "$fixture" $shape 2>&1 </dev/null |
+    grep -c '^refusing ' || true)
+
+  test "$refusal" -eq 0 || {
+    echo "the compose interface refused its own documented command: $label ($shape)" >&2
+    exit 1
+  }
+done <<'SHAPES'
+db:up|--profile development up -d postgres redis --dry-run
+db:down|--profile development down --dry-run
+SHAPES
+
+# shellcheck disable=SC2086
+logs_refusal=$(timeout 10 env $unset_fixture "$wrapper" \
+  --env-file "$fixture" --profile development logs -f postgres redis 2>&1 </dev/null |
+  grep -c '^refusing ' || true)
+
+test "$logs_refusal" -eq 0 || {
+  echo 'the compose interface refused its own documented db:logs command' >&2
+  exit 1
+}
+
 # The refusals must not have cost the ordinary flags their meaning.
 # shellcheck disable=SC2086
 env $unset_fixture "$wrapper" --env-file "$fixture" --profile development config \

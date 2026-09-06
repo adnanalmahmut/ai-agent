@@ -45,29 +45,55 @@ fi
 # docker command. Both long forms accept `--flag=value` as well as a separate
 # argument, so both spellings are matched.
 #
-# Scanning stops at a bare `--`, so a command being run inside a container can
-# still take flags of its own.
+# Position decides which check applies, because the same letter means different
+# things on either side of the subcommand: `-f` before it selects the compose
+# file, and after it is `logs --follow`. Refusing it everywhere would break
+# `db:logs`. Scanning also stops at a bare `--`, so a command run inside a
+# container keeps its own flags.
+subcommand=''
+skip_value=false
 teardown=false
 destructive=false
+
 for argument in "$@"; do
+  if [ "$argument" = '--' ]; then break; fi
+
+  if [ "$skip_value" = true ]; then
+    skip_value=false
+    continue
+  fi
+
+  if [ -z "$subcommand" ]; then
+    case "$argument" in
+      -f | -f?* | --file | --file=*)
+        echo "refusing --file: this interface owns the compose file" >&2
+        exit 2
+        ;;
+      -p | -p?* | --project-name | --project-name=*)
+        echo "refusing --project-name: this interface pins the project to $project_name" >&2
+        exit 2
+        ;;
+      --project-directory | --project-directory=*)
+        echo "refusing --project-directory: it moves how the project resolves" >&2
+        exit 2
+        ;;
+      # Global options that take a separate value. Their value is not the
+      # subcommand, so it must not be read as one.
+      --profile | --env-file | --ansi | --progress | --parallel)
+        skip_value=true
+        ;;
+      -*) ;;
+      *) subcommand=$argument ;;
+    esac
+    continue
+  fi
+
   case "$argument" in
-    --) break ;;
-    -f | -f?* | --file | --file=*)
-      echo "refusing --file: this interface owns the compose file" >&2
-      exit 2
-      ;;
-    -p | -p?* | --project-name | --project-name=*)
-      echo "refusing --project-name: this interface pins the project to $project_name" >&2
-      exit 2
-      ;;
-    --project-directory | --project-directory=*)
-      echo "refusing --project-directory: it moves how the project resolves" >&2
-      exit 2
-      ;;
-    down) teardown=true ;;
     -v | --volumes | --volumes=* | --rmi | --rmi=*) destructive=true ;;
   esac
 done
+
+if [ "$subcommand" = down ]; then teardown=true; fi
 
 if [ "$teardown" = true ] && [ "$destructive" = true ]; then
   echo "refusing to remove volumes or images: run docker compose directly if that is really intended" >&2
