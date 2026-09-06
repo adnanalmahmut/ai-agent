@@ -13,7 +13,7 @@ import {
   documentPageSchema,
   ingestedDocumentSchema,
 } from './knowledge.contract';
-import { isUniqueConstraintViolation } from './prisma-errors';
+import { isUniqueConstraintViolation } from '../../infrastructure/database';
 import { KNOWLEDGE_DOCUMENT_INGESTED } from './knowledge.events';
 import {
   decodeCursor,

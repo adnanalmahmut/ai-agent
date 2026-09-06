@@ -10,7 +10,11 @@ import { resolveAppLocale, type AppLocale } from '@repo/i18n-core';
 import type { Request, Response } from 'express';
 import { I18nContext } from 'nestjs-i18n';
 
-import { AppException, type AppErrorCode } from '../../core/errors';
+import {
+  AppException,
+  InvariantViolationError,
+  type AppErrorCode,
+} from '../../core/errors';
 import { ValidationException, type ValidationIssue } from './validation';
 import type {
   ApiBusinessErrorDetails,
@@ -260,8 +264,17 @@ export class UnifiedExceptionFilter implements ExceptionFilter {
       }
     }
 
+    // Named separately in the log because it is a different kind of failure to
+    // go and look at: not an unexpected error from somewhere out there, but a
+    // state this system said could not happen. The answer is the same 500 --
+    // the caller cannot fix an invariant either way.
+    const summary =
+      exception instanceof InvariantViolationError
+        ? `Invariant violated on ${request?.method ?? '-'} ${request?.url ?? '-'} [requestId: ${requestId}]: ${exception.message}`
+        : `Unhandled exception on ${request?.method ?? '-'} ${request?.url ?? '-'} [requestId: ${requestId}]`;
+
     this.logger.error(
-      `Unhandled exception on ${request?.method ?? '-'} ${request?.url ?? '-'} [requestId: ${requestId}]`,
+      summary,
       exception instanceof Error ? exception.stack : String(exception),
     );
 

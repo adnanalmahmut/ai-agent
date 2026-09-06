@@ -10,7 +10,10 @@ import {
   type ContentIdeaFormat,
   type ContentIdeaLanguage,
 } from '../ideas/agent-definitions';
-import { PrismaService } from '../../../infrastructure/database';
+import {
+  isUniqueConstraintViolation,
+  PrismaService,
+} from '../../../infrastructure/database';
 import { OrganizationAuditService } from '../../organizations/audit';
 import {
   beforePosition,
@@ -402,11 +405,4 @@ function toDetail(row: ProjectRow): ContentProjectDetail {
       createdAt: draft.createdAt,
     })),
   };
-}
-
-function isUniqueConstraintViolation(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  );
 }

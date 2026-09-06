@@ -3,8 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { ZodError } from 'zod';
 
-import { AppException } from '../../core/errors';
-import { PrismaService } from '../../infrastructure/database';
+import { AppException, InvariantViolationError } from '../../core/errors';
+import {
+  isUniqueConstraintViolation,
+  PrismaService,
+} from '../../infrastructure/database';
 import { Prisma } from '../../generated/prisma/client';
 import { isAgentConfigurationError } from '../../ai/agents/agent-configuration.error';
 import { AgentDefinitionRegistry } from '../../ai/agents/agent-definition.registry';
@@ -429,7 +432,9 @@ function requireActiveVersion(
   installation: PersistedInstallation,
 ): PersistedVersion {
   if (!installation.activeVersionId || !installation.activeVersion) {
-    throw new Error('Organization agent installation has no active version');
+    throw new InvariantViolationError(
+      'Organization agent installation has no active version',
+    );
   }
   return installation.activeVersion;
 }
@@ -490,13 +495,6 @@ function installationNotFound(): AppException {
   return new AppException('NOT_FOUND', {
     context: { resource: 'organizationAgentInstallation' },
   });
-}
-
-function isUniqueConstraintViolation(error: unknown): boolean {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  );
 }
 
 type VersionCursor = { createdAt: Date; id: string };

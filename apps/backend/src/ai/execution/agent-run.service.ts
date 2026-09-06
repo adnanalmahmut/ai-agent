@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { AppException } from '../../core/errors';
 import { Prisma } from '../../generated/prisma/client';
-import { PrismaService } from '../../infrastructure/database';
+import {
+  isUniqueConstraintViolation,
+  PrismaService,
+} from '../../infrastructure/database';
 import { OutboxRepository } from '../../infrastructure/outbox';
 import { AgentConfigurationError } from '../agents/agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agents/agent-definition.registry';
@@ -507,15 +510,6 @@ async function assertCapacity(
         'This organization already has the maximum number of agent runs in flight. Wait for one to finish.',
     },
   });
-}
-
-function isUniqueConstraintViolation(
-  error: unknown,
-): error is Prisma.PrismaClientKnownRequestError {
-  return (
-    error instanceof Prisma.PrismaClientKnownRequestError &&
-    error.code === 'P2002'
-  );
 }
 
 function toAgentRun(run: PersistedAgentRun): AgentRun {
