@@ -8,7 +8,7 @@
 #
 # Files that are *not* release-coupled are deliberately absent: the Nginx site
 # and TLS assets survive any release, and the backup unit files are installed
-# by ops/backup/install-backups.sh on their own schedule.
+# by infra/backup/install-backups.sh on their own schedule.
 #
 # Format: <source-in-repository> <installed-destination> <mode>
 infra/compose/compose.yaml /opt/ai-agent/docker-compose.yml 0644

@@ -7,6 +7,11 @@ set -eu
   exit 64
 }
 
+# The bundle installer is this script's neighbour. Named relative to the
+# repository root before the move, which made bootstrap depend on the
+# operator's working directory.
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
 environment=$1
 domain=$2
 trusted_cidr=$3
@@ -45,7 +50,7 @@ chmod 0644 /etc/ai-agent/environment
 # take the same path and record the same manifest. Before this, bootstrap was
 # the only thing that ever installed them, and nothing recorded which release
 # they came from.
-infra/deploy/install-host-bundle.sh
+"$here/install-host-bundle.sh"
 
 install -d -o deploy -g deploy -m 0700 /home/deploy/.ssh
 {

@@ -12,7 +12,7 @@ touch "$dump" "$dump.sha256"
 printf 'DATABASE_URL=postgresql://live@database/production\n' >"$tmp_dir/etc/ai-agent/runtime.env"
 
 sed "s#/etc/ai-agent#$tmp_dir/etc/ai-agent#g" \
-  ops/backup/restore-drill.sh >"$tmp_dir/restore-drill"
+  infra/backup/restore-drill.sh >"$tmp_dir/restore-drill"
 chmod +x "$tmp_dir/restore-drill"
 
 cat >"$tmp_dir/bin/id" <<'SH'

@@ -18,4 +18,4 @@ port, and database identity different from production. After checksum and
 archive validation it also requires zero user relations, routines, types, and
 non-public schemas before invoking `pg_restore`. It never drops or cleans a
 target. Full procedure, retention, monitoring, and pending operator evidence are in
-[`ops/backup-recovery.md`](../ops/backup-recovery.md).
+[`docs/runbooks/backup-recovery.md`](runbooks/backup-recovery.md).

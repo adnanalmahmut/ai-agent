@@ -7,7 +7,7 @@ set -eu
 #
 #   sudo infra/deploy/install-host-bundle.sh
 #
-# Before this existed, ops/lightsail/bootstrap-host.sh installed the host
+# Before this existed, infra/deploy/bootstrap-host.sh installed the host
 # scripts once at host creation and there was no supported way to update them.
 # The host then had no idea which release its compose file and deploy script
 # came from, which is how Staging came to be deploying a release against a

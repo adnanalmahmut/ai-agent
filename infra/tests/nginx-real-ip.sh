@@ -4,8 +4,8 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
-headers=ops/nginx/snippets/proxy-common.conf
-routes=ops/nginx/templates/proxy-routes.conf.template
+headers=infra/gateway/nginx/snippets/proxy-common.conf
+routes=infra/gateway/nginx/templates/proxy-routes.conf.template
 
 grep -Fqx 'proxy_set_header Host $host;' "$headers"
 grep -Fqx 'proxy_set_header X-Forwarded-Host $host;' "$headers"
