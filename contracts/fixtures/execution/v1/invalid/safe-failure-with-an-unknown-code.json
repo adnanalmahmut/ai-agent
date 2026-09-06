@@ -2,8 +2,7 @@
   "kind": "safeFailure",
   "document": {
     "version": "1",
-    "code": "kaboom",
-    "retryable": false
+    "code": "kaboom"
   },
   "why": "The vocabulary is closed on purpose."
 }

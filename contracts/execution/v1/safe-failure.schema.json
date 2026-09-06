@@ -23,21 +23,10 @@
         "cancelled",
         "internal_error"
       ]
-    },
-    "retryable": {
-      "description": "Whether another attempt could reach a different answer.",
-      "type": "boolean"
-    },
-    "detail": {
-      "description": "Optional bounded text written by the Control Plane for an operator. Omit it rather than sending null; never copy a provider message into it.",
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 500
     }
   },
   "required": [
     "version",
-    "code",
-    "retryable"
+    "code"
   ]
 }

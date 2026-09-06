@@ -2,10 +2,11 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  EXECUTION_PAYLOAD_BUDGET_BYTES,
-  validateExecutionDocument,
-  validateRuntimeStep,
-  validateSafeFailure,
+    EXECUTION_CONTEXT_BUDGET_CODE_POINTS,
+    EXECUTION_PAYLOAD_BUDGET_BYTES,
+    validateExecutionDocument,
+    validateRuntimeStep,
+    validateSafeFailure,
 } from '../dist/index.js';
 
 const step = {
@@ -86,8 +87,7 @@ describe('values that are not JSON', () => {
   it('reports an unsafe value before any schema complaint', () => {
     const result = validateExecutionDocument('safeFailure', {
       version: '1',
-      code: 'not-a-code',
-      retryable: Number.NaN,
+      code: Number.NaN,
     });
 
     assert.equal(result.ok, false);
@@ -99,7 +99,6 @@ describe('values that are not JSON', () => {
     const result = validateSafeFailure({
       version: '1',
       code: 'not-a-code',
-      retryable: false,
     });
 
     assert.equal(result.ok, false);
@@ -131,5 +130,76 @@ describe('the size budget the schema cannot express', () => {
       validateRuntimeStep(document).issues[0].message,
       /over the 1048576-byte budget/,
     );
+  });
+});
+
+describe('the aggregate context budget', () => {
+  it('matches the declared 12000 code points ceiling', () => {
+    assert.equal(EXECUTION_CONTEXT_BUDGET_CODE_POINTS, 12_000);
+  });
+
+  it('accepts context passages whose total code points are within budget', () => {
+    const result = validateRuntimeStep({
+      ...step,
+      context: [
+        {
+          documentId: 'doc_1',
+          chunkId: 'chunk_1',
+          text: 'a'.repeat(6000),
+        },
+        {
+          documentId: 'doc_2',
+          chunkId: 'chunk_2',
+          text: 'b'.repeat(6000),
+        },
+      ],
+    });
+
+    assert.equal(result.ok, true);
+  });
+
+  it('rejects context passages whose total code points exceed 12000', () => {
+    const result = validateRuntimeStep({
+      ...step,
+      context: [
+        {
+          documentId: 'doc_1',
+          chunkId: 'chunk_1',
+          text: 'a'.repeat(7000),
+        },
+        {
+          documentId: 'doc_2',
+          chunkId: 'chunk_2',
+          text: 'b'.repeat(6000),
+        },
+      ],
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(result.issues[0].message, /over the 12000-code-point budget/);
+    assert.equal(result.issues[0].path, '/context');
+  });
+
+  it('counts Unicode code points rather than code units or bytes', () => {
+    // Emojis are 2 UTF-16 code units (or 4 bytes) but 1 Unicode code point.
+    // 6001 emojis = 6001 code points each -> 12002 code points total > 12000.
+    const result = validateRuntimeStep({
+      ...step,
+      context: [
+        {
+          documentId: 'doc_1',
+          chunkId: 'chunk_1',
+          text: '👋'.repeat(6001),
+        },
+        {
+          documentId: 'doc_2',
+          chunkId: 'chunk_2',
+          text: '🚀'.repeat(6001),
+        },
+      ],
+    });
+
+    assert.equal(result.ok, false);
+    assert.match(result.issues[0].message, /12002 code points, over the 12000-code-point budget/);
   });
 });

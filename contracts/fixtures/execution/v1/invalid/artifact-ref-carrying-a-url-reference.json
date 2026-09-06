@@ -1,0 +1,12 @@
+{
+  "kind": "artifactRef",
+  "document": {
+    "version": "1",
+    "ref": "https://storage.example/file?token=secret",
+    "contentType": "application/pdf",
+    "byteSize": 20480,
+    "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "why": "Opaque ref cannot be a URL."
+}
+

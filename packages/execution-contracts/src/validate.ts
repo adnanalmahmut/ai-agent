@@ -1,5 +1,5 @@
-import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import Ajv2020, { type ErrorObject, type ValidateFunction } from 'ajv/dist/2020.js';
 
 import { EXECUTION_V1_SCHEMAS } from './generated/schemas.js';
 import type {
@@ -22,6 +22,7 @@ import { jsonSafetyProblems } from './json-safe.js';
  * 1mb body limit. Nothing that could not reach the system should validate.
  */
 export const EXECUTION_PAYLOAD_BUDGET_BYTES = 1_048_576;
+export const EXECUTION_CONTEXT_BUDGET_CODE_POINTS = 12_000;
 
 export type ContractIssue = {
   readonly path: string;
@@ -111,9 +112,30 @@ export function validateExecutionDocument<T>(
 
   const validate = VALIDATORS[kind];
 
-  if (validate(value)) return { ok: true, value: value as T };
+  if (!validate(value)) return { ok: false, issues: issuesFrom(validate.errors) };
 
-  return { ok: false, issues: issuesFrom(validate.errors) };
+  if (kind === 'runtimeStep') {
+    const step = value as RuntimeStep;
+    let codePoints = 0;
+
+    for (const passage of step.context ?? []) {
+      codePoints += [...passage.text].length;
+    }
+
+    if (codePoints > EXECUTION_CONTEXT_BUDGET_CODE_POINTS) {
+      return {
+        ok: false,
+        issues: [
+          {
+            path: '/context',
+            message: `aggregate context is ${codePoints} code points, over the ${EXECUTION_CONTEXT_BUDGET_CODE_POINTS}-code-point budget`,
+          },
+        ],
+      };
+    }
+  }
+
+  return { ok: true, value: value as T };
 }
 
 export const validateRuntimeStep = (value: unknown) =>

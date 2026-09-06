@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { EXECUTION_V1_SCHEMAS } from '../dist/generated/schemas.js';
 
@@ -108,7 +108,7 @@ describe('one source, and a package that carries no runtime of its own', () => {
         '--input-type=module',
         '-e',
         `import { validateSafeFailure } from '${join(packageRoot, 'dist/index.js')}';
-         const ok = validateSafeFailure({ version: '1', code: 'timeout', retryable: true }).ok;
+         const ok = validateSafeFailure({ version: '1', code: 'timeout' }).ok;
          if (!ok) { process.exit(2); }
          console.log('validated');`,
       ],

@@ -24,18 +24,36 @@ if (!result.ok) return reject(result.issues);
 const step: RuntimeStep = result.value;
 ```
 
-Validation runs in three passes, in this order:
+Validation runs in four checks, in this order:
 
 1. **JSON safety.** A `Date`, a `BigInt`, a function, `NaN`, `undefined` or a
    class instance is rejected before a schema ever sees it. A `Date` has no own
    enumerable properties, so an object schema would accept it and the difference
    would only appear once it was serialised.
-2. **Size.** One megabyte, matching the gateway's `client_max_body_size`. JSON
-   Schema cannot express bytes, so this is separate on purpose.
-3. **The schema.**
+2. **Document size.** One megabyte (`EXECUTION_PAYLOAD_BUDGET_BYTES`), matching
+   the gateway's `client_max_body_size`. JSON Schema cannot express bytes, so
+   this is separate on purpose.
+3. **The schema.** Validated against the strict JSON Schema Draft 2020-12
+   definition with `additionalProperties: false`.
+4. **Aggregate context budget.** For `RuntimeStep`, the sum of Unicode code
+   points across all passages in `context` cannot exceed 12 000
+   (`EXECUTION_CONTEXT_BUDGET_CODE_POINTS`). JSON Schema cannot sum lengths
+   across array items.
 
 Each pass stops the next, so an issue list describes one problem rather than the
 consequences of an earlier one.
+
+## Compatibility model
+
+Version 1 is the contract as published. Before RF-16, v1 is pre-consumer and can
+be corrected to harden trust boundaries. Once the first real consumer exists,
+emitted wire shapes are frozen.
+
+- **Backward reader compatibility:** Newer readers accept older documents as
+  long as added fields are optional.
+- **Rolling forward compatibility:** Because v1 objects are closed
+  (`additionalProperties: false`) and enums are closed, adding fields or enum
+  values is **not** forward-compatible without coordinated phased deployment.
 
 ## What this package is not
 

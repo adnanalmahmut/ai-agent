@@ -18,11 +18,13 @@ export const ArtifactRefSchema = {
     },
     "ref": {
       "description": "An opaque storage reference the Control Plane can resolve.",
+      "type": "string",
       "allOf": [
         {
           "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
         }
-      ]
+      ],
+      "pattern": "^[a-zA-Z0-9_.-]+$"
     },
     "contentType": {
       "description": "An IANA media type, without parameters.",
@@ -700,22 +702,11 @@ export const SafeFailureSchema = {
         "cancelled",
         "internal_error"
       ]
-    },
-    "retryable": {
-      "description": "Whether another attempt could reach a different answer.",
-      "type": "boolean"
-    },
-    "detail": {
-      "description": "Optional bounded text written by the Control Plane for an operator. Omit it rather than sending null; never copy a provider message into it.",
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 500
     }
   },
   "required": [
     "version",
-    "code",
-    "retryable"
+    "code"
   ]
 } as const;
 

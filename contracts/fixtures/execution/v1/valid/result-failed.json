@@ -8,8 +8,7 @@
     "outcome": "failed",
     "failure": {
       "version": "1",
-      "code": "timeout",
-      "retryable": true
+      "code": "timeout"
     }
   }
 }

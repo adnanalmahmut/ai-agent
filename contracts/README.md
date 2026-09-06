@@ -41,10 +41,8 @@ Six documents:
 - **Numbers** are finite JSON numbers. No `NaN`, no `Infinity`, no `BigInt` —
   none of the three has a JSON literal, and each one either changes value or
   throws on the way out.
-- **`undefined` never appears.** A property that has no value is omitted. The
-  distinction between omitted and `null` is decided per field and stated in the
-  schema; `SafeFailure.detail` is omitted when absent, and no field in v1 is
-  nullable.
+- **`undefined` never appears.** A property that has no value is omitted. No field
+  in v1 is nullable.
 - **Every object is closed.** `additionalProperties: false` throughout, so a
   field nobody agreed on is a validation error rather than something a reader
   silently ignores and a writer silently depends on.
@@ -60,6 +58,7 @@ limit the deployment already enforces or an explicit conservative ceiling.
 | identifier length              | 200         | the idempotency-key ceiling in `infrastructure/http/wire-codecs.ts`  |
 | short text                     | 500         | `accountLifecycleReasonSchema`                                       |
 | context passage text           | 12 000      | `contextPolicy.maxCharacters` on the deployed agent definition       |
+| aggregate context text         | 12 000      | conservative aggregate code-point ceiling across all passages in a step |
 | context passages per step      | 12          | `contextPolicy.maxChunks`                                            |
 | tool invocations per result    | 12          | `MAX_TOOL_INVOCATIONS_PER_ATTEMPT` in `ai/tools/tool.gateway.ts`     |
 | embedding width                | 1 536       | `EMBEDDING_DIMENSIONS`; the pgvector column rejects anything else    |
@@ -71,10 +70,11 @@ limit the deployment already enforces or an explicit conservative ceiling.
 | payload nesting depth          | 6           | conservative; deep enough for current agent output, and finite       |
 | payload string / array / keys  | 65 536 / 256 / 128 | conservative, so no single field can approach the 1 MiB ceiling |
 
-The document-size budget is the one bound JSON Schema cannot state, because it
-has no notion of bytes. The validator enforces it separately, and a document can
-satisfy every field bound and still fail it — which is the case the fixture
-`too-large` exercises.
+The document-size budget and the aggregate context budget are bounds JSON Schema
+cannot state (JSON Schema has no notion of bytes, and cannot sum string lengths
+across array elements). The validator enforces them separately; a document can
+satisfy every individual field bound and still fail either budget — which the
+fixtures `too-large` and `runtime-step-context-over-aggregate-budget` exercise.
 
 ### Payloads
 
@@ -91,17 +91,34 @@ a check an attacker walks around by nesting once.
 
 ### Compatibility
 
-Version 1 is the contract as published. The mechanical question behind every
-rule below is the same: *does every document that was valid under the published
-contract still validate?* `contracts/fixtures/execution/v1/valid` is that corpus,
-and `packages/execution-contracts/test/compatibility.test.mjs` asks the question
-against candidate changes.
+Version 1 is the contract as published. Before RF-16, v1 is pre-consumer and can
+be corrected to harden boundaries. Once the first real consumer exists, wire
+shapes emitted by either side are frozen.
 
-Allowed inside v1:
+Crucially, distinguish **backward reader compatibility** (a newer reader accepts
+an older document) from **rolling forward compatibility** (an older reader
+accepting a newer writer's document):
 
-- adding an **optional** property
+- Because every object in v1 is closed (`additionalProperties: false`) and
+  vocabularies are closed `enum`s, **optional field widening or enum widening is
+  NOT forward-compatible without coordination**: an older reader will reject
+  documents containing newly introduced properties or enum members.
+- Backward reader compatibility: A newer reader definition accepts older
+  documents if added fields are optional and removed enum members are preserved.
+- Rolling forward compatibility: Requires phased rollout (updating readers first
+  to accept new shapes before writers emit them, or bumping the contract version).
+
+The mechanical question behind backward reader tests is: *does every document
+that was valid under the published contract still validate?*
+`contracts/fixtures/execution/v1/valid` is that corpus, and
+`packages/execution-contracts/test/compatibility.test.mjs` exercises both
+backward reader compatibility and old-reader rejection of widened shapes.
+
+Allowed inside v1 (backward reader compatible):
+
 - raising a ceiling or lowering a floor
-- adding a member to a closed vocabulary
+- adding an optional property (backward reader compatible; old closed readers reject if emitted)
+- adding a member to a closed vocabulary (backward reader compatible; old closed readers reject if emitted)
 - adding a new document type
 
 Requires v2, once a real consumer exists:

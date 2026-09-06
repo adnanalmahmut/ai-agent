@@ -11,11 +11,13 @@
     },
     "ref": {
       "description": "An opaque storage reference the Control Plane can resolve.",
+      "type": "string",
       "allOf": [
         {
           "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
         }
-      ]
+      ],
+      "pattern": "^[a-zA-Z0-9_.-]+$"
     },
     "contentType": {
       "description": "An IANA media type, without parameters.",

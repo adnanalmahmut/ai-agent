@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
-import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
+import Ajv2020 from 'ajv/dist/2020.js';
 
 import { EXECUTION_V1_SCHEMAS } from '../dist/generated/schemas.js';
 
@@ -64,8 +64,8 @@ describe('what may change inside version 1', () => {
     assert.equal(corpusStillValidates(() => {}), true);
   });
 
-  describe('compatible: every published document still validates', () => {
-    it('adding an optional property', () => {
+  describe('backward reader compatibility: new reader accepts old documents', () => {
+    it('new reader accepts old document after optional-property widening', () => {
       assert.equal(
         corpusStillValidates((byId) => {
           const failure = schemaFor(byId, 'safe-failure.schema.json');
@@ -85,7 +85,7 @@ describe('what may change inside version 1', () => {
       );
     });
 
-    it('widening a closed vocabulary', () => {
+    it('new reader accepts old enum member after closed vocabulary widening', () => {
       assert.equal(
         corpusStillValidates((byId) => {
           schemaFor(byId, 'safe-failure.schema.json').properties.code.enum.push(
@@ -97,11 +97,50 @@ describe('what may change inside version 1', () => {
     });
   });
 
+  describe('forward compatibility limits: old closed reader rejects widened documents', () => {
+    it('old closed reader rejects new document emitting the newly added property', () => {
+      const ajv = new Ajv2020({
+        strict: true,
+        allErrors: true,
+        schemas: EXECUTION_V1_SCHEMAS.map(([, schema]) => schema),
+      });
+      addFormats(ajv, ['date-time']);
+      const validate = ajv.getSchema(`${BASE}safe-failure.schema.json`);
+
+      const widenedDocument = {
+        version: '1',
+        code: 'timeout',
+        observedAt: '2026-09-07T00:00:00.000Z',
+      };
+
+      assert.equal(validate(widenedDocument), false);
+    });
+
+    it('old closed reader rejects new document emitting a newly added enum member', () => {
+      const ajv = new Ajv2020({
+        strict: true,
+        allErrors: true,
+        schemas: EXECUTION_V1_SCHEMAS.map(([, schema]) => schema),
+      });
+      addFormats(ajv, ['date-time']);
+      const validate = ajv.getSchema(`${BASE}safe-failure.schema.json`);
+
+      const widenedDocument = {
+        version: '1',
+        code: 'rate_limited',
+      };
+
+      assert.equal(validate(widenedDocument), false);
+    });
+  });
+
   describe('breaking: version 2, once a consumer exists', () => {
     it('making an optional property required', () => {
       assert.equal(
         corpusStillValidates((byId) => {
-          schemaFor(byId, 'safe-failure.schema.json').required.push('detail');
+          const failure = schemaFor(byId, 'safe-failure.schema.json');
+          failure.properties.observedAt = { type: 'string' };
+          failure.required.push('observedAt');
         }),
         false,
       );

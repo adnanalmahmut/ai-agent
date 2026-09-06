@@ -221,14 +221,6 @@ export interface SafeFailure {
     | 'timeout'
     | 'cancelled'
     | 'internal_error';
-  /**
-   * Whether another attempt could reach a different answer.
-   */
-  retryable: boolean;
-  /**
-   * Optional bounded text written by the Control Plane for an operator. Omit it rather than sending null; never copy a provider message into it.
-   */
-  detail?: string;
 }
 /**
  * One unit of execution, described so a worker in any language can perform it. Everything it is pinned to was decided when the run was accepted; nothing here is a question the runtime gets to answer.
