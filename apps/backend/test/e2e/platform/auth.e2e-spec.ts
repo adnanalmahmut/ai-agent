@@ -555,12 +555,7 @@ describe('Better Auth (e2e)', () => {
   // and the origin of the link inside it, are decided by server configuration
   // and never by the request that triggered the send.
   //
-  // Deliberately NOT asserted here: where following that link finally lands.
-  // A caller-supplied callbackURL is currently honoured without being checked
-  // against BETTER_AUTH_TRUSTED_ORIGINS, and the password-reset case carries
-  // the token to that foreign origin. That is a pre-existing defect, recorded
-  // in docs/exec-plans/restructuring-test-checklist.md. It is not fixed in
-  // this change, and it must not be pinned as correct by a test.
+  // Where following that link lands is asserted by the block after this one.
   describe('security mail is addressed by configuration, not by the request', () => {
     const authOrigin = new URL(process.env.BETTER_AUTH_URL ?? '').origin;
     const FOREIGN = 'https://mail-link-probe.invalid/landing';
@@ -628,6 +623,271 @@ describe('Better Auth (e2e)', () => {
 
       await transport.settle();
       expect(transport.sent).toEqual([]);
+    });
+  });
+
+  // The companion to the block above: where following the mailed link finally
+  // lands. The destination is built by the server from APP_PLATFORM_URL and a
+  // known route, so a caller-supplied `callbackURL` / `redirectTo` cannot steer
+  // it. That matters most for password reset, whose destination receives the
+  // reset token as a query parameter.
+  describe('security mail returns only to a server-decided destination', () => {
+    const authOrigin = new URL(process.env.BETTER_AUTH_URL ?? '').origin;
+    const platformUrl = process.env.APP_PLATFORM_URL ?? '';
+    const platformOrigin = new URL(platformUrl).origin;
+    const platformPath = new URL(platformUrl).pathname;
+
+    // Every shape here is a way of naming a destination the product never
+    // chose: a plainly foreign origin, a host that merely resembles the trusted
+    // one, an authority hidden behind userinfo or a backslash, an encoded
+    // origin, a scheme or port swap, and a non-http scheme.
+    const ATTACKS: readonly [string, string][] = [
+      ['a plainly foreign origin', 'https://attacker.example/steal'],
+      [
+        'a host that only ends with the trusted one',
+        'http://localhost:3001.attacker.example/steal',
+      ],
+      [
+        'userinfo hiding the real host',
+        'http://localhost:3001@attacker.example/steal',
+      ],
+      ['a protocol-relative authority', '//attacker.example/steal'],
+      ['a backslash-confused authority', 'https:/\\attacker.example/steal'],
+      ['a foreign port on the trusted host', 'http://localhost:4444/steal'],
+      [
+        'a scheme swap on the trusted host',
+        'https://localhost:3001/platform/en/reset-password',
+      ],
+      [
+        'a percent-encoded foreign origin',
+        'https%3A%2F%2Fattacker.example%2Fsteal',
+      ],
+      [
+        'a double-encoded foreign origin',
+        'https%253A%252F%252Fattacker.example%252Fsteal',
+      ],
+      ['a non-http scheme', 'javascript:fetch("https://attacker.example")'],
+      [
+        'a newline-smuggled origin',
+        'https://localhost:3001/ok\nhttps://attacker.example/steal',
+      ],
+    ];
+
+    const linkFrom = (html: string): string => {
+      const match = /href="(https?:[^"]+)"/.exec(html);
+      if (!match) throw new Error('the mail carried no absolute link');
+      return match[1].replace(/&amp;/g, '&');
+    };
+
+    // Follow the mailed link exactly as a mail client would, but stop at the
+    // first hop: the redirect itself is the thing under test.
+    const follow = (link: string) =>
+      request(server).get(link.slice(authOrigin.length)).redirects(0);
+
+    const users: string[] = [];
+    const register = async (label: string): Promise<string> => {
+      const email = `return-${label}-${Date.now()}@example.com`;
+      users.push(email);
+      await request(server)
+        .post('/api/auth/sign-up/email')
+        .set('X-App-Locale', 'en')
+        .send({ name: 'Return Probe', email, password: PASSWORD });
+      await transport.settle();
+      return email;
+    };
+
+    afterAll(async () => {
+      for (const email of users) {
+        await prisma.user.deleteMany({ where: { email } });
+      }
+    });
+
+    describe('password reset', () => {
+      let email: string;
+
+      beforeAll(async () => {
+        email = await register('reset');
+
+        // Sign-in below requires a verified mailbox, so walk the real
+        // verification link rather than writing the flag straight to the row.
+        transport.reset();
+        await request(server)
+          .post('/api/auth/send-verification-email')
+          .set('X-App-Locale', 'en')
+          .send({ email });
+        await transport.settle();
+        await follow(linkFrom(transport.last.html));
+      });
+
+      it.each(ATTACKS)(
+        'ignores %s offered as redirectTo',
+        async (_label, destination) => {
+          transport.reset();
+
+          const response = await request(server)
+            .post('/api/auth/request-password-reset')
+            .set('X-App-Locale', 'en')
+            .send({ email, redirectTo: destination });
+
+          // Either the request is refused outright or it is honoured with the
+          // server's own destination. What must never happen is a mailed link
+          // that carries the token anywhere the caller named.
+          if (response.status !== 200) {
+            expect(response.status).toBe(403);
+            return;
+          }
+
+          await transport.settle();
+          const mail = transport.last;
+
+          expect(mail.to).toBe(email);
+          expect(mail.html).not.toContain('attacker.example');
+
+          const link = linkFrom(mail.html);
+          expect(new URL(link).origin).toBe(authOrigin);
+          expect(new URL(link).searchParams.get('callbackURL')).toBe(
+            `${platformUrl}/en/reset-password`,
+          );
+
+          const followed = await follow(link);
+          expect(followed.status).toBe(302);
+
+          const location = new URL(followed.headers.location);
+          expect(location.origin).toBe(platformOrigin);
+          expect(location.pathname).toBe(`${platformPath}/en/reset-password`);
+
+          // The token is delivered, and only to the server's own destination.
+          expect(location.searchParams.get('token')).toBeTruthy();
+          expect(followed.headers.location).not.toContain('attacker.example');
+        },
+      );
+
+      it('still completes a legitimate reset end to end', async () => {
+        transport.reset();
+
+        await request(server)
+          .post('/api/auth/request-password-reset')
+          .set('X-App-Locale', 'en')
+          .send({ email, redirectTo: `${platformUrl}/en/reset-password` })
+          .expect(200);
+
+        await transport.settle();
+        const followed = await follow(linkFrom(transport.last.html));
+        expect(followed.status).toBe(302);
+
+        const token = new URL(followed.headers.location).searchParams.get(
+          'token',
+        );
+        expect(token).toBeTruthy();
+
+        await request(server)
+          .post('/api/auth/reset-password')
+          .send({ newPassword: 'another-brand-new-password', token })
+          .expect(200);
+
+        await request(server)
+          .post('/api/auth/sign-in/email')
+          .send({ email, password: 'another-brand-new-password' })
+          .expect(200);
+      });
+    });
+
+    describe('email verification', () => {
+      it('ignores a foreign callbackURL offered at sign-up', async () => {
+        const email = `return-signup-${Date.now()}@example.com`;
+        users.push(email);
+        transport.reset();
+
+        const response = await request(server)
+          .post('/api/auth/sign-up/email')
+          .set('X-App-Locale', 'en')
+          .send({
+            name: 'Return Probe',
+            email,
+            password: PASSWORD,
+            callbackURL: 'https://attacker.example/steal',
+          });
+
+        if (response.status !== 200) {
+          expect(response.status).toBe(403);
+          return;
+        }
+
+        await transport.settle();
+        const mail = transport.last;
+
+        expect(mail.meta.template).toBe('EMAIL_VERIFICATION');
+        expect(mail.to).toBe(email);
+        expect(mail.html).not.toContain('attacker.example');
+
+        const link = linkFrom(mail.html);
+        expect(new URL(link).origin).toBe(authOrigin);
+
+        const followed = await follow(link);
+        expect(followed.status).toBe(302);
+        expect(followed.headers.location).toBe(
+          `${platformUrl}/en/verify-email?status=verified`,
+        );
+
+        // Verification still did its job on the way through.
+        const user = await prisma.user.findUnique({ where: { email } });
+        expect(user?.emailVerified).toBe(true);
+      });
+
+      it.each(ATTACKS)(
+        'ignores %s offered to a resend',
+        async (_label, destination) => {
+          const email = await register('resend');
+          transport.reset();
+
+          const response = await request(server)
+            .post('/api/auth/send-verification-email')
+            .set('X-App-Locale', 'en')
+            .send({ email, callbackURL: destination });
+
+          if (response.status !== 200) {
+            expect(response.status).toBe(403);
+            return;
+          }
+
+          await transport.settle();
+          const mail = transport.last;
+
+          expect(mail.to).toBe(email);
+          expect(mail.html).not.toContain('attacker.example');
+
+          const link = linkFrom(mail.html);
+          expect(new URL(link).origin).toBe(authOrigin);
+
+          const followed = await follow(link);
+          expect(followed.status).toBe(302);
+          expect(followed.headers.location).toBe(
+            `${platformUrl}/en/verify-email?status=verified`,
+          );
+        },
+      );
+    });
+
+    it('takes the destination language from the server, not the request', async () => {
+      const email = await register('locale');
+      await prisma.user.updateMany({
+        where: { email },
+        data: { preferredLanguage: 'ar' },
+      });
+      transport.reset();
+
+      await request(server)
+        .post('/api/auth/request-password-reset')
+        .send({ email, redirectTo: 'https://attacker.example/steal' })
+        .expect(200);
+
+      await transport.settle();
+      expect(transport.last.meta.locale).toBe('ar');
+
+      const followed = await follow(linkFrom(transport.last.html));
+      expect(followed.headers.location).toContain(
+        `${platformUrl}/ar/reset-password`,
+      );
     });
   });
 });

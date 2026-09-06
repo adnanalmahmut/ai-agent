@@ -35,6 +35,11 @@ export type AuthMailOptions = {
   lookupPreferredLanguage: PreferredLanguageLookup;
 };
 
+// Kept beside the routes they mirror in the platform application; these are the
+// only destinations security mail is allowed to return to.
+const VERIFICATION_RETURN_PATH = '/verify-email?status=verified';
+const PASSWORD_RESET_RETURN_PATH = '/reset-password';
+
 export function createAuthMailCallbacks(
   mail: MailService,
   options: AuthMailOptions,
@@ -47,11 +52,19 @@ export function createAuthMailCallbacks(
       { user, url }: AuthMailPayload,
       request?: AuthMailRequest,
     ): Promise<void> => {
+      const locale = resolveRecipientLocale(user, request);
+
       mail.dispatch({
         template: 'EMAIL_VERIFICATION',
-        locale: resolveRecipientLocale(user, request),
+        locale,
         to: user.email,
-        variables: { name: displayName(user), actionUrl: url },
+        variables: {
+          name: displayName(user),
+          actionUrl: withServerDecidedReturn(
+            url,
+            returnUrl(options.platformUrl, locale, VERIFICATION_RETURN_PATH),
+          ),
+        },
       });
 
       // `dispatch` is synchronous and never throws, so this resolves
@@ -65,13 +78,18 @@ export function createAuthMailCallbacks(
       { user, url }: AuthMailPayload,
       request?: AuthMailRequest,
     ): Promise<void> => {
+      const locale = resolveRecipientLocale(user, request);
+
       mail.dispatch({
         template: 'PASSWORD_RESET',
-        locale: resolveRecipientLocale(user, request),
+        locale,
         to: user.email,
         variables: {
           name: displayName(user),
-          actionUrl: url,
+          actionUrl: withServerDecidedReturn(
+            url,
+            returnUrl(options.platformUrl, locale, PASSWORD_RESET_RETURN_PATH),
+          ),
           // Derived from the same configuration value that sets the token's
           // real lifetime, so the sentence in the email cannot drift from the
           // expiry the server will actually enforce.
@@ -101,6 +119,28 @@ export function createAuthMailCallbacks(
       });
     },
   };
+}
+
+function returnUrl(
+  platformUrl: string,
+  locale: AppLocale,
+  path: string,
+): string {
+  return `${platformUrl}/${locale}${path}`;
+}
+
+// Security mail must return the recipient to a destination this server chose.
+// Better Auth builds the mailed link around the caller's `callbackURL` /
+// `redirectTo`, and both endpoints are unauthenticated, so otherwise any caller
+// decides where the recipient lands. For password reset that destination
+// receives the reset token as a query parameter, which makes an arbitrary
+// destination an account-takeover path rather than only an open redirect.
+// Overwriting the parameter keeps Better Auth's own route and token untouched
+// and replaces nothing but the return address.
+function withServerDecidedReturn(url: string, destination: string): string {
+  const link = new URL(url);
+  link.searchParams.set('callbackURL', destination);
+  return link.toString();
 }
 
 function invitationUrl(
