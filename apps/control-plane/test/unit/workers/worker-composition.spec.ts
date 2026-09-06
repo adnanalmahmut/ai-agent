@@ -344,7 +344,7 @@ describe('AppModule agent composition', () => {
     }
   });
 
-  it('enforces that ToolExecutionService writers are called only by ToolGateway and SideEffectExecutionHandler', async () => {
+  it('enforces that ToolExecutionService writers are called only by ToolGateway and the delivery use case', async () => {
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
     const { fileURLToPath } = await import('node:url');
@@ -361,9 +361,11 @@ describe('AppModule agent composition', () => {
       'transition(',
     ];
 
+    // The queue handler used to be on this list. It writes nothing now: every
+    // transition goes through the use case that authorized it.
     const allowedWriters = new Set([
       'tool.gateway.ts',
-      'side-effect-execution.handler.ts',
+      'deliver-approved-tool-effect.use-case.ts',
       'tool-execution.service.ts',
     ]);
 

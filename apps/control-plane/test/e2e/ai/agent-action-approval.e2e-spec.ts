@@ -5,28 +5,33 @@ import { Client } from 'pg';
 import { z } from 'zod';
 
 import { AgentDefinitionRegistry } from '../../../src/ai/agents/agent-definition.registry';
-import { OrganizationAgentInstallationService } from '../../../src/features/agent-management/organization-agent-installation.service';
 import type { AgentDefinition } from '../../../src/ai/agents/agent.types';
-import { APPLICATION_TOOL_DEFINITIONS } from '../../../src/features/agent-management/tools/definitions';
-import { NotificationSendTool } from '../../../src/features/agent-management/tools/notification-send.tool';
-import {
-  EFFECT_RETRY_WINDOW_MS,
-  idempotencyKeyFor,
-  SideEffectExecutionHandler,
-  type SideEffectExecutionJob,
-} from '../../../src/workers/handlers/side-effect-execution.handler';
+import { MODEL_IDS } from '../../../src/ai/models/model-catalog';
+import { ToolAuthorizationService } from '../../../src/ai/tools/tool-authorization.service';
 import { ToolExecutionService } from '../../../src/ai/tools/tool-execution.service';
 import {
   ToolExecutionFailure,
   ToolGateway,
 } from '../../../src/ai/tools/tool.gateway';
 import { ToolRegistry } from '../../../src/ai/tools/tool.registry';
+import { OrganizationAgentInstallationService } from '../../../src/features/agent-management/organization-agent-installation.service';
+import { APPLICATION_TOOL_DEFINITIONS } from '../../../src/features/agent-management/tools/definitions';
+import { NotificationSendTool } from '../../../src/features/agent-management/tools/notification-send.tool';
+import { NotificationSideEffectDeliveryAdapter } from '../../../src/features/agent-management/tools/notification-side-effect-delivery.adapter';
 import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
 } from '../../../src/infrastructure/mail/notification-delivery.port';
-import { MODEL_IDS } from '../../../src/ai/models/model-catalog';
+import {
+  DeliverApprovedToolEffectUseCase,
+  EFFECT_RETRY_WINDOW_MS,
+  idempotencyKeyFor,
+} from '../../../src/modules/approvals';
+import {
+  SideEffectExecutionHandler,
+  type SideEffectExecutionJob,
+} from '../../../src/workers/handlers/side-effect-execution.handler';
 import {
   as,
   createHarness,
@@ -125,6 +130,7 @@ describe('human approval and the idempotent side effect', () => {
 
   let executions: ToolExecutionService;
   let delivery: RecordingDelivery;
+  let deliveryAdapter: NotificationSideEffectDeliveryAdapter;
   let tool: NotificationSendTool;
   let gateway: ToolGateway;
   let handler: SideEffectExecutionHandler;
@@ -231,6 +237,7 @@ describe('human approval and the idempotent side effect', () => {
     harness = await createHarness();
     executions = new ToolExecutionService(harness.prisma);
     delivery = new RecordingDelivery();
+    deliveryAdapter = new NotificationSideEffectDeliveryAdapter(delivery);
     tool = new NotificationSendTool(harness.prisma, delivery);
 
     const registry = new ToolRegistry(APPLICATION_TOOL_DEFINITIONS);
@@ -240,11 +247,16 @@ describe('human approval and the idempotent side effect', () => {
     ];
     gateway = new ToolGateway(registry, executions, implementations);
     handler = new SideEffectExecutionHandler(
-      harness.prisma,
-      executions,
-      registry,
-      new AgentDefinitionRegistry(DEFINITIONS),
-      implementations,
+      new DeliverApprovedToolEffectUseCase(
+        executions,
+        new ToolAuthorizationService(
+          harness.prisma,
+          registry,
+          new AgentDefinitionRegistry(DEFINITIONS),
+          implementations,
+        ),
+        deliveryAdapter,
+      ),
       silentLogger as never,
     );
 
@@ -982,24 +994,29 @@ describe('human approval and the idempotent side effect', () => {
       delivery.reset();
       const { executionId } = await approved();
       const unsupported = new SideEffectExecutionHandler(
-        harness.prisma,
-        executions,
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        new AgentDefinitionRegistry(DEFINITIONS),
-        [
-          {
-            ref: KNOWLEDGE_REF,
-            execute: () => Promise.resolve({ passages: [] }),
-          },
-          new NotificationSendTool(harness.prisma, {
-            idempotent: false,
-            sender: 'Acme <no-reply@example.test>',
-            deliver: () => {
-              delivery.calls.push({} as NotificationMessage);
-              return Promise.resolve({ kind: 'rejected' as const });
-            },
-          }),
-        ],
+        new DeliverApprovedToolEffectUseCase(
+          executions,
+          new ToolAuthorizationService(
+            harness.prisma,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            new AgentDefinitionRegistry(DEFINITIONS),
+            [
+              {
+                ref: KNOWLEDGE_REF,
+                execute: () => Promise.resolve({ passages: [] }),
+              },
+              new NotificationSendTool(harness.prisma, {
+                idempotent: false,
+                sender: 'Acme <no-reply@example.test>',
+                deliver: () => {
+                  delivery.calls.push({} as NotificationMessage);
+                  return Promise.resolve({ kind: 'rejected' as const });
+                },
+              }),
+            ],
+          ),
+          deliveryAdapter,
+        ),
         silentLogger as never,
       );
 
@@ -1187,17 +1204,22 @@ describe('human approval and the idempotent side effect', () => {
       delivery.reset();
       const { executionId } = await approved();
       const narrowed = new SideEffectExecutionHandler(
-        harness.prisma,
-        executions,
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        new AgentDefinitionRegistry([approvalAgent([KNOWLEDGE_REF])]),
-        [
-          {
-            ref: KNOWLEDGE_REF,
-            execute: () => Promise.resolve({ passages: [] }),
-          },
-          tool,
-        ],
+        new DeliverApprovedToolEffectUseCase(
+          executions,
+          new ToolAuthorizationService(
+            harness.prisma,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            new AgentDefinitionRegistry([approvalAgent([KNOWLEDGE_REF])]),
+            [
+              {
+                ref: KNOWLEDGE_REF,
+                execute: () => Promise.resolve({ passages: [] }),
+              },
+              tool,
+            ],
+          ),
+          deliveryAdapter,
+        ),
         silentLogger as never,
       );
 

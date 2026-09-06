@@ -5,9 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 const SOURCE_ROOT = resolve(
   dirname(fileURLToPath(import.meta.url)),
-  '../../../../src',
+  '../../../src',
 );
-const RUNS_ROOT = join(SOURCE_ROOT, 'modules', 'runs');
+const MODULES_ROOT = join(SOURCE_ROOT, 'modules');
+const HANDLERS_ROOT = join(SOURCE_ROOT, 'workers', 'handlers');
 
 // Prisma's client is machine-written and enormous; it is a leaf for this walk.
 const OPAQUE = [join(SOURCE_ROOT, 'generated')];
@@ -74,8 +75,11 @@ function reachableFrom(entryPoints: string[]): {
   return { files, packages };
 }
 
-describe('the run use-case boundary', () => {
-  const boundaryFiles = sourceFilesUnder(RUNS_ROOT);
+describe.each([
+  ['runs', 2, 'ai/execution/agent-run.service.ts'],
+  ['approvals', 1, 'ai/tools/tool-authorization.service.ts'],
+])('the %s use-case boundary', (family, useCaseCount, mustReach) => {
+  const boundaryFiles = sourceFilesUnder(join(MODULES_ROOT, family));
   // A composition root is allowed to name a transport; a use case is not, so
   // the transitive walk starts from the callable surface alone.
   const useCases = boundaryFiles.filter((file) =>
@@ -85,12 +89,12 @@ describe('the run use-case boundary', () => {
   const reached = [...files].map((file) => relative(SOURCE_ROOT, file)).sort();
 
   it('has something to check', () => {
-    expect(useCases.length).toBe(2);
+    expect(useCases.length).toBe(useCaseCount);
     expect(files.size).toBeGreaterThan(useCases.length);
   });
 
   it.each(['bullmq', 'ioredis'])(
-    'is never imported directly alongside %s, anywhere in the boundary',
+    'never imports %s directly, anywhere in the boundary',
     (forbidden) => {
       for (const file of boundaryFiles) {
         expect(specifiersIn(file)).not.toContain(forbidden);
@@ -135,8 +139,47 @@ describe('the run use-case boundary', () => {
     }
   });
 
-  it('does reach the durable run store, so the walk is not vacuous', () => {
-    expect(reached).toContain('ai/execution/agent-run.service.ts');
-    expect(reached).toContain('ai/execution/agent-runner.service.ts');
+  it('does reach the authority it decides with, so the walk is not vacuous', () => {
+    expect(reached).toContain(mustReach);
   });
+});
+
+// The other half of the same statement: what the queue side is left holding.
+describe('the queue handlers the use cases replaced policy in', () => {
+  const ALLOWED = [
+    '@nestjs/common',
+    'bullmq',
+    'nestjs-pino',
+    '../../infrastructure/queue',
+    '../../modules/runs',
+    '../../modules/approvals',
+  ];
+
+  it.each(['agent-execution.handler.ts', 'side-effect-execution.handler.ts'])(
+    '%s imports a transport, a logger and one use case, and nothing else',
+    (name) => {
+      const specifiers = specifiersIn(join(HANDLERS_ROOT, name));
+
+      expect(specifiers.length).toBeGreaterThan(0);
+      for (const specifier of specifiers) expect(ALLOWED).toContain(specifier);
+    },
+  );
+
+  it.each(['agent-execution.handler.ts', 'side-effect-execution.handler.ts'])(
+    '%s reaches no database, registry or tool implementation',
+    (name) => {
+      const source = readFileSync(join(HANDLERS_ROOT, name), 'utf8');
+
+      for (const authority of [
+        'PrismaService',
+        'ToolRegistry',
+        'TOOL_IMPLEMENTATIONS',
+        'AgentDefinitionRegistry',
+        'ToolExecutionService',
+        'AgentRunService',
+      ]) {
+        expect(source).not.toContain(authority);
+      }
+    },
+  );
 });

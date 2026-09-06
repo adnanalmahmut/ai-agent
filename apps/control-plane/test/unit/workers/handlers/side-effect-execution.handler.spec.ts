@@ -5,25 +5,33 @@ import { z } from 'zod';
 import { AgentDefinitionRegistry } from '../../../../src/ai/agents/agent-definition.registry';
 import type { AgentDefinition } from '../../../../src/ai/agents/agent.types';
 import { MODEL_IDS } from '../../../../src/ai/models/model-catalog';
-import type { ExternalEffectOutcome } from '../../../../src/infrastructure/mail/notification-delivery.port';
 import { digestValue } from '../../../../src/ai/tools/digest';
-import {
-  EFFECT_RETRY_WINDOW_MS,
-  SIDE_EFFECT_ATTEMPT_FAILED,
-  SideEffectExecutionHandler,
-  idempotencyKeyFor,
-} from '../../../../src/workers/handlers/side-effect-execution.handler';
+import type {
+  SideEffectDeliveryCommand,
+  SideEffectDeliveryPort,
+} from '../../../../src/ai/tools/side-effect-delivery.port';
+import { ToolAuthorizationService } from '../../../../src/ai/tools/tool-authorization.service';
 import type {
   EffectSettlement,
   SideEffectExecutionRow,
 } from '../../../../src/ai/tools/tool-execution.service';
 import { ToolRegistry } from '../../../../src/ai/tools/tool.registry';
-import { APPLICATION_TOOL_DEFINITIONS } from '../../../../src/features/agent-management/tools/definitions';
 import {
   SideEffectPreconditionError,
   type PreparedEffect,
   type SideEffectToolImplementation,
 } from '../../../../src/ai/tools/tool.types';
+import { APPLICATION_TOOL_DEFINITIONS } from '../../../../src/features/agent-management/tools/definitions';
+import type { ExternalEffectOutcome } from '../../../../src/infrastructure/mail/notification-delivery.port';
+import {
+  DeliverApprovedToolEffectUseCase,
+  EFFECT_RETRY_WINDOW_MS,
+  idempotencyKeyFor,
+} from '../../../../src/modules/approvals';
+import {
+  SIDE_EFFECT_ATTEMPT_FAILED,
+  SideEffectExecutionHandler,
+} from '../../../../src/workers/handlers/side-effect-execution.handler';
 
 const REF = 'notification.send@1';
 
@@ -84,7 +92,12 @@ const logger = {
 
 describe('SideEffectExecutionHandler', () => {
   let current: SideEffectExecutionRow | null;
-  let deliver: jest.Mock<(key: string) => Promise<ExternalEffectOutcome>>;
+  let deliver: jest.Mock<
+    (
+      command: SideEffectDeliveryCommand,
+      key: string,
+    ) => Promise<ExternalEffectOutcome>
+  >;
   let prepare: jest.Mock<() => Promise<PreparedEffect>>;
   let claim: jest.Mock<(...args: unknown[]) => Promise<boolean>>;
   let settle: jest.Mock<
@@ -123,18 +136,38 @@ describe('SideEffectExecutionHandler', () => {
     prepareEffect: prepare,
   });
 
+  const deliveryPort = (): SideEffectDeliveryPort => ({
+    deliver,
+  });
+
   const handler = (definitions: readonly AgentDefinition[] = [agent]) =>
     new SideEffectExecutionHandler(
-      prisma() as never,
-      executions() as never,
-      new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-      new AgentDefinitionRegistry(definitions),
-      [implementation()],
+      new DeliverApprovedToolEffectUseCase(
+        executions() as never,
+        new ToolAuthorizationService(
+          prisma() as never,
+          new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+          new AgentDefinitionRegistry(definitions),
+          [implementation()],
+        ),
+        deliveryPort(),
+      ),
       logger as never,
     );
 
   const settlements = () =>
     settle.mock.calls.map(([, , settlement]) => settlement);
+
+  const commandPayload: SideEffectDeliveryCommand = {
+    tool: REF,
+    payloadDigest: 'digest-a',
+    payload: {
+      to: 'sara@example.com',
+      subject: 'Handoff ready',
+      text: 'The draft is ready.',
+      html: '<p>The draft is ready.</p>',
+    },
+  };
 
   beforeEach(() => {
     current = row();
@@ -145,7 +178,7 @@ describe('SideEffectExecutionHandler', () => {
       } as const),
     );
     prepare = jest.fn(() =>
-      Promise.resolve({ payloadDigest: 'digest-a', deliver }),
+      Promise.resolve({ payloadDigest: 'digest-a', command: commandPayload }),
     );
     claim = jest.fn(() => Promise.resolve(true));
     settle = jest.fn(() => Promise.resolve(true));
@@ -319,7 +352,10 @@ describe('SideEffectExecutionHandler', () => {
       await handler().handle(job());
 
       expect(claim).toHaveBeenCalledWith('exec_1', 'org_1', 0, 'digest-a');
-      expect(deliver).toHaveBeenCalledWith('notification.send@1:exec_1');
+      expect(deliver).toHaveBeenCalledWith(
+        commandPayload,
+        'notification.send@1:exec_1',
+      );
       expect(settlements()).toEqual([
         { status: 'SUCCEEDED', providerMessageId: 'msg_1' },
       ]);
@@ -334,7 +370,7 @@ describe('SideEffectExecutionHandler', () => {
       });
       await handler().handle(job({ attemptsMade: 1 }));
 
-      const keys = deliver.mock.calls.map(([key]) => key);
+      const keys = deliver.mock.calls.map(([, key]) => key);
       expect(keys).toEqual([
         'notification.send@1:exec_1',
         'notification.send@1:exec_1',
@@ -440,9 +476,13 @@ describe('SideEffectExecutionHandler', () => {
       let reads = 0;
       (
         h as unknown as {
-          executions: { loadSideEffect: () => Promise<SideEffectExecutionRow> };
+          delivery: {
+            executions: {
+              loadSideEffect: () => Promise<SideEffectExecutionRow>;
+            };
+          };
         }
-      ).executions.loadSideEffect = () =>
+      ).delivery.executions.loadSideEffect = () =>
         Promise.resolve(reads++ === 0 ? row() : row({ status: 'SUCCEEDED' }));
 
       await expect(h.handle(job())).resolves.toBeUndefined();
@@ -483,11 +523,16 @@ describe('SideEffectExecutionHandler', () => {
 
     const withLogger = (log: unknown) =>
       new SideEffectExecutionHandler(
-        prisma() as never,
-        executions() as never,
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        new AgentDefinitionRegistry([agent]),
-        [implementation()],
+        new DeliverApprovedToolEffectUseCase(
+          executions() as never,
+          new ToolAuthorizationService(
+            prisma() as never,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            new AgentDefinitionRegistry([agent]),
+            [implementation()],
+          ),
+          deliveryPort(),
+        ),
         log as never,
       );
 

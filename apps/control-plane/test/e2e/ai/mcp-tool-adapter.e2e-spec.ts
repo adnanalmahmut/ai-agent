@@ -16,31 +16,36 @@ import { z } from 'zod';
 import { AgentDefinitionRegistry } from '../../../src/ai/agents/agent-definition.registry';
 import type { AgentDefinition } from '../../../src/ai/agents/agent.types';
 import { MCP_SESSION_TTL_MS } from '../../../src/ai/agents/agent.types';
+import { MODEL_IDS } from '../../../src/ai/models/model-catalog';
+import { ToolAuthorizationService } from '../../../src/ai/tools/tool-authorization.service';
+import { ToolExecutionService } from '../../../src/ai/tools/tool-execution.service';
+import { ToolRegistry } from '../../../src/ai/tools/tool.registry';
 import { MCP_SESSION_TOOL_CALL_BUDGET } from '../../../src/features/agent-management/mcp/mcp-session.types';
 import { OrganizationAgentInstallationService } from '../../../src/features/agent-management/organization-agent-installation.service';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../../src/features/agent-management/tools/definitions';
 import { NotificationSendTool } from '../../../src/features/agent-management/tools/notification-send.tool';
-import {
-  idempotencyKeyFor,
-  SideEffectExecutionHandler,
-  type SideEffectExecutionJob,
-} from '../../../src/workers/handlers/side-effect-execution.handler';
-import { ToolExecutionService } from '../../../src/ai/tools/tool-execution.service';
-import { ToolRegistry } from '../../../src/ai/tools/tool.registry';
+import { NotificationSideEffectDeliveryAdapter } from '../../../src/features/agent-management/tools/notification-side-effect-delivery.adapter';
 import {
   FeatureFlagService,
   RuntimeSettingService,
 } from '../../../src/features/control-plane';
+import {
+  EMBEDDING_DIMENSIONS,
+  KnowledgeWriterService,
+} from '../../../src/features/knowledge';
 import type {
   ExternalEffectOutcome,
   NotificationDelivery,
   NotificationMessage,
 } from '../../../src/infrastructure/mail/notification-delivery.port';
 import {
-  EMBEDDING_DIMENSIONS,
-  KnowledgeWriterService,
-} from '../../../src/features/knowledge';
-import { MODEL_IDS } from '../../../src/ai/models/model-catalog';
+  DeliverApprovedToolEffectUseCase,
+  idempotencyKeyFor,
+} from '../../../src/modules/approvals';
+import {
+  SideEffectExecutionHandler,
+  type SideEffectExecutionJob,
+} from '../../../src/workers/handlers/side-effect-execution.handler';
 import {
   as,
   createHarness,
@@ -794,11 +799,16 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(delivery.calls).toEqual([]);
 
       const handler = new SideEffectExecutionHandler(
-        harness.prisma,
-        harness.app.get(ToolExecutionService),
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        harness.app.get(AgentDefinitionRegistry),
-        [new NotificationSendTool(harness.prisma, delivery)],
+        new DeliverApprovedToolEffectUseCase(
+          harness.app.get(ToolExecutionService),
+          new ToolAuthorizationService(
+            harness.prisma,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            harness.app.get(AgentDefinitionRegistry),
+            [new NotificationSendTool(harness.prisma, delivery)],
+          ),
+          new NotificationSideEffectDeliveryAdapter(delivery),
+        ),
         silentLogger as never,
       );
 

@@ -8,6 +8,7 @@ import { AI_RUNTIME_CONFIG } from '../ai/infrastructure/runtime-config.port';
 import { MastraRuntime } from '../ai/infrastructure/runtimes/mastra/mastra.runtime';
 import { AgentRunReconciler } from '../ai/execution/agent-run-reconciler.service';
 import { AgentRunner } from '../ai/execution/agent-runner.service';
+import { ToolAuthorizationService } from '../ai/tools/tool-authorization.service';
 import {
   AGENT_RUNTIMES,
   AgentRuntimeRegistry,
@@ -18,6 +19,7 @@ import { KnowledgeCoreModule } from '../features/knowledge';
 import { AgentDefinitionsModule } from '../features/agent-management/agent-definitions.module';
 import { AgentsModule } from '../features/agent-management/agents.module';
 import { AgentToolsModule } from '../features/agent-management/tools/agent-tools.module';
+import { DeliverApprovedToolEffectUseCase } from '../modules/approvals';
 import { ExecuteAgentRunUseCase } from '../modules/runs';
 import { AgentExecutionHandler } from './handlers/agent-execution.handler';
 import { SideEffectExecutionHandler } from './handlers/side-effect-execution.handler';
@@ -43,12 +45,15 @@ import { SideEffectExecutionHandler } from './handlers/side-effect-execution.han
     AgentRuntimeRegistry,
     AgentRunner,
     ExecuteAgentRunUseCase,
+    ToolAuthorizationService,
+    DeliverApprovedToolEffectUseCase,
     AgentExecutionHandler,
     SideEffectExecutionHandler,
     AgentRunReconciler,
   ],
   exports: [
     ExecuteAgentRunUseCase,
+    DeliverApprovedToolEffectUseCase,
     AgentExecutionHandler,
     SideEffectExecutionHandler,
     AgentRunReconciler,

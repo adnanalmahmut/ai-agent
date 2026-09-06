@@ -1,27 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import {
-  NOTIFICATION_DELIVERY,
-  type NotificationDelivery,
-} from '../../../infrastructure/mail/notification-delivery.port';
-import { PrismaService } from '../../../infrastructure/database';
 import type { AgentValue } from '../../../ai/agents/agent.types';
 import { digestStrings } from '../../../ai/tools/digest';
-import {
-  notificationSendInput,
-  type NotificationSendInput,
-} from './definitions/notification-send';
 import {
   SideEffectPreconditionError,
   type PreparedEffect,
   type SideEffectToolImplementation,
   type ToolInvocationContext,
-  type ToolRef,
 } from '../../../ai/tools/tool.types';
+import { PrismaService } from '../../../infrastructure/database';
+import {
+  NOTIFICATION_DELIVERY,
+  type NotificationDelivery,
+} from '../../../infrastructure/mail/notification-delivery.port';
+import {
+  notificationSendInput,
+  type NotificationSendInput,
+} from './definitions/notification-send';
 
 @Injectable()
 export class NotificationSendTool implements SideEffectToolImplementation {
-  readonly ref: ToolRef = 'notification.send@1';
+  readonly ref = 'notification.send@1' as const;
   readonly kind = 'side_effect' as const;
 
   constructor(
@@ -46,7 +45,7 @@ export class NotificationSendTool implements SideEffectToolImplementation {
     input: AgentValue,
     context: ToolInvocationContext,
   ): Promise<PreparedEffect> {
-    if (!this.delivery.idempotent) {
+    if (this.delivery.idempotent === false) {
       throw new SideEffectPreconditionError('delivery_unsupported');
     }
 
@@ -56,23 +55,26 @@ export class NotificationSendTool implements SideEffectToolImplementation {
       context.organizationId,
     );
     const rendered = renderNotification(parsed);
+    const payloadDigest = digestStrings([
+      this.delivery.sender,
+      recipient.email,
+      rendered.subject,
+      rendered.text,
+      rendered.html,
+    ]);
 
     return {
-      payloadDigest: digestStrings([
-        this.delivery.sender,
-        recipient.email,
-        rendered.subject,
-        rendered.text,
-        rendered.html,
-      ]),
-      deliver: (idempotencyKey) =>
-        this.delivery.deliver({
+      payloadDigest,
+      command: {
+        tool: this.ref,
+        payloadDigest,
+        payload: {
           to: recipient.email,
           subject: rendered.subject,
-          html: rendered.html,
           text: rendered.text,
-          idempotencyKey,
-        }),
+          html: rendered.html,
+        },
+      },
     };
   }
 
