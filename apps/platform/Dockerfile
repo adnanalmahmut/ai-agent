@@ -16,6 +16,7 @@ COPY patches patches
 COPY apps/platform/package.json apps/platform/package.json
 # The root prepare lifecycle builds workspace packages during install, so their
 # build inputs must already exist in the dependency layer.
+COPY packages/api-client packages/api-client
 COPY packages/authz-policy packages/authz-policy
 COPY packages/i18n-core packages/i18n-core
 COPY packages/ui packages/ui

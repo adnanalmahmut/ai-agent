@@ -81,11 +81,39 @@ for dockerfile in \
   fi
 done
 
-grep -Fq 'COPY packages/i18n-core packages/i18n-core' apps/backend/Dockerfile
-grep -Fq 'COPY packages/i18n-core packages/i18n-core' apps/web/Dockerfile
-grep -Fq 'COPY packages/ui packages/ui' apps/web/Dockerfile
-grep -Fq 'COPY packages/i18n-core packages/i18n-core' apps/platform/Dockerfile
-grep -Fq 'COPY packages/ui packages/ui' apps/platform/Dockerfile
+# A workspace dependency that is not copied into the image context resolves
+# locally and not in Docker, so the application builds on a developer's machine
+# and the image build fails on a module that plainly exists. The list used to be
+# written out here, and adding a package to an application was enough to leave
+# it behind -- so it is derived from what each application actually depends on.
+workspace_dependencies() {
+  sed -n 's/.*"\(@repo\/[a-z0-9-]*\)": *"workspace:\*".*/\1/p' "$1" | sort -u
+}
+
+package_directory() {
+  for candidate in packages/*/package.json; do
+    if grep -Fq "\"name\": \"$1\"" "$candidate"; then
+      dirname "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+for application in backend web platform; do
+  for dependency in $(workspace_dependencies "apps/$application/package.json"); do
+    directory=$(package_directory "$dependency") || {
+      echo "apps/$application depends on $dependency, which is not in packages/" >&2
+      exit 1
+    }
+
+    grep -Fq "COPY $directory $directory" "apps/$application/Dockerfile" || {
+      echo "apps/$application/Dockerfile does not copy $directory, which it depends on" >&2
+      exit 1
+    }
+  done
+done
 grep -Fq 'CMD ["node", "node_modules/prisma/build/index.js", "migrate", "deploy"]' apps/backend/Dockerfile
 if grep -Fq 'CMD ["pnpm",' apps/backend/Dockerfile; then
   echo 'migration runtime must not depend on a mutable Corepack cache' >&2
