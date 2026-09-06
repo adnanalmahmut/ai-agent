@@ -19,10 +19,13 @@ import {
 
 // Better Auth decides whether to run its origin and CSRF checks from
 // `advanced.disableOriginCheck`, and falls back to `isTest() ? true : false`
-// when the option is absent. The application pins the option to `false`, so the
-// checks below run under `NODE_ENV=test` exactly as they do in production.
-// Without that pin every assertion here would pass vacuously, which is what
-// makes this file the regression test for the pin itself.
+// when the option is absent. `advanced.disableCSRFCheck` is pinned alongside it
+// so the CSRF guarantee does not ride on that fallback either. Both are pinned
+// to `false`, so the checks below run under `NODE_ENV=test` exactly as they do
+// in production, and this file is the regression test for those pins: removing
+// `disableOriginCheck: false` fails 11 of the 13 tests here — the two
+// trusted-origin cases still pass, as they should, since they assert that a
+// legitimate request is carried out.
 describe('Better Auth origin and CSRF protection', () => {
   let harness: Harness;
   let user: TestUser;

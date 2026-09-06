@@ -196,14 +196,18 @@ export function createAuth(dependencies: {
     ],
 
     advanced: {
-      // Pinned rather than left to Better Auth's default, which resolves to
-      // `isTest() ? true : false` when this option is absent — so the origin
-      // and CSRF checks that run in production were silently off under
-      // `NODE_ENV=test`. Setting it here removes that gap: every environment
-      // makes the same decision, and only the trusted-origin list differs.
-      // Must stay a literal `false`; deriving it from the environment would
-      // reintroduce exactly the divergence this closes.
+      // Both pinned rather than left to Better Auth's defaults. Absent,
+      // `disableOriginCheck` resolves to `isTest() ? true : false`, so the
+      // origin checks that run in production were silently off under
+      // `NODE_ENV=test`. Absent, `disableCSRFCheck` makes CSRF ride on
+      // whatever `disableOriginCheck` resolved to, through a backward
+      // -compatibility path Better Auth documents as deprecated. Stating both
+      // means every environment makes the same decision and neither guarantee
+      // depends on the other, so a later change to one cannot quietly move the
+      // other. Must stay literal `false`; deriving either from the environment
+      // would reintroduce exactly the divergence this closes.
       disableOriginCheck: false,
+      disableCSRFCheck: false,
       ipAddress: {
         // Host Nginx overwrites this header from `$remote_addr`; Better Auth
         // uses it for both session attribution and its independent limiter.

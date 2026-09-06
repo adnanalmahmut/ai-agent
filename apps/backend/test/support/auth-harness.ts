@@ -230,25 +230,43 @@ export const errorBody = (response: Response): ErrorBody => {
   return b as ErrorBody;
 };
 
-// The origin a browser running the platform application would report. Taken
-// from the same configuration the application trusts, so the harness cannot
-// drift from `BETTER_AUTH_TRUSTED_ORIGINS` by hard-coding a string.
-export const trustedBrowserOrigin = new URL(
-  process.env.APP_PLATFORM_URL ?? 'http://localhost:3001/platform',
-).origin;
+// The origin a browser running the platform application would report.
+// `APP_PLATFORM_URL` and `BETTER_AUTH_TRUSTED_ORIGINS` are independent settings
+// that can disagree, so this asserts the agreement the suite depends on rather
+// than assuming it: a mismatch would otherwise surface as a puzzling 403 in
+// whichever test happened to run first.
+export const trustedBrowserOrigin = (() => {
+  const platformUrl =
+    process.env.APP_PLATFORM_URL ?? 'http://localhost:3001/platform';
+  const origin = new URL(platformUrl).origin;
 
-// Requests made through `as()` stand for a signed-in browser, and a browser
-// attaches `Origin` to every state-changing request it sends. Better Auth's
-// origin check is pinned on in every environment, including tests, so omitting
-// it here would model something no browser does. Tests that exist to pin the
-// missing- or foreign-Origin behavior build their request directly instead of
-// going through this helper.
+  const trusted = (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (!trusted.includes(origin)) {
+    throw new Error(
+      `APP_PLATFORM_URL origin ${origin} is not in BETTER_AUTH_TRUSTED_ORIGINS ` +
+        `(${trusted.join(', ') || 'empty'}). The e2e harness signs its requests ` +
+        `with that origin, so the two settings have to agree.`,
+    );
+  }
+
+  return origin;
+})();
+
+// Requests made through `as()` stand for a signed-in browser. A browser
+// attaches `Origin` to the state-changing requests it sends, and Better Auth's
+// origin check — pinned on in every environment, including tests — requires it
+// there. It is deliberately not attached to `get`: a browser does not send
+// `Origin` on an ordinary same-origin navigation or fetch, Better Auth's
+// middleware returns early for GET, and adding it would model something that
+// does not happen. Tests that exist to pin the missing- or foreign-Origin
+// behavior build their request directly instead of going through this helper.
 export const as = (harness: Harness, user: Pick<TestUser, 'cookie'>) => ({
   get: (path: string) =>
-    request(harness.server)
-      .get(path)
-      .set('Cookie', user.cookie)
-      .set('Origin', trustedBrowserOrigin),
+    request(harness.server).get(path).set('Cookie', user.cookie),
   post: (path: string, body?: unknown) =>
     request(harness.server)
       .post(path)

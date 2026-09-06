@@ -179,41 +179,72 @@ accompany the fix.
 
 ## Origin and CSRF protection is pinned on
 
-`apps/backend/src/infrastructure/auth/auth.factory.ts` sets
-`advanced.disableOriginCheck: false` explicitly. Better Auth only falls back to
-`isTest() ? true : false` when the option is absent, so pinning it means
-`development`, `test`, `staging` and `production` all make the same decision
-and only the trusted-origin list differs. The value is a literal: deriving it
-from `NODE_ENV` would reintroduce the divergence it removes.
+`apps/backend/src/infrastructure/auth/auth.factory.ts` sets both
+`advanced.disableOriginCheck: false` and `advanced.disableCSRFCheck: false`
+explicitly. Better Auth only falls back to `isTest() ? true : false` for the
+first when the option is absent, and only couples CSRF to that fallback while
+the second is absent, so stating both means `development`, `test`, `staging`
+and `production` all make the same decision and only the trusted-origin list
+differs. Both are literals: deriving either from `NODE_ENV` would reintroduce
+the divergence they remove.
 
-In the installed `better-auth@1.6.27`, `context.skipOriginCheck` gates three
-things, all of which are therefore active under `NODE_ENV=test`:
+In the installed `better-auth@1.6.27`, `context.skipOriginCheck` gates:
 
 - `Origin` / `Referer` validation against `trustedOrigins`, for state-changing
   requests that carry a cookie (`validateOrigin`).
 - `callbackURL`, `redirectTo`, `errorCallbackURL` and `newUserCallbackURL`
   validation, both in the router-wide `originCheckMiddleware` and in the
   per-endpoint `originCheck` guard.
-- CSRF protection on sign-in and sign-up (`formCsrfMiddleware`), including the
-  cross-site navigation block. Better Auth couples this to `skipOriginCheck`
-  through `shouldSkipCSRFForBackwardCompat` whenever `disableCSRFCheck` is
-  unset, which it is here.
+
+`context.skipCSRFCheck` separately gates the CSRF protection on sign-in and
+sign-up (`formCsrfMiddleware`), including the cross-site navigation block.
+Better Auth would otherwise fold that into `skipOriginCheck` through
+`shouldSkipCSRFForBackwardCompat`, a path it documents as deprecated; pinning
+`disableCSRFCheck` means the CSRF guarantee no longer depends on the origin
+one, and a later change to either cannot quietly move the other.
 
 ### What this changed in the suite
 
-Enabling the checks failed 57 tests across four suites, every one of them
-because a request modelled a browser without sending what a browser sends. The
-fix was to the harness, not to the protection:
+Enabling the checks against the unmodified harness failed **441 of 827 tests
+across 15 of the 34 e2e suites**, every one of them because a request modelled
+a browser without sending what a browser sends. The breadth comes from a single
+helper: almost every feature suite reaches Better Auth through `as()` to create
+an organization or invite a member before it can test anything else, so one
+missing header failed whole suites at setup.
 
-- `test/support/auth-harness.ts` — `as()` stands for a signed-in browser, so it
-  now attaches `Origin: <APP_PLATFORM_URL origin>` to the requests it builds.
-  The value is derived from configuration rather than written out, so it cannot
-  drift from `BETTER_AUTH_TRUSTED_ORIGINS`. This accounted for all but eight of
-  the failures.
+| Suite | Failing tests |
+| --- | --- |
+| `platform/organization` | 56 |
+| `features/content-ideas` | 49 |
+| `features/knowledge-management` | 49 |
+| `features/content-projects` | 46 |
+| `ai/mcp-tool-adapter` | 45 |
+| `ai/agent-action-approval` | 44 |
+| `features/control-plane` | 33 |
+| `features/organization-business-profile` | 27 |
+| `features/control-plane-audit` | 27 |
+| `ai/tool-execution` | 25 |
+| `features/organization-agent-installation` | 15 |
+| `features/knowledge-embedding` | 10 |
+| `platform/auth` | 8 |
+| `platform/super-admin-floor` | 6 |
+| `platform/admin-rbac` | 4 |
+
+The fix was to the harness, not to the protection:
+
+- `test/support/auth-harness.ts` — `as()` stands for a signed-in browser, so
+  its `post`, `put` and `del` attach `Origin: <APP_PLATFORM_URL origin>`. `get`
+  deliberately does not: a browser does not send `Origin` on an ordinary
+  same-origin read, and Better Auth's middleware returns early for GET.
+  `APP_PLATFORM_URL` and `BETTER_AUTH_TRUSTED_ORIGINS` are independent
+  settings, so the harness now asserts at load that the first's origin appears
+  in the second and fails with a named error rather than a stray `403`. This
+  one helper accounted for all but the eight failures below.
 - `test/e2e/platform/auth.e2e-spec.ts` — four cookie-carrying requests built
   directly now send the same header, and three tests that drove a foreign
   destination through a `200` were changed to name a destination on a trusted
-  origin, which is what they were actually about.
+  origin, which is what they were actually about. (The eighth followed from one
+  of those three.)
 
 Tests that exist to pin missing- or foreign-`Origin` behavior build their
 request directly and never go through `as()`.
@@ -255,9 +286,21 @@ still can be: directly against the callbacks in
 destination on a *trusted* origin that the product nonetheless did not choose —
 which passes layer 1 and is still discarded by layer 2.
 
-Removing `disableOriginCheck: false` fails 11 of the 13 tests in
-`auth-origin.e2e-spec.ts`; the two that survive are the trusted-origin positive
-cases, which are meant to pass either way.
+Each pin was mutation-tested separately against the 13 tests in
+`auth-origin.e2e-spec.ts`:
+
+| Mutation | Result |
+| --- | --- |
+| remove `disableOriginCheck: false` | 11 failed, 2 passed |
+| set `disableCSRFCheck: true` | 8 failed, 5 passed |
+
+Removing the origin pin loses both the `Origin` enforcement and the
+destination validation. Disabling CSRF loses only the `Origin` enforcement —
+`validateOrigin` returns on `skipCSRFCheck` before it reaches the trusted-origin
+comparison — while the three security-mail destination cases still refuse,
+which is what shows the two flags now guard different things. In both runs the
+two survivors, or five, include the trusted-origin positive cases, which assert
+that a legitimate request is carried out and are meant to pass either way.
 
 ### `TEST` does not reach the deployed backend
 
