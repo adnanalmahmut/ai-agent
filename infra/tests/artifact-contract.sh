@@ -243,6 +243,14 @@ reader_names=$(sed -n '/^def catalog:/,/];/p' infra/release/manifest.jq |
 [ "$reader_names" = "$catalog_names" ] ||
   fail "infra/release/manifest.jq allowlist does not match the component catalog"
 
+# Requiredness is refused against, so the reader's copy of it has to agree too.
+reader_required=$(sed -n '/^def catalog:/,/];/p' infra/release/manifest.jq |
+  sed -n 's/.*name: "\([a-z0-9-]*\)".*required: \(true\|false\).*/\1 \2/p' | sort)
+catalog_required=$(grep -v '^[[:space:]]*#' "$catalog" | grep -v '^[[:space:]]*$' |
+  awk '{ print $1, $3 }' | sort)
+[ "$reader_required" = "$catalog_required" ] ||
+  fail "infra/release/manifest.jq disagrees with the catalog about which components are required"
+
 # The two host scripts, which run from /usr/local/sbin and cannot read the
 # catalog at all.
 deploy_names=$(sed -n '/^release_components() {/,/^}/p' infra/deploy/ai-agent-deploy |
@@ -298,7 +306,8 @@ jq -n \
                 {name:"platform",repository:($registry+"/platform"),digest:$p,sourceSha:$sha,required:true,compatibility:{hostBundleMinVersion:11}}]}' \
   >"$fixtures/v3.json"
 
-read_manifest() { jq -r --arg registry "$registry" -f infra/release/manifest.jq "$1"; }
+read_with() { jq -r --arg registry "$registry" -f "$1" "$2"; }
+read_manifest() { read_with infra/release/manifest.jq "$1"; }
 
 expected_output="BACKEND_DIGEST=$(digest_for 1 | cut -d: -f2)
 BACKEND_MIGRATION_DIGEST=$(digest_for 2 | cut -d: -f2)
@@ -350,5 +359,50 @@ jq '.backend = "ghcr.io/attacker/backend@" + (.backend | split("@")[1])' \
 if read_manifest "$fixtures/case.json" >/dev/null 2>&1; then
   fail 'the reader accepted a version 2 manifest naming a foreign repository'
 fi
+
+# ---------------------------------------------------------------------------
+# Requiredness, and a catalog that grows
+# ---------------------------------------------------------------------------
+
+# Whether a component is required is the catalog's answer, not the manifest's.
+refuses 'a manifest downgrading a required component to optional' \
+  '(.components[] | select(.name == "backend")).required = false'
+
+# The catalog will gain components; version 2 will not. Reading a legacy
+# manifest has to stay a matter of the four fields it actually had, so the same
+# reader is asked again with a component in the catalog that no version 2
+# release could have carried.
+sed 's/^def catalog: \[$/&\n  { name: "synthetic-optional", repository: "synthetic-optional", required: false },/' \
+  infra/release/manifest.jq >"$fixtures/grown.jq"
+grep -Fq 'synthetic-optional' "$fixtures/grown.jq" ||
+  fail 'the catalog in infra/release/manifest.jq is no longer shaped as this test patches it'
+
+for version in v2 v3; do
+  actual=$(read_with "$fixtures/grown.jq" "$fixtures/$version.json") ||
+    fail "adding an optional component to the catalog broke a valid $version manifest"
+  [ "$actual" = "$expected_output" ] ||
+    fail "adding an optional component to the catalog changed how $version reads:
+$actual"
+done
+
+# Optional is a catalog fact too: a manifest cannot promote one.
+jq --arg registry "$registry" \
+  '.components += [{name:"synthetic-optional",repository:($registry+"/synthetic-optional"),
+                    digest:.components[0].digest,sourceSha:.sha,required:true,
+                    compatibility:{hostBundleMinVersion:11}}]' \
+  "$fixtures/v3.json" >"$fixtures/case.json"
+if read_with "$fixtures/grown.jq" "$fixtures/case.json" >/dev/null 2>&1; then
+  fail 'the reader accepted a manifest promoting an optional component to required'
+fi
+
+# ...and an optional component that is declared honestly is carried through, so
+# the refusal above is about the disagreement and not about the name.
+jq --arg registry "$registry" \
+  '.components += [{name:"synthetic-optional",repository:($registry+"/synthetic-optional"),
+                    digest:.components[0].digest,sourceSha:.sha,required:false,
+                    compatibility:{hostBundleMinVersion:11}}]' \
+  "$fixtures/v3.json" >"$fixtures/case.json"
+read_with "$fixtures/grown.jq" "$fixtures/case.json" >/dev/null ||
+  fail 'the reader refused a correctly declared optional component'
 
 echo 'artifact handoff contract: ok'

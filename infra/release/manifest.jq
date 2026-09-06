@@ -9,7 +9,8 @@
 # Everything this emits has already been checked against the catalog below. A
 # component the catalog does not name, a repository that is not the one that
 # component publishes to, a duplicate, a malformed digest or source SHA, a
-# component built from a different commit than the release, or a missing
+# component built from a different commit than the release, a component that
+# disagrees with the catalog about whether it is required, or a missing
 # required component is a refusal. A manifest is an input, and the fact that it
 # arrived through a trusted artifact channel is not a reason to let it name the
 # image a host will pull.
@@ -17,8 +18,9 @@
 # Arguments:
 #   $registry  the repository-owned namespace every component must live under
 #
-# Output: one `<COMPONENT>_DIGEST=<64 hex>` line per catalog component, with the
-# name upper-cased and hyphens replaced, ready for $GITHUB_ENV.
+# Output: one `<COMPONENT>_DIGEST=<64 hex>` line per component the release
+# carries, with the name upper-cased and hyphens replaced, ready for
+# $GITHUB_ENV.
 
 def catalog: [
   { name: "backend", repository: "backend", required: true },
@@ -27,15 +29,20 @@ def catalog: [
   { name: "platform", repository: "platform", required: true }
 ];
 
-# The v2 field whose value carries each component. `migration` is the one name
-# that never matched its repository, and this mapping is where that alias ends:
-# nothing past normalisation refers to a component by it.
-def legacy_field: {
-  "backend": "backend",
-  "backend-migration": "migration",
-  "web": "web",
-  "platform": "platform"
-};
+# The components a version 2 release described, and the field each one's image
+# reference lived in. `migration` is the one name that never matched its
+# repository, and this mapping is where that alias ends: nothing past
+# normalisation refers to a component by it.
+#
+# This list is frozen. It describes a format that is no longer published, so it
+# must not follow the catalog: a component added to the catalog today was not
+# in any version 2 release, and reading one must not go looking for it.
+def legacy_v2_catalog: [
+  { name: "backend", field: "backend" },
+  { name: "backend-migration", field: "migration" },
+  { name: "web", field: "web" },
+  { name: "platform", field: "platform" }
+];
 
 def reject($why): error("release manifest rejected: " + $why);
 
@@ -74,19 +81,19 @@ def normalised:
             }
         )
     elif $manifest.schemaVersion == 2 then
-      # Every version 2 release carried exactly the four components, all of them
-      # required, all built from the release commit. That is what the format
-      # could express, so it is what it is read as.
-      catalog
+      # Every version 2 release carried exactly the components below, all built
+      # from the release commit. The format has no way to say whether one is
+      # required, so the record does not claim it did: `required` is left unset
+      # and the catalog is the only thing that decides.
+      legacy_v2_catalog
       | map(
           . as $entry
-          | (parse_reference($entry.name; $manifest[legacy_field[$entry.name]])) as $parsed
+          | (parse_reference($entry.name; $manifest[$entry.field])) as $parsed
           | {
               name: $entry.name,
               repository: $parsed.repository,
               digest: $parsed.digest,
               sourceSha: require_string($manifest.sha; "release SHA"),
-              required: true,
               hostBundleMinVersion: require_number($manifest.hostBundleMinVersion; "release host bundle minimum")
             }
         )
@@ -108,6 +115,15 @@ def validated($registry; $releaseSha; $releaseMinimum):
       | if $known == null then reject("unknown component " + $component.name) else . end
       | if $component.repository != ($registry + "/" + $known.repository)
         then reject("component " + $component.name + " names an unexpected repository " + $component.repository)
+        else . end
+      # Requiredness is the catalog's to decide, so a manifest that disagrees
+      # with it is refused rather than believed. A format that cannot express
+      # requiredness at all declares nothing here and has nothing to disagree
+      # with; the missing-component check above still holds it to the catalog.
+      | if ($component | has("required")) and $component.required != $known.required
+        then reject("component " + $component.name + " declares required "
+                    + ($component.required | tostring) + ", but the catalog declares "
+                    + ($known.required | tostring))
         else . end
       | if ($component.digest | test("^sha256:[0-9a-f]{64}$")) then . else
           reject("component " + $component.name + " has a malformed digest") end
