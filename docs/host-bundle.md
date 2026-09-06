@@ -10,7 +10,7 @@ inventory is `infra/host-bundle/files`; the installed manifest is
 | `infra/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `infra/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 12 and the current minimum is 11. Bump `VERSION` whenever
+The current release ships bundle 13 and the current minimum is 11. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.
@@ -21,13 +21,19 @@ deployment overlay is a second installed file, and a host carrying only bundle
 service at all. `ai-agent-deploy` refuses such a host with `this release
 requires host bundle 11`.
 
-Bundle 12 leaves the minimum at 11. It records the move of the deployment and
-host-bundle sources under `infra/`, which changed three installed files by one
-comment or message line each and nothing else: same destinations, same modes,
-same behaviour. A host already carrying bundle 11 runs this release without
-being reinstalled. The bump is here because the rule in `infra/host-bundle/files`
-is that any change to a listed file gets a new version, and leaving a path that
-no longer exists inside a file we ship to a host is not worth avoiding it for.
+Bundles 12 and 13 both leave the minimum at 11. Bundle 12 recorded the move of
+the deployment and host-bundle sources under `infra/`: three installed files
+changed by one comment or message line each, same destinations, same modes,
+same behaviour.
+
+Bundle 13 teaches the deploy wrapper and release retention to describe a release
+as a component list. A host still on 11 or 12 deploys a release built from this
+checkout without being reinstalled: the forced-command grammar is unchanged, the
+extra `io.ai-agent.component.name` label an older wrapper simply does not read,
+and the flat release record an older wrapper writes stays readable by the new
+one. So the minimum does not move. Reinstalling gets the component record and
+the wrong-component refusal; not reinstalling costs neither correctness nor
+rollback.
 
 ## Contents and installation
 
@@ -60,7 +66,12 @@ The publish workflow reads `MIN_VERSION`, records it in
 `image-digests.json`, and stamps every application image with:
 
 - `io.ai-agent.release.sha`;
-- `io.ai-agent.host-bundle.min-version`.
+- `io.ai-agent.host-bundle.min-version`;
+- `io.ai-agent.component.name`.
+
+The component label is what makes a digest answerable for which slot it fills.
+Four valid digests from one release, handed over in the wrong four positions,
+satisfy every other check; this one does not.
 
 After pulling the pinned digests, the deploy wrapper checks those labels against
 the requested release and installed bundle. The requirement travels with the
@@ -71,8 +82,8 @@ Before any migration, the wrapper checks in order:
 1. installed bundle manifest, modes, and digests;
 2. available space on Docker's data root;
 3. required runtime values without printing them;
-4. release SHA and minimum-bundle labels on every image;
-5. Compose resolution to the four pinned digests;
+4. release SHA, component name, and minimum-bundle labels on every image;
+5. Compose resolution to the pinned component digests;
 6. required PostgreSQL extensions.
 
 Rollback uses the same checks without running migrations. Repository tests keep

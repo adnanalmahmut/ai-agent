@@ -184,13 +184,171 @@ grep -Fq 'gh run download' "$production" ||
 #
 # Asserted here so an artifact-action change can never be the thing that
 # loosens digest validation.
-grep -Fq 'schemaVersion:2' "$publish" ||
-  fail 'the publish manifest no longer declares schemaVersion 2'
+grep -Fq 'schemaVersion:3' "$publish" ||
+  fail 'the publish manifest no longer declares schemaVersion 3'
 for workflow in "$staging" "$production"; do
-  grep -Fq '.schemaVersion == 2' "$workflow" ||
-    fail "$workflow no longer requires manifest schemaVersion 2"
+  grep -Fq '(.schemaVersion == 2 or .schemaVersion == 3)' "$workflow" ||
+    fail "$workflow no longer accepts exactly the two known manifest versions"
   grep -Fq '(.hostBundleMinVersion | type) == "number"' "$workflow" ||
     fail "$workflow no longer requires a numeric host bundle minimum"
+  # The reader is the allowlist. Read from the repository, at the same trust
+  # level as the workflow file itself, and never from a path the artifact names.
+  grep -Fq 'infra/release/manifest.jq' "$workflow" ||
+    fail "$workflow no longer reads the manifest through the shared reader"
+  grep -Fq 'sparse-checkout: infra/release' "$workflow" ||
+    fail "$workflow no longer checks the reader out of the repository"
 done
+
+# ---------------------------------------------------------------------------
+# One catalog, and every copy of it
+# ---------------------------------------------------------------------------
+
+# `infra/release/components` says what a release is made of. Several places
+# necessarily carry their own copy -- bake is HCL, the deploy workflows must not
+# check out a moving branch to learn the allowlist, and the two host scripts run
+# with no repository in sight. Each copy is compared against the catalog here,
+# so adding a component is a change to the catalog plus whatever this test then
+# reports, rather than a change that silently leaves five lists behind.
+catalog=infra/release/components
+[ -r "$catalog" ] || fail 'the release component catalog is missing'
+catalog_names=$(grep -v '^[[:space:]]*#' "$catalog" | grep -v '^[[:space:]]*$' | awk '{ print $1 }' | sort)
+[ -n "$catalog_names" ] || fail 'the release component catalog is empty'
+
+grep -v '^[[:space:]]*#' "$catalog" | grep -v '^[[:space:]]*$' | while read -r name repository required; do
+  printf '%s' "$name" | grep -Eq '^[a-z][a-z0-9-]*$' ||
+    fail "catalog component name is malformed: $name"
+  printf '%s' "$repository" | grep -Eq '^[a-z][a-z0-9-]*$' ||
+    fail "catalog repository is malformed: $repository"
+  case $required in true | false) ;; *) fail "catalog component $name must say whether it is required" ;; esac
+done
+
+# The images bake actually builds.
+bake_names=$(sed -n '/^group "release"/,/}/p' docker-bake.hcl |
+  sed -n 's/.*targets = \[\(.*\)\].*/\1/p' | tr -d '" ' | tr ',' '\n' | sort)
+[ "$bake_names" = "$catalog_names" ] ||
+  fail "docker-bake.hcl release group does not match the component catalog:
+  catalog: $(printf '%s' "$catalog_names" | tr '\n' ' ')
+  bake:    $(printf '%s' "$bake_names" | tr '\n' ' ')"
+
+# Every release target must stamp its own component name, or the host cannot
+# tell one release image from another of the same release.
+for name in $catalog_names; do
+  grep -Fq "\"io.ai-agent.component.name\" = \"$name\"" docker-bake.hcl ||
+    fail "docker-bake.hcl does not label the $name image with its component name"
+done
+
+# The reader's allowlist.
+reader_names=$(sed -n '/^def catalog:/,/];/p' infra/release/manifest.jq |
+  sed -n 's/.*name: "\([a-z0-9-]*\)".*/\1/p' | sort)
+[ "$reader_names" = "$catalog_names" ] ||
+  fail "infra/release/manifest.jq allowlist does not match the component catalog"
+
+# The two host scripts, which run from /usr/local/sbin and cannot read the
+# catalog at all.
+deploy_names=$(sed -n '/^release_components() {/,/^}/p' infra/deploy/ai-agent-deploy |
+  sed -n 's/^ *"\([a-z0-9-]*\) \$.*/\1/p' | sort)
+[ "$deploy_names" = "$catalog_names" ] ||
+  fail "ai-agent-deploy does not build a release record for exactly the catalog components"
+
+retention_names=$(sed -n "s/^release_components='\(.*\)'\$/\1/p" infra/deploy/release-retention.sh |
+  tr ' ' '\n' | cut -d: -f1 | sort)
+[ "$retention_names" = "$catalog_names" ] ||
+  fail "release retention does not protect exactly the catalog components"
+
+retention_repositories=$(sed -n "s/^application_repositories='\(.*\)'\$/\1/p" infra/deploy/release-retention.sh |
+  tr ' ' '\n' | sort)
+catalog_repositories=$(grep -v '^[[:space:]]*#' "$catalog" | grep -v '^[[:space:]]*$' | awk '{ print $2 }' | sort)
+[ "$retention_repositories" = "$catalog_repositories" ] ||
+  fail 'release retention does not consider exactly the catalog repositories'
+
+# ---------------------------------------------------------------------------
+# The reader, against real manifests
+# ---------------------------------------------------------------------------
+
+# Static greps above protect the wiring. They cannot tell whether the reader
+# accepts what it should and refuses what it must, so that is asserted against
+# actual documents.
+command -v jq >/dev/null 2>&1 || {
+  echo 'jq is required for release manifest schema checks' >&2
+  exit 1
+}
+
+fixtures=$(mktemp -d)
+trap 'rm -rf "$fixtures"' EXIT HUP INT TERM
+
+registry=ghcr.io/adnanalmahmut/ai-agent
+release_sha=$(printf 'a%.0s' $(seq 40))
+digest_for() { printf 'sha256:%064d' "$1"; }
+
+jq -n \
+  --arg sha "$release_sha" --arg registry "$registry" \
+  --arg b "$(digest_for 1)" --arg m "$(digest_for 2)" \
+  --arg w "$(digest_for 3)" --arg p "$(digest_for 4)" \
+  '{schemaVersion:2,repository:"adnanalmahmut/ai-agent",sourceWorkflow:"CI",ciRunId:1,publishWorkflow:"Publish immutable images",publishRunId:2,sha:$sha,hostBundleMinVersion:11,backend:($registry+"/backend@"+$b),migration:($registry+"/backend-migration@"+$m),web:($registry+"/web@"+$w),platform:($registry+"/platform@"+$p)}' \
+  >"$fixtures/v2.json"
+
+jq -n \
+  --arg sha "$release_sha" --arg registry "$registry" \
+  --arg b "$(digest_for 1)" --arg m "$(digest_for 2)" \
+  --arg w "$(digest_for 3)" --arg p "$(digest_for 4)" \
+  '{schemaVersion:3,repository:"adnanalmahmut/ai-agent",sourceWorkflow:"CI",ciRunId:1,publishWorkflow:"Publish immutable images",publishRunId:2,sha:$sha,hostBundleMinVersion:11,
+    components:[{name:"backend",repository:($registry+"/backend"),digest:$b,sourceSha:$sha,required:true,compatibility:{hostBundleMinVersion:11}},
+                {name:"backend-migration",repository:($registry+"/backend-migration"),digest:$m,sourceSha:$sha,required:true,compatibility:{hostBundleMinVersion:11}},
+                {name:"web",repository:($registry+"/web"),digest:$w,sourceSha:$sha,required:true,compatibility:{hostBundleMinVersion:11}},
+                {name:"platform",repository:($registry+"/platform"),digest:$p,sourceSha:$sha,required:true,compatibility:{hostBundleMinVersion:11}}]}' \
+  >"$fixtures/v3.json"
+
+read_manifest() { jq -r --arg registry "$registry" -f infra/release/manifest.jq "$1"; }
+
+expected_output="BACKEND_DIGEST=$(digest_for 1 | cut -d: -f2)
+BACKEND_MIGRATION_DIGEST=$(digest_for 2 | cut -d: -f2)
+WEB_DIGEST=$(digest_for 3 | cut -d: -f2)
+PLATFORM_DIGEST=$(digest_for 4 | cut -d: -f2)"
+
+# Both formats have to reduce to the same thing, or "normalised" is a word and
+# not a property: the legacy `migration` field becomes the `backend-migration`
+# component and nothing downstream sees the difference.
+for version in v2 v3; do
+  actual=$(read_manifest "$fixtures/$version.json") ||
+    fail "the reader refused a valid $version manifest"
+  [ "$actual" = "$expected_output" ] ||
+    fail "the reader produced unexpected output for $version:
+$actual"
+done
+
+refuses() {
+  description=$1
+  filter=$2
+
+  jq "$filter" "$fixtures/v3.json" >"$fixtures/case.json"
+  if read_manifest "$fixtures/case.json" >/dev/null 2>&1; then
+    fail "the reader accepted $description"
+  fi
+}
+
+refuses 'a component the catalog does not name' \
+  '.components += [{name:"attacker",repository:"ghcr.io/attacker/x",digest:.components[0].digest,sourceSha:.sha,required:false,compatibility:{hostBundleMinVersion:11}}]'
+refuses 'a duplicated component' '.components += [.components[0]]'
+refuses 'a manifest with no backend' '.components |= map(select(.name != "backend"))'
+refuses 'a component published to somebody else'"'"'s repository' \
+  '.components[0].repository = "ghcr.io/attacker/backend"'
+refuses 'a malformed digest' '.components[0].digest = "sha256:short"'
+refuses 'a malformed source SHA' '.components[0].sourceSha = "nothex"'
+refuses 'a component built from another commit' \
+  '.components[0].sourceSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"[0:40]'
+refuses 'a component needing a newer host than the release declares' \
+  '.components[0].compatibility.hostBundleMinVersion = 12'
+refuses 'a component that does not say whether it is required' 'del(.components[0].required)'
+refuses 'a version 3 manifest with no components' 'del(.components)'
+refuses 'a manifest version nothing has ever published' '.schemaVersion = 4'
+refuses 'a malformed release SHA' '.sha = "nothex"'
+refuses 'a release with no host requirement' 'del(.hostBundleMinVersion)'
+
+# The legacy format gets the same treatment; it is read, not trusted.
+jq '.backend = "ghcr.io/attacker/backend@" + (.backend | split("@")[1])' \
+  "$fixtures/v2.json" >"$fixtures/case.json"
+if read_manifest "$fixtures/case.json" >/dev/null 2>&1; then
+  fail 'the reader accepted a version 2 manifest naming a foreign repository'
+fi
 
 echo 'artifact handoff contract: ok'

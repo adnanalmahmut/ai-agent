@@ -55,6 +55,27 @@ if [ "${1:-}" = image ]; then
   for argument in "$@"; do
     case $argument in *host-bundle.min-version*) printf '1\n'; exit 0 ;; esac
   done
+  # The component each image claims to be. Derived from the reference so the
+  # stub answers correctly without a table; a test that needs a mismatch
+  # overrides it explicitly.
+  for argument in "$@"; do
+    case $argument in *io.ai-agent.component.name*) format_component=yes ;; esac
+    image=$argument
+  done
+  if [ "${format_component:-no}" = yes ]; then
+    if [ -n "${COMPONENT_LABEL_OVERRIDE:-}" ]; then
+      printf '%s\n' "$COMPONENT_LABEL_OVERRIDE"
+      exit 0
+    fi
+    case $image in
+      *"/backend-migration@"*) printf 'backend-migration\n' ;;
+      *"/backend@"*) printf 'backend\n' ;;
+      *"/web@"*) printf 'web\n' ;;
+      *"/platform@"*) printf 'platform\n' ;;
+      *) printf '<no value>\n' ;;
+    esac
+    exit 0
+  fi
   sed -n '1p' "$TEST_SHA_FILE"
   exit 0
 fi
@@ -105,21 +126,106 @@ printf '%s\n' "$sha_one" >"$TEST_SHA_FILE"
 printf '%s\n' "$sha_two" >"$TEST_SHA_FILE"
 "$tmp_dir/deploy" deploy production "$sha_two" "$backend_two" "$migration_two" "$web_two" "$platform_two"
 
-grep -Fq "\"sha\":\"$sha_two\"" "$tmp_dir/state/CURRENT_RELEASE.json"
-grep -Fq "\"backend\":\"sha256:$backend_one\"" "$tmp_dir/state/PREVIOUS_RELEASE.json"
+current=$tmp_dir/state/CURRENT_RELEASE.json
+previous=$tmp_dir/state/PREVIOUS_RELEASE.json
+
+# The record the deploy script writes now is a component list, not one field per
+# image. Read with jq rather than grepped, so the assertion is about the values
+# and not about the byte order they were printed in.
+component_digest() {
+  jq -r --arg name "$2" '.components[] | select(.name == $name) | .digest' "$1"
+}
+
+test "$(jq -r .recordVersion "$current")" = 1
+test "$(jq -r .sha "$current")" = "$sha_two"
+test "$(component_digest "$current" backend)" = "sha256:$backend_two"
+test "$(component_digest "$current" backend-migration)" = "sha256:$migration_two"
+test "$(component_digest "$current" web)" = "sha256:$web_two"
+test "$(component_digest "$current" platform)" = "sha256:$platform_two"
+# Named by component, so the field that used to be called `migration` is gone
+# from anything newly written.
+test "$(jq -r '[.components[].name] | sort | join(",")' "$current")" \
+  = 'backend,backend-migration,platform,web'
+jq -e 'has("migration") | not' "$current" >/dev/null
+
+test "$(jq -r .sha "$previous")" = "$sha_one"
+test "$(component_digest "$previous" backend)" = "sha256:$backend_one"
 test "$(grep -c ' run --rm migrate' "$TEST_LOG")" -eq 2
 
 printf '%s\n' "$sha_one" >"$TEST_SHA_FILE"
 "$tmp_dir/deploy" rollback production
 
-grep -Fq "\"sha\":\"$sha_one\"" "$tmp_dir/state/CURRENT_RELEASE.json"
-grep -Fq "\"backend\":\"sha256:$backend_two\"" "$tmp_dir/state/PREVIOUS_RELEASE.json"
+test "$(jq -r .sha "$current")" = "$sha_one"
+test "$(component_digest "$current" backend)" = "sha256:$backend_one"
+test "$(component_digest "$previous" backend)" = "sha256:$backend_two"
 grep -Fq "ghcr.io/adnanalmahmut/ai-agent/backend@sha256:$backend_one|ghcr.io/adnanalmahmut/ai-agent/backend-migration@sha256:$migration_one|ghcr.io/adnanalmahmut/ai-agent/web@sha256:$web_one|ghcr.io/adnanalmahmut/ai-agent/platform@sha256:$platform_one" "$TEST_LOG"
+# Rollback is incident response and runs no migration. Still two, from the two
+# deployments above.
 test "$(grep -c ' run --rm migrate' "$TEST_LOG")" -eq 2
 
 if grep -Eq 'ai-agent/(backend|backend-migration|web|platform):[0-9a-f]{40}' "$TEST_LOG"; then
   echo 'rollback resolved a mutable SHA tag' >&2
   exit 1
 fi
+
+# ---------------------------------------------------------------------------
+# The records already on hosts
+# ---------------------------------------------------------------------------
+
+# A host that has been deploying for months has flat records written by an older
+# bundle, and the bundle carrying the component list lands on top of them. If
+# rollback could not read what is already on disk, installing the new bundle
+# would quietly cost the host its only way back — which is exactly the moment it
+# is most likely to be needed.
+cat >"$previous" <<LEGACY
+{"sha":"$sha_two","backend":"sha256:$backend_two","migration":"sha256:$migration_two","web":"sha256:$web_two","platform":"sha256:$platform_two"}
+LEGACY
+
+before=$(grep -c ' run --rm migrate' "$TEST_LOG")
+printf '%s\n' "$sha_two" >"$TEST_SHA_FILE"
+"$tmp_dir/deploy" rollback production
+
+test "$(jq -r .sha "$current")" = "$sha_two"
+test "$(component_digest "$current" backend)" = "sha256:$backend_two"
+grep -Fq "ghcr.io/adnanalmahmut/ai-agent/backend@sha256:$backend_two|ghcr.io/adnanalmahmut/ai-agent/backend-migration@sha256:$migration_two|ghcr.io/adnanalmahmut/ai-agent/web@sha256:$web_two|ghcr.io/adnanalmahmut/ai-agent/platform@sha256:$platform_two" "$TEST_LOG"
+test "$(grep -c ' run --rm migrate' "$TEST_LOG")" -eq "$before"
+
+# A record missing a component is a refusal in either shape. Rollback that
+# guesses at a missing image turns one incident into two.
+# The release SHA the images claim is set to the one the record asks for, so the
+# only thing left that can refuse is the defect in the record. Without that the
+# label check refuses first and these cases pass for the wrong reason -- which
+# is what they did until a mutation showed the missing-component refusal could
+# be deleted with the suite still green.
+refuses_rollback() {
+  description=$1
+  record_sha=$2
+
+  printf '%s\n' "$record_sha" >"$TEST_SHA_FILE"
+  if "$tmp_dir/deploy" rollback production >/dev/null 2>&1; then
+    echo "rollback accepted $description" >&2
+    exit 1
+  fi
+}
+
+cat >"$previous" <<TRUNCATED
+{"sha":"$sha_one","backend":"sha256:$backend_one","migration":"sha256:$migration_one","web":"sha256:$web_one"}
+TRUNCATED
+refuses_rollback 'a legacy record with no platform image' "$sha_one"
+
+cat >"$previous" <<TRUNCATED
+{"recordVersion":1,"sha":"$sha_one","components":[{"name":"backend","digest":"sha256:$backend_one"},{"name":"web","digest":"sha256:$web_one"}]}
+TRUNCATED
+refuses_rollback 'a component record missing required components' "$sha_one"
+
+cat >"$previous" <<MALFORMED
+{"recordVersion":1,"sha":"$sha_one","components":[{"name":"backend","digest":"sha256:short"},{"name":"backend-migration","digest":"sha256:$migration_one"},{"name":"web","digest":"sha256:$web_one"},{"name":"platform","digest":"sha256:$platform_one"}]}
+MALFORMED
+refuses_rollback 'a component record with a malformed digest' "$sha_one"
+
+cat >"$previous" <<MALFORMED
+{"recordVersion":1,"sha":"nope","components":[{"name":"backend","digest":"sha256:$backend_one"},{"name":"backend-migration","digest":"sha256:$migration_one"},{"name":"web","digest":"sha256:$web_one"},{"name":"platform","digest":"sha256:$platform_one"}]}
+MALFORMED
+refuses_rollback 'a component record with a malformed release SHA' "$sha_one"
 
 echo 'immutable release manifest and rollback invariants: ok'

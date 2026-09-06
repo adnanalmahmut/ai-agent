@@ -1,0 +1,24 @@
+# The release component catalog.
+#
+# A release is a set of components, not four hardcoded images. This file is the
+# one place that says which components exist, what they are called, which
+# repository each is published to, and whether a release may omit it.
+#
+# Several places necessarily carry their own copy of this list: `docker-bake.hcl`
+# is HCL, the deploy workflows must not check out a moving branch to learn what
+# a release is allowed to contain, and `ai-agent-deploy` and
+# `ai-agent-release-retention` run from /usr/local/sbin with no repository in
+# sight. `infra/tests/artifact-contract.sh` compares every one of those copies
+# against this file, so adding a component is a change here plus whatever that
+# test then reports as out of date -- rather than a change here that silently
+# leaves five other lists behind.
+#
+# Format: <name> <repository> <required>
+#
+# `required: false` is a shape the manifest schema already understands; nothing
+# uses it yet, and an optional component still has to be listed here to be
+# accepted at all. Optional is not the same as arbitrary.
+backend backend true
+backend-migration backend-migration true
+web web true
+platform platform true

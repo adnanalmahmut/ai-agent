@@ -45,6 +45,19 @@ jobs:
           github-token: ${{ github.token }}
           run-id: ${{ github.event.workflow_run.id }}
 
+      # The manifest reader, taken from the repository rather than restated in
+      # each workflow. It is the allowlist -- the thing that decides which
+      # component names and repositories a manifest may name -- so it is read
+      # from the same place this workflow file itself is read from, and never
+      # from anything the artifact points at. Sparse and into its own path, so
+      # it cannot disturb the downloaded manifest.
+      - name: Check out the release manifest reader
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: infra/release
+          sparse-checkout-cone-mode: false
+          path: .reader
+
       - name: Validate immutable release metadata
         run: |
           test "$VPS_USER" = deploy
@@ -55,26 +68,20 @@ jobs:
           jq -e \
             --arg repository "$GITHUB_REPOSITORY" \
             --argjson publishRunId "$PUBLISH_RUN_ID" \
-            '.schemaVersion == 2 and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and (.hostBundleMinVersion | type) == "number" and .hostBundleMinVersion >= 1' \
+            '(.schemaVersion == 2 or .schemaVersion == 3) and .repository == $repository and .sourceWorkflow == "CI" and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and (.hostBundleMinVersion | type) == "number" and .hostBundleMinVersion >= 1' \
             "$manifest" >/dev/null
 
           release_sha=$(jq -r .sha "$manifest")
           printf '%s\n' "$release_sha" | grep -Eq '^[0-9a-f]{40}$'
           printf 'RELEASE_SHA=%s\n' "$release_sha" >>"$GITHUB_ENV"
 
-          for entry in backend:backend migration:backend-migration web:web platform:platform; do
-            field=${entry%%:*}
-            image=${entry#*:}
-            reference=$(jq -r --arg field "$field" '.[$field]' "$manifest")
-            prefix="ghcr.io/$GITHUB_REPOSITORY/$image@sha256:"
-            case "$reference" in
-              "$prefix"*) digest=${reference#"$prefix"} ;;
-              *) echo "unexpected repository for $field" >&2; exit 1 ;;
-            esac
-            printf '%s\n' "$digest" | grep -Eq '^[0-9a-f]{64}$'
-            upper=$(printf '%s' "$field" | tr '[:lower:]' '[:upper:]')
-            printf '%s_DIGEST=%s\n' "$upper" "$digest" >>"$GITHUB_ENV"
-          done
+          # One reader for both manifest formats. Version 2 is the flat
+          # four-field manifest every release so far published; version 3 lists
+          # components. Both are normalised to one component list, which is then
+          # validated against the catalog before a single digest is exported,
+          # so nothing after this point knows or cares which format arrived.
+          jq -r --arg registry "ghcr.io/$GITHUB_REPOSITORY" \
+            -f .reader/infra/release/manifest.jq "$manifest" >>"$GITHUB_ENV"
 
       - name: Install restricted SSH identity
         env:
@@ -88,7 +95,7 @@ jobs:
 
       - name: Deploy migration-gated release
         run: |
-          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy staging $RELEASE_SHA $BACKEND_DIGEST $MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST"
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy staging $RELEASE_SHA $BACKEND_DIGEST $BACKEND_MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST"
 
       - name: Verify restricted host health
         run: |

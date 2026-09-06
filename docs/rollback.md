@@ -2,8 +2,12 @@
 
 Every successful host rollout atomically rotates root-only
 `CURRENT_RELEASE.json` and `PREVIOUS_RELEASE.json`. Each manifest contains the
-40-character source SHA and the exact backend, migration, web, and platform OCI
-digests. Manual production rollback invokes only `rollback production`; the
+40-character source SHA and the exact OCI digest of every component, recorded
+as `recordVersion: 1` with a component list. Records written before that format
+existed are flat, with one field per image, and stay readable: a bundle update
+must not cost a host the release it would roll back to. Both shapes are read
+strictly — a record missing a component, or carrying anything but a `sha256`
+digest, is refused rather than worked around. Manual production rollback invokes only `rollback production`; the
 root wrapper validates the previous manifest, reconstructs image references
 from fixed repository names, redeploys its exact application digests, and swaps
 the manifests only after health succeeds.

@@ -80,6 +80,27 @@ if [ "${1:-}" = image ]; then
   for argument in "$@"; do
     case $argument in *host-bundle.min-version*) printf '1\n'; exit 0 ;; esac
   done
+  # The component each image claims to be. Derived from the reference so the
+  # stub answers correctly without a table; a test that needs a mismatch
+  # overrides it explicitly.
+  for argument in "$@"; do
+    case $argument in *io.ai-agent.component.name*) format_component=yes ;; esac
+    image=$argument
+  done
+  if [ "${format_component:-no}" = yes ]; then
+    if [ -n "${COMPONENT_LABEL_OVERRIDE:-}" ]; then
+      printf '%s\n' "$COMPONENT_LABEL_OVERRIDE"
+      exit 0
+    fi
+    case $image in
+      *"/backend-migration@"*) printf 'backend-migration\n' ;;
+      *"/backend@"*) printf 'backend\n' ;;
+      *"/web@"*) printf 'web\n' ;;
+      *"/platform@"*) printf 'platform\n' ;;
+      *) printf '<no value>\n' ;;
+    esac
+    exit 0
+  fi
   printf '%s\n' "$RELEASE_SHA"
   exit 0
 fi
