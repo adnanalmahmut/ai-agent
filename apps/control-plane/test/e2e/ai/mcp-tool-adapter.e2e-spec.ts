@@ -21,10 +21,14 @@ import { OrganizationAgentInstallationService } from '../../../src/features/agen
 import { APPLICATION_TOOL_DEFINITIONS } from '../../../src/features/agent-management/tools/definitions';
 import { NotificationSendTool } from '../../../src/features/agent-management/tools/notification-send.tool';
 import {
-  idempotencyKeyFor,
   SideEffectExecutionHandler,
   type SideEffectExecutionJob,
 } from '../../../src/workers/handlers/side-effect-execution.handler';
+import {
+  DeliverApprovedToolEffectUseCase,
+  idempotencyKeyFor,
+} from '../../../src/modules/approvals';
+import { ToolAuthorizationService } from '../../../src/ai/tools/tool-authorization.service';
 import { ToolExecutionService } from '../../../src/ai/tools/tool-execution.service';
 import { ToolRegistry } from '../../../src/ai/tools/tool.registry';
 import {
@@ -794,11 +798,15 @@ describe('MCP as an adapter over the governed tool gateway', () => {
       expect(delivery.calls).toEqual([]);
 
       const handler = new SideEffectExecutionHandler(
-        harness.prisma,
-        harness.app.get(ToolExecutionService),
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        harness.app.get(AgentDefinitionRegistry),
-        [new NotificationSendTool(harness.prisma, delivery)],
+        new DeliverApprovedToolEffectUseCase(
+          harness.app.get(ToolExecutionService),
+          new ToolAuthorizationService(
+            harness.prisma,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            harness.app.get(AgentDefinitionRegistry),
+            [new NotificationSendTool(harness.prisma, delivery)],
+          ),
+        ),
         silentLogger as never,
       );
 

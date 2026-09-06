@@ -71,8 +71,11 @@ See [Redis, queue, and outbox](redis-queue-outbox.md).
 
 Agent tools pass through one gateway. Exact versioned grants are narrowed by the
 organization installation. Read-only tools execute inline. Side-effect tools
-only create an approval record; after an authorized decision, the worker
-revalidates and performs the effect idempotently. MCP sessions expose the same
+only create an approval record; after an authorized decision,
+`modules/approvals/deliver-approved-tool-effect.use-case.ts` revalidates against
+durable state and performs the effect idempotently. Authorization hands back the
+adapter to use, so there is no path to a provider that has not been authorized,
+and the adapter itself receives only an idempotency key. MCP sessions expose the same
 gateway and cannot bypass the approval lifecycle.
 
 Knowledge is organization-scoped. Ingestion stores documents and chunks, then

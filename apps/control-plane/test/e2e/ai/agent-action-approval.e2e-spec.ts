@@ -10,11 +10,15 @@ import type { AgentDefinition } from '../../../src/ai/agents/agent.types';
 import { APPLICATION_TOOL_DEFINITIONS } from '../../../src/features/agent-management/tools/definitions';
 import { NotificationSendTool } from '../../../src/features/agent-management/tools/notification-send.tool';
 import {
-  EFFECT_RETRY_WINDOW_MS,
-  idempotencyKeyFor,
   SideEffectExecutionHandler,
   type SideEffectExecutionJob,
 } from '../../../src/workers/handlers/side-effect-execution.handler';
+import {
+  DeliverApprovedToolEffectUseCase,
+  EFFECT_RETRY_WINDOW_MS,
+  idempotencyKeyFor,
+} from '../../../src/modules/approvals';
+import { ToolAuthorizationService } from '../../../src/ai/tools/tool-authorization.service';
 import { ToolExecutionService } from '../../../src/ai/tools/tool-execution.service';
 import {
   ToolExecutionFailure,
@@ -240,11 +244,15 @@ describe('human approval and the idempotent side effect', () => {
     ];
     gateway = new ToolGateway(registry, executions, implementations);
     handler = new SideEffectExecutionHandler(
-      harness.prisma,
-      executions,
-      registry,
-      new AgentDefinitionRegistry(DEFINITIONS),
-      implementations,
+      new DeliverApprovedToolEffectUseCase(
+        executions,
+        new ToolAuthorizationService(
+          harness.prisma,
+          registry,
+          new AgentDefinitionRegistry(DEFINITIONS),
+          implementations,
+        ),
+      ),
       silentLogger as never,
     );
 
@@ -982,24 +990,28 @@ describe('human approval and the idempotent side effect', () => {
       delivery.reset();
       const { executionId } = await approved();
       const unsupported = new SideEffectExecutionHandler(
-        harness.prisma,
-        executions,
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        new AgentDefinitionRegistry(DEFINITIONS),
-        [
-          {
-            ref: KNOWLEDGE_REF,
-            execute: () => Promise.resolve({ passages: [] }),
-          },
-          new NotificationSendTool(harness.prisma, {
-            idempotent: false,
-            sender: 'Acme <no-reply@example.test>',
-            deliver: () => {
-              delivery.calls.push({} as NotificationMessage);
-              return Promise.resolve({ kind: 'rejected' as const });
-            },
-          }),
-        ],
+        new DeliverApprovedToolEffectUseCase(
+          executions,
+          new ToolAuthorizationService(
+            harness.prisma,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            new AgentDefinitionRegistry(DEFINITIONS),
+            [
+              {
+                ref: KNOWLEDGE_REF,
+                execute: () => Promise.resolve({ passages: [] }),
+              },
+              new NotificationSendTool(harness.prisma, {
+                idempotent: false,
+                sender: 'Acme <no-reply@example.test>',
+                deliver: () => {
+                  delivery.calls.push({} as NotificationMessage);
+                  return Promise.resolve({ kind: 'rejected' as const });
+                },
+              }),
+            ],
+          ),
+        ),
         silentLogger as never,
       );
 
@@ -1187,17 +1199,21 @@ describe('human approval and the idempotent side effect', () => {
       delivery.reset();
       const { executionId } = await approved();
       const narrowed = new SideEffectExecutionHandler(
-        harness.prisma,
-        executions,
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        new AgentDefinitionRegistry([approvalAgent([KNOWLEDGE_REF])]),
-        [
-          {
-            ref: KNOWLEDGE_REF,
-            execute: () => Promise.resolve({ passages: [] }),
-          },
-          tool,
-        ],
+        new DeliverApprovedToolEffectUseCase(
+          executions,
+          new ToolAuthorizationService(
+            harness.prisma,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            new AgentDefinitionRegistry([approvalAgent([KNOWLEDGE_REF])]),
+            [
+              {
+                ref: KNOWLEDGE_REF,
+                execute: () => Promise.resolve({ passages: [] }),
+              },
+              tool,
+            ],
+          ),
+        ),
         silentLogger as never,
       );
 

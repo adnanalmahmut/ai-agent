@@ -8,11 +8,15 @@ import { MODEL_IDS } from '../../../../src/ai/models/model-catalog';
 import type { ExternalEffectOutcome } from '../../../../src/infrastructure/mail/notification-delivery.port';
 import { digestValue } from '../../../../src/ai/tools/digest';
 import {
-  EFFECT_RETRY_WINDOW_MS,
   SIDE_EFFECT_ATTEMPT_FAILED,
   SideEffectExecutionHandler,
-  idempotencyKeyFor,
 } from '../../../../src/workers/handlers/side-effect-execution.handler';
+import {
+  DeliverApprovedToolEffectUseCase,
+  EFFECT_RETRY_WINDOW_MS,
+  idempotencyKeyFor,
+} from '../../../../src/modules/approvals';
+import { ToolAuthorizationService } from '../../../../src/ai/tools/tool-authorization.service';
 import type {
   EffectSettlement,
   SideEffectExecutionRow,
@@ -125,11 +129,15 @@ describe('SideEffectExecutionHandler', () => {
 
   const handler = (definitions: readonly AgentDefinition[] = [agent]) =>
     new SideEffectExecutionHandler(
-      prisma() as never,
-      executions() as never,
-      new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-      new AgentDefinitionRegistry(definitions),
-      [implementation()],
+      new DeliverApprovedToolEffectUseCase(
+        executions() as never,
+        new ToolAuthorizationService(
+          prisma() as never,
+          new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+          new AgentDefinitionRegistry(definitions),
+          [implementation()],
+        ),
+      ),
       logger as never,
     );
 
@@ -440,9 +448,13 @@ describe('SideEffectExecutionHandler', () => {
       let reads = 0;
       (
         h as unknown as {
-          executions: { loadSideEffect: () => Promise<SideEffectExecutionRow> };
+          delivery: {
+            executions: {
+              loadSideEffect: () => Promise<SideEffectExecutionRow>;
+            };
+          };
         }
-      ).executions.loadSideEffect = () =>
+      ).delivery.executions.loadSideEffect = () =>
         Promise.resolve(reads++ === 0 ? row() : row({ status: 'SUCCEEDED' }));
 
       await expect(h.handle(job())).resolves.toBeUndefined();
@@ -483,11 +495,15 @@ describe('SideEffectExecutionHandler', () => {
 
     const withLogger = (log: unknown) =>
       new SideEffectExecutionHandler(
-        prisma() as never,
-        executions() as never,
-        new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
-        new AgentDefinitionRegistry([agent]),
-        [implementation()],
+        new DeliverApprovedToolEffectUseCase(
+          executions() as never,
+          new ToolAuthorizationService(
+            prisma() as never,
+            new ToolRegistry(APPLICATION_TOOL_DEFINITIONS),
+            new AgentDefinitionRegistry([agent]),
+            [implementation()],
+          ),
+        ),
         log as never,
       );
 
