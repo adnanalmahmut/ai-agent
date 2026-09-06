@@ -1,84 +1,30 @@
-import { API_BASE_PATH, CONTROL_PLANE_PATH } from '@/config/paths';
 import {
+  ApiError,
+  ApiUnavailableError,
   errorDetailLines,
   NO_ERROR_DETAILS,
-  readApiError,
-  unwrapEnvelope,
   type ApiErrorDetails,
   type ApiFieldError,
-} from '@/lib/api/response-protocol';
+} from '@repo/api-client';
+import { createBrowserTransport } from '@repo/api-client/browser';
 
+import { API_BASE_PATH, CONTROL_PLANE_PATH } from '@/config/paths';
+
+/**
+ * The application's API surface. The transport, the wire protocol and the two
+ * error types come from `@repo/api-client`; what is written here is which
+ * endpoints this application calls and what it sends them.
+ *
+ * The shared pieces are re-exported so that a screen keeps importing one
+ * module rather than two, and so that moving them out was not a rename for
+ * every caller.
+ */
 export type { ApiErrorDetails, ApiFieldError };
-export { errorDetailLines, NO_ERROR_DETAILS };
+export { ApiError, ApiUnavailableError, errorDetailLines, NO_ERROR_DETAILS };
 
-export class ApiUnavailableError extends Error {
-  constructor(cause?: unknown) {
-    super('The platform API could not be reached');
-    this.name = 'ApiUnavailableError';
-    this.cause = cause;
-  }
-}
-
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string | undefined,
-    readonly details: ApiErrorDetails = NO_ERROR_DETAILS,
-  ) {
-    super(`Platform API responded with ${status}`);
-    this.name = 'ApiError';
-  }
-}
-
-type RequestOptions = {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  body?: unknown;
-  signal?: AbortSignal;
-  headers?: Record<string, string>;
-};
-
-export async function apiRequest<T>(
-  path: string,
-  options: RequestOptions = {},
-): Promise<T> {
-  const { method = 'GET', body, signal, headers } = options;
-
-  let response: Response;
-
-  try {
-    response = await fetch(`${API_BASE_PATH}${path}`, {
-      method,
-      signal,
-      credentials: 'include',
-      headers: requestHeaders(body, headers),
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch (thrown) {
-    throw new ApiUnavailableError(thrown);
-  }
-
-  if (!response.ok) {
-    const { code, details } = await readApiError(response);
-
-    throw new ApiError(response.status, code, details);
-  }
-
-  if (response.status === 204) return undefined as T;
-
-  return unwrapEnvelope(await response.json()) as T;
-}
-
-function requestHeaders(
-  body: unknown,
-  extra: Record<string, string> | undefined,
-): Record<string, string> | undefined {
-  const merged = {
-    ...(body === undefined ? {} : { 'content-type': 'application/json' }),
-    ...extra,
-  };
-
-  return Object.keys(merged).length === 0 ? undefined : merged;
-}
+export const apiRequest = createBrowserTransport({
+  basePath: API_BASE_PATH,
+});
 
 export const FEATURE_FLAG_SOURCES = [
   'organization',

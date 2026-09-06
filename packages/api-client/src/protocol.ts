@@ -1,15 +1,15 @@
 /**
- * The platform API speaks one wire protocol whichever side of the application
+ * The API speaks one wire protocol whichever side of whichever application
  * reads it: a success envelope around the payload, and a failure body whose
  * code and details may sit at the top level or nested under `error`.
  *
- * Transport stays with each caller — the browser sends credentials to a
- * same-origin path, the server forwards a cookie to the API origin with no
- * store — but the reading of what came back is one thing, kept here so the two
- * cannot drift into disagreeing about the same response.
+ * Transport differs by caller — the browser sends credentials to a same-origin
+ * path, the server forwards a cookie to the API origin with no store — but the
+ * reading of what came back is one thing, kept here so that no two callers can
+ * drift into disagreeing about the same response.
  *
- * Nothing in this module touches the network or the request, so it is safe on
- * both sides of the `server-only` boundary.
+ * Nothing in this module touches the network, the request, or any framework,
+ * so it is safe wherever it is imported.
  */
 
 /** A failure the caller can fix in one named field of the request. */
@@ -53,9 +53,7 @@ export type ApiBusinessErrorDetails = {
 };
 
 export type ApiErrorDetails =
-  | { kind: 'none' }
-  | ApiValidationErrorDetails
-  | ApiBusinessErrorDetails;
+  { kind: 'none' } | ApiValidationErrorDetails | ApiBusinessErrorDetails;
 
 export const NO_ERROR_DETAILS: ApiErrorDetails = { kind: 'none' };
 
@@ -69,7 +67,10 @@ export const NO_ERROR_DETAILS: ApiErrorDetails = { kind: 'none' };
  */
 export function errorDetailLines(details: ApiErrorDetails): string[] {
   if (details.kind === 'validation') {
-    return [...details.fields.map((field) => field.message), ...details.messages];
+    return [
+      ...details.fields.map((field) => field.message),
+      ...details.messages,
+    ];
   }
 
   if (details.kind === 'business' && details.reason !== undefined) {

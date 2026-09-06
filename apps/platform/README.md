@@ -22,9 +22,11 @@ local development, root-level `/api/*` requests are rewritten to
 disabled in production, where host Nginx remains the only public reverse proxy.
 Client permission gates are UX only; backend RBAC remains authoritative.
 
-`src/generated/application-api.generated.ts` is written by `pnpm api:types`
-from the backend's Application OpenAPI document and must not be hand-edited;
-`pnpm api:types:check` is the merge gate that proves the committed copy is
-current. See
+The API boundary this application talks through — the transports, the wire
+protocol for a response and its errors, and the generated OpenAPI types — is
+[`@repo/api-client`](../../packages/api-client/README.md). Its generated file
+is written by `pnpm api:types` from the backend's Application OpenAPI document
+and must not be hand-edited; `pnpm api:types:check` is the merge gate that
+proves the committed copy is current. See
 [`docs/frontend.md`](../../docs/frontend.md) and
 [`docs/authentication-rbac.md`](../../docs/authentication-rbac.md).
