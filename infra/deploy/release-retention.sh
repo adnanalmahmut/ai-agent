@@ -35,10 +35,15 @@ registry=ghcr.io/adnanalmahmut/ai-agent
 # obsolete base images by hand; that is deliberately not automated here.
 application_repositories='backend backend-migration web platform'
 
-# Release-record field name to repository name. `migration` is recorded under a
-# field that does not match its repository, so the mapping is explicit rather
-# than derived.
-release_fields='backend:backend migration:backend-migration web:web platform:platform'
+# Component name to repository name, and the field a legacy flat release record
+# recorded it under. This is the host's copy of infra/release/components;
+# infra/tests/artifact-contract.sh compares the two, so a component added to the
+# catalog and not added here is reported rather than quietly left unprotected --
+# which for retention means its images become removal candidates.
+#
+# `migration` is the one legacy field that never matched its repository. It
+# survives here only to read records already on disk.
+release_components='backend:backend:backend backend-migration:backend-migration:migration web:web:web platform:platform:platform'
 
 die() {
   echo "release retention failed: $*" >&2
@@ -114,6 +119,22 @@ manifest_field() {
   sed -n "s/.*\"$2\":\"\([^\"]*\)\".*/\1/p" "$1"
 }
 
+# One component's digest, from either record shape. Records written before the
+# component list existed are still on hosts, and a release retention run that
+# could not read them would treat the images they protect as garbage. Legacy
+# records are therefore read, not tolerated: same strictness, same refusals.
+component_field() {
+  record=$1
+  component=$2
+  legacy=$3
+
+  if grep -Fq '"recordVersion":1' "$record"; then
+    sed -n "s/.*\"name\":\"$component\",\"digest\":\"\([^\"]*\)\".*/\1/p" "$record"
+  else
+    manifest_field "$record" "$legacy"
+  fi
+}
+
 # Strict: a record missing a field, carrying a malformed SHA, or carrying
 # anything other than a sha256 digest of the right length is a refusal, not a
 # record to work around. A truncated record must never be read as "this release
@@ -128,12 +149,14 @@ validate_release_record() {
   printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$' ||
     die "$label release record does not carry a valid release SHA"
 
-  for entry in $release_fields; do
-    field=${entry%%:*}
-    repository=${entry#*:}
+  for entry in $release_components; do
+    component=${entry%%:*}
+    rest=${entry#*:}
+    repository=${rest%%:*}
+    legacy=${rest#*:}
 
-    value=$(manifest_field "$manifest" "$field")
-    [ -n "$value" ] || die "$label release record is missing the $field image"
+    value=$(component_field "$manifest" "$component" "$legacy")
+    [ -n "$value" ] || die "$label release record is missing the $component component"
 
     # Recorded as `sha256:<64 hex>`. This is an OCI index digest: the release
     # manifest records what `buildx imagetools inspect` resolved, and bake
@@ -141,7 +164,7 @@ validate_release_record() {
     # platform image. It is therefore NOT the platform manifest digest, and must
     # never be compared against one.
     printf '%s' "$value" | grep -Eq '^sha256:[0-9a-f]{64}$' ||
-      die "$label release record has a malformed $field digest"
+      die "$label release record has a malformed $component digest"
 
     printf '%s\n' "$registry/$repository@$value" >>"$protected_refs"
   done

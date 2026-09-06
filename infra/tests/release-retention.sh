@@ -59,6 +59,8 @@ if grep -Fq -- '--volumes' "$source_script"; then
 fi
 
 # Exactly the four application repositories, and no infrastructure image.
+grep -Fq "release_components='backend:backend:backend backend-migration:backend-migration:migration web:web:web platform:platform:platform'" "$source_script" ||
+  fail 'retention must carry the component catalog it protects'
 grep -Fq "application_repositories='backend backend-migration web platform'" "$source_script" ||
   fail 'retention must restrict itself to the four application repositories'
 for infrastructure in postgres redis geoipupdate; do
@@ -346,7 +348,18 @@ prepare_script "$source_script" "$retention"
 # same short id and made the whole store look like one image.
 d() { printf 'sha256:%04d%060d' "$1" 0; }
 
+# The shape the deploy script writes now.
 write_record() {
+  destination=$1; sha=$2; b=$3; m=$4; w=$5; p=$6
+  printf '{"recordVersion":1,"sha":"%s","components":[{"name":"backend","digest":"%s"},{"name":"backend-migration","digest":"%s"},{"name":"web","digest":"%s"},{"name":"platform","digest":"%s"}]}\n' \
+    "$sha" "$b" "$m" "$w" "$p" >"$destination"
+}
+
+# The shape already on every host that has deployed before this bundle. Both are
+# exercised: a retention run that could not read the older one would classify
+# the images it protects as garbage and delete the release the host would roll
+# back to.
+write_legacy_record() {
   destination=$1; sha=$2; b=$3; m=$4; w=$5; p=$6
   printf '{"sha":"%s","backend":"%s","migration":"%s","web":"%s","platform":"%s"}\n' \
     "$sha" "$b" "$m" "$w" "$p" >"$destination"
@@ -509,6 +522,43 @@ done
 expect_message 'all protected release images verified present'
 expect_message 'removed 4, blocked 0, failed 0'
 
+# --- The same host, with the records an older bundle wrote -----------------
+# The bundle carrying the component list lands on hosts whose CURRENT and
+# PREVIOUS are still flat. If retention could not read those, every image the
+# two live releases depend on would classify as superseded on the first run
+# after the update — including the one rollback needs.
+reset_scenario
+write_legacy_record "$state/CURRENT_RELEASE.json" "$CURRENT_SHA" \
+  "$(d 1)" "$(d 2)" "$(d 3)" "$(d 4)"
+write_legacy_record "$state/PREVIOUS_RELEASE.json" "$PREVIOUS_SHA" \
+  "$(d 11)" "$(d 12)" "$(d 13)" "$(d 14)"
+add_superseded
+run_retention reclaim || fail 'retention refused a host carrying legacy release records'
+for pair in "backend $(d 21)" "backend-migration $(d 22)" "web $(d 23)" "platform $(d 24)"; do
+  set -- $pair
+  ! image_present "$1" "$2" || fail "a superseded image survived a legacy-record run: $1 $2"
+done
+for pair in "backend $(d 1)" "backend-migration $(d 2)" "web $(d 3)" "platform $(d 4)" \
+            "backend $(d 11)" "backend-migration $(d 12)" "web $(d 13)" "platform $(d 14)"; do
+  set -- $pair
+  image_present "$1" "$2" || fail "a legacy-recorded protected image was removed: $1 $2"
+done
+expect_message 'removed 4, blocked 0, failed 0'
+
+# --- One record of each shape, which is what an update actually looks like -
+reset_scenario
+write_record "$state/CURRENT_RELEASE.json" "$CURRENT_SHA" \
+  "$(d 1)" "$(d 2)" "$(d 3)" "$(d 4)"
+write_legacy_record "$state/PREVIOUS_RELEASE.json" "$PREVIOUS_SHA" \
+  "$(d 11)" "$(d 12)" "$(d 13)" "$(d 14)"
+add_superseded
+run_retention reclaim || fail 'retention refused a host mid-update'
+for pair in "backend $(d 11)" "backend-migration $(d 12)" "web $(d 13)" "platform $(d 14)"; do
+  set -- $pair
+  image_present "$1" "$2" || fail "the legacy PREVIOUS release lost an image: $1 $2"
+done
+expect_message 'removed 4, blocked 0, failed 0'
+
 # --- Non-application images are never candidates --------------------------
 reset_scenario
 printf 'postgres %s\n' "$(d 31)" >>"$control/images"
@@ -559,18 +609,22 @@ expect_refusal 'a malformed PREVIOUS record' reclaim
 reset_scenario; add_superseded
 printf '{"sha":"%s","backend":"%s","web":"%s","platform":"%s"}\n' \
   "$CURRENT_SHA" "$(d 1)" "$(d 3)" "$(d 4)" >"$state/CURRENT_RELEASE.json"
-expect_refusal 'a truncated CURRENT record' reclaim
-expect_message 'missing the migration image'
+expect_refusal 'a truncated legacy CURRENT record' reclaim
+expect_message 'missing the backend-migration component'
 
 reset_scenario; add_superseded
-printf '{"sha":"%s","backend":"%s","migration":"%s","web":"%s","platform":"%s"}\n' \
-  "$CURRENT_SHA" 'sha256:short' "$(d 2)" "$(d 3)" "$(d 4)" >"$state/CURRENT_RELEASE.json"
+printf '{"recordVersion":1,"sha":"%s","components":[{"name":"backend","digest":"%s"},{"name":"web","digest":"%s"},{"name":"platform","digest":"%s"}]}\n' \
+  "$CURRENT_SHA" "$(d 1)" "$(d 3)" "$(d 4)" >"$state/CURRENT_RELEASE.json"
+expect_refusal 'a truncated component CURRENT record' reclaim
+expect_message 'missing the backend-migration component'
+
+reset_scenario; add_superseded
+write_record "$state/CURRENT_RELEASE.json" "$CURRENT_SHA" 'sha256:short' "$(d 2)" "$(d 3)" "$(d 4)"
 expect_refusal 'a malformed digest in CURRENT' reclaim
 expect_message 'malformed backend digest'
 
 reset_scenario; add_superseded
-printf '{"sha":"nothex","backend":"%s","migration":"%s","web":"%s","platform":"%s"}\n' \
-  "$(d 1)" "$(d 2)" "$(d 3)" "$(d 4)" >"$state/CURRENT_RELEASE.json"
+write_record "$state/CURRENT_RELEASE.json" nothex "$(d 1)" "$(d 2)" "$(d 3)" "$(d 4)"
 expect_refusal 'a malformed release SHA in CURRENT' reclaim
 
 # --- A protected reference that does not resolve refuses before mutation --
@@ -830,7 +884,7 @@ probe_done
 # defends: emptying that map is a plausible refactoring error, and the guard is
 # what stops it becoming a sweep with nothing protected.
 probe 'empty protected set guard' \
-  "release_fields='backend:backend migration:backend-migration web:web platform:platform'=>release_fields=''"
+  "release_components='backend:backend:backend backend-migration:backend-migration:migration web:web:web platform:platform:platform'=>release_components=''"
 reset_scenario; add_superseded
 if run_retention reclaim >/dev/null 2>&1; then
   probe_done
@@ -931,10 +985,9 @@ probe_done
 # call and by naming the offending field, not by being the only thing standing.
 probe 'digest format validation' \
   "printf '%s' \"\$value\" | grep -Eq '^sha256:[0-9a-f]{64}\$' ||
-      die \"\$label release record has a malformed \$field digest\"=>:"
+      die \"\$label release record has a malformed \$component digest\"=>:"
 reset_scenario; add_superseded
-printf '{"sha":"%s","backend":"%s","migration":"%s","web":"%s","platform":"%s"}\n' \
-  "$CURRENT_SHA" 'sha256:short' "$(d 2)" "$(d 3)" "$(d 4)" >"$state/CURRENT_RELEASE.json"
+write_record "$state/CURRENT_RELEASE.json" "$CURRENT_SHA" 'sha256:short' "$(d 2)" "$(d 3)" "$(d 4)"
 before_images=$(sort "$control/images")
 if run_retention reclaim >/dev/null 2>&1; then
   probe_done

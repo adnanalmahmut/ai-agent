@@ -60,33 +60,70 @@ jobs:
         run: |
           printf '%s\n' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$'
           mkdir -p release
-          backend=$(docker buildx imagetools inspect "$REGISTRY/backend:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
-          migration=$(docker buildx imagetools inspect "$REGISTRY/backend-migration:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
-          web=$(docker buildx imagetools inspect "$REGISTRY/web:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
-          platform=$(docker buildx imagetools inspect "$REGISTRY/platform:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
+
+          # Built by walking infra/release/components rather than by naming four
+          # images here. A component added to the catalog is published by this
+          # loop without the manifest step being touched, which is the whole
+          # point of the version 3 format: a release is a list of components,
+          # not four fields that every consumer has to know by name.
+          #
+          # Each entry records where the image lives, the immutable digest it
+          # resolved to, the commit it was built from, whether a deployment may
+          # proceed without it, and the host it needs. `sourceSha` is the same
+          # commit for every component today -- mixed-version releases are not
+          # deployable and the deploy gate refuses them -- but recording it per
+          # component is what keeps that a policy decision rather than a schema
+          # change.
+          entries="$RUNNER_TEMP/components.jsonl"
+          : >"$entries"
+          while read -r name repository required; do
+            case "$name" in '' | '#'*) continue ;; esac
+            printf '%s\n' "$name" | grep -Eq '^[a-z][a-z0-9-]*$'
+            printf '%s\n' "$required" | grep -Eq '^(true|false)$'
+            digest=$(docker buildx imagetools inspect "$REGISTRY/$repository:$IMAGE_TAG" --format '{{.Manifest.Digest}}')
+            printf '%s\n' "$digest" | grep -Eq '^sha256:[0-9a-f]{64}$'
+            jq -n \
+              --arg name "$name" \
+              --arg repository "$REGISTRY/$repository" \
+              --arg digest "$digest" \
+              --arg sourceSha "$SOURCE_SHA" \
+              --argjson required "$required" \
+              --argjson hostBundleMinVersion "$HOST_BUNDLE_MIN_VERSION" \
+              '{name:$name,repository:$repository,digest:$digest,sourceSha:$sourceSha,required:$required,compatibility:{hostBundleMinVersion:$hostBundleMinVersion}}' \
+              >>"$entries"
+          done <infra/release/components
+          test -s "$entries"
+
           jq -n \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg sha "$SOURCE_SHA" \
             --argjson ciRunId "$CI_RUN_ID" \
             --argjson publishRunId "$PUBLISH_RUN_ID" \
             --argjson hostBundleMinVersion "$HOST_BUNDLE_MIN_VERSION" \
-            --arg backend "$REGISTRY/backend@$backend" \
-            --arg migration "$REGISTRY/backend-migration@$migration" \
-            --arg web "$REGISTRY/web@$web" \
-            --arg platform "$REGISTRY/platform@$platform" \
-            '{schemaVersion:2,repository:$repository,sourceWorkflow:"CI",ciRunId:$ciRunId,publishWorkflow:"Publish immutable images",publishRunId:$publishRunId,sha:$sha,hostBundleMinVersion:$hostBundleMinVersion,backend:$backend,migration:$migration,web:$web,platform:$platform}' \
+            --slurpfile components "$entries" \
+            '{schemaVersion:3,repository:$repository,sourceWorkflow:"CI",ciRunId:$ciRunId,publishWorkflow:"Publish immutable images",publishRunId:$publishRunId,sha:$sha,hostBundleMinVersion:$hostBundleMinVersion,components:$components}' \
             >release/image-digests.json
+
+          # Asserted against the catalog again after the fact, so a manifest
+          # that lost a component between the loop and the file does not ship.
+          expected=$(grep -v '^#' infra/release/components | grep -v '^$' | awk '{ print $1 }' | sort | jq -R . | jq -sc .)
           jq -e \
             --arg repository "$GITHUB_REPOSITORY" \
             --arg sha "$SOURCE_SHA" \
             --argjson ciRunId "$CI_RUN_ID" \
             --argjson publishRunId "$PUBLISH_RUN_ID" \
             --argjson hostBundleMinVersion "$HOST_BUNDLE_MIN_VERSION" \
-            '.schemaVersion == 2 and .repository == $repository and .sourceWorkflow == "CI" and .ciRunId == $ciRunId and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and .sha == $sha and .hostBundleMinVersion == $hostBundleMinVersion and (.hostBundleMinVersion | type) == "number" and ([.backend,.migration,.web,.platform] | all(test("^ghcr\\.io/[a-z0-9._/-]+@sha256:[0-9a-f]{64}$")))' \
+            --argjson expected "$expected" \
+            '.schemaVersion == 3 and .repository == $repository and .sourceWorkflow == "CI" and .ciRunId == $ciRunId and .publishWorkflow == "Publish immutable images" and .publishRunId == $publishRunId and .sha == $sha and .hostBundleMinVersion == $hostBundleMinVersion and (.hostBundleMinVersion | type) == "number" and ([.components[].name] | sort) == $expected and (.components | all(.digest | test("^sha256:[0-9a-f]{64}$"))) and (.components | all(.repository | test("^ghcr\\.io/[a-z0-9._/-]+$"))) and (.components | all(.sourceSha == $sha)) and (.components | all(.compatibility.hostBundleMinVersion == $hostBundleMinVersion))' \
             release/image-digests.json >/dev/null
 
-      # This artifact is the only channel by which the four validated digests
-      # reach a deployment, so `archive` must stay at its default: the staging
+          # The same reader the deployments use, run here so a manifest this
+          # workflow would publish but no deployment could accept fails in the
+          # run that produced it.
+          jq -r --arg registry "$REGISTRY" -f infra/release/manifest.jq release/image-digests.json >/dev/null
+
+      # This artifact is the only channel by which the validated component
+      # digests reach a deployment, so `archive` must stay at its default: the staging
       # workflow downloads by name pattern with `merge-multiple` and reads the
       # extracted JSON. An unzipped direct upload would also ignore `name`.
       - uses: actions/upload-artifact@v7

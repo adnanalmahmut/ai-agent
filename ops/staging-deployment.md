@@ -2,7 +2,8 @@
 
 `deploy-staging.yml` starts only after the immutable-image publisher succeeds
 for `main`. It downloads the artifact from the exact triggering Publish run ID
-and derives the source SHA and all four digests from that validated manifest;
+and derives the source SHA and every component digest from that validated
+manifest, through the shared reader that accepts both manifest versions;
 the nested workflow's own Git head is never release identity. It neither checks
 out nor rebuilds application source.
 

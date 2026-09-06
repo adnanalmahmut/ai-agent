@@ -11,11 +11,11 @@ grep -Fq 'group: deploy-production' "$workflow"
 grep -Fq 'deploy-staging.yml' "$workflow"
 grep -Fq 'staging-success-$RELEASE_SHA' "$workflow"
 grep -Fq '.stagingRunId == $stagingRunId' "$workflow"
-grep -Fq 'deploy production $RELEASE_SHA $BACKEND_DIGEST $MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST' "$workflow"
+grep -Fq 'deploy production $RELEASE_SHA $BACKEND_DIGEST $BACKEND_MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST' "$workflow"
 grep -Fq 'rollback production' "$workflow"
 grep -Fq 'PREVIOUS_RELEASE.json' infra/deploy/ai-agent-deploy
 grep -Fq 'CURRENT_RELEASE.json' infra/deploy/ai-agent-deploy
-grep -Fq 'digest_from_manifest "$previous_release" backend' infra/deploy/ai-agent-deploy
+grep -Fq 'component_digest "$previous_release" backend' infra/deploy/ai-agent-deploy
 grep -Fq 'infra/tests/release-manifest.sh' .github/workflows/ci.yml
 
 if grep -Eq 'headSha|head_sha|image-digests-' "$workflow"; then

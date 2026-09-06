@@ -395,6 +395,7 @@ case ${1:-} in
     case $label in
       io.ai-agent.release.sha) label_key=release-sha ;;
       io.ai-agent.host-bundle.min-version) label_key=min-version ;;
+      io.ai-agent.component.name) label_key=component-name ;;
       *) printf '<no value>\n'; exit 0 ;;
     esac
     case $image in
@@ -404,6 +405,13 @@ case ${1:-} in
       *"/platform@"*) image_key=platform ;;
       *) image_key=unknown ;;
     esac
+    # The component label answers with the image's own identity unless a test
+    # deliberately overrides it, which is how a digest in the wrong slot is
+    # simulated.
+    if [ "$label_key" = component-name ] && [ ! -f "$TEST_CONTROL/label.component-name.$image_key" ]; then
+      printf '%s\n' "$image_key"
+      exit 0
+    fi
     if [ -f "$TEST_CONTROL/label.$label_key.$image_key" ]; then
       cat "$TEST_CONTROL/label.$label_key.$image_key"
     elif [ -f "$TEST_CONTROL/label.$label_key" ]; then
@@ -890,6 +898,32 @@ printf '%s\n' "$((bundle_minimum + 1))" >"$control/label.min-version.web"
 refuses 'disagree on the host bundle minimum' \
   'release images that disagree on the host requirement' attempt_deploy
 rm -f "$control/label.min-version.web"
+
+# A digest in the wrong slot. Both images are real, both belong to this release,
+# and both declare the same host requirement -- every other check here passes.
+# What makes it a refusal is that the image the manifest handed over as the web
+# component says it is the platform image.
+printf 'platform\n' >"$control/label.component-name.web"
+refuses 'not the web component' \
+  'the platform image handed over as the web component' attempt_deploy
+rm -f "$control/label.component-name.web"
+
+# Releases published before the component label exist, and a host has to stay
+# able to roll back to one, so a release carrying no component label at all is
+# read as the legacy release it is (asserted in infra/tests/release-manifest.sh,
+# where a rollback to one succeeds). A release labelled on only part of itself
+# is not that: it is images from more than one publish, and it is exactly the
+# case a per-image check has to catch, since half a label proves nothing.
+printf '<no value>\n' >"$control/label.component-name.backend"
+refuses 'component names for only part of itself' \
+  'a release where one image carries no component label' attempt_deploy
+rm -f "$control/label.component-name.backend"
+
+printf '<no value>\n' >"$control/label.component-name.web"
+printf '<no value>\n' >"$control/label.component-name.platform"
+refuses 'component names for only part of itself' \
+  'a release labelled on half its images' attempt_deploy
+rm -f "$control/label.component-name.web" "$control/label.component-name.platform"
 
 # An unlabelled image cannot state what it needs, so it cannot be accepted.
 printf '<no value>\n' >"$control/label.min-version"

@@ -86,18 +86,53 @@ health() {
   api_health
 }
 
+# The components this release is made of, in deployment order. This is the
+# host's copy of infra/release/components; infra/tests/artifact-contract.sh
+# compares the two, so a component added to the catalog and not added here is
+# reported rather than silently left out of the release record.
+release_components() {
+  printf '%s\n' \
+    "backend $BACKEND_IMAGE" \
+    "backend-migration $BACKEND_MIGRATION_IMAGE" \
+    "web $WEB_IMAGE" \
+    "platform $PLATFORM_IMAGE"
+}
+
+# Version 1 release records named each component after the field it happened to
+# occupy, and `migration` never matched its repository. New records carry the
+# component name; this mapping is only for reading the ones already on disk.
+legacy_record_field() {
+  case "$1" in
+    backend) printf 'backend' ;;
+    backend-migration) printf 'migration' ;;
+    web) printf 'web' ;;
+    platform) printf 'platform' ;;
+    *) die "unknown release component: $1" ;;
+  esac
+}
+
+# Written as a component list rather than as one field per image, so that adding
+# a component does not need a new record format -- and read back by name, so a
+# record whose components arrive in another order still resolves correctly.
+#
+# `recordVersion` is deliberately not `schemaVersion`: this is the host's own
+# state, not the published manifest, and the two are free to diverge. One line,
+# because `status` prints the record with `sed -n 1p`.
 write_release_manifest() {
   destination=$1
   sha=$2
-  backend_digest=$3
-  migration_digest=$4
-  web_digest=$5
-  platform_digest=$6
   temporary=$destination.tmp.$$
 
   umask 077
-  printf '{"sha":"%s","backend":"sha256:%s","migration":"sha256:%s","web":"sha256:%s","platform":"sha256:%s"}\n' \
-    "$sha" "$backend_digest" "$migration_digest" "$web_digest" "$platform_digest" >"$temporary"
+  {
+    printf '{"recordVersion":1,"sha":"%s","components":[' "$sha"
+    separator=
+    release_components | while read -r name image; do
+      printf '%s{"name":"%s","digest":"sha256:%s"}' "$separator" "$name" "${image##*@sha256:}"
+      separator=,
+    done
+    printf ']}\n'
+  } >"$temporary"
   mv "$temporary" "$destination"
 }
 
@@ -117,28 +152,62 @@ pull_release_images() {
 # release. A label travels with the digest, is readable after the pull and
 # before migrations, and lets an older bundle keep serving releases whose
 # minimum it already satisfies.
-image_label() {
+# Reads a label that may legitimately be absent, and says so by printing
+# nothing. An image that cannot be inspected at all is still fatal: that is a
+# missing image, which is a different problem from a label never written.
+optional_image_label() {
   image=$1
   label=$2
   value=$(docker image inspect --format "{{ index .Config.Labels \"$label\" }}" "$image" 2>/dev/null) ||
     die "release image is not present locally after the pull"
   # Verified against an attested bake push pulled by index digest: an absent
   # label comes back empty on Docker 29 and as `<no value>` on older releases.
-  [ -n "$value" ] && [ "$value" != '<no value>' ] || die "release image does not declare $label"
+  [ "$value" != '<no value>' ] || value=
+  printf '%s' "$value"
+}
+
+image_label() {
+  value=$(optional_image_label "$1" "$2")
+  [ -n "$value" ] || die "release image does not declare $2"
   printf '%s' "$value"
 }
 
 verify_release_declaration() {
   sha=$1
   minimum=
+  labelled=
+  unlabelled=
 
-  for image in "$BACKEND_IMAGE" "$BACKEND_MIGRATION_IMAGE" "$WEB_IMAGE" "$PLATFORM_IMAGE"; do
-    # Ties the four digests to one release. Digests are immutable but not
-    # necessarily related: four valid digests from four different builds would
-    # otherwise deploy as a release that was never tested together.
+  walk=$(mktemp)
+  release_components >"$walk"
+  while read -r component image; do
+    # Ties the digests to one release. Digests are immutable but not necessarily
+    # related: four valid digests from four different builds would otherwise
+    # deploy as a release that was never tested together.
     declared_sha=$(image_label "$image" io.ai-agent.release.sha)
     [ "$declared_sha" = "$sha" ] ||
       die 'release image does not belong to the requested release'
+
+    # And ties each digest to the slot it was handed in. A manifest that puts
+    # the platform digest where the web component belongs passes every other
+    # check here: both are real images from the same release. The component
+    # label is what makes that a refusal rather than a silent swap.
+    #
+    # Releases published before the label existed do not carry it, and the
+    # release a host may need to roll back to is one of them. Installing this
+    # bundle must not strand that rollback, so a release that carries no
+    # component labels at all is read as what it is. What is refused is a
+    # release that carries some: that is not a release from before the label,
+    # it is images from more than one publish, which is the swap this check
+    # exists to catch. The tally is settled after the walk.
+    declared_component=$(optional_image_label "$image" io.ai-agent.component.name)
+    if [ -n "$declared_component" ]; then
+      labelled="$labelled $component"
+      [ "$declared_component" = "$component" ] ||
+        die "release image is $declared_component, not the $component component"
+    else
+      unlabelled="$unlabelled $component"
+    fi
 
     declared=$(image_label "$image" io.ai-agent.host-bundle.min-version)
     printf '%s' "$declared" | grep -Eq '^[1-9][0-9]*$' ||
@@ -148,8 +217,16 @@ verify_release_declaration() {
     else
       [ "$declared" = "$minimum" ] || die 'release images disagree on the host bundle minimum'
     fi
-  done
+  done <"$walk"
+  rm -f "$walk"
 
+  if [ -n "$labelled" ] && [ -n "$unlabelled" ]; then
+    die "release declares component names for only part of itself; missing:$unlabelled"
+  fi
+  [ -n "$labelled" ] ||
+    echo "note: release $sha predates component labels; deploying it as a legacy release" >&2
+
+  [ -n "$minimum" ] || die 'the release declares no host bundle minimum'
   "$host_preflight" require-version "$minimum"
 }
 
@@ -239,8 +316,7 @@ deploy_release() {
     cp "$current_release" "$previous_release.tmp"
     mv "$previous_release.tmp" "$previous_release"
   fi
-  write_release_manifest "$current_release" "$sha" "$backend_digest" \
-    "$migration_digest" "$web_digest" "$platform_digest"
+  write_release_manifest "$current_release" "$sha"
 }
 
 lock_deployment() {
@@ -289,11 +365,30 @@ manifest_value() {
   printf '%s' "$value"
 }
 
-digest_from_manifest() {
-  value=$(manifest_value "$1" "$2")
+# Reads one component's digest out of a release record, in either shape. Hosts
+# carry records written before the component list existed, and a bundle update
+# must not make the release they describe unrollbackable -- so the legacy flat
+# record stays readable and is mapped onto the same component names.
+#
+# Strict in both shapes: a component the record does not carry, or carries as
+# anything other than a sha256 digest, is a refusal. Rollback guessing at a
+# missing component is how an incident becomes two incidents.
+component_digest() {
+  record=$1
+  component=$2
+  [ -r "$record" ] || die 'release record is not available'
+
+  if grep -Fq '"recordVersion":1' "$record"; then
+    value=$(sed -n "s/.*\"name\":\"$component\",\"digest\":\"\([^\"]*\)\".*/\1/p" "$record")
+  else
+    field=$(legacy_record_field "$component")
+    value=$(sed -n "s/.*\"$field\":\"\([^\"]*\)\".*/\1/p" "$record")
+  fi
+
+  [ -n "$value" ] || die "release record is missing the $component component"
   case "$value" in
     sha256:*) digest=${value#sha256:} ;;
-    *) die "release manifest digest is malformed: $2" ;;
+    *) die "release record digest is malformed: $component" ;;
   esac
   validate_digest "$digest"
   printf '%s' "$digest"
@@ -315,10 +410,10 @@ case "${1:-}" in
     lock_deployment
     rollback_sha=$(manifest_value "$previous_release" sha)
     validate_sha "$rollback_sha"
-    rollback_backend=$(digest_from_manifest "$previous_release" backend)
-    rollback_migration=$(digest_from_manifest "$previous_release" migration)
-    rollback_web=$(digest_from_manifest "$previous_release" web)
-    rollback_platform=$(digest_from_manifest "$previous_release" platform)
+    rollback_backend=$(component_digest "$previous_release" backend)
+    rollback_migration=$(component_digest "$previous_release" backend-migration)
+    rollback_web=$(component_digest "$previous_release" web)
+    rollback_platform=$(component_digest "$previous_release" platform)
     deploy_release "$rollback_sha" "$rollback_backend" "$rollback_migration" \
       "$rollback_web" "$rollback_platform" no-migrate
     ;;
@@ -361,7 +456,7 @@ case "${1:-}" in
     [ "$#" -ge 2 ] || die 'bootstrap-super-admin requires environment'
     shift 2
     lock_deployment
-    bootstrap_digest=$(digest_from_manifest "$current_release" backend)
+    bootstrap_digest=$(component_digest "$current_release" backend)
     BACKEND_IMAGE="$registry/backend@sha256:$bootstrap_digest" \
       compose run --rm --interactive --tty --no-deps backend \
       node dist/src/cli/main super-admin:create "$@"
@@ -388,7 +483,7 @@ case "${1:-}" in
     [ "$#" -ge 2 ] || die 'rotate-managed-secret-keys requires environment'
     shift 2
     lock_deployment
-    rotation_digest=$(digest_from_manifest "$current_release" backend)
+    rotation_digest=$(component_digest "$current_release" backend)
     BACKEND_IMAGE="$registry/backend@sha256:$rotation_digest" \
       compose run --rm --no-deps backend \
       node dist/src/cli/main managed-secret:rotate-key "$@"
