@@ -8,7 +8,7 @@
 # either time.
 #
 # One line per version: `<version> <sha256>`, where the digest covers the
-# inventory plus the content of every file it lists. `ops/tests/host-bundle.sh`
+# inventory plus the content of every file it lists. `infra/tests/host-bundle.sh`
 # recomputes the digest for the current `VERSION` and fails if it disagrees, so
 # changing a bundle file forces a decision here instead of allowing silence.
 # Appending a line is the normal outcome; editing one is rewriting the recorded
@@ -23,3 +23,4 @@
 9 7102e65a5efa7f35c4a09548c344f8ac0813da93de600eae562bbc56125f99c7
 10 e4dd139f82fca959ee641961229fc296d812f32b87deb970e3f0b1fffb3b2677
 11 9b7d9281ca2527fe60a2f1387a710592a24d627ad29568cfc222ae818324505d
+12 d56bfab6d3eff2c9ed242798b3efbd8555f09faf4452df76b59c4531caa864ea

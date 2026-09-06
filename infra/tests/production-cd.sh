@@ -13,10 +13,10 @@ grep -Fq 'staging-success-$RELEASE_SHA' "$workflow"
 grep -Fq '.stagingRunId == $stagingRunId' "$workflow"
 grep -Fq 'deploy production $RELEASE_SHA $BACKEND_DIGEST $MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST' "$workflow"
 grep -Fq 'rollback production' "$workflow"
-grep -Fq 'PREVIOUS_RELEASE.json' ops/lightsail/ai-agent-deploy
-grep -Fq 'CURRENT_RELEASE.json' ops/lightsail/ai-agent-deploy
-grep -Fq 'digest_from_manifest "$previous_release" backend' ops/lightsail/ai-agent-deploy
-grep -Fq 'ops/tests/release-manifest.sh' .github/workflows/ci.yml
+grep -Fq 'PREVIOUS_RELEASE.json' infra/deploy/ai-agent-deploy
+grep -Fq 'CURRENT_RELEASE.json' infra/deploy/ai-agent-deploy
+grep -Fq 'digest_from_manifest "$previous_release" backend' infra/deploy/ai-agent-deploy
+grep -Fq 'infra/tests/release-manifest.sh' .github/workflows/ci.yml
 
 if grep -Eq 'headSha|head_sha|image-digests-' "$workflow"; then
   echo 'production evidence must come from the trusted staging manifest' >&2

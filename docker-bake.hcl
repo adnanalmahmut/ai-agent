@@ -6,7 +6,7 @@ variable "IMAGE_TAG" {
   default = "development"
 }
 
-# The publish workflow supplies the value from ops/host-bundle/MIN_VERSION.
+# The publish workflow supplies the value from infra/host-bundle/MIN_VERSION.
 # Zero prevents an ad hoc build from claiming host compatibility.
 variable "HOST_BUNDLE_MIN_VERSION" {
   default = "0"

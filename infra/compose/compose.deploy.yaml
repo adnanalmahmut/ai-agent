@@ -6,7 +6,7 @@
 # credential defaults live in compose.dev.yaml, which a deployment never loads,
 # so `POSTGRES_PASSWORD` has no fallback here: an absent value renders empty and
 # the database refuses to start, instead of silently coming up with a published
-# default password. `ops/runtime-preflight.sh` still rejects that value in
+# default password. `infra/deploy/runtime-preflight.sh` still rejects that value in
 # runtime.env, because an operator can always write it by hand.
 #
 # The throwaway `postgres-test` and `redis-test` are likewise absent, not merely
@@ -14,7 +14,7 @@
 #
 # Installed on a host as /opt/ai-agent/docker-compose.deploy.yml alongside the
 # shared file at /opt/ai-agent/docker-compose.yml. Both are release-coupled and
-# both are in ops/host-bundle/files; a host carrying only the shared file cannot
+# both are in infra/host-bundle/files; a host carrying only the shared file cannot
 # deploy this release, which is what the MIN_VERSION bump enforces.
 
 x-app-security: &app-security

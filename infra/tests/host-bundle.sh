@@ -9,15 +9,15 @@ set -eu
 # The bundle is installed into a sandbox by the same installer the operator
 # runs, and the deploy script under test is the copy that installer put there —
 # so this exercises the recorded manifest, not a description of it. Absolute
-# paths are rewritten the way ops/tests/release-manifest.sh already does; the
+# paths are rewritten the way infra/tests/release-manifest.sh already does; the
 # host scripts take no path from the environment on purpose.
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
-version_file=ops/host-bundle/VERSION
-minimum_file=ops/host-bundle/MIN_VERSION
-inventory=ops/host-bundle/files
+version_file=infra/host-bundle/VERSION
+minimum_file=infra/host-bundle/MIN_VERSION
+inventory=infra/host-bundle/files
 
 fail() { echo "$*" >&2; exit 1; }
 
@@ -44,7 +44,7 @@ printf '%s' "$bundle_minimum" | grep -Eq '^[1-9][0-9]*$' ||
 # VERSION alone was invisible -- and `docs/host-bundle.md` keeps the older
 # "bundle N" strings in its history, so even the doc check stays green. Two
 # changes shipped that way before this existed.
-ledger=ops/host-bundle/CONTENTS
+ledger=infra/host-bundle/CONTENTS
 recorded=$(grep -v '^[[:space:]]*#' "$ledger" | grep -v '^[[:space:]]*$' || true)
 [ -n "$recorded" ] || fail 'the host bundle contents ledger is empty'
 
@@ -58,7 +58,7 @@ printf '%s\n' "$recorded" | awk '{ print $1 }' | sort -c -n 2>/dev/null ||
 
 ledger_line=$(printf '%s\n' "$recorded" | awk -v v="$bundle_version" '$1 == v')
 [ -n "$ledger_line" ] ||
-  fail "ops/host-bundle/CONTENTS has no entry for bundle $bundle_version; a changed bundle file needs a new VERSION and a new line"
+  fail "infra/host-bundle/CONTENTS has no entry for bundle $bundle_version; a changed bundle file needs a new VERSION and a new line"
 
 # The same construction the ledger documents: the inventory, then a digest of
 # every file it lists, hashed together.
@@ -72,10 +72,10 @@ actual_digest=$(
   } | sha256sum | cut -d' ' -f1
 )
 recorded_digest=$(printf '%s\n' "$ledger_line" | awk '{ print $2 }')
-[ "$actual_digest" = "$recorded_digest" ] || fail "the installed host bundle files no longer match what ops/host-bundle/CONTENTS records for bundle $bundle_version.
+[ "$actual_digest" = "$recorded_digest" ] || fail "the installed host bundle files no longer match what infra/host-bundle/CONTENTS records for bundle $bundle_version.
   recorded: $recorded_digest
   actual:   $actual_digest
-  A listed file changed. Bump ops/host-bundle/VERSION and append a line for the
+  A listed file changed. Bump infra/host-bundle/VERSION and append a line for the
   new version, rather than rewriting the entry for one already installed."
 
 # A new version has to mean a different bundle, or the number is decoration.
@@ -115,7 +115,7 @@ printf '%s\n' "$entries" | while read -r source destination mode; do
   case $source in *.sh | */ai-agent-deploy | */ai-agent-deploy-dispatch) sh -n "$source" ;; esac
 done
 
-sh -n ops/lightsail/install-host-bundle.sh
+sh -n infra/deploy/install-host-bundle.sh
 
 # ---------------------------------------------------------------------------
 # The release-side declaration
@@ -127,7 +127,7 @@ grep -Fq '"io.ai-agent.release.sha" = "${IMAGE_TAG}"' docker-bake.hcl ||
   fail 'release images must be labelled with the release SHA'
 grep -Fq '"io.ai-agent.host-bundle.min-version" = "${HOST_BUNDLE_MIN_VERSION}"' docker-bake.hcl ||
   fail 'release images must be labelled with the host bundle minimum'
-grep -Fq "sed -n '1p' ops/host-bundle/MIN_VERSION" .github/workflows/publish-images.yml ||
+grep -Fq "sed -n '1p' infra/host-bundle/MIN_VERSION" .github/workflows/publish-images.yml ||
   fail 'the publish workflow must read the host bundle minimum from its file'
 grep -Fq 'hostBundleMinVersion' .github/workflows/publish-images.yml ||
   fail 'the release manifest must record the host bundle minimum'
@@ -137,9 +137,9 @@ grep -Fq 'hostBundleMinVersion' .github/workflows/deploy-staging.yml ||
 # The deploy script must read the requirement from the images rather than accept
 # it as an argument: a new argument would have to pass the dispatcher's
 # forced-command grammar, which is the trust boundary for the CI deploy key.
-grep -Fq 'io.ai-agent.host-bundle.min-version' ops/lightsail/ai-agent-deploy ||
+grep -Fq 'io.ai-agent.host-bundle.min-version' infra/deploy/ai-agent-deploy ||
   fail 'the deploy script must read the host bundle minimum from the release images'
-if grep -Eq 'min-version|host-bundle' ops/lightsail/ai-agent-deploy-dispatch; then
+if grep -Eq 'min-version|host-bundle' infra/deploy/ai-agent-deploy-dispatch; then
   fail 'the forced-command grammar must not carry the host bundle requirement'
 fi
 
@@ -183,7 +183,7 @@ optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTI
 
 # The list is a single-quoted shell here-string, so the quotes and the
 # assignment prefix are stripped to leave one variable name per line.
-required_block=$(sed -n '/^required=/,/^$/p' ops/runtime-preflight.sh |
+required_block=$(sed -n '/^required=/,/^$/p' infra/deploy/runtime-preflight.sh |
   tr -d "'" | sed 's/^required=//')
 
 # The shared file and the deployment overlay together are what a host
@@ -206,7 +206,7 @@ for variable in $(grep -hoE '\$\{[A-Z][A-Z0-9_]*:-\}' $deploy_composition |
   for name in $conditional; do
     if [ "$name" = "$variable" ]; then
       classified=yes
-      grep -Fq "$variable" ops/runtime-preflight.sh ||
+      grep -Fq "$variable" infra/deploy/runtime-preflight.sh ||
         fail "conditionally required compose variable is unknown to the runtime preflight: $variable"
     fi
   done
@@ -233,7 +233,7 @@ for variable in $required_block; do
   #
   # This asks only whether the compose file passes the value to *something*.
   # Which services receive it is a separate property, asserted per service
-  # against a real render in ops/tests/container-environment.sh; the two are
+  # against a real render in infra/tests/container-environment.sh; the two are
   # deliberately not merged, because that one needs `jq` and this one must keep
   # working without it.
   # shellcheck disable=SC2086
@@ -249,7 +249,7 @@ done
 for extension in $(grep -rhoiE 'create extension (if not exists )?[a-z_]+' \
   apps/backend/prisma/migrations |
   awk '{ print tolower($NF) }' | sort -u); do
-  grep -Eq "^required_extensions=.*\\b${extension}\\b" ops/lightsail/ai-agent-deploy ||
+  grep -Eq "^required_extensions=.*\\b${extension}\\b" infra/deploy/ai-agent-deploy ||
     fail "a migration creates the $extension extension and the deploy script does not require it"
 done
 
@@ -275,16 +275,16 @@ rewrite() {
 
 # The sources the sandbox installs are pre-rewritten copies, so the manifest
 # records digests of exactly what a deploy in this sandbox will execute.
-rewrite ops/host-preflight.sh "$tmp_dir/src/host-preflight.sh"
-rewrite ops/runtime-preflight.sh "$tmp_dir/src/runtime-preflight.sh"
-rewrite ops/lightsail/ai-agent-deploy-dispatch "$tmp_dir/src/ai-agent-deploy-dispatch"
-cp ops/lightsail/ai-agent-deploy.sudoers "$tmp_dir/src/ai-agent-deploy.sudoers"
+rewrite infra/deploy/host-preflight.sh "$tmp_dir/src/host-preflight.sh"
+rewrite infra/deploy/runtime-preflight.sh "$tmp_dir/src/runtime-preflight.sh"
+rewrite infra/deploy/ai-agent-deploy-dispatch "$tmp_dir/src/ai-agent-deploy-dispatch"
+cp infra/deploy/ai-agent-deploy.sudoers "$tmp_dir/src/ai-agent-deploy.sudoers"
 cp infra/compose/compose.yaml "$tmp_dir/src/docker-compose.yml"
 cp infra/compose/compose.deploy.yaml "$tmp_dir/src/docker-compose.deploy.yml"
-rewrite ops/lightsail/ai-agent-deploy "$tmp_dir/src/ai-agent-deploy"
+rewrite infra/deploy/ai-agent-deploy "$tmp_dir/src/ai-agent-deploy"
 
 # Stands in for ai-agent-release-retention. Retention's own behaviour is owned by
-# ops/tests/release-retention.sh, which drives the real script against a modelled
+# infra/tests/release-retention.sh, which drives the real script against a modelled
 # image store; what matters here is the wiring -- which entry point the wrapper
 # calls, when it calls it, whether the deployment lock reaches it, and what the
 # wrapper does with the answer. A stand-in also keeps this suite from needing a
@@ -350,7 +350,7 @@ sed \
   -e "s#/opt/ai-agent#$tmp_dir/opt/ai-agent#g" \
   -e "s#/var/lib/ai-agent#$tmp_dir/state#g" \
   -e "s#/usr/local/sbin#$tmp_dir/sbin#g" \
-  ops/lightsail/install-host-bundle.sh >"$tmp_dir/install"
+  infra/deploy/install-host-bundle.sh >"$tmp_dir/install"
 chmod +x "$tmp_dir/install"
 
 # Rejects a fragment that does not parse, the way the real visudo would: a stub

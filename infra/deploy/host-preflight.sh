@@ -13,7 +13,7 @@ set -eu
 # Every path is a fixed absolute literal. This runs as root under `sudo -n`
 # with `!setenv`, so a path that could be steered from the environment would be
 # a privilege boundary, not a convenience. Tests rewrite these literals the way
-# ops/tests/release-manifest.sh already does.
+# infra/tests/release-manifest.sh already does.
 
 manifest=/etc/ai-agent/host-bundle.manifest
 compose_destination=/opt/ai-agent/docker-compose.yml
@@ -31,7 +31,7 @@ die() {
 
 read_installed_version() {
   [ -r "$manifest" ] ||
-    die 'no host bundle is recorded; install it with ops/lightsail/install-host-bundle.sh'
+    die 'no host bundle is recorded; install it with infra/deploy/install-host-bundle.sh'
   count=$(grep -c '^version ' "$manifest" || true)
   [ "$count" -eq 1 ] || die 'host bundle manifest must declare exactly one version'
   version=$(sed -n 's/^version //p' "$manifest")

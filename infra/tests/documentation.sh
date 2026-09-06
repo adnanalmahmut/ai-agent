@@ -1,6 +1,14 @@
 #!/bin/sh
 set -eu
 
+# The only test here that read its paths relative to the caller's directory
+# rather than the repository's. It happened to work because CI runs it from the
+# root; from anywhere else it reported that README.md was missing. Resolved the
+# way every sibling resolves it, so moving this directory again cannot make the
+# difference matter.
+root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+cd "$root"
+
 required_files='README.md
 docs/architecture.md
 docs/backend.md
@@ -41,7 +49,7 @@ grep -Fq 'PREVIOUS_RELEASE.json' docs/rollback.md
 grep -Fq 'staging-success-<SHA>' docs/cd.md
 grep -Fq 'actions/upload-artifact@v7' docs/cd.md
 grep -Fq 'actions/download-artifact@v8' docs/cd.md
-grep -Fq 'ops/tests/artifact-contract.sh' docs/cd.md
+grep -Fq 'infra/tests/artifact-contract.sh' docs/cd.md
 grep -Fq 'CURRENT_RELEASE.json' docs/release-retention.md
 grep -Fq 'PREVIOUS_RELEASE.json' docs/release-retention.md
 grep -Fq 'docker image inspect' docs/release-retention.md

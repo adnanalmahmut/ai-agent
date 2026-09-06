@@ -36,7 +36,7 @@ done
 offenders=$(grep -rn -e '\.\./\.\./\(docker-compose\.yml\|infra/compose/compose[a-z.]*\.yaml\)' \
   --include '*.json' --include '*.sh' --include '*.md' \
   --exclude-dir node_modules --exclude-dir .git . |
-  grep -v '^\./ops/tests/compose-interface\.sh:' |
+  grep -v '^\./infra/tests/compose-interface\.sh:' |
   grep -v '^\./infra/scripts/compose\.sh:' || true)
 if [ -n "$offenders" ]; then
   echo 'a caller still reaches a compose file by relative path' >&2
@@ -54,9 +54,9 @@ fi
 bare=$(grep -rn 'docker compose' \
   --include '*.yml' --include '*.yaml' --include '*.sh' --include '*.json' \
   --exclude-dir node_modules \
-  .github/workflows ops/tests package.json apps/backend/package.json |
+  .github/workflows infra/tests package.json apps/backend/package.json |
   grep -v -e '-f ' -e '--file' |
-  grep -v '^ops/tests/compose-interface\.sh:' || true)
+  grep -v '^infra/tests/compose-interface\.sh:' || true)
 if [ -n "$bare" ]; then
   echo 'a repository caller invokes Compose without naming a file; use the wrapper' >&2
   echo "$bare" >&2

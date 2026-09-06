@@ -27,7 +27,7 @@ unprovisioned.
 Artifacts use `actions/upload-artifact@v7` and
 `actions/download-artifact@v8`. Uploads retain archive packaging so the
 explicit artifact name is preserved; downloads retain digest verification.
-`ops/tests/artifact-contract.sh` verifies this cross-workflow handoff
+`infra/tests/artifact-contract.sh` verifies this cross-workflow handoff
 statically.
 
 Every image carries `io.ai-agent.release.sha` and

@@ -14,7 +14,9 @@ PostgreSQL, Redis/BullMQ, and shared UI and i18n packages.
 - Backend runtime contracts: `apps/backend/src/infrastructure/config/` and
   `apps/backend/prisma/schema.prisma`
 - Container topology: `infra/compose/` and `docker-bake.hcl`
-- Delivery behavior: `.github/workflows/` and `ops/`
+- Delivery behavior: `.github/workflows/`, `infra/deploy/`, `infra/host-bundle/`
+  and the host and gateway tooling that remains in `ops/`
+- Infrastructure checks: `infra/tests/`
 - Agent policies, roles, workflows, and skills: `.agents/`
 
 ## Working rules
@@ -46,7 +48,7 @@ pnpm lint
 pnpm test
 pnpm --filter backend test:e2e
 pnpm build
-ops/tests/documentation.sh
+infra/tests/documentation.sh
 ```
 
 Do not use `--fix` as verification. Do not declare completion with a known

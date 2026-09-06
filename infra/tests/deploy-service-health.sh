@@ -29,7 +29,7 @@ sed \
   -e "s#preflight=/usr/local/sbin/ai-agent-runtime-preflight#preflight=$preflight#" \
   -e "s#host_preflight=/usr/local/sbin/ai-agent-host-preflight#host_preflight=$host_preflight#" \
   -e "s#retention=/usr/local/sbin/ai-agent-release-retention#retention=$retention#" \
-  "$repo_root/ops/lightsail/ai-agent-deploy" >"$wrapper"
+  "$repo_root/infra/deploy/ai-agent-deploy" >"$wrapper"
 chmod 0755 "$wrapper"
 
 cat >"$preflight" <<'EOF'
@@ -40,7 +40,7 @@ EOF
 chmod 0755 "$preflight"
 
 # The bundle and release-declaration gates are reproduced in
-# ops/tests/host-bundle.sh. Satisfied here so this test keeps proving only what
+# infra/tests/host-bundle.sh. Satisfied here so this test keeps proving only what
 # it is for: that a service which never comes up does not rotate the manifests.
 cat >"$host_preflight" <<'EOF'
 #!/bin/sh

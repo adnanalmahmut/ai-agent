@@ -23,7 +23,7 @@ deployment policy.
 ## Host contract
 
 The host bundle is installed with
-`ops/lightsail/install-host-bundle.sh` and recorded in
+`infra/deploy/install-host-bundle.sh` and recorded in
 `/etc/ai-agent/host-bundle.manifest`. The wrapper rejects an incompatible or
 modified bundle before migrations. See [host bundle](host-bundle.md).
 

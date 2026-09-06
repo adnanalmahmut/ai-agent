@@ -19,7 +19,7 @@ sed \
   -e "s#/usr/local/sbin/ai-agent-runtime-preflight#$tmp_dir/bin/preflight#g" \
   -e "s#/usr/local/sbin/ai-agent-host-preflight#$tmp_dir/bin/host-preflight#g" \
   -e "s#/usr/local/sbin/ai-agent-release-retention#$tmp_dir/bin/retention#g" \
-  ops/lightsail/ai-agent-deploy >"$tmp_dir/deploy"
+  infra/deploy/ai-agent-deploy >"$tmp_dir/deploy"
 chmod +x "$tmp_dir/deploy"
 
 cat >"$tmp_dir/bin/preflight" <<'SH'
@@ -27,15 +27,15 @@ cat >"$tmp_dir/bin/preflight" <<'SH'
 exit 0
 SH
 # The host-bundle and release-declaration gates have their own reproductions in
-# ops/tests/host-bundle.sh. Here they are satisfied cheaply, so that what this
+# infra/tests/host-bundle.sh. Here they are satisfied cheaply, so that what this
 # test proves stays what it is about: manifest rotation and digest immutability.
 cat >"$tmp_dir/bin/host-preflight" <<'SH'
 #!/bin/sh
 exit 0
 SH
 # Retention runs after a successful rotation and has its own reproduction in
-# ops/tests/release-retention.sh, plus its deployment wiring in
-# ops/tests/host-bundle.sh. Satisfied cheaply here for the same reason as above.
+# infra/tests/release-retention.sh, plus its deployment wiring in
+# infra/tests/host-bundle.sh. Satisfied cheaply here for the same reason as above.
 cat >"$tmp_dir/bin/retention" <<'SH'
 #!/bin/sh
 exit 0
