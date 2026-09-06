@@ -68,15 +68,17 @@ export type DeliverApprovedToolEffectOutcome = {
  * Performing a side effect that was approved earlier.
  *
  * The shape of this is deliberate: nothing that talks to a provider is reached
- * until `ToolAuthorizationService` has said yes and handed back the adapter to
- * use. There is no path here that takes an "approved" claim from a caller, a
- * runtime, or a job payload — approval is read from the row, and revalidated
- * against durable state in the same breath.
+ * until `ToolAuthorizationService` has said yes and handed back the authorized
+ * Control Plane preparer together with the pinned definition. There is no path
+ * here that takes an "approved" claim from a caller, a runtime, or a job
+ * payload — approval is read from the row, and revalidated against durable
+ * state in the same breath.
  *
- * The provider adapter itself receives an authorized, data-only delivery
- * command and an idempotency key. It has no database, no approval record, and
- * no organization state, so a future move of delivery out of this process moves
- * an adapter and not an authority.
+ * The preparer resolves the effective payload, computes its digest, and
+ * produces a function-free delivery command. `SideEffectDeliveryPort` then
+ * receives that authorized, data-only command and a stable idempotency key. It
+ * has no database, no approval record, and no organization state, so a future
+ * move of delivery out of this process moves an adapter and not an authority.
  */
 @Injectable()
 export class DeliverApprovedToolEffectUseCase {
