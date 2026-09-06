@@ -1,11 +1,16 @@
 # Container foundation
 
-The repository has one Compose model: `infra/compose/compose.yaml`. Profiles
-select
-the process set without overlay files:
+The repository has one Compose model in `infra/compose/`: the shared
+`compose.yaml`, plus `compose.dev.yaml`, `compose.test.yaml`, and
+`compose.deploy.yaml`. `infra/scripts/compose.sh` merges the shared file with
+exactly one overlay, chosen from the requested profile, and no caller names a
+file itself. Profiles select the process set:
 
-- `development`: PostgreSQL and Redis on loopback for local development.
-- `test`: isolated, disposable PostgreSQL and Redis on loopback.
+- `development`: PostgreSQL and Redis on loopback for local development, under
+  the `ai-agent` project.
+- `test`: isolated, disposable PostgreSQL and Redis on loopback, under the
+  separate `ai-agent-test` project, so no container, network, or volume name
+  collides with a developer's.
 - `staging` and `production`: API, worker, web, platform, databases, and the
   MaxMind database updater.
 - `migration`: the one-shot Prisma migration image used by deployment.
@@ -27,8 +32,12 @@ startup.
 infra/scripts/compose.sh --profile development config
 infra/scripts/compose.sh --profile test config
 infra/scripts/compose.sh --profile staging --profile migration config
-infra/scripts/compose.sh build backend web platform migrate
+infra/scripts/compose.sh --profile staging build backend web platform migrate
 ```
+
+The build command names a profile because the application services live in the
+deployment overlay: without one the wrapper assembles the development
+composition, which does not define them.
 
 The staging/production runtime file is server-local. Start Compose with an
 explicit path; deployment automation will enforce this convention. Compose
@@ -37,6 +46,8 @@ allowlist rather than the complete file:
 
 ```bash
 docker compose \
+  --file /opt/ai-agent/docker-compose.yml \
+  --file /opt/ai-agent/docker-compose.deploy.yml \
   --env-file /etc/ai-agent/runtime.env \
   --profile staging \
   up -d
@@ -48,8 +59,9 @@ required values without sourcing the file or printing their contents, and
 refuses the compose development database password and a `DATABASE_URL` that
 names a different role or database than the `POSTGRES_*` values.
 
-The compose file installed at `/opt/ai-agent/docker-compose.yml` is part of the
-versioned host bundle, so it is installed and recorded by
+The two compose files installed at `/opt/ai-agent/docker-compose.yml` and
+`/opt/ai-agent/docker-compose.deploy.yml` are part of the
+versioned host bundle, so they are installed and recorded by
 `ops/lightsail/install-host-bundle.sh` rather than copied by hand; the deploy
 wrapper refuses a release whose recorded digest no longer matches. See
 [the host bundle document](../docs/host-bundle.md).

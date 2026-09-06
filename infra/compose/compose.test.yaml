@@ -1,0 +1,64 @@
+# Test and CI only, merged over compose.yaml for `--profile test`.
+#
+# Its own project name, and that is the point. Container, network, and volume
+# names are all derived from it, so a test composition under `ai-agent-test`
+# cannot address `ai-agent_postgres_data`, cannot join the development
+# `ai-agent_edge` network, and cannot recreate or tear down a container a
+# developer is using. Previously both compositions were the one `ai-agent`
+# project and only the service names kept them apart.
+#
+# The shared `postgres` and `redis` are not reachable from here either: their
+# profiles in compose.yaml do not include `test`, so the composition renders
+# nothing but the two throwaway services below.
+#
+# The host ports are a fixed contract — the backend test suite connects to
+# 127.0.0.1:5433 and 127.0.0.1:6378 — so they are deliberately unchanged.
+name: ai-agent-test
+
+services:
+  postgres-test:
+    profiles: [test]
+    # Same image as `postgres`, for the same reason. This one keeps its data in
+    # tmpfs, so the collation caveat on the shared `postgres` in compose.yaml does
+    # not apply: there is no volume to carry an index built under the other libc.
+    image: pgvector/pgvector:pg16
+    restart: "no"
+    environment:
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-backend_test_user}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-backend_test_password}
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-backend_test}
+    ports:
+      - 127.0.0.1:${POSTGRES_TEST_PORT:-5433}:5432
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks:
+      - edge
+      - data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis-test:
+    profiles: [test]
+    image: redis:7-alpine
+    restart: "no"
+    command:
+      - redis-server
+      - --maxmemory-policy
+      - noeviction
+      - --appendonly
+      - "no"
+      - --save
+      - ""
+    ports:
+      - 127.0.0.1:${REDIS_TEST_PORT:-6378}:6379
+    networks:
+      - edge
+      - data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 10

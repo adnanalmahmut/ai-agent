@@ -57,9 +57,11 @@ jobs:
     timeout-minutes: 20
 
     services:
-      # Mirrors the `postgres-test` service in infra/compose/compose.yaml,
+      # Mirrors the `postgres-test` service in infra/compose/compose.test.yaml,
       # including its credentials, so a failure reproduces locally with
       # `infra/scripts/compose.sh --profile test up -d postgres-test redis-test`.
+      # That command runs under the `ai-agent-test` project, so reproducing a CI
+      # failure cannot disturb the containers or volumes `pnpm db:up` created.
       postgres:
         image: pgvector/pgvector:pg16
         env:
@@ -121,6 +123,13 @@ jobs:
 
       - name: Validate container topology
         run: |
+          # One line per composition, and every one of them names its profile:
+          # the wrapper picks the overlay from that and nothing here depends on
+          # Compose finding a file by itself. `ops/tests/compose-interface.sh`
+          # below is what proves the three are actually distinct — that the test
+          # composition renders under its own project, with no service, network,
+          # or volume identity in common with development, and that a deployment
+          # inherits no development default.
           infra/scripts/compose.sh --profile development config >/dev/null
           infra/scripts/compose.sh --profile test config >/dev/null
           infra/scripts/compose.sh --profile staging --profile migration config >/dev/null

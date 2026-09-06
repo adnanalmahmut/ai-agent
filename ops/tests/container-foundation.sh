@@ -4,12 +4,23 @@ set -eu
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$repo_root"
 
+# One shared model plus one overlay per composition, and nothing else. A
+# stray compose file anywhere in the tree is a second source of truth, which is
+# what the split was supposed to remove rather than create.
+base=infra/compose/compose.yaml
+dev_overlay=infra/compose/compose.dev.yaml
+test_overlay=infra/compose/compose.test.yaml
+deploy_overlay=infra/compose/compose.deploy.yaml
+all_compose="$base $dev_overlay $test_overlay $deploy_overlay"
+
 compose_files=$(find . -path ./node_modules -prune -o \
-  \( -name 'docker-compose.y*ml' -o -name 'compose.y*ml' \) -print)
-test "$compose_files" = './infra/compose/compose.yaml'
+  \( -name 'docker-compose.y*ml' -o -name 'compose.y*ml' -o -name 'compose.*.y*ml' \) -print |
+  sort | tr '\n' ' ')
+test "$compose_files" = './infra/compose/compose.deploy.yaml ./infra/compose/compose.dev.yaml ./infra/compose/compose.test.yaml ./infra/compose/compose.yaml '
 
 for port in 3000 3001 3002 5432 6379; do
-  if grep -En "^[[:space:]]*-[[:space:]]*['\"]?[^#]*:${port}:${port}" infra/compose/compose.yaml \
+  # shellcheck disable=SC2086
+  if grep -En "^[[:space:]]*-[[:space:]]*['\"]?[^#]*:${port}:${port}" $all_compose \
     | grep -Ev '127\.0\.0\.1:' >/dev/null; then
     echo "port ${port} has a non-loopback host binding" >&2
     exit 1
@@ -22,32 +33,39 @@ for forbidden in 'down'' -v' 'volume'' prune' 'system'' prune --volumes'; do
     --include '*.yml' \
     --include '*.yaml' \
     --exclude container-foundation.sh \
-    .github ops infra/compose/compose.yaml >/dev/null; then
+    .github ops infra/compose >/dev/null; then
     echo "destructive volume command found: $forbidden" >&2
     exit 1
   fi
 done
 
-grep -Eq '^  data:$' infra/compose/compose.yaml
-grep -Eq '^    internal: true$' infra/compose/compose.yaml
-grep -Eq '^  postgres_data:$' infra/compose/compose.yaml
-grep -Eq '^  redis_data:$' infra/compose/compose.yaml
-grep -Eq '^  geoip_data:$' infra/compose/compose.yaml
-grep -Eq 'command: \[node, dist/src/api/main\]' infra/compose/compose.yaml
-grep -Eq 'command: \[node, dist/src/workers/main\]' infra/compose/compose.yaml
+# The datastores and their volumes are shared, so they are asserted on the base
+# file; the application services and the GeoIP volume exist only where a host
+# runs them, so they are asserted on the deployment overlay. Asserting either
+# against the wrong file would pass for as long as the other file happened to
+# mention the string.
+grep -Eq '^  data:$' "$base"
+grep -Eq '^    internal: true$' "$base"
+grep -Eq '^  postgres_data:$' "$base"
+grep -Eq '^  redis_data:$' "$base"
+grep -Eq '^  geoip_data:$' "$deploy_overlay"
+grep -Eq 'command: \[node, dist/src/api/main\]' "$deploy_overlay"
+grep -Eq 'command: \[node, dist/src/workers/main\]' "$deploy_overlay"
 grep -Fq 'CMD ["node", "dist/src/api/main"]' apps/backend/Dockerfile
-grep -Eq 'command: \[node, node_modules/prisma/build/index.js, migrate, deploy\]' infra/compose/compose.yaml
-grep -Eq '^[[:space:]]+APP_PORT: 3002$' infra/compose/compose.yaml
-if grep -Eq '^[[:space:]]+PORT: 3002$' infra/compose/compose.yaml; then
+grep -Eq 'command: \[node, node_modules/prisma/build/index.js, migrate, deploy\]' "$deploy_overlay"
+grep -Eq '^[[:space:]]+APP_PORT: 3002$' "$deploy_overlay"
+# shellcheck disable=SC2086
+if grep -Eq '^[[:space:]]+PORT: 3002$' $all_compose; then
   echo 'backend compose service must configure APP_PORT, not PORT' >&2
   exit 1
 fi
-backend_block=$(sed -n '/^  backend:/,/^  worker:/p' infra/compose/compose.yaml)
+backend_block=$(sed -n '/^  backend:/,/^  worker:/p' "$deploy_overlay")
 if printf '%s\n' "$backend_block" | grep -Fq 'redis:'; then
   echo 'backend must not hard-depend on Redis health' >&2
   exit 1
 fi
-if grep -Fq 'env_file:' infra/compose/compose.yaml; then
+# shellcheck disable=SC2086
+if grep -Fq 'env_file:' $all_compose; then
   echo 'containers must receive explicit environment allowlists' >&2
   exit 1
 fi

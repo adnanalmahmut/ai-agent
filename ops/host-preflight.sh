@@ -17,6 +17,11 @@ set -eu
 
 manifest=/etc/ai-agent/host-bundle.manifest
 compose_destination=/opt/ai-agent/docker-compose.yml
+# The deployment overlay is as release-coupled as the shared file it merges
+# over: a host carrying only the shared file resolves no application services
+# at all, so an unrecorded overlay has to be as much of a refusal as an
+# unrecorded compose file.
+compose_overlay_destination=/opt/ai-agent/docker-compose.deploy.yml
 deploy_destination=/usr/local/sbin/ai-agent-deploy
 
 die() {
@@ -52,6 +57,8 @@ verify_integrity() {
   recorded_paths=$(sed -n 's/^file [0-7]* [0-9a-f]* //p' "$manifest")
   printf '%s\n' "$recorded_paths" | grep -Fxq "$compose_destination" ||
     die 'host bundle manifest does not cover the installed compose file'
+  printf '%s\n' "$recorded_paths" | grep -Fxq "$compose_overlay_destination" ||
+    die 'host bundle manifest does not cover the installed deployment compose overlay'
   printf '%s\n' "$recorded_paths" | grep -Fxq "$deploy_destination" ||
     die 'host bundle manifest does not cover the installed deploy script'
 

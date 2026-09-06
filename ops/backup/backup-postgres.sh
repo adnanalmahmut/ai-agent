@@ -5,6 +5,7 @@ umask 077
 environment_file=/etc/ai-agent/environment
 config_file=/etc/ai-agent/backup.conf
 compose_file=/opt/ai-agent/docker-compose.yml
+compose_deploy_file=/opt/ai-agent/docker-compose.deploy.yml
 [ "$(id -u)" -eq 0 ] || { echo 'run as root' >&2; exit 1; }
 [ -r "$environment_file" ] && [ -r "$config_file" ] || exit 1
 
@@ -25,11 +26,13 @@ test ! -e "$final" || { echo 'backup timestamp collision' >&2; exit 1; }
 temporary=$(mktemp --tmpdir="$BACKUP_DIRECTORY" .backup.XXXXXX)
 trap 'rm -f "$temporary"' EXIT HUP INT TERM
 
-docker compose --file "$compose_file" --profile "$environment" exec -T postgres \
+docker compose --file "$compose_file" --file "$compose_deploy_file" \
+  --profile "$environment" exec -T postgres \
   sh -c 'exec pg_dump --format=custom --no-owner --username="$POSTGRES_USER" --dbname="$POSTGRES_DB"' \
   >"$temporary"
 test -s "$temporary"
-docker compose --file "$compose_file" --profile "$environment" exec -T postgres \
+docker compose --file "$compose_file" --file "$compose_deploy_file" \
+  --profile "$environment" exec -T postgres \
   pg_restore --list <"$temporary" >/dev/null
 mv "$temporary" "$final"
 trap - EXIT HUP INT TERM

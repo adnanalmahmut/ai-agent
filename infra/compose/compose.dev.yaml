@@ -1,0 +1,19 @@
+# Development-only, merged over compose.yaml for `--profile development`.
+#
+# The credential defaults are the whole reason this file exists. They belong on
+# a laptop, where `pnpm db:up` has to work with an empty environment, and they
+# have no business on a host that answers from the internet — which is exactly
+# what they used to be one profile flag away from, when the same `postgres`
+# service carried them for development and for staging alike. Splitting the
+# compositions is what makes "the deployment never sees a development password"
+# a property of the files rather than of a reviewer noticing.
+#
+# `redis` needs nothing development-specific, so it is absent here and the
+# shared definition stands on its own.
+
+services:
+  postgres:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}

@@ -6,6 +6,13 @@ runtime_env=/etc/ai-agent/runtime.env
 environment_file=/etc/ai-agent/environment
 state_dir=/var/lib/ai-agent
 compose_file=$readonly_root/docker-compose.yml
+# The shared model plus the deployment overlay. Two files because the
+# repository states development, test, and deployment as separate overlays over
+# one shared file, and a host is installed with only the overlay it is entitled
+# to — the development credential fallbacks are in neither file installed here.
+# The shared file keeps its original destination, so the recorded manifest, the
+# backup units, and the preflight paths are all unaffected.
+compose_deploy_file=$readonly_root/docker-compose.deploy.yml
 preflight=/usr/local/sbin/ai-agent-runtime-preflight
 host_preflight=/usr/local/sbin/ai-agent-host-preflight
 retention=/usr/local/sbin/ai-agent-release-retention
@@ -31,6 +38,8 @@ environment=$(sed -n '1p' "$environment_file")
 [ "$environment" = staging ] || [ "$environment" = production ] || die 'invalid host environment'
 [ "${2:-}" = "$environment" ] || die 'requested environment does not match this host'
 [ -f "$compose_file" ] || die 'compose file is not installed'
+[ -f "$compose_deploy_file" ] ||
+  die 'deployment compose overlay is not installed; reinstall the host bundle'
 [ -f "$runtime_env" ] || die 'runtime.env is not installed'
 [ -x "$preflight" ] || die 'runtime preflight is not installed'
 [ -x "$host_preflight" ] || die 'host preflight is not installed; reinstall the host bundle'
@@ -41,14 +50,15 @@ environment=$(sed -n '1p' "$environment_file")
   die 'release retention is not installed; reinstall the host bundle'
 
 compose() {
-  docker compose --file "$compose_file" --env-file "$runtime_env" --profile "$environment" "$@"
+  docker compose --file "$compose_file" --file "$compose_deploy_file" \
+    --env-file "$runtime_env" --profile "$environment" "$@"
 }
 
 # `migrate` lives in the `migration` profile, so the active-profile view above
 # does not resolve it. Only the image-agreement check needs to see it.
 compose_with_migration() {
-  docker compose --file "$compose_file" --env-file "$runtime_env" \
-    --profile "$environment" --profile migration "$@"
+  docker compose --file "$compose_file" --file "$compose_deploy_file" \
+    --env-file "$runtime_env" --profile "$environment" --profile migration "$@"
 }
 
 validate_sha() {

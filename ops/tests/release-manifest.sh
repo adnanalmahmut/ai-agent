@@ -7,7 +7,9 @@ cd "$root"
 tmp_dir=$(mktemp -d)
 trap 'rm -rf "$tmp_dir"' EXIT HUP INT TERM
 mkdir -p "$tmp_dir/bin" "$tmp_dir/opt/ai-agent" "$tmp_dir/etc/ai-agent" "$tmp_dir/state"
-touch "$tmp_dir/opt/ai-agent/docker-compose.yml" "$tmp_dir/etc/ai-agent/runtime.env"
+touch "$tmp_dir/opt/ai-agent/docker-compose.yml" \
+  "$tmp_dir/opt/ai-agent/docker-compose.deploy.yml" \
+  "$tmp_dir/etc/ai-agent/runtime.env"
 printf 'production\n' >"$tmp_dir/etc/ai-agent/environment"
 
 sed \
