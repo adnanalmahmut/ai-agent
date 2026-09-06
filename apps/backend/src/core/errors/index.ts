@@ -45,6 +45,24 @@ export function isAppErrorCode(value: unknown): value is AppErrorCode {
   );
 }
 
+/**
+ * A state the system is not supposed to be able to reach: a row that must have
+ * a companion and does not, a configuration that must have been written and
+ * was not.
+ *
+ * It is not something a caller sent, so it is not something a caller can fix.
+ * It stays an internal error -- 500, logged with its stack, redacted in the
+ * response -- and the type exists so that the log and the tests can say which
+ * kind of failure it was. Naming a bug is not the same as making it the
+ * caller's problem, so this must not acquire an HTTP status.
+ */
+export class InvariantViolationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvariantViolationError';
+  }
+}
+
 export interface AppExceptionOptions {
   context?: Record<string, unknown>;
 
