@@ -113,9 +113,12 @@ skipOriginCheck: options.advanced?.disableOriginCheck !== void 0
   : isTest() ? true : false
 ```
 
-`isTest()` is `NODE_ENV === 'test' || TEST` truthy. The application never sets
-`advanced.disableOriginCheck`, so the guard is on in production and off under
-the e2e harness, which sets `NODE_ENV=test` in `test/support/setup-env.ts`.
+`isTest()` is `NODE_ENV === 'test' || TEST` truthy. At the time of this
+finding the application did not set `advanced.disableOriginCheck`, so the guard
+was on in production and off under the e2e harness, which sets `NODE_ENV=test`
+in `test/support/setup-env.ts`. That divergence has since been closed — see
+[Origin and CSRF protection is pinned on](#origin-and-csrf-protection-is-pinned-on)
+below — so the fallback no longer decides anything for this application.
 
 The Phase A reproduction therefore measured the e2e environment. Re-running the
 same reproduction with `NODE_ENV=production` and no other change:
@@ -127,8 +130,8 @@ same reproduction with `NODE_ENV=production` and no other change:
 
 So the deployed exposure was narrower than the Phase A entry implies: upstream
 protected it. What was genuinely absent was any configuration of our own
-pinning that behavior, and any test able to prove it — the suite that exercises
-these flows had the control silently disabled.
+pinning that behavior, and any test able to prove it — the suite that exercised
+these flows had the control silently disabled. Both gaps are now closed.
 
 ### Behavior after the fix
 
@@ -173,6 +176,142 @@ Upstream's `trustedOrigins` check is unchanged and still rejects a foreign
 All 24 of these assertions fail against the unfixed callbacks and pass with
 them, so the coverage is known to detect the defect rather than merely
 accompany the fix.
+
+## Origin and CSRF protection is pinned on
+
+`apps/backend/src/infrastructure/auth/auth.factory.ts` sets both
+`advanced.disableOriginCheck: false` and `advanced.disableCSRFCheck: false`
+explicitly. Better Auth only falls back to `isTest() ? true : false` for the
+first when the option is absent, and only couples CSRF to that fallback while
+the second is absent, so stating both means `development`, `test`, `staging`
+and `production` all make the same decision and only the trusted-origin list
+differs. Both are literals: deriving either from `NODE_ENV` would reintroduce
+the divergence they remove.
+
+In the installed `better-auth@1.6.27`, `context.skipOriginCheck` gates:
+
+- `Origin` / `Referer` validation against `trustedOrigins`, for state-changing
+  requests that carry a cookie (`validateOrigin`).
+- `callbackURL`, `redirectTo`, `errorCallbackURL` and `newUserCallbackURL`
+  validation, both in the router-wide `originCheckMiddleware` and in the
+  per-endpoint `originCheck` guard.
+
+`context.skipCSRFCheck` separately gates the CSRF protection on sign-in and
+sign-up (`formCsrfMiddleware`), including the cross-site navigation block.
+Better Auth would otherwise fold that into `skipOriginCheck` through
+`shouldSkipCSRFForBackwardCompat`, a path it documents as deprecated; pinning
+`disableCSRFCheck` means the CSRF guarantee no longer depends on the origin
+one, and a later change to either cannot quietly move the other.
+
+### What this changed in the suite
+
+Enabling the checks against the unmodified harness failed **441 of 827 tests
+across 15 of the 34 e2e suites**, every one of them because a request modelled
+a browser without sending what a browser sends. The breadth comes from a single
+helper: almost every feature suite reaches Better Auth through `as()` to create
+an organization or invite a member before it can test anything else, so one
+missing header failed whole suites at setup.
+
+| Suite | Failing tests |
+| --- | --- |
+| `platform/organization` | 56 |
+| `features/content-ideas` | 49 |
+| `features/knowledge-management` | 49 |
+| `features/content-projects` | 46 |
+| `ai/mcp-tool-adapter` | 45 |
+| `ai/agent-action-approval` | 44 |
+| `features/control-plane` | 33 |
+| `features/organization-business-profile` | 27 |
+| `features/control-plane-audit` | 27 |
+| `ai/tool-execution` | 25 |
+| `features/organization-agent-installation` | 15 |
+| `features/knowledge-embedding` | 10 |
+| `platform/auth` | 8 |
+| `platform/super-admin-floor` | 6 |
+| `platform/admin-rbac` | 4 |
+
+The fix was to the harness, not to the protection:
+
+- `test/support/auth-harness.ts` — `as()` stands for a signed-in browser, so
+  its `post`, `put` and `del` attach `Origin: <APP_PLATFORM_URL origin>`. `get`
+  deliberately does not: a browser does not send `Origin` on an ordinary
+  same-origin read, and Better Auth's middleware returns early for GET.
+  `APP_PLATFORM_URL` and `BETTER_AUTH_TRUSTED_ORIGINS` are independent
+  settings, so the harness now asserts at load that the first's origin appears
+  in the second and fails with a named error rather than a stray `403`. This
+  one helper accounted for all but the eight failures below.
+- `test/e2e/platform/auth.e2e-spec.ts` — four cookie-carrying requests built
+  directly now send the same header, and three tests that drove a foreign
+  destination through a `200` were changed to name a destination on a trusted
+  origin, which is what they were actually about. (The eighth followed from one
+  of those three.)
+
+Tests that exist to pin missing- or foreign-`Origin` behavior build their
+request directly and never go through `as()`.
+
+### Regression coverage
+
+`test/e2e/platform/auth-origin.e2e-spec.ts` pins the behavior against
+`/api/auth/update-user`, a cookie-authenticated state-changing route whose
+effect is one readable column, so a refusal can be shown to have changed
+nothing:
+
+| Origin on the request | Result |
+| --- | --- |
+| the trusted platform origin | `200`, column written |
+| `https://attacker.example` | `403 INVALID_ORIGIN`, column untouched |
+| `http://localhost:3001.attacker.example` | `403 INVALID_ORIGIN`, column untouched |
+| `http://localhost:3001@attacker.example` | `403 INVALID_ORIGIN`, column untouched |
+| the trusted host on another scheme or port | `403 INVALID_ORIGIN`, column untouched |
+| absent, or the literal `null` | `403 MISSING_OR_NULL_ORIGIN`, column untouched |
+
+A sign-in from a foreign origin is refused with `403 INVALID_ORIGIN`, sets no
+cookie, and leaves the session count unchanged. Security mail is covered as its
+own layer: a foreign `redirectTo`, a foreign `callbackURL` on a resend, and a
+foreign `callbackURL` at sign-up are each refused before any mail is dispatched,
+and the sign-up case creates no account.
+
+Every status code here was read from the installed version rather than assumed.
+
+### The two layers stay independent
+
+1. Better Auth refuses a destination outside `trustedOrigins`.
+2. If a destination reaches the mail callbacks anyway, `auth-mail.ts` still
+   overwrites it with the server-decided route.
+
+Layer 1 now answers first in every environment, which means the end-to-end
+attack cases can no longer reach layer 2. Layer 2 is therefore proven where it
+still can be: directly against the callbacks in
+`test/unit/infrastructure/auth/auth-mail.spec.ts`, and end to end through a
+destination on a *trusted* origin that the product nonetheless did not choose —
+which passes layer 1 and is still discarded by layer 2.
+
+Each pin was mutation-tested separately against the 13 tests in
+`auth-origin.e2e-spec.ts`:
+
+| Mutation | Result |
+| --- | --- |
+| remove `disableOriginCheck: false` | 11 failed, 2 passed |
+| set `disableCSRFCheck: true` | 8 failed, 5 passed |
+
+Removing the origin pin loses both the `Origin` enforcement and the
+destination validation. Disabling CSRF loses only the `Origin` enforcement —
+`validateOrigin` returns on `skipCSRFCheck` before it reaches the trusted-origin
+comparison — while the three security-mail destination cases still refuse,
+which is what shows the two flags now guard different things. In both runs the
+two survivors, or five, include the trusted-origin positive cases, which assert
+that a legitimate request is carried out and are meant to pass either way.
+
+### `TEST` does not reach the deployed backend
+
+Verified against `docker-compose.yml`, `apps/backend/Dockerfile`,
+`ops/environments/runtime.env.example` and `ops/runtime-preflight.sh`: the
+backend and worker services list their environment explicitly and use no
+`env_file`, so only the named variables are passed, and `TEST` is not among
+them. `NODE_ENV` is passed, but the image defaults it to `production` and
+`ops/runtime-preflight.sh` refuses to start a host whose `NODE_ENV` does not
+match that host's environment. After this change neither variable can turn the
+origin or CSRF checks off in a deployed runtime.
 
 ## Not tested, and why
 
