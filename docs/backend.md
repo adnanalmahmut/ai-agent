@@ -73,10 +73,14 @@ Agent tools pass through one gateway. Exact versioned grants are narrowed by the
 organization installation. Read-only tools execute inline. Side-effect tools
 only create an approval record; after an authorized decision,
 `modules/approvals/deliver-approved-tool-effect.use-case.ts` revalidates against
-durable state and performs the effect idempotently. Authorization hands back the
-adapter to use, so there is no path to a provider that has not been authorized,
-and the adapter itself receives only an idempotency key. MCP sessions expose the same
-gateway and cannot bypass the approval lifecycle.
+durable state and performs the effect idempotently. Authorization returns the
+authorized Control Plane preparer and the pinned definition, never a provider.
+The preparer resolves the effective payload, computes its digest, and builds a
+function-free, data-only `SideEffectDeliveryCommand`; `SideEffectDeliveryPort`
+receives that authorized command and a stable idempotency key. A provider
+adapter therefore holds no Prisma access, no approval record, no organization
+state and no agent definition. MCP sessions expose the same gateway and cannot
+bypass the approval lifecycle.
 
 Knowledge is organization-scoped. Ingestion stores documents and chunks, then
 uses the outbox for embedding work. Retrieval applies the agent definition's
