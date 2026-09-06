@@ -10,6 +10,7 @@ import { createBrowserTransport } from '@repo/api-client/browser';
 import type { operations } from '@repo/api-client/generated';
 
 import { API_BASE_PATH, CONTROL_PLANE_PATH } from '@/config/paths';
+import { everyValueOf } from '@/lib/api/vocabulary';
 
 /**
  * The application's API surface. The transport, the wire protocol and the two
@@ -66,17 +67,17 @@ export type ControlPlaneAuditEntry = ControlPlaneAuditPage['items'][number];
 /**
  * The vocabularies as runtime values, which the types alone cannot provide.
  *
- * `source` is a wire enum, so this list is `satisfies` it. The audit actions
- * are not: an event written by an earlier version carries whatever that
+ * `source` is a wire enum, so `everyValueOf` holds that list level with it in
+ * both directions. The audit actions are not a wire enum: an event written by an earlier version carries whatever that
  * version called it, so the contract documents `action` as a string and the
  * screen already falls back to an "unknown action" label. This list is the set
  * this release can translate, not a claim about what the history contains.
  */
-export const FEATURE_FLAG_SOURCES = [
+export const FEATURE_FLAG_SOURCES = everyValueOf<FeatureFlagSource>()([
   'organization',
   'platform',
   'default',
-] as const satisfies readonly FeatureFlagSource[];
+]);
 
 export const CONTROL_PLANE_AUDIT_ACTIONS = [
   'featureFlag.setPlatformOverride',

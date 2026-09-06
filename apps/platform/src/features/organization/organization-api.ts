@@ -1,5 +1,6 @@
 import type { operations } from '@repo/api-client/generated';
 import { apiRequest } from '@/lib/application-api';
+import { everyValueOf } from '@/lib/api/vocabulary';
 
 import type {
   ArchivedOrganization,
@@ -113,7 +114,7 @@ export type IngestedDocument = IngestKnowledgeDocumentData;
  * translated. `satisfies` holds the list answerable to the generated union, so
  * a slug the API does not serve cannot be added here.
  */
-export const KNOWLEDGE_SPACE_SLUGS = [
+export const KNOWLEDGE_SPACE_SLUGS = everyValueOf<KnowledgeSpaceSlug>()([
   'organization.profile',
   'brand.identity',
   'brand.voice',
@@ -122,7 +123,7 @@ export const KNOWLEDGE_SPACE_SLUGS = [
   'content.strategy',
   'design.system',
   'faq',
-] as const satisfies readonly KnowledgeSpaceSlug[];
+]);
 
 const knowledgeBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/knowledge`;
@@ -245,34 +246,35 @@ export type ContentIdeaFormat = ContentIdea['suggestedFormat'];
 /*
  * The closed vocabularies as runtime values, which the types alone cannot
  * provide: the form offers them and the message-catalogue test iterates them.
- * `satisfies` holds each list answerable to the generated union, so a value
- * the API does not accept cannot be added here, and one it starts accepting
- * shows up as a missing translation rather than silently.
+ * `everyValueOf` holds each list level with its generated union in both
+ * directions — a value the API does not accept cannot be added, and a value it
+ * starts accepting cannot be left out.
  */
-export const CONTENT_IDEA_LANGUAGES = [
+export const CONTENT_IDEA_LANGUAGES = everyValueOf<ContentIdeaLanguage>()([
   'ar',
   'en',
-] as const satisfies readonly ContentIdeaLanguage[];
+]);
 
-export const CONTENT_IDEA_FORMATS = [
+export const CONTENT_IDEA_FORMATS = everyValueOf<ContentIdeaFormat>()([
   'carousel',
   'post',
   'video',
-] as const satisfies readonly ContentIdeaFormat[];
+]);
 
-export const CONTENT_IDEA_STATUSES = [
+export const CONTENT_IDEA_STATUSES = everyValueOf<ContentIdeaStatus>()([
   'QUEUED',
   'RUNNING',
   'SUCCEEDED',
   'FAILED',
-] as const satisfies readonly ContentIdeaStatus[];
+]);
 
-export const CONTENT_IDEA_UNAVAILABLE_REASONS = [
-  'agents_disabled',
-  'content_ideas_disabled',
-  'agent_not_installed',
-  'agent_disabled',
-] as const satisfies readonly ContentIdeaUnavailableReason[];
+export const CONTENT_IDEA_UNAVAILABLE_REASONS =
+  everyValueOf<ContentIdeaUnavailableReason>()([
+    'agents_disabled',
+    'content_ideas_disabled',
+    'agent_not_installed',
+    'agent_disabled',
+  ]);
 
 const contentIdeasBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/content-ideas`;
@@ -437,17 +439,18 @@ export type ToolFailureCode = NonNullable<
 
 /*
  * The closed vocabularies as runtime values: the filter offers the approval
- * statuses and the message-catalogue test iterates all three lists. Each is
- * `satisfies` its generated union, so a value the API does not send cannot be
- * translated here.
+ * statuses and the message-catalogue test iterates all three lists.
+ * `everyValueOf` holds each level with its generated union in both directions,
+ * so neither an invented value nor a missing one compiles.
  */
-export const AGENT_ACTION_APPROVAL_STATUSES = [
-  'PENDING',
-  'APPROVED',
-  'REJECTED',
-] as const satisfies readonly AgentActionApprovalStatus[];
+export const AGENT_ACTION_APPROVAL_STATUSES =
+  everyValueOf<AgentActionApprovalStatus>()([
+    'PENDING',
+    'APPROVED',
+    'REJECTED',
+  ]);
 
-export const TOOL_EXECUTION_STATUSES = [
+export const TOOL_EXECUTION_STATUSES = everyValueOf<ToolExecutionStatus>()([
   'STARTED',
   'AWAITING_APPROVAL',
   'APPROVED',
@@ -455,9 +458,9 @@ export const TOOL_EXECUTION_STATUSES = [
   'SUCCEEDED',
   'FAILED',
   'OUTCOME_UNKNOWN',
-] as const satisfies readonly ToolExecutionStatus[];
+]);
 
-export const TOOL_FAILURE_CODES = [
+export const TOOL_FAILURE_CODES = everyValueOf<ToolFailureCode>()([
   'precondition_organization',
   'precondition_authority',
   'precondition_approval',
@@ -466,7 +469,7 @@ export const TOOL_FAILURE_CODES = [
   'provider_rejected',
   'implementation_error',
   'output_rejected',
-] as const satisfies readonly ToolFailureCode[];
+]);
 
 const approvalsBase = (organizationId: string) =>
   `${ORGANIZATIONS}/${encodeURIComponent(organizationId)}/agent-action-approvals`;
