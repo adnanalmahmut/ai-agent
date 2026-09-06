@@ -5,6 +5,7 @@ root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 cd "$root"
 
 wrapper=infra/scripts/compose.sh
+compose_file=$root/docker-compose.yml
 
 test -x "$wrapper" || {
   echo "compose wrapper is missing or not executable: $wrapper" >&2
@@ -197,6 +198,43 @@ done
 # this interface exists to own. Both long forms take `--flag=value` as well as
 # a separate argument, so both spellings are covered: matching only the bare
 # flag would leave the `=` spelling working.
+# Everything from here to the equivalence checks exercises the argument guards,
+# and a guard that has regressed would otherwise let the command through to the
+# real daemon — which for the teardown cases means actually removing this
+# machine's volumes. A safety test must not be the thing that destroys the data.
+#
+# So the guard cases run against a fake `docker` that records what it was asked
+# to do and does nothing. A missing guard then fails the test because the fake
+# was reached, and no real container, image, network, or volume is touched.
+# Real Docker is used only for the read-only renders further down.
+fake_bin=$tmp_dir/fake-bin
+invocations=$tmp_dir/docker-invocations
+mkdir -p "$fake_bin"
+: >"$invocations"
+
+cat >"$fake_bin/docker" <<FAKE
+#!/bin/sh
+# The wrapper probes for Compose before doing anything; that probe is not an
+# invocation worth recording.
+case "\$*" in
+  'compose version') exit 0 ;;
+esac
+printf '%s\n' "\$*" >>"$invocations"
+exit 0
+FAKE
+chmod +x "$fake_bin/docker"
+
+# The fake has to be convincing enough that reaching it proves the guard failed
+# rather than the harness.
+PATH="$fake_bin:$PATH" "$wrapper" config >/dev/null 2>&1 || {
+  echo 'the fake docker harness is not usable' >&2
+  exit 1
+}
+test -s "$invocations" || {
+  echo 'the fake docker harness records nothing, so it cannot prove a guard failed' >&2
+  exit 1
+}
+
 # A file that renders cleanly on its own. Without it, a `--file` refusal could
 # pass because Compose could not read the substitute rather than because the
 # interface turned it down.
@@ -211,14 +249,46 @@ refuses() {
   description=$1
   shift
 
-  if "$wrapper" "$@" >/dev/null 2>&1; then
+  : >"$invocations"
+
+  if PATH="$fake_bin:$PATH" "$wrapper" "$@" >/dev/null 2>&1; then
     echo "the compose interface accepted $description: $*" >&2
     exit 1
   fi
+
+  # The exit status alone is not enough: a refusal must happen before Compose
+  # is reached, not be inferred from Compose failing afterwards.
+  test ! -s "$invocations" || {
+    echo "the compose interface reached docker for $description: $*" >&2
+    exit 1
+  }
+}
+
+# Not refused, and actually forwarded — the pinned file and project name must
+# still be on the command the wrapper builds.
+forwards() {
+  description=$1
+  shift
+
+  : >"$invocations"
+  PATH="$fake_bin:$PATH" "$wrapper" "$@" >"$tmp_dir/forwarded.out" 2>&1 || true
+
+  if grep -q '^refusing ' "$tmp_dir/forwarded.out"; then
+    echo "the compose interface refused its own documented command: $description ($*)" >&2
+    exit 1
+  fi
+
+  grep -Fq -- "--file $compose_file --project-name ai-agent" "$invocations" || {
+    echo "the compose interface did not forward the pinned file and project for: $description" >&2
+    exit 1
+  }
 }
 
 teardown=down
 refuses 'a volume-removing teardown' "$teardown" -v
+refuses 'a volume-removing teardown' "$teardown" -v=true
+refuses 'a volume-removing teardown' "$teardown" --volume
+refuses 'a volume-removing teardown' "$teardown" --volume=true
 refuses 'a volume-removing teardown' "$teardown" --volumes
 refuses 'a volume-removing teardown' "$teardown" --volumes=true
 refuses 'an image-removing teardown' "$teardown" --rmi all
@@ -237,39 +307,24 @@ refuses 'a relocated project directory' --project-directory="$tmp_dir" config
 
 refuses 'an empty argument list'
 
-# The guards above are position-sensitive, and asserting only the text of the
-# manifest entries missed that: `-f` before the subcommand selects the compose
-# file, but the documented `db:logs` spells `logs -f` for follow. Run the real
-# argument shapes, with `--dry-run` so nothing starts, and require that none of
-# them is turned away.
-#
-# `logs` does not honour `--dry-run`, so it is bounded by a timeout instead and
-# judged on whether the wrapper refused it, not on its exit status.
-while IFS='|' read -r label shape; do
-  test -n "$label" || continue
+# The guards are position-sensitive, and asserting only the text of the manifest
+# entries missed that once: `-f` before the subcommand selects the compose file,
+# but the documented `db:logs` spells `logs -f` for follow, and refusing it
+# everywhere broke that command. Run the three documented shapes for real —
+# against the fake docker, so `up` starts nothing and `logs` cannot follow.
+forwards 'db:up' --profile development up -d postgres redis
+forwards 'db:down' --profile development down
+forwards 'db:logs' --profile development logs -f postgres redis
 
-  # shellcheck disable=SC2086
-  refusal=$(env $unset_fixture "$wrapper" --env-file "$fixture" $shape 2>&1 </dev/null |
-    grep -c '^refusing ' || true)
-
-  test "$refusal" -eq 0 || {
-    echo "the compose interface refused its own documented command: $label ($shape)" >&2
+# The shapes above have to be the ones the manifest actually ships.
+for manifest_shape in 'compose.sh --profile development up -d postgres redis' \
+  'compose.sh --profile development down' \
+  'compose.sh --profile development logs -f postgres redis'; do
+  grep -Fq "$manifest_shape" package.json || {
+    echo "a tested shape is no longer the one in package.json: $manifest_shape" >&2
     exit 1
   }
-done <<'SHAPES'
-db:up|--profile development up -d postgres redis --dry-run
-db:down|--profile development down --dry-run
-SHAPES
-
-# shellcheck disable=SC2086
-logs_refusal=$(timeout 10 env $unset_fixture "$wrapper" \
-  --env-file "$fixture" --profile development logs -f postgres redis 2>&1 </dev/null |
-  grep -c '^refusing ' || true)
-
-test "$logs_refusal" -eq 0 || {
-  echo 'the compose interface refused its own documented db:logs command' >&2
-  exit 1
-}
+done
 
 # The refusals must not have cost the ordinary flags their meaning.
 # shellcheck disable=SC2086

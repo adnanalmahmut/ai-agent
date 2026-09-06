@@ -88,8 +88,13 @@ for argument in "$@"; do
     continue
   fi
 
+  # `-v/--volumes` is a boolean pflag, so `-v=true` is as valid as the bare
+  # flag, and Compose still normalises the deprecated `--volume` onto it.
+  # Matching only the spellings that appear in `--help` would leave the others
+  # working.
   case "$argument" in
-    -v | --volumes | --volumes=* | --rmi | --rmi=*) destructive=true ;;
+    -v | -v=* | --volume | --volume=* | --volumes | --volumes=*) destructive=true ;;
+    --rmi | --rmi=*) destructive=true ;;
   esac
 done
 
