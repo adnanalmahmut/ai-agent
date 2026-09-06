@@ -152,20 +152,31 @@ pull_release_images() {
 # release. A label travels with the digest, is readable after the pull and
 # before migrations, and lets an older bundle keep serving releases whose
 # minimum it already satisfies.
-image_label() {
+# Reads a label that may legitimately be absent, and says so by printing
+# nothing. An image that cannot be inspected at all is still fatal: that is a
+# missing image, which is a different problem from a label never written.
+optional_image_label() {
   image=$1
   label=$2
   value=$(docker image inspect --format "{{ index .Config.Labels \"$label\" }}" "$image" 2>/dev/null) ||
     die "release image is not present locally after the pull"
   # Verified against an attested bake push pulled by index digest: an absent
   # label comes back empty on Docker 29 and as `<no value>` on older releases.
-  [ -n "$value" ] && [ "$value" != '<no value>' ] || die "release image does not declare $label"
+  [ "$value" != '<no value>' ] || value=
+  printf '%s' "$value"
+}
+
+image_label() {
+  value=$(optional_image_label "$1" "$2")
+  [ -n "$value" ] || die "release image does not declare $2"
   printf '%s' "$value"
 }
 
 verify_release_declaration() {
   sha=$1
   minimum=
+  labelled=
+  unlabelled=
 
   walk=$(mktemp)
   release_components >"$walk"
@@ -181,9 +192,22 @@ verify_release_declaration() {
     # the platform digest where the web component belongs passes every other
     # check here: both are real images from the same release. The component
     # label is what makes that a refusal rather than a silent swap.
-    declared_component=$(image_label "$image" io.ai-agent.component.name)
-    [ "$declared_component" = "$component" ] ||
-      die "release image is $declared_component, not the $component component"
+    #
+    # Releases published before the label existed do not carry it, and the
+    # release a host may need to roll back to is one of them. Installing this
+    # bundle must not strand that rollback, so a release that carries no
+    # component labels at all is read as what it is. What is refused is a
+    # release that carries some: that is not a release from before the label,
+    # it is images from more than one publish, which is the swap this check
+    # exists to catch. The tally is settled after the walk.
+    declared_component=$(optional_image_label "$image" io.ai-agent.component.name)
+    if [ -n "$declared_component" ]; then
+      labelled="$labelled $component"
+      [ "$declared_component" = "$component" ] ||
+        die "release image is $declared_component, not the $component component"
+    else
+      unlabelled="$unlabelled $component"
+    fi
 
     declared=$(image_label "$image" io.ai-agent.host-bundle.min-version)
     printf '%s' "$declared" | grep -Eq '^[1-9][0-9]*$' ||
@@ -195,6 +219,12 @@ verify_release_declaration() {
     fi
   done <"$walk"
   rm -f "$walk"
+
+  if [ -n "$labelled" ] && [ -n "$unlabelled" ]; then
+    die "release declares component names for only part of itself; missing:$unlabelled"
+  fi
+  [ -n "$labelled" ] ||
+    echo "note: release $sha predates component labels; deploying it as a legacy release" >&2
 
   [ -n "$minimum" ] || die 'the release declares no host bundle minimum'
   "$host_preflight" require-version "$minimum"

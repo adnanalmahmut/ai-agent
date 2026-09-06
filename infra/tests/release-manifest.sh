@@ -190,6 +190,27 @@ test "$(component_digest "$current" backend)" = "sha256:$backend_two"
 grep -Fq "ghcr.io/adnanalmahmut/ai-agent/backend@sha256:$backend_two|ghcr.io/adnanalmahmut/ai-agent/backend-migration@sha256:$migration_two|ghcr.io/adnanalmahmut/ai-agent/web@sha256:$web_two|ghcr.io/adnanalmahmut/ai-agent/platform@sha256:$platform_two" "$TEST_LOG"
 test "$(grep -c ' run --rm migrate' "$TEST_LOG")" -eq "$before"
 
+# ...and a record that old points at images published before the component label
+# existed. A bundle that demanded the label from every image it verifies would
+# refuse to roll back to any of them, which turns installing the bundle into
+# losing the way back. A release carrying no component label is read as the
+# legacy release it is; one carrying the label is still held to it, and one
+# carrying it on only part of itself is refused
+# (infra/tests/host-bundle.sh covers both of those).
+cat >"$previous" <<LEGACY
+{"sha":"$sha_one","backend":"sha256:$backend_one","migration":"sha256:$migration_one","web":"sha256:$web_one","platform":"sha256:$platform_one"}
+LEGACY
+
+before=$(grep -c ' run --rm migrate' "$TEST_LOG")
+printf '%s\n' "$sha_one" >"$TEST_SHA_FILE"
+COMPONENT_LABEL_OVERRIDE='<no value>' "$tmp_dir/deploy" rollback production
+
+test "$(jq -r .sha "$current")" = "$sha_one"
+test "$(component_digest "$current" backend)" = "sha256:$backend_one"
+grep -Fq "ghcr.io/adnanalmahmut/ai-agent/backend@sha256:$backend_one|ghcr.io/adnanalmahmut/ai-agent/backend-migration@sha256:$migration_one|ghcr.io/adnanalmahmut/ai-agent/web@sha256:$web_one|ghcr.io/adnanalmahmut/ai-agent/platform@sha256:$platform_one" "$TEST_LOG"
+# Still no migration: a legacy rollback is a rollback.
+test "$(grep -c ' run --rm migrate' "$TEST_LOG")" -eq "$before"
+
 # A record missing a component is a refusal in either shape. Rollback that
 # guesses at a missing image turns one incident into two.
 # The release SHA the images claim is set to the one the record asks for, so the

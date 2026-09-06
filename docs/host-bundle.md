@@ -73,6 +73,12 @@ The component label is what makes a digest answerable for which slot it fills.
 Four valid digests from one release, handed over in the wrong four positions,
 satisfy every other check; this one does not.
 
+Releases published before this label existed do not carry it, and a host must
+stay able to roll back to one. A release whose images carry no component label
+at all is therefore accepted as a legacy release, with a note on stderr. A
+release labelled on only part of itself is refused: that is not a release from
+before the label, it is images from more than one publish.
+
 After pulling the pinned digests, the deploy wrapper checks those labels against
 the requested release and installed bundle. The requirement travels with the
 image, so changing the forced-command argument grammar is unnecessary.

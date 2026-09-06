@@ -908,12 +908,22 @@ refuses 'not the web component' \
   'the platform image handed over as the web component' attempt_deploy
 rm -f "$control/label.component-name.web"
 
-# An image from before component labels existed cannot be deployed by a host
-# that checks for them: an unlabelled image is one this host cannot place.
+# Releases published before the component label exist, and a host has to stay
+# able to roll back to one, so a release carrying no component label at all is
+# read as the legacy release it is (asserted in infra/tests/release-manifest.sh,
+# where a rollback to one succeeds). A release labelled on only part of itself
+# is not that: it is images from more than one publish, and it is exactly the
+# case a per-image check has to catch, since half a label proves nothing.
 printf '<no value>\n' >"$control/label.component-name.backend"
-refuses 'does not declare io.ai-agent.component.name' \
-  'a release image carrying no component label' attempt_deploy
+refuses 'component names for only part of itself' \
+  'a release where one image carries no component label' attempt_deploy
 rm -f "$control/label.component-name.backend"
+
+printf '<no value>\n' >"$control/label.component-name.web"
+printf '<no value>\n' >"$control/label.component-name.platform"
+refuses 'component names for only part of itself' \
+  'a release labelled on half its images' attempt_deploy
+rm -f "$control/label.component-name.web" "$control/label.component-name.platform"
 
 # An unlabelled image cannot state what it needs, so it cannot be accepted.
 printf '<no value>\n' >"$control/label.min-version"
