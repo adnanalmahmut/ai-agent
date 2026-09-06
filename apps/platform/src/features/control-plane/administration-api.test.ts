@@ -4,6 +4,9 @@ import { API_BASE_PATH, CONTROL_PLANE_PATH } from '@/config/paths';
 import {
   ApiError,
   clearFeatureFlag,
+  deactivateSelfAccount,
+  deactivateUserAccount,
+  restoreUserAccount,
   errorDetailLines,
   listControlPlaneAudit,
   listFeatureFlags,
@@ -13,6 +16,7 @@ import {
   setFeatureFlag,
   setManagedSecret,
   setRuntimeSetting,
+  type AccountLifecycleResult,
   type ControlPlaneAuditEntry,
   type FeatureFlagState,
   type ManagedSecretDescription,
@@ -116,6 +120,12 @@ const AUDIT_ENTRY: ControlPlaneAuditEntry = {
   organizationId: null,
   before: null,
   after: { kind: 'featureFlagOverride', enabled: true },
+};
+
+const LIFECYCLE: AccountLifecycleResult = {
+  userId: 'user_1',
+  deletedAt: '2026-01-01T00:00:00.000Z',
+  revokedSessions: 3,
 };
 
 const APPROVAL: AgentActionApproval = {
@@ -427,6 +437,89 @@ describe('the runtime vocabularies', () => {
     ],
   ])('offers every %s the contract declares', (_what, offered, expected) => {
     expect([...offered]).toEqual(expected);
+  });
+});
+
+describe('account administration', () => {
+  /*
+   * These three used to resolve to `void`, throwing away a documented result
+   * that says which account was touched, whether it is now deleted, and how
+   * many sessions the deactivation ended. The URL and method are unchanged;
+   * what the caller can see is not.
+   */
+  it('deactivates a user and keeps what the API answered', async () => {
+    answers(LIFECYCLE, 201);
+
+    const result = await deactivateUserAccount('user_1');
+    const { url, init } = requested();
+
+    expect(url).toBe(`${API_BASE_PATH}/admin/users/user_1/deactivate`);
+    expect(init.method).toBe('POST');
+    expect(result).toEqual(LIFECYCLE);
+    expect(result.revokedSessions).toBe(3);
+  });
+
+  it('sends no body when no reason is given', async () => {
+    answers(LIFECYCLE, 201);
+
+    await deactivateUserAccount('user_1');
+
+    // Unchanged from before: an absent reason is an absent body.
+    expect(requested().init.body).toBeUndefined();
+  });
+
+  it('sends the reason when one is given', async () => {
+    answers(LIFECYCLE, 201);
+
+    await deactivateUserAccount('user_1', 'Left the company');
+
+    expect(JSON.parse(String(requested().init.body))).toEqual({
+      reason: 'Left the company',
+    });
+  });
+
+  it('restores a user and keeps the result', async () => {
+    answers({ ...LIFECYCLE, deletedAt: null, revokedSessions: 0 }, 201);
+
+    const result = await restoreUserAccount('user_1');
+    const { url, init } = requested();
+
+    expect(url).toBe(`${API_BASE_PATH}/admin/users/user_1/restore`);
+    expect(init.method).toBe('POST');
+    // A restored account is one that is no longer deleted.
+    expect(result.deletedAt).toBeNull();
+  });
+
+  it('escapes an identifier rather than pasting it into the path', async () => {
+    answers(LIFECYCLE, 201);
+
+    await restoreUserAccount('user 1/../other');
+
+    expect(requested().url).toBe(
+      `${API_BASE_PATH}/admin/users/user%201%2F..%2Fother/restore`,
+    );
+  });
+
+  it('deactivates own account and keeps the result', async () => {
+    answers(LIFECYCLE, 201);
+
+    const result = await deactivateSelfAccount();
+    const { url, init } = requested();
+
+    expect(url).toBe(`${API_BASE_PATH}/user/account/deactivate`);
+    expect(init.method).toBe('POST');
+    expect(init.body).toBeUndefined();
+    expect(result.userId).toBe('user_1');
+  });
+
+  it('carries a reason into an own-account deactivation', async () => {
+    answers(LIFECYCLE, 201);
+
+    await deactivateSelfAccount('No longer needed');
+
+    expect(JSON.parse(String(requested().init.body))).toEqual({
+      reason: 'No longer needed',
+    });
   });
 });
 

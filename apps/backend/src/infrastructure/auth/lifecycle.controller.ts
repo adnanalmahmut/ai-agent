@@ -12,7 +12,7 @@ import {
   UserHasPermission,
   type UserSession,
 } from '@thallesp/nestjs-better-auth';
-import { apiSuccessSchema, createZodDto } from '../http';
+import { apiSuccessSchema, createZodDto, wireSchemaOf } from '../http';
 import {
   accountLifecycleReasonSchema,
   accountLifecycleResultSchema,
@@ -40,7 +40,10 @@ export class AccountLifecycleController {
     summary: 'Deactivate a user account (reversible soft delete)',
   })
   @ApiParam({ name: 'userId', description: 'Id of the account to deactivate' })
-  @ApiBody({ required: false, schema: { type: 'object' } })
+  // The body is optional, but when one is sent it is the schema that already
+  // validates it — not an empty object, which generated as `Record<string,
+  // never>` and told a client it could send nothing.
+  @ApiBody({ required: false, schema: wireSchemaOf(reasonSchema) })
   @ApiCreatedResponse(accountResponse)
   deactivate(
     @Param('userId') userId: string,
@@ -77,7 +80,10 @@ export class SelfAccountLifecycleController {
     operationId: 'deactivateSelfAccount',
     summary: 'Deactivate own user account',
   })
-  @ApiBody({ required: false, schema: { type: 'object' } })
+  // The body is optional, but when one is sent it is the schema that already
+  // validates it — not an empty object, which generated as `Record<string,
+  // never>` and told a client it could send nothing.
+  @ApiBody({ required: false, schema: wireSchemaOf(reasonSchema) })
   @ApiCreatedResponse(accountResponse)
   deactivateSelf(
     @Body() body: LifecycleReasonDto,

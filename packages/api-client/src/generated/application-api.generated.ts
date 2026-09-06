@@ -2396,7 +2396,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    reason?: string;
+                };
             };
         };
         responses: {
@@ -2467,7 +2469,9 @@ export interface operations {
         };
         requestBody?: {
             content: {
-                "application/json": Record<string, never>;
+                "application/json": {
+                    reason?: string;
+                };
             };
         };
         responses: {
