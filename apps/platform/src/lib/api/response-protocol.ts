@@ -33,10 +33,29 @@ export type ApiFieldError = {
  * malformed, or not JSON at all, and the status alone still describes the
  * refusal.
  */
+export type ApiValidationErrorDetails = {
+  kind: 'validation';
+  fields: ApiFieldError[];
+  messages: string[];
+};
+
+/**
+ * A domain refusal, with whatever the endpoint documents alongside it. The
+ * keys are open because the API declares them open: an endpoint that adds one
+ * is not changing this contract, and a reader that kept only the keys it had
+ * heard of would drop the new one without saying so. `reason` is named because
+ * it is the one key by convention, not because it is the only one allowed.
+ */
+export type ApiBusinessErrorDetails = {
+  kind: 'business';
+  reason?: string;
+  [key: string]: unknown;
+};
+
 export type ApiErrorDetails =
   | { kind: 'none' }
-  | { kind: 'validation'; fields: ApiFieldError[]; messages: string[] }
-  | { kind: 'business'; reason?: string };
+  | ApiValidationErrorDetails
+  | ApiBusinessErrorDetails;
 
 export const NO_ERROR_DETAILS: ApiErrorDetails = { kind: 'none' };
 
@@ -134,11 +153,7 @@ function readApiErrorDetails(value: unknown): ApiErrorDetails {
     };
   }
 
-  if (record.kind === 'business') {
-    return typeof record.reason === 'string'
-      ? { kind: 'business', reason: record.reason }
-      : { kind: 'business' };
-  }
+  if (record.kind === 'business') return readBusinessDetails(record);
 
   // Legacy: an untagged bag, from a release that predates the contract.
   const messages = readMessages(record.issues);
@@ -149,6 +164,75 @@ function readApiErrorDetails(value: unknown): ApiErrorDetails {
   }
 
   return NO_ERROR_DETAILS;
+}
+
+/**
+ * How deep a business detail may nest, and what may be in it. The same rule
+ * the API applies on the way out, applied again on the way in: JSON scalars,
+ * plain objects and arrays of those, and nothing else.
+ *
+ * Reading it a second time is not redundant. A response body is whatever
+ * arrived, and a screen that renders one should not have to ask whether the
+ * thing it is holding is a value or a graph.
+ */
+const MAX_DETAIL_DEPTH = 4;
+
+function readBusinessDetails(
+  record: Record<string, unknown>,
+): ApiBusinessErrorDetails {
+  const details: ApiBusinessErrorDetails = { kind: 'business' };
+
+  for (const [key, value] of Object.entries(record)) {
+    // Set above, and not something the wire gets a say in.
+    if (key === 'kind') continue;
+
+    const kept = readBusinessValue(value, 0);
+    if (kept !== undefined) details[key] = kept;
+  }
+
+  // Typed because it is the key every screen reaches for; dropped rather than
+  // carried when the wire made it something other than a sentence.
+  if (typeof details.reason !== 'string') delete details.reason;
+
+  return details;
+}
+
+function readBusinessValue(value: unknown, depth: number): unknown {
+  if (value === null) return null;
+
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (depth >= MAX_DETAIL_DEPTH) return undefined;
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => readBusinessValue(item, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+
+  if (isPlainObject(value)) {
+    const kept: Record<string, unknown> = {};
+
+    for (const [key, nested] of Object.entries(value)) {
+      const read = readBusinessValue(nested, depth + 1);
+      if (read !== undefined) kept[key] = read;
+    }
+
+    return kept;
+  }
+
+  return undefined;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const prototype: unknown = Object.getPrototypeOf(value);
+
+  return prototype === Object.prototype || prototype === null;
 }
 
 /**
