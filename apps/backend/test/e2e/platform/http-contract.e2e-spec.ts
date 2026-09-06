@@ -196,12 +196,15 @@ describe('HTTP Contract & Infrastructure (e2e)', () => {
         error: {
           code: 'VALIDATION_ERROR',
           message: expect.any(String),
-          details: expect.arrayContaining([
-            expect.objectContaining({
-              field: 'name',
-              code: expect.any(String),
-            }),
-          ]),
+          details: {
+            kind: 'validation',
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                field: 'name',
+                code: expect.any(String),
+              }),
+            ]),
+          },
         },
         meta: {
           requestId: expect.any(String),
