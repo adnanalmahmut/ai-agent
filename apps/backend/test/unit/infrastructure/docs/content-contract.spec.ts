@@ -23,6 +23,8 @@ import { createApplicationOpenApiDocument } from '../../../../src/infrastructure
 type JsonSchema = {
   type?: string;
   format?: string;
+  minLength?: number;
+  maxLength?: number;
   enum?: unknown[];
   required?: string[];
   properties?: Record<string, JsonSchema>;
@@ -87,6 +89,21 @@ const queryParameter = (path: string, method: string, name: string) =>
       (parameter) => parameter.in === 'query' && parameter.name === name,
     ),
     `a ${name} query parameter on ${method.toUpperCase()} ${path}`,
+  );
+
+/**
+ * A documented header parameter. Names are matched case-insensitively because
+ * HTTP header names are, and the document should not be the thing that decides
+ * how a client spells one.
+ */
+const headerParameter = (path: string, method: string, name: string) =>
+  must(
+    (operation(path, method).parameters ?? []).find(
+      (parameter) =>
+        parameter.in === 'header' &&
+        parameter.name.toLowerCase() === name.toLowerCase(),
+    ),
+    `a ${name} header on ${method.toUpperCase()} ${path}`,
   );
 
 const keys = (schema: JsonSchema, what: string) =>
@@ -161,6 +178,34 @@ describe('content payload contract', () => {
       const read = successData(`${IDEAS}/{operationId}`, 'get', '200');
 
       expect(accepted).toEqual(read);
+    });
+  });
+
+  /**
+   * Both create endpoints refuse a request without an idempotency key, so a
+   * client that only reads the document has to be told. Leaving the header out
+   * made the generated `parameters.header` `never`, which says the opposite of
+   * what the handler does.
+   */
+  describe('the idempotency key both create endpoints require', () => {
+    it.each([
+      [IDEAS, 'post'],
+      [`${PROJECTS}/from-idea`, 'post'],
+    ])('is documented as required on %s %s', (path, method) => {
+      expect(headerParameter(path, method, 'Idempotency-Key').required).toBe(
+        true,
+      );
+    });
+
+    it.each([
+      [IDEAS, 'post'],
+      [`${PROJECTS}/from-idea`, 'post'],
+    ])('carries the bounds the handler enforces on %s %s', (path, method) => {
+      // The same schema the controller parses the header with, so the document
+      // cannot promise a key length the endpoint would reject.
+      expect(
+        headerParameter(path, method, 'Idempotency-Key').schema,
+      ).toMatchObject({ type: 'string', minLength: 8, maxLength: 200 });
     });
   });
 
