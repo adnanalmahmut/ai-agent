@@ -85,11 +85,71 @@ describe('resolveOrigins', () => {
         BETTER_AUTH_URL: 'https://www.example.com/api/auth',
       }),
     ).toEqual({
-      public: 'http://localhost:3000',
+      public: 'https://www.example.com',
       app: 'https://www.example.com',
       admin: null,
       api: 'https://www.example.com',
     });
+  });
+
+  it('keeps local public origin while deriving deployment public origin from the app', () => {
+    expect(resolveOrigins({})).toEqual({
+      public: 'http://localhost:3000',
+      app: 'http://localhost:3001',
+      admin: null,
+      api: 'http://localhost:3002',
+    });
+
+    expect(
+      resolveOrigins({
+        APP_PLATFORM_URL: 'https://staging.feedogo.com/platform',
+        BETTER_AUTH_URL: 'https://staging.feedogo.com/api/auth',
+      }),
+    ).toEqual({
+      public: 'https://staging.feedogo.com',
+      app: 'https://staging.feedogo.com',
+      admin: null,
+      api: 'https://staging.feedogo.com',
+    });
+  });
+
+  it('accepts the single-host staging origin on every path-based surface', () => {
+    expect(
+      resolveOrigins({
+        APP_ORIGIN_PUBLIC: 'https://staging.feedogo.com',
+        APP_ORIGIN_APP: 'https://staging.feedogo.com',
+        APP_ORIGIN_ADMIN: 'https://staging.feedogo.com',
+        APP_ORIGIN_API: 'https://staging.feedogo.com',
+        APP_PLATFORM_URL: 'https://staging.feedogo.com/platform',
+        BETTER_AUTH_URL: 'https://staging.feedogo.com/api/auth',
+        BETTER_AUTH_TRUSTED_ORIGINS: 'https://staging.feedogo.com',
+      }),
+    ).toEqual({
+      public: 'https://staging.feedogo.com',
+      app: 'https://staging.feedogo.com',
+      admin: 'https://staging.feedogo.com',
+      api: 'https://staging.feedogo.com',
+    });
+  });
+
+  it.each([
+    ['credentials', 'https://user:pass@app.example.com/platform'],
+    ['wildcard hostname', 'https://*.example.com/platform'],
+    ['authority trick', 'https://app.example.com@evil.example/...'],
+    ['non-http scheme', 'ftp://app.example.com/platform'],
+  ])('rejects unsafe path-bearing canonical URL with %s', (_case, value) => {
+    expect(() => resolveOrigins({ APP_PLATFORM_URL: value })).toThrow(
+      OriginConfigurationError,
+    );
+  });
+
+  it.each([
+    'https://staging.feedogo.com/platform',
+    'https://staging.feedogo.com/api/auth',
+  ])('accepts safe path-bearing canonical URL %s', (value) => {
+    expect(resolveOrigins({ APP_PLATFORM_URL: value }).app).toBe(
+      'https://staging.feedogo.com',
+    );
   });
 
   it('accepts one host serving every surface, which is the deployment today', () => {

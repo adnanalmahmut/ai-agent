@@ -28,7 +28,7 @@ must not contain secrets.
 
 | Variable | Required | Meaning |
 | --- | --- | --- |
-| `APP_ORIGIN_PUBLIC` | No | The public site's origin. Defaults to `http://localhost:3000`. |
+| `APP_ORIGIN_PUBLIC` | No | The public site's origin. Defaults to `http://localhost:3000` locally, or the app origin when `APP_PLATFORM_URL` is configured. |
 | `APP_ORIGIN_APP` | No | The customer application's origin. Derived from `APP_PLATFORM_URL` when unset. |
 | `APP_ORIGIN_ADMIN` | No | The administrative surface's origin. Unset means no administrative origin exists, which is the current state. |
 | `APP_ORIGIN_API` | No | The API's origin. Derived from `BETTER_AUTH_URL` when unset. |
@@ -38,6 +38,11 @@ credentials or wildcard. An explicit value that disagrees with what it would be
 derived from stops the process at startup rather than leaving two answers in
 place. `BETTER_AUTH_TRUSTED_ORIGINS` must contain the app origin, and the admin
 origin when one is configured. See [security](security.md#browser-origins).
+
+Staging currently uses one host with path mounts: `/` for web, `/platform` for
+the app, `/api` for the control plane, and `/admin` as the desired future admin
+mount. These paths are not origins, so all four `APP_ORIGIN_*` values are
+`https://staging.feedogo.com` when configured.
 
 ## Control-plane values
 

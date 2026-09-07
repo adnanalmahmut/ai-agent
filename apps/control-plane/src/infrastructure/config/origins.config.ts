@@ -69,35 +69,11 @@ export function parseOrigin(name: string, value: string): string {
     throw new OriginConfigurationError(`${name} must be http or https`);
   }
 
-  if (url.username !== '' || url.password !== '') {
-    throw new OriginConfigurationError(`${name} must not carry credentials`);
-  }
-
   if (url.pathname !== '/' && url.pathname !== '') {
     throw new OriginConfigurationError(`${name} must be an origin, not a path`);
   }
 
-  if (url.search !== '' || url.hash !== '') {
-    throw new OriginConfigurationError(
-      `${name} must be an origin, with no query or fragment`,
-    );
-  }
-
-  // `URL` accepts a good deal more in a host than a host may contain —
-  // `https://*.example.com` parses, with `*.example.com` as the hostname. So
-  // the guarantee that an entry is one host rather than a pattern has to be
-  // made here, not left to each caller to remember.
-  if (!HOSTNAME.test(url.hostname)) {
-    throw new OriginConfigurationError(
-      `${name} must name one host; "${url.hostname}" is not a hostname`,
-    );
-  }
-
-  // `URL.origin` is `"null"` for a scheme without one; http and https always
-  // have one, so reaching that would mean the protocol check above was wrong.
-  if (url.origin === 'null') {
-    throw new OriginConfigurationError(`${name} has no origin`);
-  }
+  validateAuthority(name, url);
 
   return url.origin;
 }
@@ -116,7 +92,37 @@ function originOf(name: string, value: string): string {
     throw new OriginConfigurationError(`${name} must be http or https`);
   }
 
+  validateAuthority(name, url);
+
   return url.origin;
+}
+
+function validateAuthority(name: string, url: URL): void {
+  if (url.username !== '' || url.password !== '') {
+    throw new OriginConfigurationError(`${name} must not carry credentials`);
+  }
+
+  if (url.search !== '' || url.hash !== '') {
+    throw new OriginConfigurationError(
+      `${name} must not carry a query or fragment`,
+    );
+  }
+
+  // `URL` accepts a good deal more in a host than a host may contain —
+  // `https://*.example.com` parses, with `*.example.com` as the hostname. So
+  // the guarantee that an entry is one host rather than a pattern has to be
+  // made here, not left to each caller to remember.
+  if (!HOSTNAME.test(url.hostname)) {
+    throw new OriginConfigurationError(
+      `${name} must name one host; "${url.hostname}" is not a hostname`,
+    );
+  }
+
+  // `URL.origin` is "null" for a scheme without one; http and https always
+  // have one, so reaching that would mean the protocol check above was wrong.
+  if (url.origin === 'null') {
+    throw new OriginConfigurationError(`${name} has no origin`);
+  }
 }
 
 const schema = z.object({
@@ -178,7 +184,9 @@ export function resolveOrigins(
   return {
     public:
       declared.APP_ORIGIN_PUBLIC === undefined
-        ? LOCAL.public
+        ? environment.APP_PLATFORM_URL === undefined
+          ? LOCAL.public
+          : app
         : parseOrigin('APP_ORIGIN_PUBLIC', declared.APP_ORIGIN_PUBLIC),
     app,
     admin:

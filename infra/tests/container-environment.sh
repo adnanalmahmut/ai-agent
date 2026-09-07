@@ -32,6 +32,10 @@ BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000
 BETTER_AUTH_URL=https://staging.invalid/api/auth
 BETTER_AUTH_TRUSTED_ORIGINS=https://staging.invalid
 APP_PLATFORM_URL=https://staging.invalid/platform
+APP_ORIGIN_PUBLIC=https://staging.invalid
+APP_ORIGIN_APP=https://staging.invalid
+APP_ORIGIN_ADMIN=https://staging.invalid
+APP_ORIGIN_API=https://staging.invalid
 MAIL_DRIVER=log
 MAIL_FROM_ADDRESS=no-reply@staging.invalid
 GOOGLE_AUTH_ENABLED=false
@@ -95,6 +99,10 @@ assert_jq() {
 }
 
 assert_jq 'backend APP_PORT' '.services.backend.environment.APP_PORT == "3002"'
+assert_jq 'backend gets APP_ORIGIN_PUBLIC' '.services.backend.environment.APP_ORIGIN_PUBLIC == "https://staging.invalid"'
+assert_jq 'backend gets APP_ORIGIN_APP' '.services.backend.environment.APP_ORIGIN_APP == "https://staging.invalid"'
+assert_jq 'backend gets APP_ORIGIN_ADMIN' '.services.backend.environment.APP_ORIGIN_ADMIN == "https://staging.invalid"'
+assert_jq 'backend gets APP_ORIGIN_API' '.services.backend.environment.APP_ORIGIN_API == "https://staging.invalid"'
 assert_jq 'backend does not depend_on redis directly' '.services.backend.depends_on.redis == null'
 assert_jq 'worker has no BETTER_AUTH_SECRET' '.services.worker.environment.BETTER_AUTH_SECRET == null'
 assert_jq 'worker has no GOOGLE_CLIENT_SECRET' '.services.worker.environment.GOOGLE_CLIENT_SECRET == null'

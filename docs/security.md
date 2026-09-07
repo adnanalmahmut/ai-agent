@@ -46,10 +46,12 @@ anything except configuration.
 
 Session cookies are host-only. The cookie is named `__Host-session`, a prefix
 browsers enforce: it requires `Secure`, requires `Path=/`, and forbids
-`Domain`. So the customer application's session and the administrative one are
-separate because they are on separate hosts, with nothing configured to say so
-and no way to bridge them. A `Domain=` cookie or `SameSite=None` would undo
-that and neither is present; `infra/tests/gateway-origins.sh` proves the
+`Domain`. During path-based staging, App and the desired Admin mount share the
+same host and therefore share that host's session; host-only does not isolate
+`/platform` from `/admin`. Later, separate subdomains will have separate
+host-only sessions and may require signing in again. A `Domain=` cookie or
+`SameSite=None` would undo that boundary and neither is present;
+`infra/tests/gateway-origins.sh` continues to prove the future separate-host
 isolation over real HTTPS, including a deliberately domain-wide counterexample
 so that "no cookie was sent" cannot pass by accident.
 
