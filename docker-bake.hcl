@@ -62,7 +62,7 @@ target "web" {
 target "platform" {
   inherits = ["common"]
   labels = { "io.ai-agent.component.name" = "platform" }
-  dockerfile = "apps/platform/Dockerfile"
+  dockerfile = "apps/app/Dockerfile"
   target = "runtime"
   args = {
     NEXT_PUBLIC_APP_NAME = "Feedogo"

@@ -25,7 +25,7 @@ framework-agnostic primitive: it is *handed* a cookie rather than reaching for
 `next/headers`, so reading the request stays the application's job and this
 package stays usable by an application that is not Next.
 
-`apps/platform/src/lib/api/api-client-boundary.test.ts` walks the import graph
+`apps/app/src/lib/api/api-client-boundary.test.ts` walks the import graph
 from each entry and fails if the public or browser entry can reach a
 server-only module — a grep would only see whether a file mentions one.
 

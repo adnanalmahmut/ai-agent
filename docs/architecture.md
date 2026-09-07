@@ -26,7 +26,7 @@ HTTP listener.
 ## Application boundaries
 
 - `apps/web` serves the public localized site.
-- `apps/platform` serves authenticated account, organization, content, and
+- `apps/app` serves authenticated account, organization, content, and
   platform-administration screens under `/platform`.
 - `apps/control-plane` has separate API, worker, and CLI composition roots. The API
   accepts requests and commits state. The worker dispatches the outbox and

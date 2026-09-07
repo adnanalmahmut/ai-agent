@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const appDirectory = fileURLToPath(new URL('..', import.meta.url));
 const standaloneApp = fileURLToPath(
-  new URL('../.next/standalone/apps/platform/', import.meta.url),
+  new URL('../.next/standalone/apps/app/', import.meta.url),
 );
 
 await mkdir(join(standaloneApp, '.next'), { recursive: true });

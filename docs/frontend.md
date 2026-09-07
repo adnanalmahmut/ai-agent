@@ -12,7 +12,7 @@ packages. Production uses Next.js standalone output.
 
 ## Platform
 
-`apps/platform` is mounted at `/platform`. Its route groups separate guest
+`apps/app` is mounted at `/platform`. Its route groups separate guest
 authentication screens from the authenticated application. The private server
 layout resolves the session before rendering the platform shell.
 
@@ -53,7 +53,7 @@ their run through Query as well. Non-interactive server data continues to be
 fetched on the server.
 
 The boundaries above are enforced by standard tooling rather than by a
-repository policy suite. `apps/platform/eslint.config.mjs` restricts direct
+repository policy suite. `apps/app/eslint.config.mjs` restricts direct
 `fetch`, the Better Auth entry points, repeated mount paths, hard deletes, and
 untranslated user-facing strings. The Next.js build rejects a `server-only`
 module reaching a client component. The session gate on the private route
@@ -68,7 +68,7 @@ against are generated, not written. The backend's Zod contracts in
 `apps/control-plane/src/features/knowledge/knowledge.contract.ts` are the authored
 source; they become the Application OpenAPI document, which
 `openapi-typescript` turns into
-`apps/platform/src/generated/application-api.generated.ts`. The feature
+`apps/app/src/generated/application-api.generated.ts`. The feature
 boundary in `src/features/organization/organization-api.ts` keeps its own
 names, but they are aliases of that generated contract rather than a second
 description of it.
@@ -100,10 +100,10 @@ Each application owns its messages and product-specific features.
 
 ```sh
 pnpm dev:web
-pnpm dev:platform
+pnpm dev:app
 pnpm --filter web test
-pnpm --filter platform test
-pnpm --filter platform test:e2e
+pnpm --filter app test
+pnpm --filter app test:e2e
 pnpm api:types
 ```
 

@@ -13,7 +13,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 # required by every image, including ones that do not depend on the patched
 # package, or `pnpm install` fails with ENOENT. See `patches/README.md`.
 COPY patches patches
-COPY apps/platform/package.json apps/platform/package.json
+COPY apps/app/package.json apps/app/package.json
 # The root prepare lifecycle builds workspace packages during install, so their
 # build inputs must already exist in the dependency layer.
 COPY packages/api-client packages/api-client
@@ -21,16 +21,16 @@ COPY packages/authz-policy packages/authz-policy
 COPY packages/i18n-core packages/i18n-core
 COPY packages/ui packages/ui
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter platform...
+    pnpm install --frozen-lockfile --filter app...
 
 FROM dependencies AS build
-COPY apps/platform apps/platform
+COPY apps/app apps/app
 ARG NEXT_PUBLIC_APP_NAME=Feedogo
 ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
 RUN test -n "$NEXT_PUBLIC_APP_NAME"
 RUN pnpm --filter @repo/authz-policy build \
     && pnpm --filter @repo/i18n-core build \
-    && pnpm --filter platform build
+    && pnpm --filter app build
 
 FROM node:24-bookworm-slim AS runtime
 
@@ -40,7 +40,7 @@ ENV PORT=3001
 WORKDIR /app
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid nodejs nextjs
-COPY --from=build --chown=nextjs:nodejs /workspace/apps/platform/.next/standalone ./
+COPY --from=build --chown=nextjs:nodejs /workspace/apps/app/.next/standalone ./
 USER nextjs
 EXPOSE 3001
-CMD ["node", "apps/platform/server.js"]
+CMD ["node", "apps/app/server.js"]

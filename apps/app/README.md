@@ -1,16 +1,16 @@
-# Platform
+# Customer app
 
 Next.js 16 App Router operations application, mounted at `/platform/` behind
 host Nginx. It owns account settings, active sessions, global administration,
 organizations, invitations, and permission-aware navigation.
 
 ```sh
-pnpm --filter platform dev
-pnpm --filter platform typecheck
-pnpm --filter platform lint
-pnpm --filter platform test
-pnpm --filter platform build
-pnpm --filter platform start
+pnpm --filter app dev
+pnpm --filter app typecheck
+pnpm --filter app lint
+pnpm --filter app test
+pnpm --filter app build
+pnpm --filter app start
 pnpm api:types
 ```
 

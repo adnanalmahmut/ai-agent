@@ -10,7 +10,7 @@ inventory is `infra/host-bundle/files`; the installed manifest is
 | `infra/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `infra/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 15 and the current minimum is 11. Bump `VERSION` whenever
+The current release ships bundle 16 and the current minimum is 11. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.
@@ -54,6 +54,14 @@ older bundle runs this release with the boundary closed, which is the default
 either way. Reinstalling is what makes the configured path reachable, so an
 operator who intends to point an out-of-process runtime at this deployment
 needs bundle 15; one who does not loses nothing.
+
+Bundle 16 carries the `platform` service's build path renamed from
+`apps/platform/Dockerfile` to `apps/app/Dockerfile`, which is a source-tree
+move and nothing else: the service, its image repository, its port and its
+health path are unchanged. The minimum stays at 11 because the path is only
+read when the composition builds an image locally, and a deployment pulls
+published images by digest instead. A host still on an older bundle deploys
+this release unchanged.
 
 ## Contents and installation
 

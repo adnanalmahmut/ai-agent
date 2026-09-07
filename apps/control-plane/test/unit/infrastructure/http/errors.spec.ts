@@ -13,7 +13,7 @@ import type { AppI18nService } from '../../../../src/infrastructure/i18n/app-i18
 
 /**
  * The producing side of the `error.details` contract.
- * `apps/platform/src/lib/api/response-protocol.test.ts` reads the same shapes
+ * `apps/app/src/lib/api/response-protocol.test.ts` reads the same shapes
  * from the consuming side, so neither can be changed alone without one of the
  * two failing.
  */
@@ -189,7 +189,7 @@ describe('what may not leave the process', () => {
 
   it('stops descending before an unbounded graph does', () => {
     // The platform decoder applies the same bound on the way in
-    // (apps/platform/src/lib/api/response-protocol.test.ts), so a document
+    // (apps/app/src/lib/api/response-protocol.test.ts), so a document
     // that survived one side is never truncated only by the other.
     const caught = raise(
       new AppException('CONFLICT', {
