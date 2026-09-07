@@ -10,6 +10,21 @@ Repository capability is not evidence of a live environment. Production
 workflow, bootstrap, promotion, rollback, and recovery files exist but must not
 be invoked without an explicit operator provisioning decision.
 
+## The administrative surface
+
+`apps/admin` is built and tested but no environment serves it. Its image is
+not a release component, no hostname resolves to it, and activating it is
+gated on OP-3 in [security](security.md#op-3--administrative-exposure-gate),
+whose first two requirements — controlled ingress and strong staff
+authentication — are not implemented. Administrative operations are performed
+through the customer application at `/platform/admin/*`, authorized per action
+by the backend.
+
+The desired future staging mount for `apps/admin` is `/admin` on the same
+staging host. It is not currently served: enabling it requires a coordinated
+path-prefix-aware app deployment, service and image release, and gateway
+change. An Nginx-only prefix strip is not that activation.
+
 ## Delivery reality
 
 Pull requests run verification only. A successful push-to-`main` CI run

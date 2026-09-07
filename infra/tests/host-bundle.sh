@@ -179,7 +179,7 @@ conditional='GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET RESEND_API_KEY AWS_REGION SMT
 # APP_ENCRYPTION_KEY just above it: empty is its normal, common state (no
 # decrypt-only keys configured), and the preflight already validates its
 # format when it is present.
-optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTION_DECRYPT_KEYS'
+optional='AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN APP_ENCRYPTION_DECRYPT_KEYS APP_ORIGIN_PUBLIC APP_ORIGIN_APP APP_ORIGIN_ADMIN APP_ORIGIN_API'
 
 # The list is a single-quoted shell here-string, so the quotes and the
 # assignment prefix are stripped to leave one variable name per line.

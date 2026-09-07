@@ -65,6 +65,22 @@ grep -Fq 'install-host-bundle.sh' docs/deployment.md
 grep -Fq 'host bundle' docs/operations-runbook.md
 grep -Fq '_restore_drill' docs/backup-restore.md
 grep -Fiq 'restore drill' docs/backup-restore.md
+# The administrative exposure gate has to stay documented, and has to stay
+# documented as unmet. A future change that activates the surface has to move
+# this line deliberately rather than let a stale "satisfied" ride along.
+grep -Fq 'OP-3' docs/security.md
+grep -Fq 'OP-3 is NOT SATISFIED' docs/security.md
+grep -Fq 'OP-3' docs/deployment-state.md
+
+# Nothing may advertise a control this repository does not implement. The
+# administrative surface is protected by not being deployed, and saying more
+# than that in documentation is how an unmet requirement gets forgotten.
+if grep -rniE 'admin[^.]{0,40}(protected|secured) by (mfa|passkey|sso|vpn)|mfa (is )?enabled|passkeys? (are )?enabled|private admin network enabled' \
+  README.md docs; then
+  echo 'documentation claims a strong-authentication control that is not implemented' >&2
+  exit 1
+fi
+
 if grep -Fq 'RUNTIME_ENV_FILE=' ops/environments/runtime.env.example; then
   echo 'runtime template must contain runtime settings, not its own path' >&2
   exit 1

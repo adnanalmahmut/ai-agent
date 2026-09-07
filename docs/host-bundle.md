@@ -10,7 +10,7 @@ inventory is `infra/host-bundle/files`; the installed manifest is
 | `infra/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `infra/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 16 and the current minimum is 11. Bump `VERSION` whenever
+The current release ships bundle 17 and the current minimum is 11. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.
@@ -62,6 +62,12 @@ health path are unchanged. The minimum stays at 11 because the path is only
 read when the composition builds an image locally, and a deployment pulls
 published images by digest instead. A host still on an older bundle deploys
 this release unchanged.
+
+Bundle 17 passes the four `APP_ORIGIN_*` settings explicitly to the backend in
+`compose.deploy.yaml`. The minimum stays at 11 because unset values remain
+safe optional inputs and the app/API origins are derived from their existing
+path-bearing canonical URLs; reinstalling is needed for a host to receive the
+explicit deployment wiring.
 
 ## Contents and installation
 

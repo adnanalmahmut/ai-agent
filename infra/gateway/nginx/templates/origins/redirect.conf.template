@@ -1,0 +1,17 @@
+# Plain HTTP exists to answer the certificate challenge and to say where the
+# real thing is. A surface whose session cookie is `Secure` cannot work over
+# http at all, so there is nothing to serve here.
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type text/plain;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}

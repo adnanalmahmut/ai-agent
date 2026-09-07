@@ -1,0 +1,41 @@
+# One browser surface, one hostname, one upstream.
+#
+# The deployment today serves every surface from a single host on different
+# paths, and `proxy-routes.conf.template` is that arrangement. This is the
+# other one: a server block per origin, so the customer application and the
+# administrative surface are separate origins rather than separate paths on a
+# shared one.
+#
+# That separation is what makes the session cookies isolated. The cookie is
+# `__Host-`-prefixed, which a browser will only accept with `Secure`, only at
+# `Path=/`, and only without a `Domain` — so it belongs to exactly the host
+# that set it. Two hosts therefore hold two sessions with no configuration
+# saying so, and no `Domain` attribute may ever be introduced to bridge them.
+#
+# Rendered once per surface. `__DOMAIN__` is that surface's own hostname and
+# `__UPSTREAM_PORT__` the process behind it; nothing here is shared between
+# two surfaces except the proxy snippet and the header set.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name __DOMAIN__;
+
+    ssl_certificate __CERTIFICATE__;
+    ssl_certificate_key __CERTIFICATE_KEY__;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+        default_type text/plain;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:__UPSTREAM_PORT__;
+        include /etc/nginx/snippets/ai-agent-proxy-common.conf;
+    }
+}

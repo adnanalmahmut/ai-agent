@@ -41,8 +41,29 @@ describe('safeReturnPath', () => {
       ['bare word', 'reports'],
       ['empty', ''],
       ['whitespace only', '   '],
+      // Prefix confusion: a host that begins with, or merely contains, the
+      // real one. A check written as `startsWith(origin)` accepts the first
+      // of these, which is why this one is not written that way.
+      ['a host prefixed by the real one', 'https://app.example.com.evil.example/x'],
+      ['userinfo hiding the real host', 'https://app.example.com@evil.example/x'],
+      ['userinfo with a port', 'https://app.example.com:443@evil.example/x'],
+      ['an encoded absolute URL', 'https%3A%2F%2Fevil.example'],
+      ['a triple-slash authority', '///evil.example'],
+      ['a scheme with mixed case', 'JavaScript:alert(1)'],
     ])('%s', (_name, input) => {
       expect(safeReturnPath(input)).toBe(PLATFORM_ROUTES.dashboard);
+    });
+
+    it('keeps an encoded authority on this origin instead of rejecting it', () => {
+      // `/%2f%2fevil.example` is a path whose first segment happens to read
+      // like an authority. A browser does not decode `%2f` while resolving,
+      // so this navigates to a page on this origin that does not exist —
+      // which is a 404, not a redirect off the site. Kept rather than
+      // rejected because the check answers "does this leave the
+      // application", and this does not.
+      expect(safeReturnPath('/%2f%2fevil.example')).toBe(
+        '/%2f%2fevil.example',
+      );
     });
 
     it('rejects a tab-smuggled authority', () => {

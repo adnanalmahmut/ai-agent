@@ -1,6 +1,12 @@
 import { registerAs } from '@nestjs/config';
 import { z } from 'zod';
 
+import {
+  OriginConfigurationError,
+  parseOrigin,
+  resolveOrigins,
+} from './origins.config';
+
 export type GoogleAuthConfig = {
   clientId: string;
   clientSecret: string;
@@ -11,6 +17,13 @@ const baseSchema = z.object({
     .string()
     .min(32, 'BETTER_AUTH_SECRET must be at least 32 characters long'),
   BETTER_AUTH_URL: z.url(),
+  /**
+   * The exact origins Better Auth will answer a browser request from. Exact
+   * is the whole guarantee: every entry is parsed as an origin, so a value
+   * carrying a path is refused rather than quietly compared against, and a
+   * wildcard is refused outright. Better Auth matches parsed origins, and
+   * nothing here adds prefix, suffix or pattern matching on top.
+   */
   BETTER_AUTH_TRUSTED_ORIGINS: z
     .string()
     .transform((value) =>
@@ -19,7 +32,36 @@ const baseSchema = z.object({
         .map((origin) => origin.trim())
         .filter(Boolean),
     )
-    .pipe(z.array(z.url()).min(1)),
+    .pipe(z.array(z.string()).min(1))
+    .transform((origins, context) => {
+      const parsed: string[] = [];
+
+      for (const origin of origins) {
+        if (origin.includes('*')) {
+          context.addIssue({
+            code: 'custom',
+            message:
+              `BETTER_AUTH_TRUSTED_ORIGINS must list exact origins; ` +
+              `"${origin}" is a pattern, and a pattern is not an allowlist`,
+          });
+          continue;
+        }
+
+        try {
+          parsed.push(parseOrigin('BETTER_AUTH_TRUSTED_ORIGINS', origin));
+        } catch (thrown) {
+          context.addIssue({
+            code: 'custom',
+            message:
+              thrown instanceof OriginConfigurationError
+                ? `${thrown.message} (got "${origin}")`
+                : `BETTER_AUTH_TRUSTED_ORIGINS entry "${origin}" is not an origin`,
+          });
+        }
+      }
+
+      return [...new Set(parsed)];
+    }),
 
   GOOGLE_AUTH_ENABLED: z
     .preprocess(
@@ -44,6 +86,29 @@ const googleSchema = z.object({
 
 export default registerAs('auth', () => {
   const env = baseSchema.parse(process.env);
+  const trustedOrigins = env.BETTER_AUTH_TRUSTED_ORIGINS;
+
+  // A surface a browser holds a session on has to be trusted, or its sign-in
+  // is refused at the origin check and the failure looks like anything but
+  // configuration. Checked here rather than left to a first login: the API
+  // origin is deliberately not in this set, because the API is talked to and
+  // not browsed.
+  const origins = resolveOrigins();
+
+  for (const [name, origin] of [
+    ['APP_ORIGIN_APP', origins.app],
+    ...(origins.admin === null
+      ? []
+      : ([['APP_ORIGIN_ADMIN', origins.admin]] as const)),
+  ] as readonly [string, string][]) {
+    if (!trustedOrigins.includes(origin)) {
+      throw new OriginConfigurationError(
+        `${name} is ${origin}, which is not in BETTER_AUTH_TRUSTED_ORIGINS ` +
+          `(${trustedOrigins.join(', ')}). A browser signing in from there ` +
+          `would be refused by the origin check.`,
+      );
+    }
+  }
 
   const google: GoogleAuthConfig | null = env.GOOGLE_AUTH_ENABLED
     ? (() => {
@@ -58,7 +123,8 @@ export default registerAs('auth', () => {
   return {
     secret: env.BETTER_AUTH_SECRET,
     baseUrl: env.BETTER_AUTH_URL,
-    trustedOrigins: env.BETTER_AUTH_TRUSTED_ORIGINS,
+    trustedOrigins,
+    origins,
     rateLimitEnabled: env.BETTER_AUTH_RATE_LIMIT_ENABLED,
     google,
   };
