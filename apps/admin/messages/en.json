@@ -1,0 +1,37 @@
+{
+  "shell": {
+    "title": "Admin",
+    "subtitle": "Administrative workspace",
+    "empty": "No administrative modules are enabled yet.",
+    "signOut": "Sign out"
+  },
+  "language": {
+    "label": "Language",
+    "ar": "العربية",
+    "en": "English"
+  },
+  "signIn": {
+    "title": "Administrative sign in",
+    "description": "This workspace is limited to authorized staff.",
+    "email": "Email",
+    "password": "Password",
+    "submit": "Sign in",
+    "pending": "Signing in…"
+  },
+  "signInErrors": {
+    "emailRequired": "Enter your email address.",
+    "emailInvalid": "Enter a valid email address.",
+    "passwordRequired": "Enter your password.",
+    "rejected": "Those credentials were not accepted.",
+    "unavailable": "Sign in is unavailable right now. Try again shortly."
+  },
+  "forbidden": {
+    "title": "No access",
+    "description": "You do not have access to the administrative workspace.",
+    "signOut": "Sign out"
+  },
+  "unavailable": {
+    "title": "Temporarily unavailable",
+    "description": "The administrative workspace could not confirm your access. Try again shortly."
+  }
+}

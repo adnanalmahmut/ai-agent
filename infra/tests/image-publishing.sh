@@ -28,6 +28,23 @@ grep -Fq 'EXPOSE 3001' apps/app/Dockerfile
 grep -Fq 'ARG NEXT_PUBLIC_APP_NAME=Feedogo' apps/app/Dockerfile
 grep -Fq 'NEXT_PUBLIC_APP_NAME = "Feedogo"' docker-bake.hcl
 
+# The administrative surface is built here but is not part of a release: it has
+# a bake target and a repository of its own, and it must not appear in the
+# release group, which `infra/tests/artifact-contract.sh` holds equal to the
+# component catalog.
+grep -Fq 'target "admin"' docker-bake.hcl
+grep -Fq '"io.ai-agent.component.name" = "admin"' docker-bake.hcl
+grep -Fq '${REGISTRY}/admin:${IMAGE_TAG}' docker-bake.hcl
+if sed -n '/^group "release"/,/}/p' docker-bake.hcl | grep -Fq 'admin'; then
+  echo 'the admin image must not be a required release component yet' >&2
+  exit 1
+fi
+grep -Fq 'pnpm --filter admin build' apps/admin/Dockerfile
+grep -Fq '/workspace/apps/admin/.next/standalone' apps/admin/Dockerfile
+grep -Fq 'CMD ["node", "apps/admin/server.js"]' apps/admin/Dockerfile
+grep -Fq 'ENV PORT=3003' apps/admin/Dockerfile
+grep -Fq 'EXPOSE 3003' apps/admin/Dockerfile
+
 if grep -ERn ':latest([^A-Za-z]|$)' "$workflow" docker-bake.hcl; then
   echo 'latest is forbidden as a release identity' >&2
   exit 1

@@ -69,3 +69,19 @@ target "platform" {
   }
   tags = ["${REGISTRY}/platform:${IMAGE_TAG}"]
 }
+
+# Buildable, and deliberately not in the `release` group above: the
+# administrative surface is not exposed by the current deployment topology, and
+# adding it to a release would make every deployment require an image nothing
+# runs yet. Its own repository and its own component name, because it is its
+# own surface -- it does not share the platform image.
+target "admin" {
+  inherits = ["common"]
+  labels = { "io.ai-agent.component.name" = "admin" }
+  dockerfile = "apps/admin/Dockerfile"
+  target = "runtime"
+  args = {
+    NEXT_PUBLIC_APP_NAME = "Feedogo"
+  }
+  tags = ["${REGISTRY}/admin:${IMAGE_TAG}"]
+}
