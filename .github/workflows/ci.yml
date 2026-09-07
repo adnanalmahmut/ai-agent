@@ -167,6 +167,7 @@ jobs:
           infra/tests/container-environment.sh
           infra/tests/runtime-preflight.sh
           infra/tests/nginx-real-ip.sh
+          infra/tests/gateway-origins.sh
           infra/tests/lightsail-boundary.sh
           infra/tests/deploy-service-health.sh
           infra/tests/image-publishing.sh
