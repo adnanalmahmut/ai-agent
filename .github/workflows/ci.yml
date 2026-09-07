@@ -391,7 +391,11 @@ jobs:
             echo 'APP_ENCRYPTION_DECRYPT_KEYS='
             echo 'BETTER_AUTH_SECRET=test-only-better-auth-secret-000000000000'
             echo 'BETTER_AUTH_URL=http://localhost:3002/api/auth'
-            echo 'BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000'
+            # 3001 is where APP_PLATFORM_URL below says the customer
+            # application is, and an app origin that is not trusted could
+            # never sign anyone in. The backend now refuses to start on that
+            # contradiction rather than serving a login that always fails.
+            echo 'BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:3000,http://localhost:3001'
             echo 'APP_PLATFORM_URL=http://localhost:3001/platform'
             echo 'MAIL_DRIVER=log'
             echo 'MAIL_FROM_ADDRESS=no-reply@example.test'

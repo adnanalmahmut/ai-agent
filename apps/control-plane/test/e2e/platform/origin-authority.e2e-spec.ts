@@ -127,6 +127,19 @@ describe('an origin is not an authorization', () => {
       .send(operation.body ?? undefined);
   };
 
+  // The positive control below writes a real setting and a real credential,
+  // and these tables are global to the installation rather than scoped to a
+  // tenant. The suite therefore has to leave them as it found them: the
+  // rotation suite seeds its own row at the same managed-secret key, and one
+  // left behind here is a unique-constraint failure over there. Same helper
+  // and same table list as `features/control-plane.e2e-spec.ts`.
+  const cleanControlPlane = async () => {
+    await harness.prisma.featureFlagOrganizationOverride.deleteMany();
+    await harness.prisma.featureFlagPlatformOverride.deleteMany();
+    await harness.prisma.runtimeSetting.deleteMany();
+    await harness.prisma.managedSecret.deleteMany();
+  };
+
   beforeAll(async () => {
     harness = await createHarness();
     // An ordinary account: the default `user` role, which the shared policy
@@ -135,9 +148,12 @@ describe('an origin is not an authorization', () => {
     // The positive control. Without it a mistyped path would answer 404 and
     // read as a refusal, which is how a test like this quietly stops testing.
     staff = await createUser(harness, { role: 'super_admin' });
+
+    await cleanControlPlane();
   }, 60_000);
 
   afterAll(async () => {
+    await cleanControlPlane();
     await harness?.close();
   });
 
