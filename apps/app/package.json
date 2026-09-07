@@ -1,5 +1,5 @@
 {
-  "name": "platform",
+  "name": "app",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,7 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "postbuild": "node scripts/prepare-standalone.mjs",
-    "start": "node .next/standalone/apps/platform/server.js",
+    "start": "node .next/standalone/apps/app/server.js",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",

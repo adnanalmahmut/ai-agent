@@ -33,7 +33,7 @@ export default defineConfig({
           timeout: 30_000,
         },
         {
-          command: 'node .next/standalone/apps/platform/server.js',
+          command: 'node .next/standalone/apps/app/server.js',
           cwd: PLATFORM_ROOT,
           env: {
             HOSTNAME: '127.0.0.1',

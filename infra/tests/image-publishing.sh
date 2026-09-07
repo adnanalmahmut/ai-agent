@@ -20,12 +20,12 @@ for target in backend backend-migration web platform; do
   grep -Fq "target \"$target\"" docker-bake.hcl
 done
 
-grep -Fq 'pnpm --filter platform build' apps/platform/Dockerfile
-grep -Fq '/workspace/apps/platform/.next/standalone' apps/platform/Dockerfile
-grep -Fq 'CMD ["node", "apps/platform/server.js"]' apps/platform/Dockerfile
-grep -Fq 'ENV PORT=3001' apps/platform/Dockerfile
-grep -Fq 'EXPOSE 3001' apps/platform/Dockerfile
-grep -Fq 'ARG NEXT_PUBLIC_APP_NAME=Feedogo' apps/platform/Dockerfile
+grep -Fq 'pnpm --filter app build' apps/app/Dockerfile
+grep -Fq '/workspace/apps/app/.next/standalone' apps/app/Dockerfile
+grep -Fq 'CMD ["node", "apps/app/server.js"]' apps/app/Dockerfile
+grep -Fq 'ENV PORT=3001' apps/app/Dockerfile
+grep -Fq 'EXPOSE 3001' apps/app/Dockerfile
+grep -Fq 'ARG NEXT_PUBLIC_APP_NAME=Feedogo' apps/app/Dockerfile
 grep -Fq 'NEXT_PUBLIC_APP_NAME = "Feedogo"' docker-bake.hcl
 
 if grep -ERn ':latest([^A-Za-z]|$)' "$workflow" docker-bake.hcl; then

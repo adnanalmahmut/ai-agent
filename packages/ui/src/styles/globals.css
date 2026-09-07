@@ -3,7 +3,7 @@
 @source "../components";
 @source "../lib";
 @source "../../../apps/web/src";
-@source "../../../apps/platform/src";
+@source "../../../apps/app/src";
 
 @custom-variant dark (&:is(.dark *));
 

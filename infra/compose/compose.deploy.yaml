@@ -245,7 +245,7 @@ services:
     image: ${PLATFORM_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/platform:${IMAGE_TAG:-development}}
     build:
       context: ../..
-      dockerfile: apps/platform/Dockerfile
+      dockerfile: apps/app/Dockerfile
     environment:
       HOSTNAME: 0.0.0.0
       PORT: 3001

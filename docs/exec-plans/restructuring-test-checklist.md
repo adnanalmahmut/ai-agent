@@ -16,7 +16,7 @@ pnpm --filter backend run db:deploy
 
 pnpm --filter backend test        # unit
 pnpm --filter backend test:e2e    # e2e
-pnpm --filter platform test       # platform unit
+pnpm --filter app test            # platform unit
 ```
 
 Narrow re-runs while iterating:
@@ -319,7 +319,7 @@ origin or CSRF checks off in a deployed runtime.
   transports have unit tests; the e2e suites substitute the transport.
 - **Temporal, R2, and the observability stack.** Not installed. There is
   nothing to characterize.
-- **The platform UI end to end.** `apps/platform/e2e/` is Playwright and runs
+- **The platform UI end to end.** `apps/app/e2e/` is Playwright and runs
   separately; the migration boundaries in question are backend ones.
 - **Where a security-mail link finally lands.** No longer a gap: pinned by the
   regression coverage described above.
