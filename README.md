@@ -9,6 +9,7 @@ side effects behind human approval.
 | -------------------- | -------------------------------------------------- | ------------------------- |
 | `apps/web`           | Public site                                        | Next.js 16                |
 | `apps/app`           | Authenticated organization and platform operations | Next.js 16                |
+| `apps/admin`         | Administrative surface (shell only)                | Next.js 16                |
 | `apps/control-plane`       | HTTP API, background worker, and operator CLI      | NestJS 11                 |
 | `packages/ui`        | Shared React components and styles                 | React 19 / Tailwind CSS 4 |
 | `packages/i18n-core` | Shared locale contracts                            | TypeScript                |
@@ -31,6 +32,7 @@ pnpm dev:backend       # API on 3002
 pnpm dev:worker        # run in a second terminal
 pnpm dev:web           # public site on 3000
 pnpm dev:app           # operations platform on 3001
+pnpm dev:admin         # administrative shell on 3003
 ```
 
 Use `pnpm db:migrate` when developing a new Prisma migration. `pnpm db:deploy`

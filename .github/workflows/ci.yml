@@ -307,6 +307,46 @@ jobs:
           PLATFORM_E2E_API_PORT: '43174'
         run: pnpm --filter app run test:e2e
 
+  admin:
+    name: admin
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # No services and no dependency on the customer application's job. The
+    # point of a separate workspace is that it stands up on its own, so this
+    # job installs, checks and builds it on its own -- a green result here is
+    # the statement that it does.
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: pnpm run build:packages
+
+      - name: Lint
+        run: pnpm --filter admin run lint
+
+      - name: Typecheck
+        run: pnpm --filter admin run typecheck
+
+      - name: Unit and component tests
+        run: pnpm --filter admin run test
+
+      - name: Build
+        run: pnpm --filter admin run build
+
   containers:
     name: containers
     runs-on: ubuntu-latest
@@ -322,6 +362,13 @@ jobs:
 
       - name: Build exact production image targets without pushing
         run: docker buildx bake --file docker-bake.hcl release
+
+      # Built, not released. The administrative image is not a release
+      # component -- `infra/tests/artifact-contract.sh` holds the release group
+      # equal to the component catalog -- but a Dockerfile no pipeline builds
+      # is a Dockerfile that stops working without anyone noticing.
+      - name: Build the administrative image, which is not part of a release
+        run: docker buildx bake --file docker-bake.hcl admin
 
       - name: Load backend targets used by the degraded-startup test
         run: |

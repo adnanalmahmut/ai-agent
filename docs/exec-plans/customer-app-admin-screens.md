@@ -4,6 +4,10 @@ A route inventory taken while renaming `apps/platform` to `apps/app`, so RF-20
 and RF-21 have a written starting point instead of re-deriving one. It records
 what exists today; nothing here has moved.
 
+`apps/admin` now exists as a shell with no administrative module in it — see
+[Frontends](../frontend.md). Every route below is still served by `apps/app`
+under `/platform`, and stays there until its own migration.
+
 Routes are as the application declares them in
 `apps/app/src/features/auth/routes.ts`, under the `/platform` base path that
 this phase keeps.

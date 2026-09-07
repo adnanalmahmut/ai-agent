@@ -1,6 +1,6 @@
 # Frontend applications
 
-Both frontends use Next.js 16 App Router, React 19, next-intl, Tailwind CSS 4,
+The frontends use Next.js 16 App Router, React 19, next-intl, Tailwind CSS 4,
 and shared components from `packages/ui`. Arabic and English routes are
 locale-prefixed and support right-to-left layout.
 
@@ -87,6 +87,41 @@ contract change committed without regenerating fails there.
 The other API families in `organization-api.ts` are still written by hand,
 because their endpoints do not yet declare response contracts.
 
+## Admin
+
+`apps/admin` is an independently buildable administrative surface, and at
+present it is only a shell: a sign-in screen, a server-side staff
+authorization gate, a refusal state, a health endpoint and the bilingual
+frame. It serves on port 3003 in development and has no `basePath`, because it
+is meant to be served from an origin of its own rather than from a path on
+another application's — which origin is not settled here.
+
+No administrative screen has moved into it. Account administration
+(`/platform/admin/users`) and control-plane configuration
+(`/platform/admin/control-plane`) are still owned by `apps/app` and keep
+working exactly as they did; see
+[the screen inventory](exec-plans/customer-app-admin-screens.md) for where each
+is expected to go.
+
+Authentication is the deployment's existing one — the same Better Auth
+deployment, the same session, no second account store. Authorization is a
+second question asked on the server, before anything protected renders: a
+global role counts as staff when `packages/authz-policy` grants it at least one
+platform-wide action, so the classification is derived from the policy the
+backend enforces rather than restated. The gate is default-deny in four
+outcomes: signed out redirects to sign in, signed in without staff authority is
+refused in place, an authorization that could not be evaluated is refused, and
+`children` is reached on one branch only. Client-side gates are not part of it,
+and no browser bundle receives the session helper or the server configuration.
+As everywhere else, the backend reauthorizes each request and stays the
+authority.
+
+There is no account-creation route, link or message, and a test fails if one
+appears: staff are provisioned through the existing account administration.
+
+The image builds (`docker buildx bake admin`) into its own repository and is
+deliberately not a release component, so no deployment requires it.
+
 ## Shared packages
 
 - `packages/ui` owns shared components, hooks, fonts, and global styles.
@@ -101,9 +136,11 @@ Each application owns its messages and product-specific features.
 ```sh
 pnpm dev:web
 pnpm dev:app
+pnpm dev:admin
 pnpm --filter web test
 pnpm --filter app test
 pnpm --filter app test:e2e
+pnpm --filter admin test
 pnpm api:types
 ```
 

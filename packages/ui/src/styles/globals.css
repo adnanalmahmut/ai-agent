@@ -4,6 +4,7 @@
 @source "../lib";
 @source "../../../apps/web/src";
 @source "../../../apps/app/src";
+@source "../../../apps/admin/src";
 
 @custom-variant dark (&:is(.dark *));
 

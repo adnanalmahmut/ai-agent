@@ -73,7 +73,8 @@ fi
 for dockerfile in \
   apps/control-plane/Dockerfile \
   apps/web/Dockerfile \
-  apps/app/Dockerfile; do
+  apps/app/Dockerfile \
+  apps/admin/Dockerfile; do
   test -f "$dockerfile"
   if grep -En '^(ENV|ARG).*(PASSWORD|SECRET|TOKEN|PRIVATE_KEY)=' "$dockerfile"; then
     echo "credential-like build argument found in $dockerfile" >&2
@@ -101,7 +102,7 @@ package_directory() {
   return 1
 }
 
-for application in control-plane web app; do
+for application in control-plane web app admin; do
   for dependency in $(workspace_dependencies "apps/$application/package.json"); do
     directory=$(package_directory "$dependency") || {
       echo "apps/$application depends on $dependency, which is not in packages/" >&2
