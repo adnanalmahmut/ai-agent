@@ -11,6 +11,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // See `src/test/server-only.ts`: the real package throws by design, and
+      // there is no client graph here for it to protect.
+      'server-only': fileURLToPath(
+        new URL('./src/test/server-only.ts', import.meta.url),
+      ),
     },
   },
 

@@ -55,6 +55,7 @@ describe('the App Router contract', () => {
       '[locale]/forbidden/page.tsx',
       '[locale]/layout.tsx',
       '[locale]/login/page.tsx',
+      'api/auth/[...all]/route.ts',
       'health/route.ts',
     ]);
   });

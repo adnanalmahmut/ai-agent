@@ -25,6 +25,13 @@ const NOT_APPLICATION_SOURCE = [
 /** The only module that may construct the Better Auth browser client. */
 const AUTH_CLIENT = 'src/features/auth/auth-client.ts';
 
+/**
+ * The only module that may reach the Control Plane directly. Matched with a
+ * wildcard rather than by name: the directory is `[...all]`, and square
+ * brackets are character-class syntax in a glob.
+ */
+const AUTH_PROXY = 'src/app/api/auth/**/route.ts';
+
 const BETTER_AUTH_SERVER_ENTRY = {
   name: 'better-auth',
   message:
@@ -108,6 +115,13 @@ export default defineConfig([
     },
   },
 
+  {
+    // Forwarding is what this module is. Everything else requests through the
+    // shared transport.
+    name: 'admin/auth-proxy-module',
+    files: [AUTH_PROXY],
+    rules: { 'no-restricted-globals': 'off' },
+  },
   {
     name: 'admin/auth-client-module',
     files: [AUTH_CLIENT],

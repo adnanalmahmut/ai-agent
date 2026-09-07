@@ -21,6 +21,20 @@ unprivileged user. There is no `basePath`: this surface is served from an
 origin of its own rather than from a path on somebody else's, and which origin
 that is has not been decided here.
 
+`ADMIN_API_ORIGIN` says where the Control Plane is and is read per request, so
+the image carries no address of its own. The browser signs in same-origin
+against `/api/auth/*`, which `src/app/api/auth/[...all]/route.ts` forwards to
+that origin — method, path, query, body and headers through, and status,
+headers and every `Set-Cookie` back, with no authentication logic of its own.
+That path is the same in development, in the standalone server and in the
+container, which is what makes a real login work outside a dev fixture. Two
+consequences worth knowing: the session cookie is `__Host-session`, so it is
+host-only to whichever origin serves it, and Better Auth checks the origin the
+browser reported — `http://localhost:3003` is trusted for local development,
+and a deployed origin has to be added per environment. Only `/api/auth` is
+forwarded; an open proxy over the API would make this origin a way into every
+Control Plane route from a browser.
+
 Authentication is the deployment's existing one. This application has no
 accounts, no passwords and no session format of its own — it signs in against
 the same Better Auth deployment and reads the same session. What it adds is a

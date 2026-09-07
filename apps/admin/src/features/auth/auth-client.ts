@@ -10,6 +10,11 @@ import { AUTH_BASE_PATH } from '@/config/paths';
  * session format of its own. The only two operations it performs from the
  * browser are signing in and signing out; every authorization decision is
  * taken on the server, from the session, against the shared policy.
+ *
+ * Same-origin on purpose. `src/app/api/auth/[...all]` serves this path in
+ * every environment and forwards to the Control Plane, so the session cookie
+ * is set on the origin the reader is on rather than being a third-party
+ * cookie belonging to somebody else's.
  */
 export const authClient = createAuthClient({
   baseURL: new URL(

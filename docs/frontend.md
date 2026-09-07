@@ -104,7 +104,14 @@ working exactly as they did; see
 is expected to go.
 
 Authentication is the deployment's existing one — the same Better Auth
-deployment, the same session, no second account store. Authorization is a
+deployment, the same session, no second account store. The browser signs in
+same-origin and a route handler forwards `/api/auth/*` to `ADMIN_API_ORIGIN`,
+read per request, so nothing is compiled in and the `__Host-session` cookie is
+set on the origin the reader is actually on. Better Auth still runs its own
+origin and CSRF checks against the origin the browser reported, so the admin
+origin has to be trusted: `http://localhost:3003` is listed for local
+development, and a deployed origin is configured per environment. Only the
+auth prefix is forwarded. Authorization is a
 second question asked on the server, before anything protected renders: a
 global role counts as staff when `packages/authz-policy` grants it at least one
 platform-wide action, so the classification is derived from the policy the

@@ -138,7 +138,7 @@ jobs:
       # artifact outlives the job.
       BETTER_AUTH_SECRET: ci-better-auth-secret-value-0000000000
       BETTER_AUTH_URL: http://localhost:3002/api/auth
-      BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:3000,http://localhost:3001
+      BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3003
       APP_PLATFORM_URL: http://localhost:3001/platform
 
       # `log` records metadata and sends nothing. The e2e harness substitutes
