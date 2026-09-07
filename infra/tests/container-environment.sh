@@ -153,6 +153,26 @@ assert_jq 'platform environment allowlist' '.services.platform.environment | key
 assert_jq 'platform standalone server port' '.services.platform.environment.PORT == "3001"'
 assert_jq 'platform loopback port targets the standalone server directly' '.services.platform.ports == [{"mode":"ingress","host_ip":"127.0.0.1","target":3001,"published":"3001","protocol":"tcp"}]'
 assert_jq 'platform healthcheck probes the standalone server port' '.services.platform.healthcheck.test[3] | contains("127.0.0.1:3001/platform/health")'
+# The administrative surface: three values, none of them a credential. Asserted
+# in both directions, because the interesting half is what it does not get --
+# it holds no database connection, no session secret, no master key and no
+# service credential, and it authorizes nothing itself.
+assert_jq 'admin environment allowlist' '.services.admin.environment | keys | sort == ["ADMIN_API_ORIGIN", "HOSTNAME", "PORT"]'
+assert_jq 'admin standalone server port' '.services.admin.environment.PORT == "3003"'
+assert_jq 'admin reaches the Control Plane by service name' '.services.admin.environment.ADMIN_API_ORIGIN == "http://backend:3002"'
+assert_jq 'admin loopback port targets the standalone server directly' '.services.admin.ports == [{"mode":"ingress","host_ip":"127.0.0.1","target":3003,"published":"3003","protocol":"tcp"}]'
+assert_jq 'admin healthcheck probes the health route under the base path' '.services.admin.healthcheck.test[3] | contains("127.0.0.1:3003/admin/health")'
+assert_jq 'admin has no DATABASE_URL' '.services.admin.environment.DATABASE_URL == null'
+assert_jq 'admin has no REDIS_URL' '.services.admin.environment.REDIS_URL == null'
+assert_jq 'admin has no BETTER_AUTH_SECRET' '.services.admin.environment.BETTER_AUTH_SECRET == null'
+assert_jq 'admin has no APP_ENCRYPTION_KEY' '.services.admin.environment.APP_ENCRYPTION_KEY == null'
+assert_jq 'admin has no INTERNAL_SERVICE_CREDENTIALS' '.services.admin.environment.INTERNAL_SERVICE_CREDENTIALS == null'
+# The data network reaches PostgreSQL and Redis directly. The administrative
+# surface has no business there: everything it reads, it reads through the API
+# with the reader's own session.
+assert_jq 'admin is on the edge network only' '.services.admin.networks | keys == ["edge"]'
+assert_jq 'admin runs unprivileged and read-only' '.services.admin.read_only == true and (.services.admin.cap_drop == ["ALL"]) and (.services.admin.security_opt == ["no-new-privileges:true"])'
+
 assert_jq 'geoipupdate environment allowlist' '.services.geoipupdate.environment | keys | sort == ["GEOIPUPDATE_ACCOUNT_ID", "GEOIPUPDATE_EDITION_IDS", "GEOIPUPDATE_FREQUENCY", "GEOIPUPDATE_LICENSE_KEY"]'
 
 echo 'container environment least-privilege invariants: ok'

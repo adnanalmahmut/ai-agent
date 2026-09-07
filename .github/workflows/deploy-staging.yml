@@ -93,9 +93,15 @@ jobs:
           printf '%s\n' "$VPS_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/ssh/key"
           printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" >"$RUNNER_TEMP/ssh/known_hosts"
 
+      # The administrative digest is the optional fifth, and staging is the only
+      # environment whose forced-command grammar accepts one. It comes from the
+      # same validated manifest as the other four -- the reader exports a digest
+      # per catalogued component -- so this is not a second opinion about what
+      # the release contains.
       - name: Deploy migration-gated release
         run: |
-          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy staging $RELEASE_SHA $BACKEND_DIGEST $BACKEND_MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST"
+          printf '%s\n' "$ADMIN_DIGEST" | grep -Eq '^[0-9a-f]{64}$'
+          ssh -i "$RUNNER_TEMP/ssh/key" -o BatchMode=yes -o IdentitiesOnly=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" "$VPS_USER@$VPS_HOST" "deploy staging $RELEASE_SHA $BACKEND_DIGEST $BACKEND_MIGRATION_DIGEST $WEB_DIGEST $PLATFORM_DIGEST $ADMIN_DIGEST"
 
       - name: Verify restricted host health
         run: |
@@ -106,6 +112,28 @@ jobs:
           curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/" >/dev/null
           curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/platform/" >/dev/null
           curl --fail --silent --show-error --max-time 15 "$DEPLOYMENT_URL/api/health/ready" >/dev/null
+
+      # This runner is not an allowlisted client, so the administrative surface
+      # must not answer it.
+      #
+      # Asked of `/admin/health`, and judged on the answer rather than on the
+      # status code. Every state this path can legitimately be in produces a
+      # different status -- 403 where the route exists and the client is not
+      # allowlisted, a redirect and then a 404 from the public site where the
+      # operator has not installed the route, 502 where the container is down --
+      # and pinning any of them would make an ordinary operator action look
+      # like a broken deployment. What must never happen is the administrative
+      # surface answering, and that answer is recognisable.
+      - name: Prove the administrative surface is not publicly served
+        run: |
+          answer=$(curl --silent --show-error --location --max-time 15 \
+            --write-out '\n%{http_code}' "$DEPLOYMENT_URL/admin/health" || true)
+          status=$(printf '%s' "$answer" | tail -n 1)
+          echo "an unallowlisted client received $status"
+          if [ "$status" = 200 ] && printf '%s' "$answer" | grep -Fq '"status":"ok"'; then
+            echo 'the administrative surface answered an unallowlisted client' >&2
+            exit 1
+          fi
 
       - name: Record successful staging evidence
         run: |

@@ -46,19 +46,25 @@ anything except configuration.
 
 Session cookies are host-only. The cookie is named `__Host-session`, a prefix
 browsers enforce: it requires `Secure`, requires `Path=/`, and forbids
-`Domain`. During path-based staging, App and the desired Admin mount share the
-same host and therefore share that host's session; host-only does not isolate
-`/platform` from `/admin`. Later, separate subdomains will have separate
+`Domain`. On staging, App and Admin are mounted on the same host and therefore
+share that host's session; host-only does not isolate `/platform` from
+`/admin`, and nothing here should be read as claiming it does. `Path=/admin`
+would not fix that either — a path is not a security boundary in a browser,
+and narrowing it would break `__Host-` without buying isolation. Later, separate subdomains will have separate
 host-only sessions and may require signing in again. A `Domain=` cookie or
 `SameSite=None` would undo that boundary and neither is present;
 `infra/tests/gateway-origins.sh` continues to prove the future separate-host
 isolation over real HTTPS, including a deliberately domain-wide counterexample
 so that "no cookie was sent" cannot pass by accident.
 
-Authentication is same-origin on every surface. The browser posts to
-`/api/auth/*` on the host it is already on, and that path is served by the
-gateway for the customer application and by a narrow in-process forwarder for
-the administrative one (`apps/admin/src/app/api/auth/[...all]/route.ts`). The
+Authentication is same-origin on every surface. The browser posts to the auth
+path on the host it is already on: `/api/auth/*` for the customer application,
+served by the gateway, and `/admin/api/auth/*` for the administrative one,
+served by a narrow in-process forwarder
+(`apps/admin/src/app/api/auth/[...all]/route.ts`) that hands the Control Plane
+its own `/api/auth/*` path. `https://staging.feedogo.com` is the trusted
+origin; `https://staging.feedogo.com/admin` is a path and is not an origin, and
+no path appears in the allowlist. The
 forwarder relays the method, path, query, body, the browser's own `Origin` and
 every `Set-Cookie` separately, and adds no credential or claim; it covers the
 auth prefix alone, so the origin is not a way into the rest of the API.
@@ -67,7 +73,46 @@ the browser reported.
 
 Moving a surface to a new hostname invalidates the session cookie held on the
 old one, and the reader signs in again. That is the intended cost of host-only
-cookies and is not worked around with a shared `Domain`.
+cookies and is not worked around with a shared `Domain`. It is also the cost of
+the eventual move of the administrative surface to a hostname of its own: the
+mount point is a build-time `basePath` in `apps/admin`, so that move removes it
+rather than reconfiguring it, and it is a deliberate migration rather than
+something either topology can be made to straddle.
+
+## Administrative ingress, on staging only
+
+The administrative surface is served at `/admin` on the staging host, behind a
+client allowlist at the gateway. Two locations carry it — `= /admin` and
+`^~ /admin/` — and both include the same restriction, so the pages, the assets
+under `/admin/_next/` and the auth forwarder under `/admin/api/auth/` are all
+behind it. Protecting the page and leaving the way in open would protect
+nothing.
+
+The allowlist is a root-owned file of address ranges, one per line, at
+`/etc/ai-agent/admin-staging-allowed-cidrs`.
+`infra/gateway/nginx/install-nginx.sh` reads it and renders `allow` directives
+followed by an unconditional `deny all`. It fails closed in every direction: a
+missing file, an empty one and one holding only comments all install the route
+with nothing but the denial, and a malformed entry is refused rather than
+skipped, leaving the previously validated configuration in force. A `/0`
+prefix and the unspecified address are refused outright, so no allowlist can be
+written that admits the internet. The route is installed on staging hosts only,
+decided from `/etc/ai-agent/environment` rather than from what the caller asked
+for; production installs no administrative route at all and its Compose
+composition has no administrative service to route to.
+
+Nginx matches the allowlist against the connection it is serving. There is no
+`real_ip_header` configuration anywhere in the gateway, so `X-Forwarded-For`,
+`X-Real-IP` and their variants — all written by the client, since no load
+balancer sits in front of this host — cannot satisfy it.
+`infra/tests/gateway-admin-ingress.sh` runs the real installer against real
+Nginx and asserts each of these, including six spoofed-header attempts from an
+address the allowlist excludes.
+
+An ingress restriction is not an authorization. It decides who may reach the
+surface; it says nothing about what they may do, and reaching it from an
+allowlisted address makes nobody staff. The section above and the OP-3 table
+below are where that boundary is stated.
 
 ## An origin is not an authorization
 
@@ -85,20 +130,27 @@ staff principal at all. It decides what to render, never what may be done.
 
 ## OP-3 — administrative exposure gate
 
-The administrative surface is built and testable but is not exposed by any
-environment, and it must not be until all four of the following hold. **None of
-the first two is implemented, so OP-3 is NOT SATISFIED.**
+The administrative surface is served on staging behind an ingress restriction,
+and is not exposed by production, which must remain the case until all four of
+the following hold. **Requirement 2 is not implemented and requirement 1 holds
+for staging only, so OP-3 is NOT SATISFIED.**
 
 | # | Requirement | Status |
 | --- | --- | --- |
-| 1 | Controlled ingress in front of the surface — internal network, access proxy or equivalent barrier, so the sign-in page is not reachable from the open internet | Not implemented |
+| 1 | Controlled ingress in front of the surface — internal network, access proxy or equivalent barrier, so the sign-in page is not reachable from the open internet | Staging: a fail-closed client allowlist at the gateway. Production: no administrative route and no ingress control for one |
 | 2 | Strong staff authentication — MFA, passkeys or an enterprise identity provider, per the final deployment decision | Not implemented |
-| 3 | A secure administrative origin configured: its own hostname, HTTPS, host-only cookie, and that origin in the trusted allowlist | Model in place; no origin configured, because nothing serves one |
+| 3 | A secure administrative origin configured: its own hostname, HTTPS, host-only cookie, and that origin in the trusted allowlist | Model in place; staging serves the surface on a path of the shared host, so it has no origin of its own and shares that host's session |
 | 4 | Backend staff and per-action authorization verified independently of the browser origin | Verified |
 
-Requirements 1 and 2 are deployment work with no code in this repository yet.
-Nothing here should be read as claiming the administrative surface is protected
-by MFA or by a private network: it is protected by not being deployed.
+An address allowlist is a barrier, not strong authentication, and it is
+configured per host rather than by this repository — a staging host whose
+allowlist file has not been written serves the route to nobody. Requirement 2
+is deployment work with no code here yet, and requirement 3 waits on a
+hostname decision. None of those controls exists: no MFA, no passkeys, no
+enterprise identity provider, no private network, no access proxy. What
+production has is that it serves no administrative route at all. What staging
+has is an address allowlist, and the same backend authorization every other
+surface is subject to.
 
 ## Identity, authorization, and tenant isolation
 

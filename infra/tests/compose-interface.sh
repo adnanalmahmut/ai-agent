@@ -192,7 +192,7 @@ check_render '--profile staging' ai-agent "$deploy_overlay"
 check_render '--profile production' ai-agent "$deploy_overlay"
 check_render '--profile staging --profile migration' ai-agent "$deploy_overlay"
 
-# The three renders every later assertion reads.
+# The four renders every later assertion reads.
 # shellcheck disable=SC2086
 env $unset_fixture "$wrapper" --env-file "$fixture" --profile development config >"$tmp_dir/dev.yml"
 # shellcheck disable=SC2086
@@ -200,6 +200,9 @@ env $unset_fixture "$wrapper" --env-file "$fixture" --profile test config >"$tmp
 # shellcheck disable=SC2086
 env $unset_fixture "$wrapper" --env-file "$fixture" --profile staging --profile migration config \
   >"$tmp_dir/deploy.yml"
+# shellcheck disable=SC2086
+env $unset_fixture "$wrapper" --env-file "$fixture" --profile production config \
+  >"$tmp_dir/production.yml"
 
 # Compose decides whether to recreate a running container by comparing this
 # hash. Splitting the model must not change it for the two services a developer
@@ -269,7 +272,8 @@ expect_services test "$test_services" 'data
 edge
 postgres-test
 redis-test'
-expect_services deployment "$deploy_services" 'backend
+expect_services deployment "$deploy_services" 'admin
+backend
 data
 edge
 geoipupdate
@@ -280,6 +284,31 @@ redis
 tmpfs
 web
 worker'
+
+# The administrative surface is composed by the staging profile and not by the
+# production one. This is the whole mechanism: production cannot start what it
+# cannot render, and there is no flag, variable or argument that adds it --
+# `--profile production` does not know the name.
+production_services=$(services_in "$tmp_dir/production.yml")
+expect_services production "$production_services" 'backend
+data
+edge
+geoipupdate
+platform
+postgres
+redis
+tmpfs
+web
+worker'
+
+if printf '%s\n' "$production_services" | grep -Fxq admin; then
+  echo 'the production composition renders the administrative surface' >&2
+  exit 1
+fi
+if grep -Fq '/admin' "$tmp_dir/production.yml"; then
+  echo 'the production composition names the administrative surface' >&2
+  exit 1
+fi
 
 # ---------------------------------------------------------------------------
 # Test isolation: no identity a CI run creates may collide with a developer's

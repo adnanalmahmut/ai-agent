@@ -2,8 +2,14 @@
 set -eu
 
 # ForcedCommand entrypoint. SSH_ORIGINAL_COMMAND is data, never evaluated.
+#
+# Staging accepts a fifth digest and production does not. That asymmetry is the
+# grammar's, not a check further in: the administrative surface runs on staging
+# only, and the boundary the CI deploy key speaks through is where that is
+# cheapest to state and hardest to lose. A production deployment carrying an
+# administrative image is not refused later -- it cannot be said.
 command=${SSH_ORIGINAL_COMMAND:-}
-printf '%s\n' "$command" | grep -Eq '^(deploy (staging|production) [0-9a-f]{40}( [0-9a-f]{64}){4}|(status|health|rollback) (staging|production))$' || {
+printf '%s\n' "$command" | grep -Eq '^(deploy staging [0-9a-f]{40}( [0-9a-f]{64}){4,5}|deploy production [0-9a-f]{40}( [0-9a-f]{64}){4}|(status|health|rollback) (staging|production))$' || {
   echo 'command rejected' >&2
   exit 64
 }
@@ -11,15 +17,18 @@ set -- $command
 
 case "${1:-}" in
   deploy)
-    [ "$#" -eq 7 ] || exit 64
-    exec sudo -n /usr/local/sbin/ai-agent-deploy deploy "$2" "$3" "$4" "$5" "$6" "$7"
+    case "$#" in
+      7) exec sudo -n /usr/local/sbin/ai-agent-deploy deploy "$2" "$3" "$4" "$5" "$6" "$7" ;;
+      8) exec sudo -n /usr/local/sbin/ai-agent-deploy deploy "$2" "$3" "$4" "$5" "$6" "$7" "$8" ;;
+      *) exit 64 ;;
+    esac
     ;;
   status|health|rollback)
     [ "$#" -eq 2 ] || exit 64
     exec sudo -n /usr/local/sbin/ai-agent-deploy "$1" "$2"
     ;;
   *)
-    echo 'allowed commands: deploy <environment> <sha> <backend-digest> <migration-digest> <web-digest> <platform-digest>, status|health|rollback <environment>' >&2
+    echo 'allowed commands: deploy <environment> <sha> <backend-digest> <migration-digest> <web-digest> <platform-digest> [staging-only admin-digest], status|health|rollback <environment>' >&2
     exit 64
     ;;
 esac

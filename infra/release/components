@@ -15,10 +15,15 @@
 #
 # Format: <name> <repository> <required>
 #
-# `required: false` is a shape the manifest schema already understands; nothing
-# uses it yet, and an optional component still has to be listed here to be
-# accepted at all. Optional is not the same as arbitrary.
+# `required: false` says a deployment may proceed without the component. The
+# administrative surface is the first one: it is published and attested with
+# every release, so a host never builds it from source, but only the staging
+# composition runs it -- production does not compose the service at all, and
+# the forced-command grammar will not carry its digest to a production host.
+# Optional is not the same as arbitrary: an optional component still has to be
+# listed here to be accepted at all.
 backend backend true
 backend-migration backend-migration true
 web web true
 platform platform true
+admin admin false

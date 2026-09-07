@@ -79,10 +79,29 @@ require_running() {
   [ "$running" = "$service" ] || die "$service is not running"
 }
 
+# Whether the active composition contains a service at all. `admin` is in the
+# staging profile and not in the production one, so this is how the wrapper
+# asks what this host composes rather than deciding from the environment name a
+# second time: on a production host the name does not resolve, and every branch
+# below it is unreachable.
+composes() {
+  compose config --services | grep -Fxq "$1"
+}
+
+# The administrative surface is optional, so whether it is meant to be running
+# is a property of the recorded release rather than of the host. A release from
+# before it existed does not name it, and its absence is not a fault.
+release_carries_admin() {
+  [ -r "$current_release" ] && grep -Fq '"name":"admin"' "$current_release"
+}
+
 health() {
   for service in backend worker web platform; do
     require_running "$service"
   done
+  if release_carries_admin; then
+    require_running admin
+  fi
   api_health
 }
 
@@ -95,7 +114,12 @@ release_components() {
     "backend $BACKEND_IMAGE" \
     "backend-migration $BACKEND_MIGRATION_IMAGE" \
     "web $WEB_IMAGE" \
-    "platform $PLATFORM_IMAGE"
+    "platform $PLATFORM_IMAGE" \
+    "admin $ADMIN_IMAGE" |
+    # `admin` is optional in the catalog: a release may carry it and a release
+    # from before it existed does not. An entry with no image is that absence,
+    # and a release record must not name a component it cannot pin.
+    grep -v ' $'
 }
 
 # Version 1 release records named each component after the field it happened to
@@ -107,6 +131,8 @@ legacy_record_field() {
     backend-migration) printf 'migration' ;;
     web) printf 'web' ;;
     platform) printf 'platform' ;;
+    # `admin` is deliberately absent: no version 1 record could carry it, and
+    # asking for it here is a programming error rather than an old record.
     *) die "unknown release component: $1" ;;
   esac
 }
@@ -143,6 +169,12 @@ pull_release_images() {
   for service in platform web backend migrate; do
     compose pull "$service"
   done
+
+  # After the release proper, and only where the release carries it and this
+  # composition runs it.
+  if [ -n "$ADMIN_IMAGE" ] && composes admin; then
+    compose pull admin
+  fi
 }
 
 # A release states which host it needs through labels on its own immutable
@@ -242,7 +274,29 @@ verify_compose_images() {
       die 'installed compose file does not resolve the pinned release images'
   done
 
-  if printf '%s\n' "$images" | grep -Eq "^$registry/(backend|backend-migration|web|platform):"; then
+  # The administrative surface is composed by the staging profile alone, and is
+  # optional even there. Where the release carries it, the composition has to
+  # both run it and resolve exactly the pinned digest -- an admin image handed
+  # to a composition that does not compose the service would be a pin applied
+  # to nothing.
+  mutable='backend|backend-migration|web|platform'
+  if [ -n "$ADMIN_IMAGE" ]; then
+    composes admin ||
+      die 'this composition does not run the administrative surface'
+    printf '%s\n' "$images" | grep -Fxq "$ADMIN_IMAGE" ||
+      die 'installed compose file does not resolve the pinned administrative image'
+    mutable="$mutable|admin"
+  fi
+
+  # A mutable application tag is how a host ends up running something other
+  # than the release it was told to run. The administrative surface is left out
+  # of this scan exactly when the release does not carry it: the composition
+  # still renders its build-time default tag, and that tag is never pulled and
+  # never started -- every `compose up` in this script names its services, and
+  # the service is stopped rather than left serving the release being replaced.
+  # infra/tests/lightsail-boundary.sh refuses a bare `compose up`, which is
+  # what keeps that true.
+  if printf '%s\n' "$images" | grep -Eq "^$registry/($mutable):"; then
     die 'installed compose file resolves a mutable application tag'
   fi
 }
@@ -274,12 +328,22 @@ deploy_release() {
   migration_digest=$3
   web_digest=$4
   platform_digest=$5
-  migration_mode=$6
+  # Optional, and empty for every release that predates the administrative
+  # surface. The forced-command grammar only admits it for staging; this is the
+  # same refusal taken again locally, where a root operator could call this
+  # script directly.
+  admin_digest=$6
+  migration_mode=$7
 
   validate_sha "$sha"
   for digest in "$backend_digest" "$migration_digest" "$web_digest" "$platform_digest"; do
     validate_digest "$digest"
   done
+  if [ -n "$admin_digest" ]; then
+    validate_digest "$admin_digest"
+    [ "$environment" = staging ] ||
+      die 'the administrative surface is deployed on staging only'
+  fi
 
   # Everything from here to the migration step is a refusal, in the order that
   # keeps the cheapest and least reversible checks first. Nothing below may move
@@ -293,6 +357,11 @@ deploy_release() {
   export BACKEND_MIGRATION_IMAGE="$registry/backend-migration@sha256:$migration_digest"
   export WEB_IMAGE="$registry/web@sha256:$web_digest"
   export PLATFORM_IMAGE="$registry/platform@sha256:$platform_digest"
+  if [ -n "$admin_digest" ]; then
+    export ADMIN_IMAGE="$registry/admin@sha256:$admin_digest"
+  else
+    export ADMIN_IMAGE=
+  fi
 
   pull_release_images
   verify_release_declaration "$sha"
@@ -310,6 +379,17 @@ deploy_release() {
   compose up -d --wait --no-deps web platform
   require_running web
   require_running platform
+  if composes admin; then
+    if [ -n "$ADMIN_IMAGE" ]; then
+      compose up -d --wait --no-deps admin
+      require_running admin
+    else
+      # A release from before the administrative surface existed. Rollback to
+      # one has to stay possible, so this is not a refusal -- but the container
+      # from the release being replaced may not be left serving either.
+      compose stop admin
+    fi
+  fi
   health
 
   if [ -f "$current_release" ]; then
@@ -394,11 +474,28 @@ component_digest() {
   printf '%s' "$digest"
 }
 
+# The same read for a component a record may legitimately not carry. An
+# optional component that is absent is absent; one that is present is held to
+# exactly the same shape as any other, so a record cannot smuggle a
+# malformed digest through by being optional.
+optional_component_digest() {
+  record=$1
+  component=$2
+  [ -r "$record" ] || die 'release record is not available'
+  grep -Fq "\"name\":\"$component\"" "$record" || return 0
+
+  component_digest "$record" "$component"
+}
+
 case "${1:-}" in
   deploy)
-    [ "$#" -eq 7 ] || die 'deploy requires environment, SHA and four digests'
+    # Four digests, or five where the release carries the optional
+    # administrative image. The fifth is admitted for staging only, both by the
+    # forced-command grammar and by deploy_release itself.
+    [ "$#" -eq 7 ] || [ "$#" -eq 8 ] ||
+      die 'deploy requires environment, SHA and four or five digests'
     lock_deployment
-    deploy_release "$3" "$4" "$5" "$6" "$7" migrate
+    deploy_release "$3" "$4" "$5" "$6" "$7" "${8:-}" migrate
     run_retention
     ;;
   rollback)
@@ -414,8 +511,9 @@ case "${1:-}" in
     rollback_migration=$(component_digest "$previous_release" backend-migration)
     rollback_web=$(component_digest "$previous_release" web)
     rollback_platform=$(component_digest "$previous_release" platform)
+    rollback_admin=$(optional_component_digest "$previous_release" admin)
     deploy_release "$rollback_sha" "$rollback_backend" "$rollback_migration" \
-      "$rollback_web" "$rollback_platform" no-migrate
+      "$rollback_web" "$rollback_platform" "$rollback_admin" no-migrate
     ;;
   status)
     [ "$#" -eq 2 ] || die 'status requires environment'

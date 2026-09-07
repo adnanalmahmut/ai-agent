@@ -39,9 +39,17 @@ flowchart LR
    If GHCR packages are private, authenticate root's Docker client once with a
    server-local, packages-read-only credential. Do not place that credential in
    GitHub Actions or the deploy user's home.
-6. Run `infra/gateway/nginx/install-nginx.sh`, confirm the HTTP site from outside,
-   then run `infra/gateway/nginx/issue-certificate.sh`. Certificate issuance needs
+6. Run `infra/gateway/nginx/install-nginx.sh <domain> 3002 3001 3000`, confirm
+   the HTTP site from outside, then run
+   `infra/gateway/nginx/issue-certificate.sh`. Certificate issuance needs
    working DNS and inbound port 80; it is intentionally operator-only.
+
+   On a staging host, a fifth argument — `3003` — additionally installs the
+   administrative route behind the client allowlist described in
+   [the staging runbook](../staging-deployment.md). It is refused on a
+   production host. Re-running this script is safe on a host that already has
+   a certificate: the HTTPS server block is regenerated from the same template
+   whenever the certificate it names is present.
 
 ## Updating the host bundle
 

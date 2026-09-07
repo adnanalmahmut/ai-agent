@@ -112,6 +112,13 @@ jobs:
           printf '%s\n' "$VPS_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/ssh/key"
           printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" >"$RUNNER_TEMP/ssh/known_hosts"
 
+      # Four digests. The release also carries an administrative image, and the
+      # manifest reader above exports its digest like any other -- but this
+      # command deliberately does not pass it: production does not compose the
+      # administrative service, and its forced-command grammar does not accept
+      # a fifth digest. The surface is published and attested with every
+      # release and activated on staging only, which is what
+      # docs/security.md records as the state of the OP-3 gate.
       - name: Promote exact staged release
         if: inputs.action == 'promote'
         run: |

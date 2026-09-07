@@ -15,17 +15,32 @@ pnpm --filter admin build
 pnpm --filter admin start
 ```
 
-Development serves on port 3003 and expects the backend on 3002; the
-production output is a standalone Next.js Node server on 3003 running as an
-unprivileged user. There is no `basePath`: this surface is served from an
-origin of its own rather than from a path on somebody else's, and which origin
-that is has not been decided here.
+Development serves on port 3003 and expects the backend on 3002, so the local
+address is `http://localhost:3003/admin`; the production output is a standalone
+Next.js Node server on 3003 running as an unprivileged user. `basePath` is `/admin`, because the deployment serves every
+surface from one hostname. It is a build-time constant — Next.js resolves the
+router, the asset URLs and the route handlers against it when the application
+is compiled — so serving this application from a hostname of its own later
+means removing it, not reconfiguring it.
+
+Three consequences of the base path, each of them a framework behaviour rather
+than a choice, and each asserted against a running server by
+`scripts/probe-standalone.mjs` (`pnpm --filter admin test:standalone`, after a
+build):
+
+- a route handler is called with the base path already removed, so the auth
+  forwarder hands the Control Plane its own `/api/auth/*` path;
+- middleware still sees it on `request.url`, so `src/proxy.ts` strips it before
+  reading the locale and puts it back on the redirect;
+- the health route answers at `/admin/health`, which is what the container
+  healthcheck probes.
 
 `ADMIN_API_ORIGIN` says where the Control Plane is and is read per request, so
 the image carries no address of its own. The browser signs in same-origin
-against `/api/auth/*`, which `src/app/api/auth/[...all]/route.ts` forwards to
-that origin — method, path, query, body and headers through, and status,
-headers and every `Set-Cookie` back, with no authentication logic of its own.
+against `/admin/api/auth/*`, which `src/app/api/auth/[...all]/route.ts`
+forwards to that origin — method, path, query, body and headers through, and
+status, headers and every `Set-Cookie` back, with no authentication logic of
+its own.
 That path is the same in development, in the standalone server and in the
 container, which is what makes a real login work outside a dev fixture. Two
 consequences worth knowing: the session cookie is `__Host-session`, so it is
@@ -57,5 +72,9 @@ never receives the session helper or the server configuration, which
 authorization remains authoritative: a screen this gate admits is not a screen
 whose API calls are permitted.
 
-The image is buildable (`docker buildx bake admin`) and is deliberately not a
-release component. See [`docs/frontend.md`](../../docs/frontend.md).
+The image is published with every release as an optional component, and only
+the staging Compose profile runs it — behind a client allowlist at the gateway,
+and never in production. An allowlisted address is not a permission: the
+backend authorizes every administrative request from the session, whichever
+surface it arrives from. See [`docs/frontend.md`](../../docs/frontend.md) and
+[`docs/security.md`](../../docs/security.md).

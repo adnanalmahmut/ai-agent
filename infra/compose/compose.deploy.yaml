@@ -269,6 +269,46 @@ services:
       retries: 6
       start_period: 10s
 
+  admin:
+    <<: *app-security
+    # Staging only, and structurally rather than by convention: `production` is
+    # absent from this list, so a production composition cannot render this
+    # service at all -- `--profile production config` does not know the name.
+    # The administrative surface is reachable on staging, behind the gateway's
+    # ingress restriction, so that the work moving screens onto it can be
+    # tested against a real deployment. Production exposure waits on the
+    # controls docs/security.md records as not implemented.
+    profiles: [staging]
+    image: ${ADMIN_IMAGE:-ghcr.io/adnanalmahmut/ai-agent/admin:${IMAGE_TAG:-development}}
+    build:
+      context: ../..
+      dockerfile: apps/admin/Dockerfile
+    # Three values, and none of them a credential. This is a server-rendered
+    # shell in front of the Control Plane: it holds no database connection, no
+    # session secret, no encryption key and no service credential, and it
+    # authorizes nothing itself. Every decision it displays was taken by the
+    # API from the reader's own session.
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: 3003
+      ADMIN_API_ORIGIN: http://backend:3002
+    ports:
+      - 127.0.0.1:${ADMIN_HOST_PORT:-3003}:3003
+    networks:
+      - edge
+    healthcheck:
+      # `/admin/health`, not `/health`: the application is mounted at a base
+      # path and Next.js serves its routes beneath it, this one included.
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3003/admin/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
   geoipupdate:
     profiles: [staging, production]
     image: ghcr.io/maxmind/geoipupdate:v7.1

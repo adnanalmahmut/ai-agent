@@ -263,6 +263,16 @@ retention_names=$(sed -n "s/^release_components='\(.*\)'\$/\1/p" infra/deploy/re
 [ "$retention_names" = "$catalog_names" ] ||
   fail "release retention does not protect exactly the catalog components"
 
+# Retention carries requiredness too, because it decides what a record that
+# does not name a component means: a release from before an optional one
+# existed, or a truncated record it must refuse to work around.
+retention_required=$(sed -n "s/^release_components='\(.*\)'\$/\1/p" infra/deploy/release-retention.sh |
+  tr ' ' '\n' | awk -F: 'NF == 4 { print $1, $4 }' | sort)
+[ "$retention_required" = "$catalog_required" ] ||
+  fail "release retention disagrees with the catalog about which components are required:
+  catalog:   $(printf '%s' "$catalog_required" | tr '\n' ' ')
+  retention: $(printf '%s' "$retention_required" | tr '\n' ' ')"
+
 retention_repositories=$(sed -n "s/^application_repositories='\(.*\)'\$/\1/p" infra/deploy/release-retention.sh |
   tr ' ' '\n' | sort)
 catalog_repositories=$(grep -v '^[[:space:]]*#' "$catalog" | grep -v '^[[:space:]]*$' | awk '{ print $2 }' | sort)

@@ -26,7 +26,8 @@ def catalog: [
   { name: "backend", repository: "backend", required: true },
   { name: "backend-migration", repository: "backend-migration", required: true },
   { name: "web", repository: "web", required: true },
-  { name: "platform", repository: "platform", required: true }
+  { name: "platform", repository: "platform", required: true },
+  { name: "admin", repository: "admin", required: false }
 ];
 
 # The components a version 2 release described, and the field each one's image
