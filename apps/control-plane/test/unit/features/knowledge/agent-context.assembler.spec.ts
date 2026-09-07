@@ -209,8 +209,18 @@ describe('AgentContextAssembler', () => {
         query: 'tone',
       }),
     ).resolves.toEqual([
-      { space: 'brand.voice', content: 'Voice is plain.' },
-      { space: 'products.services', content: 'The kettle boils fast.' },
+      {
+        space: 'brand.voice',
+        content: 'Voice is plain.',
+        documentId: 'doc_1',
+        chunkId: 'chunk_15_space_brand',
+      },
+      {
+        space: 'products.services',
+        content: 'The kettle boils fast.',
+        documentId: 'doc_1',
+        chunkId: 'chunk_22_space_products',
+      },
     ]);
   });
 

@@ -63,6 +63,8 @@ export class AgentContextAssembler implements AgentContextPort {
       matches.map((match) => ({
         space: slugOf.get(match.spaceId) ?? 'unknown',
         content: match.content,
+        documentId: match.documentId,
+        chunkId: match.chunkId,
       })),
       policy.maxCharacters,
     );

@@ -139,6 +139,14 @@ export type ContextPolicy<TSpace extends string = string> = {
 export type AgentContextPassage = {
   space: string;
   content: string;
+  /**
+   * Where the passage came from. The in-process runtime prompts with the text
+   * alone, but an execution document has to say which chunk of which document
+   * a passage is, so a reader can attribute or revoke it without being handed
+   * the store it came from.
+   */
+  documentId: string;
+  chunkId: string;
 };
 
 export const RUNTIME_TOOL_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_-]{0,62}$/;

@@ -28,6 +28,7 @@ import { KnowledgeModule } from '../features/knowledge';
 import { OrganizationBusinessProfileModule } from '../features/organizations/settings';
 import { OrganizationAuditModule } from '../features/organizations/audit';
 import { DatabaseModule } from '../infrastructure/database';
+import { InternalExecutionModule } from './internal';
 
 @Module({
   imports: [
@@ -58,6 +59,7 @@ import { DatabaseModule } from '../infrastructure/database';
     MailModule,
     AppAuthModule,
     HealthModule,
+    InternalExecutionModule,
   ],
 })
 export class AppModule {}

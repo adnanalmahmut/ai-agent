@@ -30,6 +30,12 @@ export class KnowledgeSearchTool implements ToolImplementation {
       query,
     });
 
-    return { passages };
+    // Projected to exactly what this tool's own output contract declares. The
+    // assembler carries chunk provenance for the execution document, and a
+    // tool result that widened itself whenever an internal type grew would be
+    // a contract nobody agreed to change.
+    return {
+      passages: passages.map(({ space, content }) => ({ space, content })),
+    };
   }
 }
