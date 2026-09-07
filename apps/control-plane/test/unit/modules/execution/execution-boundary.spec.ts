@@ -33,6 +33,13 @@ const definition = (
     },
     input: z.object({ question: z.string() }),
     output: z.object({ answer: z.string() }),
+    // A run pinned to an organization version can only resolve to an
+    // installable definition, and the schema is where normalisation lives:
+    // the trim and the default below are what a runtime actually receives.
+    organizationConfiguration: {
+      schema: z.object({ tone: z.string().trim().default('neutral') }).strict(),
+      defaultValue: { tone: 'neutral' },
+    },
     maxToolGrants: ['knowledge.search@1'],
     contextPolicy: {
       spaceSlugs: ['policies'],
@@ -58,6 +65,8 @@ const run = (overrides: Partial<AgentRun> = {}): AgentRun => ({
   output: null,
   lastError: null,
   attemptCount: 1,
+  settledAttempt: null,
+  settledResultDigest: null,
   idempotencyKey: 'key_1',
   startedAt: ACCEPTED_AT,
   completedAt: null,
@@ -66,6 +75,10 @@ const run = (overrides: Partial<AgentRun> = {}): AgentRun => ({
   ...overrides,
 });
 
+/** Any durable write moves the row's timestamp, as `@updatedAt` does. */
+const touched = (current: AgentRun): Date =>
+  new Date(current.updatedAt.getTime() + 1_000);
+
 function harness(
   options: {
     runs?: Partial<AgentRunService>;
@@ -73,6 +86,7 @@ function harness(
     passages?: Awaited<ReturnType<AgentContextPort['assemble']>>;
     toolGrants?: readonly string[];
     registeredTools?: readonly string[];
+    configuration?: Record<string, unknown> | null;
   } = {},
 ) {
   const rows = new Map<string, AgentRun>();
@@ -94,6 +108,8 @@ function harness(
           ...current,
           status: 'RUNNING',
           attemptCount: attempt,
+          lastError: null,
+          updatedAt: touched(current),
         } as AgentRun;
         rows.set(runId, claimed);
 
@@ -112,7 +128,12 @@ function harness(
           return Promise.resolve(false);
         }
 
-        rows.set(runId, { ...current, status: 'SUCCEEDED', output });
+        rows.set(runId, {
+          ...current,
+          status: 'SUCCEEDED',
+          output,
+          updatedAt: touched(current),
+        });
 
         return Promise.resolve(true);
       },
@@ -133,6 +154,40 @@ function harness(
           ...current,
           lastError,
           status: final ? 'FAILED' : current.status,
+          updatedAt: touched(current),
+        });
+
+        return Promise.resolve(true);
+      },
+    ),
+    // The durable rule the boundary depends on: an ordinal that has already
+    // answered does not answer again, whatever it answers with.
+    settleExecutionAttempt: jest.fn<AgentRunService['settleExecutionAttempt']>(
+      (input) => {
+        const current = rows.get(input.runId);
+
+        if (
+          !current ||
+          current.status !== 'RUNNING' ||
+          current.attemptCount !== input.attempt ||
+          (current.settledAttempt !== null &&
+            current.settledAttempt >= input.attempt)
+        ) {
+          return Promise.resolve(false);
+        }
+
+        rows.set(input.runId, {
+          ...current,
+          settledAttempt: input.attempt,
+          settledResultDigest: input.digest,
+          updatedAt: touched(current),
+          ...(input.result.kind === 'succeeded'
+            ? {
+                status: 'SUCCEEDED' as const,
+                output: input.result.output,
+                lastError: null,
+              }
+            : { lastError: input.result.diagnostic }),
         });
 
         return Promise.resolve(true);
@@ -140,7 +195,7 @@ function harness(
     ),
     pinnedVersionFor: jest.fn<AgentRunService['pinnedVersionFor']>(() =>
       Promise.resolve({
-        configuration: {},
+        configuration: (options.configuration ?? {}) as never,
         toolGrants: options.toolGrants ?? ['knowledge.search@1'],
       }),
     ),
@@ -236,9 +291,11 @@ describe('leasing an execution step', () => {
         modelId: MODEL_IDS.openAiGpt4oMini,
         pricingRevisionId: expect.any(String) as unknown as string,
       },
+      configuration: { tone: 'neutral' },
       input: { question: 'What is the refund window?' },
       context: [
         {
+          space: 'policies',
           documentId: 'doc_1',
           chunkId: 'chunk_1',
           text: 'Refunds within thirty days.',
@@ -246,6 +303,86 @@ describe('leasing an execution step', () => {
       ],
       grantedTools: ['knowledge.search@1'],
     });
+  });
+
+  it('emits the configuration the in-process runtime would have computed', async () => {
+    const h = harness({ configuration: { tone: '  playful  ' } });
+    h.seed();
+
+    const outcome = await h.lease.execute({ runId: 'run_1' });
+    if (outcome.status !== 'leased') throw new Error('not leased');
+
+    // Not the stored row: the definition's own schema trims, and a runtime in
+    // another process has no way to apply a rule it cannot see.
+    expect(outcome.step.configuration).toEqual({ tone: 'playful' });
+  });
+
+  it('fills a configuration an installation never stored from the definition default', async () => {
+    const h = harness({ configuration: {} });
+    h.seed();
+
+    const outcome = await h.lease.execute({ runId: 'run_1' });
+    if (outcome.status !== 'leased') throw new Error('not leased');
+
+    expect(outcome.step.configuration).toEqual({ tone: 'neutral' });
+  });
+
+  it('refuses a stored configuration the pinned definition does not accept', async () => {
+    const h = harness({ configuration: { tone: 'brisk', unknown: true } });
+    h.seed();
+
+    await expect(h.lease.execute({ runId: 'run_1' })).resolves.toMatchObject({
+      status: 'not_executable',
+    });
+    expect(h.rows.get('run_1')?.output).toBeNull();
+  });
+
+  it('refuses a pinned run whose definition is not installable', async () => {
+    const h = harness({
+      definitions: {
+        resolve: jest.fn(() =>
+          definition({ organizationConfiguration: undefined }),
+        ),
+      } as unknown as Partial<AgentDefinitionRegistry>,
+    });
+    h.seed();
+
+    await expect(h.lease.execute({ runId: 'run_1' })).resolves.toMatchObject({
+      status: 'not_executable',
+    });
+  });
+
+  it('keeps the knowledge space of every passage through serialisation', async () => {
+    const h = harness({
+      passages: [
+        {
+          space: 'policies',
+          content: 'Refunds within thirty days.',
+          documentId: 'doc_1',
+          chunkId: 'chunk_1',
+        },
+        {
+          space: 'brand.voice',
+          content: 'Write plainly.',
+          documentId: 'doc_2',
+          chunkId: 'chunk_2',
+        },
+      ],
+    });
+    h.seed();
+
+    const outcome = await h.lease.execute({ runId: 'run_1' });
+    if (outcome.status !== 'leased') throw new Error('not leased');
+
+    expect(outcome.step.context.map((passage) => passage.space)).toEqual([
+      'policies',
+      'brand.voice',
+    ]);
+    // And it survives the only trip that matters: through JSON, to a reader
+    // that has none of this process's code.
+    expect(
+      (JSON.parse(JSON.stringify(outcome.step)) as typeof outcome.step).context,
+    ).toEqual(outcome.step.context);
   });
 
   it('is JSON, whole: no Date, function or class instance survives assembly', async () => {
@@ -673,30 +810,114 @@ describe('settling an execution step', () => {
     expect(current?.output).toEqual({ answer: 'Thirty days.' });
   });
 
-  it('treats a repeated failure report as the answer already recorded', async () => {
+  it('persists the output as the pinned definition normalises it', async () => {
+    const h = harness({
+      definitions: {
+        resolve: jest.fn(() =>
+          definition({
+            output: z.object({
+              answer: z.string().trim(),
+              sources: z.array(z.string()).default([]),
+            }),
+          }),
+        ),
+      } as unknown as Partial<AgentDefinitionRegistry>,
+    });
+    h.seed();
+    await h.lease.execute({ runId: 'run_1' });
+
+    await expect(
+      h.settle.execute({
+        runId: 'run_1',
+        document: resultFor({ output: { answer: '  Thirty days.  ' } }),
+      }),
+    ).resolves.toEqual({ status: 'settled' });
+
+    // A schema's defaults and trims are part of what the agent produced, and
+    // the in-process path has always stored them. Persisting the raw document
+    // instead would make the same answer mean two different things depending
+    // on which process ran it.
+    expect(h.rows.get('run_1')?.output).toEqual({
+      answer: 'Thirty days.',
+      sources: [],
+    });
+  });
+
+  it('compares replays by what was normalised, not by what arrived', async () => {
+    const h = harness({
+      definitions: {
+        resolve: jest.fn(() =>
+          definition({
+            output: z.object({
+              answer: z.string().trim(),
+              sources: z.array(z.string()).default([]),
+            }),
+          }),
+        ),
+      } as unknown as Partial<AgentDefinitionRegistry>,
+    });
+    h.seed();
+    await h.lease.execute({ runId: 'run_1' });
+
+    await h.settle.execute({
+      runId: 'run_1',
+      document: resultFor({ output: { answer: 'Thirty days.' } }),
+    });
+    const settled = h.rows.get('run_1');
+
+    await expect(
+      h.settle.execute({
+        runId: 'run_1',
+        document: resultFor({
+          output: { answer: '  Thirty days.  ', sources: [] },
+        }),
+      }),
+    ).resolves.toEqual({ status: 'already_settled' });
+    expect(h.rows.get('run_1')).toEqual(settled);
+
+    await expect(
+      h.settle.execute({
+        runId: 'run_1',
+        document: resultFor({ output: { answer: 'Ninety days.' } }),
+      }),
+    ).resolves.toEqual({ status: 'conflict' });
+    expect(h.rows.get('run_1')).toEqual(settled);
+  });
+
+  it('refuses a final result carrying artifact references, and writes nothing', async () => {
     const h = harness();
     h.seed();
     await h.lease.execute({ runId: 'run_1' });
-    const failure = {
-      version: '1',
-      stepId: 'run_1:1',
-      runId: 'run_1',
-      attempt: 1,
-      outcome: 'failed',
-      failure: { version: '1', code: 'timeout' },
-    };
-
-    await h.settle.execute({ runId: 'run_1', document: failure });
-    await h.runs.recordExecutionFailure(
-      'run_1',
-      1,
-      'Agent execution failed',
-      true,
-    );
 
     await expect(
-      h.settle.execute({ runId: 'run_1', document: failure }),
-    ).resolves.toEqual({ status: 'already_settled' });
+      h.settle.execute({
+        runId: 'run_1',
+        document: resultFor({
+          artifacts: [
+            {
+              version: '1',
+              ref: 'artifact_1',
+              contentType: 'application/pdf',
+              byteSize: 20_480,
+              digest: 'e'.repeat(64),
+            },
+          ],
+        }),
+      }),
+    ).resolves.toEqual({
+      status: 'unsupported_outcome',
+      outcome: 'unsupported_artifacts',
+    });
+
+    // Asset settlement is later work. Until it exists, taking the answer and
+    // dropping the references would lose contract-valid information without
+    // anyone being told.
+    const current = h.rows.get('run_1');
+    expect(current?.status).toBe('RUNNING');
+    expect(current?.output).toBeNull();
+    expect(current?.lastError).toBeNull();
+    expect(current?.settledAttempt).toBeNull();
+    expect(current?.updatedAt).toEqual(h.rows.get('run_1')?.updatedAt);
   });
 
   it('does not acknowledge a tool proposal it cannot perform', async () => {
@@ -732,5 +953,131 @@ describe('settling an execution step', () => {
     expect(current?.status).toBe('RUNNING');
     expect(current?.output).toBeNull();
     expect(current?.lastError).toBeNull();
+  });
+});
+
+describe('one accepted result per execution attempt', () => {
+  const failureFor = (
+    attempt = 1,
+    code = 'timeout',
+  ): Record<string, unknown> => ({
+    version: '1',
+    stepId: stepIdFor('run_1', attempt),
+    runId: 'run_1',
+    attempt,
+    outcome: 'failed',
+    failure: { version: '1', code },
+  });
+
+  /** A reported failure keeps the run running; only its ordinal is answered. */
+  const leasedAndFailed = async () => {
+    const h = harness();
+    h.seed();
+    await h.lease.execute({ runId: 'run_1' });
+
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: failureFor() }),
+    ).resolves.toEqual({ status: 'settled' });
+
+    const settled = h.rows.get('run_1');
+    expect(settled?.status).toBe('RUNNING');
+    expect(settled?.lastError).toBe('Agent execution failed');
+    expect(settled?.settledAttempt).toBe(1);
+
+    return { h, settled };
+  };
+
+  it('replaying the identical failure changes nothing at all', async () => {
+    const { h, settled } = await leasedAndFailed();
+
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: failureFor() }),
+    ).resolves.toEqual({ status: 'already_settled' });
+
+    // Not only the same fields: the same row. A replay that moved `updatedAt`
+    // would keep resetting the clock stale-run reconciliation reads.
+    expect(h.rows.get('run_1')).toEqual(settled);
+  });
+
+  it('refuses a success for an attempt that already reported a failure', async () => {
+    const { h, settled } = await leasedAndFailed();
+
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: resultFor() }),
+    ).resolves.toEqual({ status: 'conflict' });
+    expect(h.rows.get('run_1')).toEqual(settled);
+  });
+
+  it('refuses a second failure that says something else', async () => {
+    const { h, settled } = await leasedAndFailed();
+
+    await expect(
+      h.settle.execute({
+        runId: 'run_1',
+        document: failureFor(1, 'provider_unavailable'),
+      }),
+    ).resolves.toEqual({ status: 'conflict' });
+    expect(h.rows.get('run_1')).toEqual(settled);
+  });
+
+  it('refuses a failure for an attempt that already reported a success', async () => {
+    const h = harness();
+    h.seed();
+    await h.lease.execute({ runId: 'run_1' });
+    await h.settle.execute({ runId: 'run_1', document: resultFor() });
+    const settled = h.rows.get('run_1');
+
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: failureFor() }),
+    ).resolves.toEqual({ status: 'conflict' });
+    expect(h.rows.get('run_1')).toEqual(settled);
+  });
+
+  it('still lets the next attempt settle after one reported a failure', async () => {
+    const { h } = await leasedAndFailed();
+
+    // The product behaviour a reported failure must not destroy: retries
+    // remain, and terminality stays with the Control Plane.
+    const retried = await h.lease.execute({ runId: 'run_1' });
+    if (retried.status !== 'leased') throw new Error('not leased');
+    expect(retried.step.attempt).toBe(2);
+
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: resultFor({}, 2) }),
+    ).resolves.toEqual({ status: 'settled' });
+    expect(h.rows.get('run_1')?.status).toBe('SUCCEEDED');
+  });
+
+  it('refuses a result for an attempt a newer one has taken over', async () => {
+    const h = harness();
+    h.seed();
+    await h.lease.execute({ runId: 'run_1' });
+    await h.lease.execute({ runId: 'run_1' });
+    const current = h.rows.get('run_1');
+
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: resultFor({}, 1) }),
+    ).resolves.toEqual({ status: 'stale' });
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: failureFor(1) }),
+    ).resolves.toEqual({ status: 'stale' });
+    expect(h.rows.get('run_1')).toEqual(current);
+  });
+
+  it('answers a settled ordinal the same way once a newer attempt owns the run', async () => {
+    const { h } = await leasedAndFailed();
+    await h.lease.execute({ runId: 'run_1' });
+    const current = h.rows.get('run_1');
+
+    // The ordinal answered, and that is a durable fact about the ordinal
+    // rather than about who holds the run now. Calling this replay stale
+    // would say something untrue about what is stored.
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: failureFor() }),
+    ).resolves.toEqual({ status: 'already_settled' });
+    await expect(
+      h.settle.execute({ runId: 'run_1', document: resultFor({}, 1) }),
+    ).resolves.toEqual({ status: 'conflict' });
+    expect(h.rows.get('run_1')).toEqual(current);
   });
 });

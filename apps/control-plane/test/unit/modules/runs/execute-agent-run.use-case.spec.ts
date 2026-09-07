@@ -22,6 +22,8 @@ const claimed: AgentRun = {
   input: 'hello',
   output: null,
   lastError: null,
+  settledAttempt: null,
+  settledResultDigest: null,
   attemptCount: 2,
   idempotencyKey: 'request-1',
   startedAt: new Date('2026-09-01T00:00:00.000Z'),

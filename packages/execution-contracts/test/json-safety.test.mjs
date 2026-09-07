@@ -22,6 +22,7 @@ const step = {
     modelId: 'openai.gpt-4o-mini',
     pricingRevisionId: 'openai.gpt-4o-mini.pricing.1',
   },
+  configuration: { tone: 'playful' },
   input: { topic: 'spring' },
   context: [],
   grantedTools: [],
@@ -143,11 +144,13 @@ describe('the aggregate context budget', () => {
       ...step,
       context: [
         {
+          space: 'brand.voice',
           documentId: 'doc_1',
           chunkId: 'chunk_1',
           text: 'a'.repeat(6000),
         },
         {
+          space: 'brand.voice',
           documentId: 'doc_2',
           chunkId: 'chunk_2',
           text: 'b'.repeat(6000),
@@ -163,11 +166,13 @@ describe('the aggregate context budget', () => {
       ...step,
       context: [
         {
+          space: 'brand.voice',
           documentId: 'doc_1',
           chunkId: 'chunk_1',
           text: 'a'.repeat(7000),
         },
         {
+          space: 'brand.voice',
           documentId: 'doc_2',
           chunkId: 'chunk_2',
           text: 'b'.repeat(6000),
@@ -187,11 +192,13 @@ describe('the aggregate context budget', () => {
       ...step,
       context: [
         {
+          space: 'brand.voice',
           documentId: 'doc_1',
           chunkId: 'chunk_1',
           text: '👋'.repeat(6001),
         },
         {
+          space: 'brand.voice',
           documentId: 'doc_2',
           chunkId: 'chunk_2',
           text: '🚀'.repeat(6001),

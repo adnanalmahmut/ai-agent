@@ -46,6 +46,10 @@ export type AgentRun = {
   output: AgentValue | null;
   lastError: string | null;
   attemptCount: number;
+  /** The attempt whose result has already been accepted, if any. */
+  settledAttempt: number | null;
+  /** A digest of that result, so a replay is not mistaken for a new answer. */
+  settledResultDigest: string | null;
   idempotencyKey: string;
   startedAt: Date | null;
   completedAt: Date | null;

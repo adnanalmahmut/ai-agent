@@ -21,27 +21,34 @@ export type InternalServiceCapability =
  * presented and compares — so an environment dump, a backup of it or an
  * operator reading it yields nothing that can be replayed against this
  * boundary.
+ *
+ * Strict, so a property nobody agreed on fails the boot rather than being
+ * stripped. A stripped `token` is the dangerous case: the parsed value would
+ * look correct and carry no secret while the plaintext sat in the environment
+ * variable the whole time — the claim above, quietly false.
  */
-const credential = z.object({
-  serviceId: z
-    .string()
-    .min(1)
-    .max(64)
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      'serviceId may contain only lowercase letters, digits and "-"',
-    ),
-  tokenSha256: z
-    .string()
-    .regex(
-      /^[0-9a-f]{64}$/,
-      'tokenSha256 must be a lowercase SHA-256 hex digest',
-    ),
-  capabilities: z
-    .array(z.enum(INTERNAL_SERVICE_CAPABILITIES))
-    .min(1)
-    .max(INTERNAL_SERVICE_CAPABILITIES.length),
-});
+const credential = z
+  .object({
+    serviceId: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        'serviceId may contain only lowercase letters, digits and "-"',
+      ),
+    tokenSha256: z
+      .string()
+      .regex(
+        /^[0-9a-f]{64}$/,
+        'tokenSha256 must be a lowercase SHA-256 hex digest',
+      ),
+    capabilities: z
+      .array(z.enum(INTERNAL_SERVICE_CAPABILITIES))
+      .min(1)
+      .max(INTERNAL_SERVICE_CAPABILITIES.length),
+  })
+  .strict();
 
 const schema = z.object({
   // Absent means the boundary accepts nobody. A service surface that
@@ -70,7 +77,7 @@ const schema = z.object({
         ctx.addIssue({
           code: 'custom',
           message:
-            'INTERNAL_SERVICE_CREDENTIALS entries must be ' +
+            'INTERNAL_SERVICE_CREDENTIALS entries must be exactly ' +
             '{ serviceId, tokenSha256, capabilities }',
         });
 

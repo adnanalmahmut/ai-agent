@@ -25,7 +25,28 @@ const definition = (version: number): AgentDefinition => ({
   },
 });
 
-export const TEST_AGENT_DEFINITIONS = [definition(1), definition(2)] as const;
+/**
+ * A revision whose output schema actually normalises, so a suite can prove
+ * that what reaches the database is what the pinned definition made of a
+ * result rather than what arrived on the wire.
+ *
+ * Its own revision on purpose: revisions 1 and 2 accept arbitrary output, and
+ * several suites depend on that, so tightening them to test normalisation
+ * would change what those suites are testing.
+ */
+const normalisingDefinition = (): AgentDefinition => ({
+  ...definition(3),
+  output: z.object({
+    answer: z.string().trim(),
+    sources: z.array(z.string()).default([]),
+  }),
+});
+
+export const TEST_AGENT_DEFINITIONS = [
+  definition(1),
+  definition(2),
+  normalisingDefinition(),
+] as const;
 
 export const testAgentRegistry = () =>
   new AgentDefinitionRegistry(TEST_AGENT_DEFINITIONS);

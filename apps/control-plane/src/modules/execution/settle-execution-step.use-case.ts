@@ -13,6 +13,7 @@ import {
   type AgentValue,
 } from '../../ai/agents/agent.types';
 import { AgentRunService } from '../../ai/execution/agent-run.service';
+import { settlementDigestOf, type SettledResult } from './attempt-settlement';
 import { stepIdFor } from './execution-step.assembler';
 
 export type SettleExecutionStepCommand = {
@@ -42,6 +43,9 @@ export type SettleExecutionStepOutcome =
   /** A different result for an identity that is already settled. */
   | { readonly status: 'conflict' };
 
+/** A final result carrying artifact references, which nothing settles yet. */
+const UNSUPPORTED_ARTIFACTS = 'unsupported_artifacts';
+
 /**
  * Applying a result produced outside this process.
  *
@@ -52,10 +56,17 @@ export type SettleExecutionStepOutcome =
  * checked against the definition the run was pinned to, so an external
  * runtime cannot widen its own output contract by returning something else.
  *
- * Only then does an existing compare-and-set apply it. Nothing here writes
- * outside `AgentRunService`, and no text the submitter chose is persisted:
- * `SafeFailure` is a classification, and the diagnostic stored is this
- * system's own.
+ * What is persisted is the output as that definition normalises it, not as it
+ * arrived — a schema's defaults, trims and coercions are part of what an agent
+ * produces, and the in-process path has always applied them.
+ *
+ * Only then does a compare-and-set apply it, conditioned on the attempt not
+ * having answered already: one accepted result per `(runId, attempt)`, so a
+ * replay changes nothing and a contradiction is refused rather than
+ * overwriting. Nothing here writes outside `AgentRunService`, and no text the
+ * submitter chose is persisted: `SafeFailure` is a classification, the
+ * diagnostic stored is this system's own, and the settlement record is a
+ * digest.
  */
 @Injectable()
 export class SettleExecutionStepUseCase {
@@ -101,6 +112,17 @@ export class SettleExecutionStepUseCase {
 
     if (result.outcome === 'failed') return this.recordFailure(run, result);
 
+    // The wire protocol carries artifact references before this boundary can
+    // settle them: asset storage is later work. Accepting the result and
+    // dropping the references would lose contract-valid information silently,
+    // which is worse than refusing the result and writing nothing.
+    if (result.artifacts.length > 0) {
+      return {
+        status: 'unsupported_outcome',
+        outcome: UNSUPPORTED_ARTIFACTS,
+      };
+    }
+
     return this.recordSuccess(run, result);
   }
 
@@ -108,14 +130,18 @@ export class SettleExecutionStepUseCase {
     run: AgentRun,
     result: Extract<RuntimeStepResult, { outcome: 'final' }>,
   ): Promise<SettleExecutionStepOutcome> {
-    const output = result.output;
-    const rejection = this.outputRejection(run, output);
+    const normalized = this.normalizeOutput(run, result.output);
 
-    if (rejection !== null) {
+    if (!normalized.ok) {
       // Same reading the in-process path takes: a model that returned the
       // wrong shape once may not next time, so this keeps the retry budget
-      // rather than terminating the run.
-      if (run.status === 'RUNNING' && run.attemptCount === result.attempt) {
+      // rather than terminating the run. An attempt that has already answered
+      // is left exactly as it is.
+      if (
+        run.status === 'RUNNING' &&
+        run.attemptCount === result.attempt &&
+        (run.settledAttempt === null || run.settledAttempt < result.attempt)
+      ) {
         await this.runs.recordExecutionFailure(
           run.id,
           result.attempt,
@@ -124,18 +150,23 @@ export class SettleExecutionStepUseCase {
         );
       }
 
-      return rejection;
+      return { status: 'output_rejected' };
     }
 
-    const recorded = await this.runs.markExecutionSucceeded(
-      run.id,
-      result.attempt,
-      output,
-    );
+    const settled: SettledResult = {
+      kind: 'succeeded',
+      output: normalized.output,
+    };
+    const applied = await this.runs.settleExecutionAttempt({
+      runId: run.id,
+      attempt: result.attempt,
+      digest: settlementDigestOf(settled),
+      result: { kind: 'succeeded', output: normalized.output },
+    });
 
-    if (recorded) return { status: 'settled' };
+    if (applied) return { status: 'settled' };
 
-    return this.explainLostWrite(run.id, result.attempt, output);
+    return this.explainRefusedWrite(run.id, result.attempt, settled);
   }
 
   private async recordFailure(
@@ -144,34 +175,37 @@ export class SettleExecutionStepUseCase {
   ): Promise<SettleExecutionStepOutcome> {
     // Whether a run is finished is transport and reconciliation policy, which
     // this caller does not hold: a reported failure records a diagnostic and
-    // leaves terminality to the Control Plane.
-    const recorded = await this.runs.recordExecutionFailure(
-      run.id,
-      result.attempt,
-      AGENT_EXECUTION_FAILED,
-      false,
-    );
+    // leaves terminality to the Control Plane. It does settle the attempt,
+    // though — the ordinal has answered, and may not answer again.
+    const settled: SettledResult = {
+      kind: 'failed',
+      code: result.failure.code,
+    };
+    const applied = await this.runs.settleExecutionAttempt({
+      runId: run.id,
+      attempt: result.attempt,
+      digest: settlementDigestOf(settled),
+      result: { kind: 'failed', diagnostic: AGENT_EXECUTION_FAILED },
+    });
 
-    if (recorded) return { status: 'settled' };
+    if (applied) return { status: 'settled' };
 
-    const current = await this.runs.findById(run.id);
-
-    if (!current) return { status: 'not_found' };
-    if (current.attemptCount !== result.attempt) return { status: 'stale' };
-
-    // Settled at this same attempt. A second failure report agrees with what
-    // is recorded and changes nothing; a failure report against a recorded
-    // success contradicts it, and a contradiction must not read as a replay.
-    if (current.status === 'FAILED') return { status: 'already_settled' };
-    if (current.status === 'SUCCEEDED') return { status: 'conflict' };
-
-    return { status: 'stale' };
+    return this.explainRefusedWrite(run.id, result.attempt, settled);
   }
 
-  private outputRejection(
+  /**
+   * The output as the pinned definition reads it, or nothing.
+   *
+   * `safeParse` is not only a check: a definition's schema carries defaults,
+   * trims and coercions, and the value it returns is what the in-process
+   * runtime has always produced. The contract is then evaluated against that
+   * same value, so a contract and a persisted result can never disagree about
+   * which output they were talking about.
+   */
+  private normalizeOutput(
     run: AgentRun,
     output: AgentValue,
-  ): SettleExecutionStepOutcome | null {
+  ): { ok: true; output: AgentValue } | { ok: false } {
     let definition;
 
     try {
@@ -179,27 +213,26 @@ export class SettleExecutionStepUseCase {
     } catch (error) {
       if (!isAgentConfigurationError(error)) throw error;
 
-      return { status: 'output_rejected' };
+      return { ok: false };
     }
 
     const parsed = definition.output.safeParse(output);
 
-    if (!parsed.success) return { status: 'output_rejected' };
+    if (!parsed.success) return { ok: false };
 
     const parsedInput = definition.input.safeParse(run.input);
 
-    if (!parsedInput.success) return { status: 'output_rejected' };
+    if (!parsedInput.success) return { ok: false };
 
+    const normalized = parsed.data as AgentValue;
     const violation = definition.outputContract?.(
       parsedInput.data as AgentValue,
-      parsed.data as AgentValue,
+      normalized,
     );
 
-    if (violation !== undefined && violation !== null) {
-      return { status: 'output_rejected' };
-    }
+    if (violation !== undefined && violation !== null) return { ok: false };
 
-    return null;
+    return { ok: true, output: normalized };
   }
 
   /**
@@ -207,20 +240,43 @@ export class SettleExecutionStepUseCase {
    * authorized result delivered twice must be idempotent, while a different
    * one for settled work must not be.
    */
-  private async explainLostWrite(
+  private async explainRefusedWrite(
     runId: string,
     attempt: number,
-    output: AgentValue,
+    settled: SettledResult,
   ): Promise<SettleExecutionStepOutcome> {
     const current = await this.runs.findById(runId);
 
     if (!current) return { status: 'not_found' };
-    if (current.attemptCount !== attempt) return { status: 'stale' };
-    if (current.status !== 'SUCCEEDED') return { status: 'stale' };
 
-    return sameJson(current.output, output)
-      ? { status: 'already_settled' }
-      : { status: 'conflict' };
+    // A settled ordinal is the authority on its own answer, whatever the run
+    // has done since. Calling an identical replay stale because a newer
+    // attempt has taken over would be a claim about durable state that is not
+    // true, and the two answers must stay distinguishable.
+    if (current.settledAttempt === attempt) {
+      return current.settledResultDigest === settlementDigestOf(settled)
+        ? { status: 'already_settled' }
+        : { status: 'conflict' };
+    }
+
+    if (current.attemptCount !== attempt) return { status: 'stale' };
+
+    // Terminal at this ordinal with no settlement record: the in-process
+    // worker path recorded it, and that path stores results rather than
+    // digests. Compare against what is actually stored, so a result the
+    // Control Plane itself produced does not read as a contradiction.
+    if (settled.kind === 'succeeded') {
+      if (current.status !== 'SUCCEEDED') return { status: 'stale' };
+
+      return sameJson(current.output, settled.output)
+        ? { status: 'already_settled' }
+        : { status: 'conflict' };
+    }
+
+    if (current.status === 'SUCCEEDED') return { status: 'conflict' };
+    if (current.status === 'FAILED') return { status: 'already_settled' };
+
+    return { status: 'stale' };
   }
 }
 

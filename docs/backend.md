@@ -89,12 +89,31 @@ change: `POST internal/execution/runs/:runId/lease` claims the next attempt and
 returns a serialised `RuntimeStep`, and `POST .../result` applies a
 `RuntimeStepResult`, both defined by `contracts/execution/v1`. Identity is
 proved by a credential whose SHA-256 digest is configured in
-`INTERNAL_SERVICE_CREDENTIALS`, never by a header naming a service;
-authorization is a declared capability per route, separate from identity; and
-the tenant, the pinned definition, the attempt ordinal and the output contract
-are all reloaded from PostgreSQL rather than read from the request. Nothing is
-configured by default, so the boundary authenticates nobody until an operator
-says otherwise, and no production runtime uses it yet. The use cases are
+`INTERNAL_SERVICE_CREDENTIALS` — strictly, so an entry carrying any other
+property refuses the boot rather than having a plaintext token stripped from
+the parsed value while it stays in the environment — never by a header naming a
+service; authorization is a declared capability per route, separate from
+identity; and the tenant, the pinned definition, the attempt ordinal and the
+output contract are all reloaded from PostgreSQL rather than read from the
+request. Nothing is configured by default, so the boundary authenticates nobody
+until an operator says otherwise, and no production runtime uses it yet. Only
+the API process receives the variable; the worker and the migration process
+authenticate no service and are not given the digests.
+
+A leased step carries everything the in-process runtime is given, because a
+document that carried less would make moving the runtime a change in behaviour
+rather than a change in address: the pinned model identities, the organization
+configuration as the pinned definition's own schema normalises it, the input,
+and each retrieved passage with the knowledge space it came from. Results are
+persisted the same way round — the output as that definition normalises it,
+defaults and trims included, never the raw document — and at most one result is
+accepted per `(runId, attempt)`, recorded durably on `AgentRun` as the settled
+ordinal plus a digest of what was settled. A replay of the same result changes
+nothing; a different result for a settled ordinal is refused; and a reported
+failure settles its ordinal without declaring the run terminal, so retry policy
+stays where it was. A final result carrying artifact references is refused
+outright until asset settlement exists, rather than accepted with the
+references dropped. The use cases are
 `modules/execution/`; the caller needs no Prisma, database URL, Redis, BullMQ or
 Better Auth internals, and `test/unit/modules/use-case-boundary.spec.ts` asserts
 that of `@repo/execution-contracts` directly.

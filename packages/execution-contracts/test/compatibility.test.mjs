@@ -136,6 +136,78 @@ describe('what may change inside version 1', () => {
     });
   });
 
+  describe('the one correction v1 took before its first consumer', () => {
+    /** The published step that actually carries a passage to reason about. */
+    const publishedStep = () => {
+      const fixture = corpus.find(
+        ({ kind, document }) =>
+          kind === 'runtimeStep' && document.context.length > 0,
+      );
+
+      assert.ok(fixture, 'the corpus has no runtime step with context');
+
+      return fixture.document;
+    };
+
+    const currentReader = () => {
+      const ajv = new Ajv2020({
+        strict: true,
+        allErrors: true,
+        schemas: EXECUTION_V1_SCHEMAS.map(([, schema]) => schema),
+      });
+      addFormats(ajv, ['date-time']);
+
+      return ajv.getSchema(`${BASE}runtime-step.schema.json`);
+    };
+
+    it('a step carries the whole runtime-facing input, not a subset of it', () => {
+      for (const { kind, document } of corpus) {
+        if (kind !== 'runtimeStep') continue;
+
+        // The two an external runtime cannot reconstruct for itself: the
+        // normalised organization configuration, and which knowledge space
+        // each passage came from.
+        assert.equal(typeof document.configuration, 'object');
+        assert.notEqual(document.configuration, null);
+
+        for (const passage of document.context) {
+          assert.equal(typeof passage.space, 'string');
+        }
+      }
+    });
+
+    it('the shape published before RF-16 no longer validates, which is what made this a pre-consumer correction', () => {
+      const validate = currentReader();
+      const { configuration: _dropped, ...withoutConfiguration } =
+        publishedStep();
+
+      assert.equal(validate(withoutConfiguration), false);
+
+      const step = publishedStep();
+      assert.equal(
+        validate({
+          ...step,
+          context: step.context.map(({ space: _space, ...rest }) => rest),
+        }),
+        false,
+      );
+    });
+
+    it('making the same correction later would be a version 2 change', () => {
+      // Requiring a property the corpus did not carry is the breaking move the
+      // table in contracts/README.md names. Re-issuing the corpus is what it
+      // costs, and it is only free while no consumer reads v1 yet.
+      assert.equal(
+        corpusStillValidates((byId) => {
+          const step = schemaFor(byId, 'runtime-step.schema.json');
+          step.properties.deliveredAt = { type: 'string' };
+          step.required.push('deliveredAt');
+        }),
+        false,
+      );
+    });
+  });
+
   describe('breaking: version 2, once a consumer exists', () => {
     it('making an optional property required', () => {
       assert.equal(

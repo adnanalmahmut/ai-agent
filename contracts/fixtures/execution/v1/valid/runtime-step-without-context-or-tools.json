@@ -16,6 +16,7 @@
       "modelId": "openai.gpt-4o-mini",
       "pricingRevisionId": "openai.gpt-4o-mini.pricing.1"
     },
+    "configuration": {},
     "input": {
       "topic": "spring campaign",
       "count": 3

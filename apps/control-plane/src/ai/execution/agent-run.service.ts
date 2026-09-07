@@ -122,6 +122,67 @@ export class AgentRunService {
     return count === 1;
   }
 
+  /**
+   * The one accepted result for one execution attempt.
+   *
+   * `attemptCount` cannot enforce this by itself. A reported failure leaves a
+   * run RUNNING on purpose — whether retries remain is transport policy, not
+   * something the process reporting the failure gets to decide — so an ordinal
+   * that has already answered is otherwise indistinguishable from one that has
+   * not, and the same attempt could report a failure and then a contradicting
+   * success with both accepted. `settledAttempt` is that missing fact, written
+   * in the same conditional statement that applies the result, and
+   * `settledResultDigest` is what separates a replay of the same result from a
+   * different one.
+   *
+   * Deliberately narrower than `markExecutionSucceeded` and
+   * `recordExecutionFailure`, which the in-process worker path still uses: the
+   * queue's own delivery semantics already fence it, and widening them would
+   * change retry behaviour that is product behaviour.
+   */
+  async settleExecutionAttempt(input: {
+    runId: string;
+    attempt: number;
+    digest: string;
+    result:
+      | { kind: 'succeeded'; output: AgentValue }
+      | { kind: 'failed'; diagnostic: AgentFailureDiagnostic };
+  }): Promise<boolean> {
+    const { count } = await this.prisma.agentRun.updateMany({
+      where: {
+        id: input.runId,
+        status: 'RUNNING',
+        attemptCount: input.attempt,
+        // An ordinal that has already answered does not answer again. Older
+        // ordinals may have answered; the run has moved past them.
+        OR: [
+          { settledAttempt: null },
+          { settledAttempt: { lt: input.attempt } },
+        ],
+      },
+      data: {
+        settledAttempt: input.attempt,
+        settledResultDigest: input.digest,
+        ...(input.result.kind === 'succeeded'
+          ? {
+              status: 'SUCCEEDED' as const,
+              // Prisma omits undefined fields, so require an explicit result.
+              output:
+                input.result.output == null
+                  ? Prisma.JsonNull
+                  : (input.result.output as Prisma.InputJsonValue),
+              lastError: null,
+              completedAt: new Date(),
+            }
+          : // Terminality stays with the Control Plane: a failure reported for
+            // one attempt is a diagnostic, not the end of the run.
+            { lastError: input.result.diagnostic }),
+      },
+    });
+
+    return count === 1;
+  }
+
   findStaleNonTerminal(
     staleBefore: Date,
     limit: number,

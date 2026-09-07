@@ -15,6 +15,7 @@ import {
   MODEL_IDS,
 } from '../../../src/ai/models/model-catalog';
 import {
+  activateTestAgentVersion,
   installTestAgent,
   TEST_AGENT_DEFINITIONS,
   TEST_AGENT_ID,
@@ -24,6 +25,10 @@ import { createHarness, type Harness } from '../../support/auth-harness';
 const fixtureId = `internal-exec-e2e-${process.pid}`;
 const organizationId = `${fixtureId}-org`;
 const otherOrganizationId = `${fixtureId}-org-other`;
+// Pinned to the test revision whose output schema normalises, so persistence
+// can be observed rather than argued about.
+const normalisingOrganizationId = `${fixtureId}-org-normalising`;
+const NORMALISING_VERSION = 3;
 
 // Throwaway values. Only their digests are ever configured, and the boundary
 // compares digests, so nothing here is a credential the system stores.
@@ -42,24 +47,25 @@ describe('the internal execution boundary (e2e)', () => {
   const seedRun = async (
     organization = organizationId,
     idempotencyKey = `${fixtureId}-${Math.random().toString(36).slice(2)}`,
+    definitionVersion = 1,
   ): Promise<string> => {
     const version =
       await harness.prisma.organizationAgentVersion.findFirstOrThrow({
-        where: { organizationId: organization },
+        where: { organizationId: organization, definitionVersion },
         select: { id: true },
       });
     const createdAt = new Date();
     const run = await harness.prisma.agentRun.create({
       data: {
         agentId: TEST_AGENT_ID,
-        agentVersion: 1,
+        agentVersion: definitionVersion,
         runtime: 'mastra',
         status: 'QUEUED',
         organizationId: organization,
         organizationAgentVersionId: version.id,
         // A run is pinned to all three or to none; the boundary refuses a
         // half-populated pin rather than completing it from a default.
-        modelPolicyId: `${TEST_AGENT_ID}.model-policy.1`,
+        modelPolicyId: `${TEST_AGENT_ID}.model-policy.${definitionVersion}`,
         modelId: MODEL_IDS.openAiGpt4oMini,
         modelPricingRevisionId: APPLICATION_MODEL_CATALOG.pricingRevision(
           MODEL_IDS.openAiGpt4oMini,
@@ -123,6 +129,31 @@ describe('the internal execution boundary (e2e)', () => {
     artifacts: [],
   });
 
+  const failedResult = (id: string, attempt: number, code = 'timeout') => ({
+    version: '1',
+    stepId: `${id}:${attempt}`,
+    runId: id,
+    attempt,
+    outcome: 'failed',
+    failure: { version: '1', code },
+  });
+
+  /** Every field a settlement may move, so "unchanged" is a whole-row claim. */
+  const storedRun = () =>
+    harness.prisma.agentRun.findUniqueOrThrow({
+      where: { id: runId },
+      select: {
+        status: true,
+        output: true,
+        lastError: true,
+        attemptCount: true,
+        settledAttempt: true,
+        settledResultDigest: true,
+        completedAt: true,
+        updatedAt: true,
+      },
+    });
+
   beforeAll(async () => {
     // Parsed at boot, so it has to be in place before the module compiles.
     process.env.INTERNAL_SERVICE_CREDENTIALS = JSON.stringify([
@@ -140,17 +171,31 @@ describe('the internal execution boundary (e2e)', () => {
 
     harness = await createHarness({ definitions: [...TEST_AGENT_DEFINITIONS] });
 
-    for (const id of [organizationId, otherOrganizationId]) {
+    for (const id of [
+      organizationId,
+      otherOrganizationId,
+      normalisingOrganizationId,
+    ]) {
       await removeFixture(id);
       await harness.prisma.organization.create({
         data: { id, name: `Internal Exec ${id}`, slug: id },
       });
       await installTestAgent(harness.prisma, id);
     }
+
+    await activateTestAgentVersion(
+      harness.prisma,
+      normalisingOrganizationId,
+      NORMALISING_VERSION,
+    );
   });
 
   afterAll(async () => {
-    for (const id of [organizationId, otherOrganizationId]) {
+    for (const id of [
+      organizationId,
+      otherOrganizationId,
+      normalisingOrganizationId,
+    ]) {
       await removeFixture(id);
     }
 
@@ -211,6 +256,9 @@ describe('the internal execution boundary (e2e)', () => {
         organizationId,
         attempt: 1,
         agent: { id: TEST_AGENT_ID, version: 1 },
+        // The installation stored `{}`; what a runtime is handed is what the
+        // pinned definition's schema makes of it.
+        configuration: { marker: 'default' },
         input: { prompt: 'deterministic test input' },
         context: [],
         grantedTools: [],
@@ -426,24 +474,156 @@ describe('the internal execution boundary (e2e)', () => {
       const leased = await lease(runId).expect(201);
 
       await settle(runId)
-        .send({
-          version: '1',
-          stepId: `${runId}:${attemptOf(leased)}`,
-          runId,
-          attempt: attemptOf(leased),
-          outcome: 'failed',
-          failure: { version: '1', code: 'timeout' },
-        })
+        .send(failedResult(runId, attemptOf(leased)))
         .expect(201);
 
       const stored = await harness.prisma.agentRun.findUniqueOrThrow({
         where: { id: runId },
-        select: { status: true, lastError: true },
+        select: { status: true, lastError: true, settledAttempt: true },
       });
       expect(stored).toEqual({
         status: 'RUNNING',
         lastError: 'Agent execution failed',
+        // Not terminal — retry policy is not the reporter's to decide — but
+        // the ordinal has answered and may not answer again.
+        settledAttempt: 1,
       });
+    });
+
+    it('refuses a final result carrying artifact references, and writes nothing', async () => {
+      const leased = await lease(runId).expect(201);
+      const before = await storedRun();
+
+      const response = await settle(runId)
+        .send({
+          ...finalResult(runId, attemptOf(leased), { answer: 'ok' }),
+          artifacts: [
+            {
+              version: '1',
+              ref: 'artifact_01JQ8Z3N0000000000000001',
+              contentType: 'application/pdf',
+              byteSize: 20480,
+              digest: 'e'.repeat(64),
+            },
+          ],
+        })
+        .expect(409);
+
+      expect(response.body.error.details.outcome).toBe('unsupported_artifacts');
+      await expect(storedRun()).resolves.toEqual(before);
+    });
+  });
+
+  describe('one accepted result per execution attempt', () => {
+    it('replays an identical reported failure without touching the row', async () => {
+      const leased = await lease(runId).expect(201);
+      const document = failedResult(runId, attemptOf(leased));
+
+      await settle(runId).send(document).expect(201);
+      const settled = await storedRun();
+
+      const replay = await settle(runId).send(document).expect(201);
+      expect(replay.body.data.status).toBe('already_settled');
+
+      // Including `updatedAt`: a replay that moved it would keep resetting the
+      // clock stale-run reconciliation reads.
+      await expect(storedRun()).resolves.toEqual(settled);
+    });
+
+    it('refuses a success for an attempt that already reported a failure', async () => {
+      const leased = await lease(runId).expect(201);
+      const attempt = attemptOf(leased);
+
+      await settle(runId).send(failedResult(runId, attempt)).expect(201);
+      const settled = await storedRun();
+
+      const response = await settle(runId)
+        .send(finalResult(runId, attempt, { answer: 'actually fine' }))
+        .expect(409);
+
+      expect(response.body.error.details.reason).toBe('conflict');
+      await expect(storedRun()).resolves.toEqual(settled);
+    });
+
+    it('refuses a failure for an attempt that already reported a success', async () => {
+      const leased = await lease(runId).expect(201);
+      const attempt = attemptOf(leased);
+
+      await settle(runId)
+        .send(finalResult(runId, attempt, { answer: 'ok' }))
+        .expect(201);
+      const settled = await storedRun();
+
+      const response = await settle(runId)
+        .send(failedResult(runId, attempt))
+        .expect(409);
+
+      expect(response.body.error.details.reason).toBe('conflict');
+      await expect(storedRun()).resolves.toEqual(settled);
+    });
+
+    it('still lets the next attempt settle after one reported a failure', async () => {
+      const first = await lease(runId).expect(201);
+      await settle(runId)
+        .send(failedResult(runId, attemptOf(first)))
+        .expect(201);
+
+      const retried = await lease(runId).expect(201);
+      expect(attemptOf(retried)).toBe(attemptOf(first) + 1);
+
+      await settle(runId)
+        .send(finalResult(runId, attemptOf(retried), { answer: 'ok' }))
+        .expect(201);
+
+      const stored = await storedRun();
+      expect(stored.status).toBe('SUCCEEDED');
+      expect(stored.settledAttempt).toBe(attemptOf(retried));
+    });
+
+    it('persists the output as the pinned definition normalises it', async () => {
+      const pinned = await seedRun(
+        normalisingOrganizationId,
+        `${fixtureId}-normalising-${Math.random().toString(36).slice(2)}`,
+        NORMALISING_VERSION,
+      );
+      const leased = await request(harness.server)
+        .post(`${runFor(pinned)}/lease`)
+        .set('Authorization', `Bearer ${RUNTIME_TOKEN}`)
+        .expect(201);
+
+      await request(harness.server)
+        .post(`${runFor(pinned)}/result`)
+        .set('Authorization', `Bearer ${RUNTIME_TOKEN}`)
+        .send(
+          finalResult(pinned, attemptOf(leased), {
+            answer: '  thirty days  ',
+          }),
+        )
+        .expect(201);
+
+      // The trim and the defaulted `sources` are part of what the agent
+      // produced; the in-process path has always stored them.
+      const stored = await harness.prisma.agentRun.findUniqueOrThrow({
+        where: { id: pinned },
+        select: { status: true, output: true },
+      });
+      expect(stored).toEqual({
+        status: 'SUCCEEDED',
+        output: { answer: 'thirty days', sources: [] },
+      });
+    });
+
+    it('refuses a result for an attempt a newer delivery has taken over', async () => {
+      const first = await lease(runId).expect(201);
+      await lease(runId).expect(201);
+      const before = await storedRun();
+
+      const response = await settle(runId)
+        .send(failedResult(runId, attemptOf(first)))
+        .expect(409);
+
+      expect(response.body.error.details.reason).toBe('stale');
+      await expect(storedRun()).resolves.toEqual(before);
     });
   });
 });

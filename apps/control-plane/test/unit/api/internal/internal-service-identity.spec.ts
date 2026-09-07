@@ -117,6 +117,51 @@ describe('proving which service is calling', () => {
     delete process.env.INTERNAL_SERVICE_CREDENTIALS;
   });
 
+  it.each([
+    ['token', 'PLAINTEXT-SECRET-VALUE'],
+    ['secret', 'PLAINTEXT-SECRET-VALUE'],
+    ['apiKey', 'PLAINTEXT-SECRET-VALUE'],
+    ['credential', 'PLAINTEXT-SECRET-VALUE'],
+    ['note', 'rotate me'],
+  ])('refuses to boot on a credential carrying %s', (property, value) => {
+    // Stripping the unknown property would be the dangerous outcome, not a
+    // safe one: the parsed configuration would look correct and carry no
+    // secret while the plaintext sat in the environment variable, which is
+    // exactly the claim "only digests are configured" is supposed to make.
+    process.env.INTERNAL_SERVICE_CREDENTIALS = JSON.stringify([
+      {
+        serviceId: 'ai-runtime',
+        tokenSha256: digestOf(RUNTIME_TOKEN),
+        capabilities: ['execution:step.lease'],
+        [property]: value,
+      },
+    ]);
+
+    expect(() => internalServiceConfig()).toThrow();
+
+    delete process.env.INTERNAL_SERVICE_CREDENTIALS;
+  });
+
+  it('accepts exactly the three properties the boundary agreed on', () => {
+    process.env.INTERNAL_SERVICE_CREDENTIALS = JSON.stringify([
+      {
+        serviceId: 'ai-runtime',
+        tokenSha256: digestOf(RUNTIME_TOKEN),
+        capabilities: ['execution:step.lease', 'execution:step.settle'],
+      },
+    ]);
+
+    expect(internalServiceConfig().credentials).toEqual([
+      {
+        serviceId: 'ai-runtime',
+        tokenSha256: digestOf(RUNTIME_TOKEN),
+        capabilities: ['execution:step.lease', 'execution:step.settle'],
+      },
+    ]);
+
+    delete process.env.INTERNAL_SERVICE_CREDENTIALS;
+  });
+
   it('identifies the service from the credential presented', () => {
     expect(authenticator().authenticate(`Bearer ${RUNTIME_TOKEN}`)).toEqual({
       serviceId: 'ai-runtime',

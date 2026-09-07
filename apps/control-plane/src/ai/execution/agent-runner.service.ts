@@ -3,8 +3,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AgentConfigurationError } from '../agents/agent-configuration.error';
 import { AgentDefinitionRegistry } from '../agents/agent-definition.registry';
 import type {
-  AgentConfiguration,
-  AgentDefinition,
   AgentRun,
   AgentRuntimeResult,
   AgentValue,
@@ -14,7 +12,11 @@ import { AGENT_CONTEXT, type AgentContextPort } from './agent-context.port';
 import { AgentOutputContractError } from './agent-output-contract.error';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import { AgentRunService } from './agent-run.service';
-import { contextQueryOf, resolveModelId } from './step-pinning';
+import {
+  contextQueryOf,
+  resolveModelId,
+  resolvePinnedConfiguration,
+} from './step-pinning';
 
 @Injectable()
 export class AgentRunner {
@@ -62,7 +64,7 @@ export class AgentRunner {
       ...run,
       organizationAgentVersionId,
     });
-    const configuration = parseConfiguration(
+    const configuration = resolvePinnedConfiguration(
       definition,
       pinned?.configuration ?? null,
       organizationAgentVersionId !== null,
@@ -118,31 +120,5 @@ export class AgentRunner {
     }
 
     return { output: parsedOutput.data as AgentValue };
-  }
-}
-
-function parseConfiguration(
-  definition: AgentDefinition,
-  stored: AgentConfiguration | null,
-  pinned: boolean,
-): AgentConfiguration {
-  const contract = definition.organizationConfiguration;
-
-  // A definition with no contract was never installable, so only an
-  // unpinned compatibility run may reach one. A run pinned to an
-  // organization version of it contradicts its own durable identity.
-  if (!contract) {
-    if (!pinned) return {};
-    throw new AgentConfigurationError(
-      `Pinned definition "${definition.id}@${definition.version}" is not installable`,
-    );
-  }
-
-  try {
-    return contract.schema.parse(stored ?? contract.defaultValue);
-  } catch {
-    throw new AgentConfigurationError(
-      `AgentRun configuration does not satisfy definition "${definition.id}@${definition.version}"`,
-    );
   }
 }

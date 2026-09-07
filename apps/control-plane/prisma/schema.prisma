@@ -241,6 +241,19 @@ model AgentRun {
   lastError    String?
   attemptCount Int     @default(0)
 
+  // At most one accepted result per execution attempt. `attemptCount` cannot
+  // carry this on its own: a reported failure deliberately leaves a run
+  // RUNNING, because whether retries remain is transport policy rather than
+  // the reporter's to decide, so without a durable record of which ordinal has
+  // already answered the same attempt could report a failure and then a
+  // success and have both accepted. The digest is a SHA-256 of the accepted
+  // result, which is what tells a replay from a contradiction without storing
+  // the result twice or storing anything the reporter wrote.
+  // Nullable for rows settled before per-attempt settlement was introduced,
+  // and for runs the in-process worker path settles.
+  settledAttempt      Int?
+  settledResultDigest String?
+
   idempotencyKey String
 
   startedAt       DateTime?

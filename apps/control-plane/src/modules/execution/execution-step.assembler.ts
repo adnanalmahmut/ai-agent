@@ -16,6 +16,7 @@ import { AgentRunService } from '../../ai/execution/agent-run.service';
 import {
   contextQueryOf,
   resolveModelPin,
+  resolvePinnedConfiguration,
 } from '../../ai/execution/step-pinning';
 import { selectAuthorizedToolRefs } from '../../ai/tools/tool-grants';
 import { ToolRegistry } from '../../ai/tools/tool.registry';
@@ -63,6 +64,14 @@ export class ExecutionStepAssembler {
 
     const model = resolveModelPin(definition, run);
     const pinned = await this.runs.pinnedVersionFor(run);
+    // The same normalisation the in-process runtime applies. A runtime in
+    // another process is handed the configuration it would have computed, not
+    // the row it would have had to compute it from.
+    const configuration = resolvePinnedConfiguration(
+      definition,
+      pinned?.configuration ?? null,
+      run.organizationAgentVersionId !== null,
+    );
     const grantedTools = selectAuthorizedToolRefs(
       this.tools,
       definition,
@@ -97,8 +106,13 @@ export class ExecutionStepAssembler {
         modelId: model.modelId,
         pricingRevisionId: model.pricingRevisionId,
       },
+      configuration,
       input,
       context: passages.map((passage) => ({
+        // The space is provenance the prompt itself uses and an answer
+        // attributes its sources to, so it travels with the passage rather
+        // than being something the reader has to ask this process for.
+        space: passage.space,
         documentId: passage.documentId,
         chunkId: passage.chunkId,
         text: passage.content,

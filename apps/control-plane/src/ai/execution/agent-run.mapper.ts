@@ -28,6 +28,8 @@ export function toAgentRun(run: PersistedAgentRun): AgentRun {
     output: run.output as AgentValue | null,
     lastError: run.lastError,
     attemptCount: run.attemptCount,
+    settledAttempt: run.settledAttempt,
+    settledResultDigest: run.settledResultDigest,
     idempotencyKey: run.idempotencyKey,
     startedAt: run.startedAt,
     completedAt: run.completedAt,

@@ -1,5 +1,6 @@
 import { AgentConfigurationError } from '../agents/agent-configuration.error';
 import type {
+  AgentConfiguration,
   AgentDefinition,
   AgentRun,
   AgentValue,
@@ -110,6 +111,45 @@ function pricingRevisionFor(modelId: AgentModelId, at: Date): string {
   } catch {
     throw new AgentConfigurationError(
       'AgentRun model or pricing revision is unavailable for execution',
+    );
+  }
+}
+
+/**
+ * The organization configuration a run executes under, normalised by the
+ * pinned definition's own contract.
+ *
+ * One rule in one place. The in-process runtime and the execution document
+ * that describes the same work to another process must apply the same
+ * defaults, trims and coercions: if they diverge, moving the runtime out of
+ * process silently changes what an agent was configured to do, and nothing
+ * about the change would look like a change.
+ *
+ * `pinned` says whether the run carries an organization version. A definition
+ * with no configuration contract was never installable, so only an unpinned
+ * compatibility run may reach one; a pinned run contradicts its own durable
+ * identity.
+ */
+export function resolvePinnedConfiguration(
+  definition: AgentDefinition,
+  stored: AgentConfiguration | null,
+  pinned: boolean,
+): AgentConfiguration {
+  const contract = definition.organizationConfiguration;
+
+  if (!contract) {
+    if (!pinned) return {};
+
+    throw new AgentConfigurationError(
+      `Pinned definition "${definition.id}@${definition.version}" is not installable`,
+    );
+  }
+
+  try {
+    return contract.schema.parse(stored ?? contract.defaultValue);
+  } catch {
+    throw new AgentConfigurationError(
+      `AgentRun configuration does not satisfy definition "${definition.id}@${definition.version}"`,
     );
   }
 }

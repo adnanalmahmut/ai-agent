@@ -2475,6 +2475,8 @@ export const AgentRunScalarFieldEnum = {
   output: 'output',
   lastError: 'lastError',
   attemptCount: 'attemptCount',
+  settledAttempt: 'settledAttempt',
+  settledResultDigest: 'settledResultDigest',
   idempotencyKey: 'idempotencyKey',
   startedAt: 'startedAt',
   completedAt: 'completedAt',
