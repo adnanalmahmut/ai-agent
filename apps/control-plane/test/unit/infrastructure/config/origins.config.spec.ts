@@ -113,6 +113,43 @@ describe('resolveOrigins', () => {
     });
   });
 
+  it.each([
+    ['', '', '', ''],
+    [' ', '\t', '\n', '  \t  '],
+  ])('treats blank APP_ORIGIN_* values as unset', (...values) => {
+    expect(
+      resolveOrigins({
+        APP_PLATFORM_URL: 'https://staging.feedogo.com/platform',
+        BETTER_AUTH_URL: 'https://staging.feedogo.com/api/auth',
+        APP_ORIGIN_PUBLIC: values[0],
+        APP_ORIGIN_APP: values[1],
+        APP_ORIGIN_ADMIN: values[2],
+        APP_ORIGIN_API: values[3],
+      }),
+    ).toEqual({
+      public: 'https://staging.feedogo.com',
+      app: 'https://staging.feedogo.com',
+      admin: null,
+      api: 'https://staging.feedogo.com',
+    });
+  });
+
+  it('keeps non-empty APP_ORIGIN_* values strict', () => {
+    expect(() =>
+      resolveOrigins({
+        APP_PLATFORM_URL: 'https://staging.feedogo.com/platform',
+        APP_ORIGIN_PUBLIC: 'not-an-origin',
+      }),
+    ).toThrow(OriginConfigurationError);
+
+    expect(() =>
+      resolveOrigins({
+        APP_PLATFORM_URL: 'https://staging.feedogo.com/platform',
+        APP_ORIGIN_ADMIN: 'https://*.example.com',
+      }),
+    ).toThrow(OriginConfigurationError);
+  });
+
   it('accepts the single-host staging origin on every path-based surface', () => {
     expect(
       resolveOrigins({

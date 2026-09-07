@@ -125,11 +125,17 @@ function validateAuthority(name: string, url: URL): void {
   }
 }
 
+const optionalOrigin = z.preprocess(
+  (value) =>
+    typeof value === 'string' && value.trim() === '' ? undefined : value,
+  z.string().optional(),
+);
+
 const schema = z.object({
-  APP_ORIGIN_PUBLIC: z.string().optional(),
-  APP_ORIGIN_APP: z.string().optional(),
-  APP_ORIGIN_ADMIN: z.string().optional(),
-  APP_ORIGIN_API: z.string().optional(),
+  APP_ORIGIN_PUBLIC: optionalOrigin,
+  APP_ORIGIN_APP: optionalOrigin,
+  APP_ORIGIN_ADMIN: optionalOrigin,
+  APP_ORIGIN_API: optionalOrigin,
 });
 
 export type OriginConfig = {
