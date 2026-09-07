@@ -10,7 +10,7 @@ inventory is `infra/host-bundle/files`; the installed manifest is
 | `infra/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `infra/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 17 and the current minimum is 11. Bump `VERSION` whenever
+The current release ships bundle 18 and the current minimum is 18. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.
@@ -69,6 +69,29 @@ safe optional inputs and the app/API origins are derived from their existing
 path-bearing canonical URLs; reinstalling is needed for a host to receive the
 explicit deployment wiring.
 
+Bundle 18 is the first to raise the minimum since 11, because a staging
+deployment of a release built from this checkout genuinely cannot run on an
+older host. Three of its files change together:
+
+- `compose.deploy.yaml` gains the `admin` service in the `staging` profile
+  only, bound to `127.0.0.1:3003` and given three non-secret values;
+- `ai-agent-deploy` accepts an optional fifth digest, deploys the
+  administrative surface where the release carries it and the composition
+  composes it, and records it as a release component;
+- `ai-agent-deploy-dispatch` accepts that fifth digest for `deploy staging`
+  and, deliberately, not for `deploy production`.
+
+The minimum moves because staging CD now sends five digests. A host on bundle
+17 answers that with `command rejected` from the forced-command dispatcher --
+a refusal with nothing in it an operator could act on. Refusing it as
+`this release requires host bundle 18` is the same outcome said usefully.
+Install the bundle from the release checkout before deploying it.
+
+Production is unaffected in what it runs: its composition has no `admin`
+service and its deploy command still carries four digests. It needs bundle 18
+for the same reason any host does -- the release declares it -- and installing
+it changes nothing production starts.
+
 ## Contents and installation
 
 The bundle installs:
@@ -79,6 +102,11 @@ The bundle installs:
 - runtime and host preflight scripts;
 - `ai-agent-release-retention`;
 - the restricted sudoers fragment.
+
+The `admin` service is in the deployment overlay and therefore in the bundle,
+but the Nginx route that reaches it is not: gateway configuration is not
+release-coupled and is installed separately, along with the client allowlist
+that route refuses without. See [security.md](security.md).
 
 Nginx/TLS and backup units are not release-coupled and are installed separately.
 

@@ -58,11 +58,11 @@ if grep -Fq -- '--volumes' "$source_script"; then
   fail 'retention must never touch volumes'
 fi
 
-# Exactly the four application repositories, and no infrastructure image.
-grep -Fq "release_components='backend:backend:backend backend-migration:backend-migration:migration web:web:web platform:platform:platform'" "$source_script" ||
+# Exactly the application repositories, and no infrastructure image.
+grep -Fq "release_components='backend:backend:backend:true backend-migration:backend-migration:migration:true web:web:web:true platform:platform:platform:true admin:admin:admin:false'" "$source_script" ||
   fail 'retention must carry the component catalog it protects'
-grep -Fq "application_repositories='backend backend-migration web platform'" "$source_script" ||
-  fail 'retention must restrict itself to the four application repositories'
+grep -Fq "application_repositories='backend backend-migration web platform admin'" "$source_script" ||
+  fail 'retention must restrict itself to the application repositories'
 for infrastructure in postgres redis geoipupdate; do
   if grep -Eq "application_repositories=.*$infrastructure" "$source_script"; then
     fail "infrastructure image must never be a retention candidate: $infrastructure"
@@ -392,6 +392,14 @@ add_superseded() {
   add_image web "$(d 23)"; add_image platform "$(d 24)"
 }
 
+# The shape a staging deployment writes: the same record with the optional
+# administrative component in it.
+write_admin_record() {
+  destination=$1; sha=$2; b=$3; m=$4; w=$5; p=$6; a=$7
+  printf '{"recordVersion":1,"sha":"%s","components":[{"name":"backend","digest":"%s"},{"name":"backend-migration","digest":"%s"},{"name":"web","digest":"%s"},{"name":"platform","digest":"%s"},{"name":"admin","digest":"%s"}]}\n' \
+    "$sha" "$b" "$m" "$w" "$p" "$a" >"$destination"
+}
+
 run_retention() {
   script=${RETENTION_SCRIPT:-$retention}
   DOCKER_LOG=$log CONTROL=$control DOCKER_DATA_ROOT=$data_root \
@@ -558,6 +566,36 @@ for pair in "backend $(d 11)" "backend-migration $(d 12)" "web $(d 13)" "platfor
   image_present "$1" "$2" || fail "the legacy PREVIOUS release lost an image: $1 $2"
 done
 expect_message 'removed 4, blocked 0, failed 0'
+
+# --- The optional administrative component -------------------------------
+# Records on every host that has deployed before this bundle name four
+# components; a staging record written after it names five. Both have to read
+# correctly, and for opposite reasons: the four-component record must not be
+# refused as truncated -- it is not -- and the five-component one must protect
+# the administrative image it names, or the next deployment would reclaim the
+# image the host is currently serving.
+reset_scenario
+write_admin_record "$state/CURRENT_RELEASE.json" "$CURRENT_SHA" \
+  "$(d 1)" "$(d 2)" "$(d 3)" "$(d 4)" "$(d 5)"
+write_admin_record "$state/PREVIOUS_RELEASE.json" "$PREVIOUS_SHA" \
+  "$(d 11)" "$(d 12)" "$(d 13)" "$(d 14)" "$(d 15)"
+add_image admin "$(d 5)"; add_image admin "$(d 15)"
+add_superseded
+add_image admin "$(d 25)"
+run_retention reclaim || fail 'retention refused a record carrying the administrative component'
+image_present admin "$(d 5)" || fail 'the running administrative image was removed'
+image_present admin "$(d 15)" || fail 'the rollback administrative image was removed'
+if image_present admin "$(d 25)"; then
+  fail 'a superseded administrative image was not reclaimed'
+fi
+expect_message 'removed 5, blocked 0, failed 0'
+
+# The other direction: a record that names no administrative component is a
+# release from before the surface existed, not a truncated record.
+reset_scenario
+add_image admin "$(d 25)"
+run_retention reclaim ||
+  fail 'retention refused a record from before the administrative surface existed'
 
 # --- Non-application images are never candidates --------------------------
 reset_scenario
@@ -884,7 +922,7 @@ probe_done
 # defends: emptying that map is a plausible refactoring error, and the guard is
 # what stops it becoming a sweep with nothing protected.
 probe 'empty protected set guard' \
-  "release_components='backend:backend:backend backend-migration:backend-migration:migration web:web:web platform:platform:platform'=>release_components=''"
+  "release_components='backend:backend:backend:true backend-migration:backend-migration:migration:true web:web:web:true platform:platform:platform:true admin:admin:admin:false'=>release_components=''"
 reset_scenario; add_superseded
 if run_retention reclaim >/dev/null 2>&1; then
   probe_done
@@ -896,7 +934,7 @@ probe_done
 # The repository allowlist. Widened with a fifth repository under our own
 # registry namespace, which is the shape the allowlist actually excludes.
 probe 'application repository allowlist' \
-  "application_repositories='backend backend-migration web platform'=>application_repositories='backend backend-migration web platform experimental'"
+  "application_repositories='backend backend-migration web platform admin'=>application_repositories='backend backend-migration web platform admin experimental'"
 reset_scenario
 printf '%s/experimental %s\n' "$registry" "$(d 35)" >>"$control/images"
 run_retention reclaim >/dev/null 2>&1 || true

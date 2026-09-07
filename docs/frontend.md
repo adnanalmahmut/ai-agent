@@ -92,9 +92,19 @@ because their endpoints do not yet declare response contracts.
 `apps/admin` is an independently buildable administrative surface, and at
 present it is only a shell: a sign-in screen, a server-side staff
 authorization gate, a refusal state, a health endpoint and the bilingual
-frame. It serves on port 3003 in development and has no `basePath`, because it
-is meant to be served from an origin of its own rather than from a path on
-another application's — which origin is not settled here.
+frame. It serves on port 3003 and is mounted at `basePath: '/admin'`, because
+the deployment serves all four surfaces from one hostname. Next.js resolves the
+base path at build time, so the eventual move to a hostname of its own means
+removing it rather than reconfiguring it.
+
+Where Next.js puts that prefix is not uniform, and both halves matter here: a
+route handler is called with it already removed, while middleware still sees it
+on `request.url`. So the locale proxy strips it before reading the locale and
+puts it back on the redirect, the health route answers at `/admin/health`
+(which is what the container healthcheck probes), and the auth forwarder hands
+the Control Plane the `/api/auth/*` path it serves.
+`apps/admin/scripts/probe-standalone.mjs` asserts all of that against a running
+standalone server rather than against the framework's documentation.
 
 No administrative screen has moved into it. Account administration
 (`/platform/admin/users`) and control-plane configuration
@@ -105,13 +115,14 @@ is expected to go.
 
 Authentication is the deployment's existing one — the same Better Auth
 deployment, the same session, no second account store. The browser signs in
-same-origin and a route handler forwards `/api/auth/*` to `ADMIN_API_ORIGIN`,
-read per request, so nothing is compiled in and the `__Host-session` cookie is
-set on the origin the reader is actually on. Better Auth still runs its own
-origin and CSRF checks against the origin the browser reported, so the admin
-origin has to be trusted: `http://localhost:3003` is listed for local
-development, and a deployed origin is configured per environment. Only the
-auth prefix is forwarded. Authorization is a
+same-origin at `/admin/api/auth/*` and a route handler forwards it to
+`ADMIN_API_ORIGIN`, read per request, so nothing is compiled in and the
+`__Host-session` cookie is set on the origin the reader is actually on. Better
+Auth still runs its own origin and CSRF checks against the origin the browser
+reported, so the admin origin has to be trusted: `http://localhost:3003` is
+listed for local development, and on staging the trusted origin is the shared
+host's — a path is not an origin and none is listed. Only the auth prefix is
+forwarded, and only under the base path. Authorization is a
 second question asked on the server, before anything protected renders: a
 global role counts as staff when `packages/authz-policy` grants it at least one
 platform-wide action, so the classification is derived from the policy the

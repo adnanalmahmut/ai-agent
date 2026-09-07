@@ -18,7 +18,7 @@ compose_files=$(find . -path ./node_modules -prune -o \
   sort | tr '\n' ' ')
 test "$compose_files" = './infra/compose/compose.deploy.yaml ./infra/compose/compose.dev.yaml ./infra/compose/compose.test.yaml ./infra/compose/compose.yaml '
 
-for port in 3000 3001 3002 5432 6379; do
+for port in 3000 3001 3002 3003 5432 6379; do
   # shellcheck disable=SC2086
   if grep -En "^[[:space:]]*-[[:space:]]*['\"]?[^#]*:${port}:${port}" $all_compose \
     | grep -Ev '127\.0\.0\.1:' >/dev/null; then

@@ -12,18 +12,21 @@ be invoked without an explicit operator provisioning decision.
 
 ## The administrative surface
 
-`apps/admin` is built and tested but no environment serves it. Its image is
-not a release component, no hostname resolves to it, and activating it is
-gated on OP-3 in [security](security.md#op-3--administrative-exposure-gate),
-whose first two requirements — controlled ingress and strong staff
-authentication — are not implemented. Administrative operations are performed
-through the customer application at `/platform/admin/*`, authorized per action
-by the backend.
+`apps/admin` is mounted at `/admin` on the staging host, behind a client
+allowlist at the gateway, so that the work moving administrative screens onto
+it can be tested against a real deployment. It is an optional release
+component: its image is published and attested with every release, and only the
+staging Compose profile runs it. Production composes no administrative service
+and installs no administrative route, and activating it there stays gated on
+OP-3 in [security](security.md#op-3--administrative-exposure-gate), whose
+strong-authentication requirement is not implemented.
 
-The desired future staging mount for `apps/admin` is `/admin` on the same
-staging host. It is not currently served: enabling it requires a coordinated
-path-prefix-aware app deployment, service and image release, and gateway
-change. An Nginx-only prefix strip is not that activation.
+Staging activation is not automatic. A host serves `/admin` only once an
+operator has installed the gateway route and written
+`/etc/ai-agent/admin-staging-allowed-cidrs`; until then the route either does
+not exist or denies every client. No administrative screen has moved: those
+operations are still performed through the customer application at
+`/platform/admin/*`, authorized per action by the backend.
 
 ## Delivery reality
 

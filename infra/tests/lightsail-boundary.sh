@@ -43,6 +43,10 @@ grep -Fq 'runtime_env=/etc/ai-agent/runtime.env' infra/deploy/ai-agent-deploy
 grep -Fq 'ai-agent-runtime-preflight' infra/deploy/ai-agent-deploy
 grep -Fq 'BACKEND_MIGRATION_IMAGE="$registry/backend-migration@sha256:$migration_digest"' infra/deploy/ai-agent-deploy
 grep -Fq 'for service in platform web backend migrate; do' infra/deploy/ai-agent-deploy
+# The administrative image is pulled after the release proper and only where
+# the release carries it, so it stays out of the sequential loop above rather
+# than making it conditional.
+grep -Fq 'compose pull admin' infra/deploy/ai-agent-deploy
 grep -Fq 'compose pull "$service"' infra/deploy/ai-agent-deploy
 if grep -Fq 'compose pull backend worker web platform migrate' infra/deploy/ai-agent-deploy; then
   echo 'release images must not be pulled concurrently on small hosts' >&2
@@ -54,6 +58,21 @@ grep -Fq '[ "$running" = "$service" ] || die "$service is not running"' infra/de
 grep -Fq 'compose up -d --wait --no-deps backend' infra/deploy/ai-agent-deploy
 grep -Fq 'compose up -d --wait --no-deps worker' infra/deploy/ai-agent-deploy
 grep -Fq 'compose up -d --wait --no-deps web platform' infra/deploy/ai-agent-deploy
+grep -Fq 'compose up -d --wait --no-deps admin' infra/deploy/ai-agent-deploy
+
+# Every `compose up` in the wrapper names the services it starts. That is what
+# makes a service the release did not pin inert rather than started: the
+# staging composition still renders the administrative service when a release
+# carries no administrative image, and a bare `compose up` would start it from
+# a mutable tag.
+if grep -Eq 'compose up( -d)?( --wait)?( --no-deps)?[[:space:]]*$' infra/deploy/ai-agent-deploy; then
+  echo 'deployment must never start every service in the composition' >&2
+  exit 1
+fi
+
+# The administrative surface is staging-only, and the wrapper says so itself
+# rather than relying on the dispatcher having said it.
+grep -Fq 'the administrative surface is deployed on staging only' infra/deploy/ai-agent-deploy
 if grep -Fq 'compose ps --status running worker >/dev/null' infra/deploy/ai-agent-deploy; then
   echo 'deployment must compare the returned running service name' >&2
   exit 1
@@ -106,7 +125,15 @@ printf '%s\n' 'status staging' | grep -Eq "$dispatch_allowlist" || {
 # key can say -- so the pattern is also compared against the literal that
 # shipped before the move. Editing this string is the deliberate act of changing
 # the forced-command grammar, and it should be reviewed as one.
-expected_allowlist='^(deploy (staging|production) [0-9a-f]{40}( [0-9a-f]{64}){4}|(status|health|rollback) (staging|production))$'
+#
+# Bundle 18 splits the deploy arm in two so that staging may carry a fifth
+# digest -- the administrative surface, which only staging runs -- and
+# production may not. Production's accepted grammar is unchanged: four digests,
+# exactly as before. Widening it to `(staging|production)` with `{4,5}` would
+# have been shorter and would have let the CI deploy key hand a production host
+# an administrative image, which no later check should have to be the thing
+# that catches.
+expected_allowlist='^(deploy staging [0-9a-f]{40}( [0-9a-f]{64}){4,5}|deploy production [0-9a-f]{40}( [0-9a-f]{64}){4}|(status|health|rollback) (staging|production))$'
 [ "$dispatch_allowlist" = "$expected_allowlist" ] || {
   echo 'the forced-command grammar changed' >&2
   echo "  expected: $expected_allowlist" >&2
@@ -171,11 +198,17 @@ for environment in staging production; do
   done
 done
 
+# The fifth digest: accepted for staging, forwarded intact, and refused for
+# production before anything privileged is reached.
+dispatches "-n /usr/local/sbin/ai-agent-deploy deploy staging $sha $digests $digest" \
+  "deploy staging $sha $digests $digest"
+rejects "deploy production $sha $digests $digest"
+
 rejects ''
 rejects 'deploy staging'
 rejects "deploy staging $sha"
 rejects "deploy staging $sha $digest $digest $digest"
-rejects "deploy staging $sha $digests $digest"
+rejects "deploy staging $sha $digests $digest $digest"
 rejects "deploy development $sha $digests"
 rejects "deploy staging ${sha}a $digests"
 rejects "DEPLOY staging $sha $digests"

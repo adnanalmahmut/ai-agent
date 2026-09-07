@@ -153,8 +153,12 @@ if docker buildx version >/dev/null 2>&1; then
     fail 'the release bake definition does not resolve'
   stamped=$(printf '%s\n' "$printed" |
     grep -c "\"io.ai-agent.host-bundle.min-version\": \"$bundle_minimum\"" || true)
-  [ "$stamped" -eq 4 ] ||
-    fail 'every release target must inherit the host bundle minimum label'
+  # Counted from the catalog rather than written here, so a component added to
+  # a release is not a number this test has to be reminded about.
+  expected_targets=$(grep -v '^[[:space:]]*#' infra/release/components |
+    grep -cv '^[[:space:]]*$')
+  [ "$stamped" -eq "$expected_targets" ] ||
+    fail "every release target must inherit the host bundle minimum label (stamped $stamped of $expected_targets)"
 else
   echo 'buildx unavailable: bake label resolution not asserted' >&2
 fi

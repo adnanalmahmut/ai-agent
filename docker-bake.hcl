@@ -16,7 +16,7 @@ variable "HOST_BUNDLE_MIN_VERSION" {
 # infra/tests/artifact-contract.sh: a component added to the catalog and not
 # built here would be published as a missing image rather than as an error.
 group "release" {
-  targets = ["backend", "backend-migration", "web", "platform"]
+  targets = ["backend", "backend-migration", "web", "platform", "admin"]
 }
 
 target "common" {
@@ -70,11 +70,11 @@ target "platform" {
   tags = ["${REGISTRY}/platform:${IMAGE_TAG}"]
 }
 
-# Buildable, and deliberately not in the `release` group above: the
-# administrative surface is not exposed by the current deployment topology, and
-# adding it to a release would make every deployment require an image nothing
-# runs yet. Its own repository and its own component name, because it is its
-# own surface -- it does not share the platform image.
+# Published with every release and optional in the catalog: a deployment that
+# does not run the administrative surface is not missing anything, and the one
+# that does must never build it from source on the host. Its own repository and
+# its own component name, because it is its own surface -- it does not share
+# the platform image.
 target "admin" {
   inherits = ["common"]
   labels = { "io.ai-agent.component.name" = "admin" }

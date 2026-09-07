@@ -39,10 +39,39 @@ derived from stops the process at startup rather than leaving two answers in
 place. `BETTER_AUTH_TRUSTED_ORIGINS` must contain the app origin, and the admin
 origin when one is configured. See [security](security.md#browser-origins).
 
-Staging currently uses one host with path mounts: `/` for web, `/platform` for
-the app, `/api` for the control plane, and `/admin` as the desired future admin
-mount. These paths are not origins, so all four `APP_ORIGIN_*` values are
-`https://staging.feedogo.com` when configured.
+Staging uses one host with path mounts: `/` for web, `/platform` for the app,
+`/api` for the control plane and `/admin` for the administrative surface. These
+paths are not origins, so all four `APP_ORIGIN_*` values are
+`https://staging.feedogo.com` when configured — and in particular
+`https://staging.feedogo.com/admin` is not a value any of them may hold, and
+never appears in `BETTER_AUTH_TRUSTED_ORIGINS`.
+
+## Administrative surface
+
+| Variable | Required | Meaning |
+| --- | --- | --- |
+| `ADMIN_API_ORIGIN` | No | Where `apps/admin` reaches the Control Plane, read per request. `http://backend:3002` in the deployment composition; defaults to `http://127.0.0.1:3002`. |
+| `ADMIN_HOST_PORT` | No | Loopback port the administrative container publishes on a host. Defaults to `3003`. |
+
+The container receives those two values and `HOSTNAME`/`PORT`, and nothing
+else: no database URL, no auth secret, no encryption key and no service
+credential. It is a server-rendered shell in front of the API and authorizes
+nothing itself.
+
+Whether a host runs it at all is not an environment variable. The service is in
+the `staging` Compose profile only, and the gateway route that reaches it is
+installed by `infra/gateway/nginx/install-nginx.sh` with a fifth argument, on
+staging hosts only. The clients that route admits come from a root-owned file
+of address ranges, one per line:
+
+```text
+/etc/ai-agent/admin-staging-allowed-cidrs   root:root 0644
+203.0.113.8/32
+```
+
+A missing, empty or comment-only file installs the route with `deny all` and
+nothing else. See [security](security.md#administrative-ingress-on-staging-only)
+and [the staging runbook](../ops/staging-deployment.md).
 
 ## Control-plane values
 

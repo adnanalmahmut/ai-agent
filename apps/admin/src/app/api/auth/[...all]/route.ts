@@ -1,4 +1,4 @@
-import { AUTH_BASE_PATH } from '@/config/paths';
+import { ADMIN_BASE_PATH, AUTH_BASE_PATH } from '@/config/paths';
 import { apiOrigin } from '@/config/server';
 
 /**
@@ -19,9 +19,11 @@ import { apiOrigin } from '@/config/server';
  * Better Auth still runs its own origin and CSRF checks against the origin the
  * browser reported, which is why that origin has to be a trusted one.
  *
- * Only `/api/auth`. An open proxy over the whole API would turn this origin
- * into an unauthenticated way into every Control Plane route from a browser,
- * which is the opposite of what a narrow administrative surface is for.
+ * Only the auth path: `/admin/api/auth/*` from the browser, `/api/auth/*`
+ * upstream, and nothing else in either direction. An open proxy over the whole
+ * API would turn this surface into an unauthenticated way into every Control
+ * Plane route from a browser, which is the opposite of what a narrow
+ * administrative surface is for.
  */
 export const dynamic = 'force-dynamic';
 
@@ -63,13 +65,42 @@ const RESPONSE_HEADERS_WITHHELD = new Set([
 /** Statuses whose responses may not carry a body at all. */
 const BODILESS = new Set([101, 204, 205, 304]);
 
+/**
+ * The Control Plane's own path for an incoming request, or `null` if this
+ * route is not allowed to forward it.
+ *
+ * The browser asks for `/admin/api/auth/...` and the Control Plane serves
+ * `/api/auth/...`. Next.js removes the base path before a route handler is
+ * called, so what arrives here is already the upstream's path — but that is a
+ * framework behaviour rather than a promise, and the failure if it changed
+ * would be a 404 from the far end that looks nothing like its cause. So the
+ * prefix is removed if it is there, and the result is required to be under the
+ * auth path either way.
+ *
+ * `apps/admin/scripts/probe-standalone.mjs` asserts what a real standalone
+ * server actually forwards, so the branch that is dead today is dead because
+ * something checked.
+ */
+function upstreamPath(pathname: string): string | null {
+  const path =
+    pathname === ADMIN_BASE_PATH
+      ? '/'
+      : pathname.startsWith(`${ADMIN_BASE_PATH}/`)
+        ? pathname.slice(ADMIN_BASE_PATH.length)
+        : pathname;
+
+  if (path !== AUTH_BASE_PATH && !path.startsWith(`${AUTH_BASE_PATH}/`)) {
+    return null;
+  }
+
+  return path;
+}
+
 async function forward(request: Request): Promise<Response> {
   const incoming = new URL(request.url);
+  const forwardedPath = upstreamPath(incoming.pathname);
 
-  if (
-    incoming.pathname !== AUTH_BASE_PATH &&
-    !incoming.pathname.startsWith(`${AUTH_BASE_PATH}/`)
-  ) {
+  if (forwardedPath === null) {
     return new Response(null, { status: 404 });
   }
 
@@ -84,7 +115,7 @@ async function forward(request: Request): Promise<Response> {
 
   try {
     upstream = await fetch(
-      new URL(`${incoming.pathname}${incoming.search}`, apiOrigin()),
+      new URL(`${forwardedPath}${incoming.search}`, apiOrigin()),
       {
         method: request.method,
         headers: requestHeaders,

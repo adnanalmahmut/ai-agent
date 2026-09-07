@@ -97,6 +97,7 @@ if [ "${1:-}" = image ]; then
       *"/backend@"*) printf 'backend\n' ;;
       *"/web@"*) printf 'web\n' ;;
       *"/platform@"*) printf 'platform\n' ;;
+      *"/admin@"*) printf 'admin\n' ;;
       *) printf '<no value>\n' ;;
     esac
     exit 0
@@ -120,6 +121,14 @@ printf '\n' >>"$DEPLOY_TEST_LOG"
 case " $* " in
   *' config --images '*)
     printf '%s\n' "$BACKEND_IMAGE" "$BACKEND_MIGRATION_IMAGE" "$WEB_IMAGE" "$PLATFORM_IMAGE"
+    [ -z "${ADMIN_IMAGE:-}" ] || printf '%s\n' "$ADMIN_IMAGE"
+    exit 0
+    ;;
+  # Which services this composition has at all. The wrapper asks in order to
+  # decide whether the administrative surface is one of them, so the answer is
+  # the profile's, not the environment name's.
+  *' config --services '*)
+    printf '%s\n' ${COMPOSED_SERVICES:-}
     exit 0
     ;;
   *' exec -T postgres '*)
@@ -161,9 +170,10 @@ deploy_with() {
   RUNNING_SERVICES=$running_services \
   API_READY=$api_ready \
   RELEASE_SHA=$sha \
+  COMPOSED_SERVICES="${COMPOSED_SERVICES:-}" \
   PATH=$bin_dir:$PATH \
     "$wrapper" deploy staging "$sha" "$backend_digest" "$migration_digest" \
-      "$web_digest" "$platform_digest"
+      "$web_digest" "$platform_digest" ${3:+"$3"}
 }
 
 assert_failed_without_rotation() {
@@ -236,5 +246,121 @@ migrate_line=$(grep -n 'run --rm migrate' "$log_file" | head -1 | cut -d: -f1)
   echo 'the host bundle gate ran after migrations' >&2
   exit 1
 }
+
+# ---------------------------------------------------------------------------
+# The administrative surface, which is optional and staging-only
+# ---------------------------------------------------------------------------
+
+admin_digest=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+COMPOSED_SERVICES='backend worker web platform admin'
+export COMPOSED_SERVICES
+
+# The same property as every case above, asked of the service that was just
+# added: one that never comes up must not rotate the release records.
+reset_state
+if deploy_with 'backend worker web platform' true "$admin_digest" >/dev/null 2>&1; then
+  echo 'deployment succeeded without the administrative surface running' >&2
+  exit 1
+fi
+[ "$(sed -n '1p' "$current_release")" = "$old_current" ] || {
+  echo 'a deployment that never started the administrative surface replaced CURRENT_RELEASE' >&2
+  exit 1
+}
+
+reset_state
+deploy_with 'backend worker web platform admin' true "$admin_digest" >/dev/null
+grep -Fq 'compose up -d --wait --no-deps admin' "$log_file" || {
+  echo 'a release carrying the administrative surface did not start it' >&2
+  exit 1
+}
+grep -Fq 'compose ps --status running --services admin' "$log_file" || {
+  echo 'a release carrying the administrative surface did not check that it runs' >&2
+  exit 1
+}
+grep -Fq '"name":"admin"' "$current_release" || {
+  echo 'the release record does not name the administrative component' >&2
+  exit 1
+}
+# Recorded last, after the four components every release carries.
+grep -Fq '{"name":"platform","digest":"sha256:'"$platform_digest"'"},{"name":"admin","digest":"sha256:'"$admin_digest"'"}' \
+  "$current_release" || {
+  echo 'the release record does not carry the administrative digest it deployed' >&2
+  exit 1
+}
+
+# A release that does not carry it leaves nothing of the previous one serving:
+# the composition still has the service, and the container from the release
+# being replaced must be stopped rather than left running an image this release
+# never pinned. This is the rollback-to-an-older-release path.
+reset_state
+deploy_with 'backend worker web platform' true >/dev/null
+grep -Fq 'compose stop admin' "$log_file" || {
+  echo 'a release without the administrative surface left the previous one running' >&2
+  exit 1
+}
+if grep -Fq 'compose up -d --wait --no-deps admin' "$log_file"; then
+  echo 'a release without an administrative image started the service anyway' >&2
+  exit 1
+fi
+if grep -Fq '"name":"admin"' "$current_release"; then
+  echo 'a release that carried no administrative image recorded one' >&2
+  exit 1
+fi
+
+# The `health` verb is the diagnostic an operator reaches for during an
+# incident, and it takes no digests -- so what it requires to be running has to
+# come from the recorded release. A host whose record names the administrative
+# surface is a host that is meant to be serving it.
+health_verb() {
+  DEPLOY_TEST_LOG=$log_file RUNNING_SERVICES=$1 API_READY=true \
+  COMPOSED_SERVICES='backend worker web platform admin' \
+  PATH=$bin_dir:$PATH \
+    "$wrapper" health staging
+}
+
+reset_state
+deploy_with 'backend worker web platform admin' true "$admin_digest" >/dev/null
+health_verb 'backend worker web platform admin' >/dev/null ||
+  { echo 'health refused a host serving everything its record names' >&2; exit 1; }
+if health_verb 'backend worker web platform' >/dev/null 2>&1; then
+  echo 'health passed a host whose recorded administrative surface is not running' >&2
+  exit 1
+fi
+
+# ...and a record that does not name it is not a host that is missing it.
+reset_state
+deploy_with 'backend worker web platform' true >/dev/null
+health_verb 'backend worker web platform' >/dev/null ||
+  { echo 'health required an administrative surface the release never carried' >&2; exit 1; }
+
+# And a composition that does not compose it -- production -- is not asked to.
+COMPOSED_SERVICES='backend worker web platform'
+reset_state
+deploy_with 'backend worker web platform' true >/dev/null
+if grep -Eq 'compose (up|stop|pull)[^\n]*admin' "$log_file"; then
+  echo 'a composition without the administrative surface was asked about it' >&2
+  exit 1
+fi
+
+# The environment guard, taken locally as well as in the forced-command
+# grammar: a root operator calling the wrapper directly cannot deploy the
+# administrative surface to production either.
+printf '%s\n' production >"$config_root/environment"
+reset_state
+if DEPLOY_TEST_LOG=$log_file RUNNING_SERVICES='backend worker web platform' \
+  API_READY=true RELEASE_SHA=$sha COMPOSED_SERVICES='backend worker web platform' \
+  PATH=$bin_dir:$PATH \
+  "$wrapper" deploy production "$sha" "$backend_digest" "$migration_digest" \
+    "$web_digest" "$platform_digest" "$admin_digest" >"$test_root/out" 2>&1; then
+  echo 'production accepted an administrative digest' >&2
+  exit 1
+fi
+grep -Fq 'staging only' "$test_root/out" || {
+  echo 'the refusal did not name the reason' >&2
+  cat "$test_root/out" >&2
+  exit 1
+}
+
+printf '%s\n' staging >"$config_root/environment"
 
 echo 'deployment service health gate: ok'

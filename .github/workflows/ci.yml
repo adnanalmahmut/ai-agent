@@ -168,6 +168,7 @@ jobs:
           infra/tests/runtime-preflight.sh
           infra/tests/nginx-real-ip.sh
           infra/tests/gateway-origins.sh
+          infra/tests/gateway-admin-ingress.sh
           infra/tests/lightsail-boundary.sh
           infra/tests/deploy-service-health.sh
           infra/tests/image-publishing.sh
@@ -348,6 +349,16 @@ jobs:
       - name: Build
         run: pnpm --filter admin run build
 
+      # Runtime evidence, against the standalone output that ships in the
+      # image. Where Next.js puts the base path -- removed before a route
+      # handler, kept on the URL middleware reads, and in front of the health
+      # route -- is framework behaviour that no unit test can establish, and
+      # the gateway and the container healthcheck both depend on it. The probe
+      # stands a stub in for the Control Plane, so it needs no service
+      # containers, no database and no credential.
+      - name: Probe the standalone server
+        run: pnpm --filter admin run test:standalone
+
   containers:
     name: containers
     runs-on: ubuntu-latest
@@ -363,13 +374,6 @@ jobs:
 
       - name: Build exact production image targets without pushing
         run: docker buildx bake --file docker-bake.hcl release
-
-      # Built, not released. The administrative image is not a release
-      # component -- `infra/tests/artifact-contract.sh` holds the release group
-      # equal to the component catalog -- but a Dockerfile no pipeline builds
-      # is a Dockerfile that stops working without anyone noticing.
-      - name: Build the administrative image, which is not part of a release
-        run: docker buildx bake --file docker-bake.hcl admin
 
       - name: Load backend targets used by the degraded-startup test
         run: |

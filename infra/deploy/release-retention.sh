@@ -33,17 +33,23 @@ registry=ghcr.io/adnanalmahmut/ai-agent
 # compose file needs — postgres, redis, geoipupdate — are not listed and can
 # therefore never become candidates. The manual remediation also removed two
 # obsolete base images by hand; that is deliberately not automated here.
-application_repositories='backend backend-migration web platform'
+application_repositories='backend backend-migration web platform admin'
 
-# Component name to repository name, and the field a legacy flat release record
-# recorded it under. This is the host's copy of infra/release/components;
-# infra/tests/artifact-contract.sh compares the two, so a component added to the
-# catalog and not added here is reported rather than quietly left unprotected --
-# which for retention means its images become removal candidates.
+# Component name to repository name, the field a legacy flat release record
+# recorded it under, and whether a release must carry it. This is the host's
+# copy of infra/release/components; infra/tests/artifact-contract.sh compares
+# the two, so a component added to the catalog and not added here is reported
+# rather than quietly left unprotected -- which for retention means its images
+# become removal candidates.
 #
 # `migration` is the one legacy field that never matched its repository. It
 # survives here only to read records already on disk.
-release_components='backend:backend:backend backend-migration:backend-migration:migration web:web:web platform:platform:platform'
+#
+# Requiredness is carried because it changes what a missing entry means. Every
+# record already on a host predates the administrative surface and names four
+# components; reading that as a truncated record would make retention refuse on
+# every host it is installed on.
+release_components='backend:backend:backend:true backend-migration:backend-migration:migration:true web:web:web:true platform:platform:platform:true admin:admin:admin:false'
 
 die() {
   echo "release retention failed: $*" >&2
@@ -153,10 +159,20 @@ validate_release_record() {
     component=${entry%%:*}
     rest=${entry#*:}
     repository=${rest%%:*}
-    legacy=${rest#*:}
+    rest=${rest#*:}
+    legacy=${rest%%:*}
+    required=${rest#*:}
 
     value=$(component_field "$manifest" "$component" "$legacy")
-    [ -n "$value" ] || die "$label release record is missing the $component component"
+    if [ -z "$value" ]; then
+      # An optional component the release did not carry has no image, and
+      # therefore nothing to protect. A required one that is missing is a
+      # truncated record, which must never be read as "this release protects
+      # fewer images".
+      [ "$required" = false ] ||
+        die "$label release record is missing the $component component"
+      continue
+    fi
 
     # Recorded as `sha256:<64 hex>`. This is an OCI index digest: the release
     # manifest records what `buildx imagetools inspect` resolved, and bake

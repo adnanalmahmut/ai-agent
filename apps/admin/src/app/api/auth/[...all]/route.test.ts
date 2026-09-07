@@ -170,6 +170,45 @@ describe('what reaches the Control Plane', () => {
     expect(answer.status).toBe(404);
     expect(received).toEqual([]);
   });
+
+  // The browser asks for `/admin/api/auth/...` and the Control Plane serves
+  // `/api/auth/...`. Next.js removes the base path before this handler is
+  // called -- `scripts/probe-standalone.mjs` proves that against a running
+  // server -- so what arrives is the first form above. These two cases fix the
+  // forwarded path for both, because forwarding `/admin/api/auth/...` upstream
+  // would be a 404 at the far end that looks like a broken login.
+  it('forwards the Control Plane’s own path when the base path was removed', async () => {
+    respond = ok;
+
+    await POST(new Request('http://admin.test/api/auth/sign-in/email', {
+      method: 'POST',
+      body: '{}',
+    }));
+
+    expect(received[0].url).toBe('/api/auth/sign-in/email');
+  });
+
+  it('forwards the Control Plane’s own path when the base path was not', async () => {
+    respond = ok;
+
+    await POST(new Request('http://admin.test/admin/api/auth/sign-in/email', {
+      method: 'POST',
+      body: '{}',
+    }));
+
+    expect(received[0].url).toBe('/api/auth/sign-in/email');
+  });
+
+  it('refuses a path outside the auth prefix under the base path too', async () => {
+    respond = ok;
+
+    const answer = await GET(
+      new Request('http://admin.test/admin/api/knowledge/documents'),
+    );
+
+    expect(answer.status).toBe(404);
+    expect(received).toEqual([]);
+  });
 });
 
 describe('what reaches the browser', () => {

@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:standalone": "node scripts/probe-standalone.mjs"
   },
   "dependencies": {
     "@repo/api-client": "workspace:*",
