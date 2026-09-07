@@ -7,6 +7,7 @@ import type {
   AgentValue,
 } from '../agents/agent.types';
 import { ToolExecutionService } from './tool-execution.service';
+import { selectAuthorizedToolRefs } from './tool-grants';
 import { ToolRegistry } from './tool.registry';
 import {
   isSideEffectImplementation,
@@ -93,7 +94,6 @@ export class ToolGateway {
     agentRunAttempt: number;
     grants: readonly string[];
   }): readonly AgentRuntimeTool[] {
-    const maximum = new Set<ToolRef>(input.definition.maxToolGrants ?? []);
     const context: ToolInvocationContext = {
       organizationId: input.organizationId,
       agentRunId: input.agentRunId,
@@ -101,28 +101,15 @@ export class ToolGateway {
       definition: input.definition,
     };
 
-    const selected = new Set<ToolRef>();
-
-    for (const grant of input.grants) {
-      // Persisted grants are parsed rather than trusted.
-      if (!isToolRef(grant) || !this.registry.has(grant)) {
-        throw new AgentConfigurationError(
-          `AgentRun organization version grants unknown tool "${grant}"`,
-        );
-      }
-      if (!maximum.has(grant)) {
-        throw new AgentConfigurationError(
-          `AgentRun organization version grants tool "${grant}" outside its definition maximum`,
-        );
-      }
-      selected.add(grant);
-    }
-
+    const refs = selectAuthorizedToolRefs(
+      this.registry,
+      input.definition,
+      input.grants,
+    );
+    const selected = new Set<ToolRef>(refs);
     const budget = { remaining: MAX_TOOL_INVOCATIONS_PER_ATTEMPT };
 
-    return [...selected].map((ref) =>
-      this.expose(ref, context, selected, budget),
-    );
+    return refs.map((ref) => this.expose(ref, context, selected, budget));
   }
 
   private expose(

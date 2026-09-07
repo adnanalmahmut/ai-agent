@@ -74,12 +74,26 @@ limit the deployment already enforces or an explicit conservative ceiling.
 | artifact size                  | 64 MiB      | conservative; no existing limit governs artifacts                    |
 | payload nesting depth          | 6           | conservative; deep enough for current agent output, and finite       |
 | payload string / array / keys  | 65 536 / 256 / 128 | conservative, so no single field can approach the 1 MiB ceiling |
+| configuration properties       | 128         | the payload object rules, applied to a value that must be an object |
 
 The document-size budget and the aggregate context budget are bounds JSON Schema
 cannot state (JSON Schema has no notion of bytes, and cannot sum string lengths
 across array elements). The validator enforces them separately; a document can
 satisfy every individual field bound and still fail either budget — which the
 fixtures `too-large` and `runtime-step-context-over-aggregate-budget` exercise.
+
+### Configuration
+
+`RuntimeStep.configuration` is the organization configuration a step executes
+under, already normalised by the pinned agent definition's own schema — its
+defaults applied, its strings trimmed, its coercions done. A runtime in another
+process cannot apply a rule it cannot see, so a step that carried the stored row
+instead would execute against different configuration than the in-process path
+does, and nothing about the difference would look like a difference.
+
+It is an object rather than an arbitrary payload, because the runtime reads
+properties off it, and it is bound by the same width, depth and
+credential-name rules as any payload.
 
 ### Payloads
 
@@ -99,6 +113,18 @@ a check an attacker walks around by nesting once.
 Version 1 is the contract as published. Before RF-16, v1 is pre-consumer and can
 be corrected to harden boundaries. Once the first real consumer exists, wire
 shapes emitted by either side are frozen.
+
+That window was used exactly once, at the boundary that made v1 real. Building
+the first consumer showed `RuntimeStep` describing less than the in-process
+runtime is actually given: no normalised organization configuration, and
+passages with no knowledge space, though the deployed prompt uses the space and
+one agent attributes its sources by it. Both were added as **required**, which
+is a version-2 move by the table below — and the corpus in
+`contracts/fixtures/execution/v1/valid` was re-issued, which is what that move
+costs. It was taken now because no reader existed to break;
+`packages/execution-contracts/test/compatibility.test.mjs` pins that reasoning,
+asserting both that a step now carries the whole runtime-facing input and that
+the pre-correction shape no longer validates.
 
 Crucially, distinguish **backward reader compatibility** (a newer reader accepts
 an older document) from **rolling forward compatibility** (an older reader

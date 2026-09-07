@@ -5,6 +5,7 @@ import databaseConfig from './database.config';
 import encryptionConfig from './encryption.config';
 import geoIpConfig from '../geoip/geoip.config';
 import httpConfig from './http.config';
+import internalServiceConfig from './internal-service.config';
 import mailConfig from './mail.config';
 import observabilityConfig from './observability.config';
 import openapiConfig from './openapi.config';
@@ -19,6 +20,7 @@ export {
   encryptionConfig,
   geoIpConfig,
   httpConfig,
+  internalServiceConfig,
   mailConfig,
   observabilityConfig,
   openapiConfig,
@@ -29,6 +31,10 @@ export { DEFAULT_APPLICATION_NAME } from './app.config';
 export type { LogMailConfig, MailConfig } from './mail.config';
 export type { EncryptionConfig } from './encryption.config';
 export type { GoogleAuthConfig } from './auth.config';
+export {
+  INTERNAL_SERVICE_CAPABILITIES,
+  type InternalServiceCapability,
+} from './internal-service.config';
 
 export const configurations = [
   appConfig,
@@ -42,6 +48,8 @@ export const configurations = [
   openapiConfig,
   redisConfig,
   queueConfig,
+  // The internal execution boundary lives in the API process only.
+  internalServiceConfig,
 ];
 
 export const cliConfigurations = [

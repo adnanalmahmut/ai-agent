@@ -10,7 +10,7 @@ inventory is `infra/host-bundle/files`; the installed manifest is
 | `infra/host-bundle/CONTENTS`    | SHA-256 digest recorded for each released bundle           |
 | `infra/host-bundle/MIN_VERSION` | Oldest bundle that can run images built from this checkout |
 
-The current release ships bundle 14 and the current minimum is 11. Bump `VERSION` whenever
+The current release ships bundle 15 and the current minimum is 11. Bump `VERSION` whenever
 an inventoried file or the inventory changes. Bump `MIN_VERSION` only when
 the application cannot run on an older installed bundle. CI verifies the digest
 ledger and requires the minimum not to exceed the bundle version.
@@ -44,6 +44,16 @@ and the forced-command grammar is untouched. The version moves because the
 ledger covers every inventoried file, which is the point of the ledger; the
 minimum stays at 11 because a host on 11, 12 or 13 deploys this release
 unchanged.
+
+Bundle 15 passes `INTERNAL_SERVICE_CREDENTIALS` to the `backend` service in
+`compose.deploy.yaml`, and to that service only: the internal execution
+boundary is served by the API process, and neither the worker nor the migration
+process authenticates a service. The minimum stays at 11 because absent renders
+as an empty list and an empty list authenticates nobody — a host still on an
+older bundle runs this release with the boundary closed, which is the default
+either way. Reinstalling is what makes the configured path reachable, so an
+operator who intends to point an out-of-process runtime at this deployment
+needs bundle 15; one who does not loses nothing.
 
 ## Contents and installation
 

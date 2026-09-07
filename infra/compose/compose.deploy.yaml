@@ -79,6 +79,10 @@ services:
       GOOGLE_AUTH_ENABLED: ${GOOGLE_AUTH_ENABLED:-false}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      # Only the API serves the internal execution boundary. Absent renders as
+      # an empty list, which authenticates nobody; the worker and the migration
+      # process never authenticate a service and are not given the digests.
+      INTERNAL_SERVICE_CREDENTIALS: "${INTERNAL_SERVICE_CREDENTIALS:-[]}"
       MAIL_DRIVER: ${MAIL_DRIVER:-}
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-API Service}

@@ -37,6 +37,8 @@ const run: AgentRun = {
   input: 'hello',
   output: null,
   lastError: null,
+  settledAttempt: null,
+  settledResultDigest: null,
   attemptCount: 1,
   idempotencyKey: 'request-1',
   startedAt: new Date('2026-08-22T00:00:00.000Z'),

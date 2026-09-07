@@ -23,6 +23,7 @@ COPY apps/control-plane/package.json apps/control-plane/package.json
 # The root prepare lifecycle builds workspace packages during install, so their
 # build inputs must already exist in the dependency layer.
 COPY packages/authz-policy packages/authz-policy
+COPY packages/execution-contracts packages/execution-contracts
 COPY packages/i18n-core packages/i18n-core
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
     pnpm install --frozen-lockfile --filter control-plane...
@@ -30,6 +31,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM dependencies AS build
 COPY apps/control-plane apps/control-plane
 RUN pnpm --filter @repo/authz-policy build \
+    && pnpm --filter @repo/execution-contracts build \
     && pnpm --filter @repo/i18n-core build \
     && DATABASE_URL=postgresql://build:build@localhost:5432/build pnpm --filter control-plane prisma:generate \
     && pnpm --filter control-plane build \

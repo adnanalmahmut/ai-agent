@@ -110,6 +110,10 @@ export type ExecutionToolRef = string;
  * An instant, as an ISO-8601 date-time string. Never a language date object: those do not survive JSON.
  */
 export type ExecutionTimestamp = string;
+/**
+ * An opaque identifier. The ceiling matches the idempotency-key bound the HTTP surface already enforces.
+ */
+export type ExecutionIdentifier1 = string;
 
 /**
  * A pointer to stored bytes. Deliberately not a URL and not a credential: resolving a reference is a service boundary's job, and a signed link placed here would outlive the authorization that made it.
@@ -244,6 +248,7 @@ export interface RuntimeStep {
     modelId: ExecutionIdentifier;
     pricingRevisionId: ExecutionIdentifier;
   };
+  configuration: ExecutionConfiguration;
   input: ExecutionPayload;
   /**
    * Retrieved passages. The ceilings are the context policy the deployed agent definitions already use.
@@ -251,6 +256,7 @@ export interface RuntimeStep {
    * @maxItems 12
    */
   context: {
+    space: ExecutionIdentifier1;
     documentId: ExecutionIdentifier;
     chunkId: ExecutionIdentifier;
     text: string;
@@ -261,4 +267,10 @@ export interface RuntimeStep {
    * @maxItems 32
    */
   grantedTools: ExecutionToolRef[];
+}
+/**
+ * The organization configuration this run is pinned to, normalised against the definition contract before it left the Control Plane.
+ */
+export interface ExecutionConfiguration {
+  [k: string]: ExecutionPayloadLevel5;
 }

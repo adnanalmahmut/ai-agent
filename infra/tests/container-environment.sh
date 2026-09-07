@@ -130,6 +130,15 @@ assert_jq 'backend gets APP_ENCRYPTION_DECRYPT_KEYS' '.services.backend.environm
 assert_jq 'worker gets APP_ENCRYPTION_DECRYPT_KEYS' '.services.worker.environment.APP_ENCRYPTION_DECRYPT_KEYS == "v0=IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI="'
 assert_jq 'migrate has no APP_ENCRYPTION_DECRYPT_KEYS' '.services.migrate.environment.APP_ENCRYPTION_DECRYPT_KEYS == null'
 
+# The internal execution boundary is served by the API process alone. Its
+# credential digests are least-privilege in the same way the master key is:
+# asserted in both directions so neither losing the configured path nor
+# widening it to a process that never authenticates a service is silent.
+assert_jq 'backend gets INTERNAL_SERVICE_CREDENTIALS' '.services.backend.environment.INTERNAL_SERVICE_CREDENTIALS == "[]"'
+assert_jq 'worker has no INTERNAL_SERVICE_CREDENTIALS' '.services.worker.environment.INTERNAL_SERVICE_CREDENTIALS == null'
+assert_jq 'migrate has no INTERNAL_SERVICE_CREDENTIALS' '.services.migrate.environment.INTERNAL_SERVICE_CREDENTIALS == null'
+assert_jq 'web has no INTERNAL_SERVICE_CREDENTIALS' '.services.web.environment.INTERNAL_SERVICE_CREDENTIALS == null'
+
 assert_jq 'migrate environment is DATABASE_URL only' '.services.migrate.environment | keys == ["DATABASE_URL"]'
 assert_jq 'web environment allowlist' '.services.web.environment | keys | sort == ["HOSTNAME", "PORT"]'
 assert_jq 'platform environment allowlist' '.services.platform.environment | keys | sort == ["HOSTNAME", "PLATFORM_API_ORIGIN", "PORT"]'

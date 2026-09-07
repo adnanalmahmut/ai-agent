@@ -120,6 +120,21 @@ export const CommonSchema = {
       "description": "Arbitrary agent data, bounded in width, depth and key naming. Total size is a separate budget the validator enforces, because JSON Schema cannot express bytes.",
       "$ref": "#/$defs/payloadLevel6"
     },
+    "configuration": {
+      "title": "ExecutionConfiguration",
+      "description": "The organization configuration a step executes under, already normalised against the pinned agent definition contract. An object, not an arbitrary payload: the runtime reads properties off it, and the same width, depth and credential-name rules apply.",
+      "type": "object",
+      "maxProperties": 128,
+      "propertyNames": {
+        "maxLength": 200,
+        "not": {
+          "pattern": "^(?:[Pp][Aa][Ss][Ss][Ww][Oo][Rr][Dd]|[Pp][Aa][Ss][Ss][Ww][Dd]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Cc][Ll][Ii][Ee][Nn][Tt][-_]?[Ss][Ee][Cc][Rr][Ee][Tt]|[Tt][Oo][Kk][Ee][Nn]|[Bb][Ee][Aa][Rr][Ee][Rr]|[Aa][Cc][Cc][Ee][Ss][Ss][-_]?[Tt][Oo][Kk][Ee][Nn]|[Rr][Ee][Ff][Rr][Ee][Ss][Hh][-_]?[Tt][Oo][Kk][Ee][Nn]|[Ii][Dd][-_]?[Tt][Oo][Kk][Ee][Nn]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll]|[Cc][Rr][Ee][Dd][Ee][Nn][Tt][Ii][Aa][Ll][Ss]|[Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn]|[Aa][Uu][Tt][Hh][-_]?[Hh][Ee][Aa][Dd][Ee][Rr]|[Aa][Pp][Ii][-_]?[Kk][Ee][Yy]|[Pp][Rr][Ii][Vv][Aa][Tt][Ee][-_]?[Kk][Ee][Yy]|[Pp][Uu][Bb][Ll][Ii][Cc][-_]?[Kk][Ee][Yy]|[Ee][Nn][Cc][Rr][Yy][Pp][Tt][Ii][Oo][Nn][-_]?[Kk][Ee][Yy]|[Dd][Aa][Tt][Aa][-_]?[Kk][Ee][Yy]|[Ss][Ee][Ss][Ss][Ii][Oo][Nn][-_]?[Ii][Dd]|[Cc][Oo][Oo][Kk][Ii][Ee]|[Ss][Ee][Tt][-_]?[Cc][Oo][Oo][Kk][Ii][Ee]|[Cc][Ii][Pp][Hh][Ee][Rr][Tt][Ee][Xx][Tt]|[Pp][Ll][Aa][Ii][Nn][Tt][Ee][Xx][Tt]|[Ss][Ii][Gg][Nn][Aa][Tt][Uu][Rr][Ee]|[Cc][Oo][Nn][Nn][Ee][Cc][Tt][Ii][Oo][Nn][-_]?[Ss][Tt][Rr][Ii][Nn][Gg])$"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/payloadLevel5"
+      }
+    },
     "payloadLevel0": {
       "title": "ExecutionPayloadLevel0",
       "description": "The deepest level a payload may reach: scalars only.",
@@ -622,6 +637,10 @@ export const RuntimeStepSchema = {
         "pricingRevisionId"
       ]
     },
+    "configuration": {
+      "description": "The organization configuration this run is pinned to, normalised against the definition contract before it left the Control Plane.",
+      "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/configuration"
+    },
     "input": {
       "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/payload"
     },
@@ -633,6 +652,10 @@ export const RuntimeStepSchema = {
         "type": "object",
         "additionalProperties": false,
         "properties": {
+          "space": {
+            "description": "The knowledge space the passage was retrieved from. Provenance the runtime prompts with and an answer attributes its sources to, so it is part of the passage rather than something a reader has to look up.",
+            "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
+          },
           "documentId": {
             "$ref": "https://contracts.ai-agent.local/execution/v1/common.schema.json#/$defs/identifier"
           },
@@ -646,6 +669,7 @@ export const RuntimeStepSchema = {
           }
         },
         "required": [
+          "space",
           "documentId",
           "chunkId",
           "text"
@@ -671,6 +695,7 @@ export const RuntimeStepSchema = {
     "acceptedAt",
     "agent",
     "model",
+    "configuration",
     "input",
     "context",
     "grantedTools"

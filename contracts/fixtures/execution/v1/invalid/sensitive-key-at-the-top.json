@@ -16,11 +16,13 @@
       "modelId": "openai.gpt-4o-mini",
       "pricingRevisionId": "openai.gpt-4o-mini.pricing.1"
     },
+    "configuration": {},
     "input": {
       "apiKey": "sk-live-000"
     },
     "context": [
       {
+        "space": "policies",
         "documentId": "doc_01JQ8Z3N0000000000000001",
         "chunkId": "chunk_01JQ8Z3N0000000000000001",
         "text": "The spring campaign ran from March to May."

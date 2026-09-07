@@ -29,11 +29,13 @@ export type AggregateAgentRun = {
 export type AgentRunAvgAggregateOutputType = {
   agentVersion: number | null
   attemptCount: number | null
+  settledAttempt: number | null
 }
 
 export type AgentRunSumAggregateOutputType = {
   agentVersion: number | null
   attemptCount: number | null
+  settledAttempt: number | null
 }
 
 export type AgentRunMinAggregateOutputType = {
@@ -50,6 +52,8 @@ export type AgentRunMinAggregateOutputType = {
   createdByUserId: string | null
   lastError: string | null
   attemptCount: number | null
+  settledAttempt: number | null
+  settledResultDigest: string | null
   idempotencyKey: string | null
   startedAt: Date | null
   completedAt: Date | null
@@ -71,6 +75,8 @@ export type AgentRunMaxAggregateOutputType = {
   createdByUserId: string | null
   lastError: string | null
   attemptCount: number | null
+  settledAttempt: number | null
+  settledResultDigest: string | null
   idempotencyKey: string | null
   startedAt: Date | null
   completedAt: Date | null
@@ -94,6 +100,8 @@ export type AgentRunCountAggregateOutputType = {
   output: number
   lastError: number
   attemptCount: number
+  settledAttempt: number
+  settledResultDigest: number
   idempotencyKey: number
   startedAt: number
   completedAt: number
@@ -106,11 +114,13 @@ export type AgentRunCountAggregateOutputType = {
 export type AgentRunAvgAggregateInputType = {
   agentVersion?: true
   attemptCount?: true
+  settledAttempt?: true
 }
 
 export type AgentRunSumAggregateInputType = {
   agentVersion?: true
   attemptCount?: true
+  settledAttempt?: true
 }
 
 export type AgentRunMinAggregateInputType = {
@@ -127,6 +137,8 @@ export type AgentRunMinAggregateInputType = {
   createdByUserId?: true
   lastError?: true
   attemptCount?: true
+  settledAttempt?: true
+  settledResultDigest?: true
   idempotencyKey?: true
   startedAt?: true
   completedAt?: true
@@ -148,6 +160,8 @@ export type AgentRunMaxAggregateInputType = {
   createdByUserId?: true
   lastError?: true
   attemptCount?: true
+  settledAttempt?: true
+  settledResultDigest?: true
   idempotencyKey?: true
   startedAt?: true
   completedAt?: true
@@ -171,6 +185,8 @@ export type AgentRunCountAggregateInputType = {
   output?: true
   lastError?: true
   attemptCount?: true
+  settledAttempt?: true
+  settledResultDigest?: true
   idempotencyKey?: true
   startedAt?: true
   completedAt?: true
@@ -281,6 +297,8 @@ export type AgentRunGroupByOutputType = {
   output: runtime.JsonValue | null
   lastError: string | null
   attemptCount: number
+  settledAttempt: number | null
+  settledResultDigest: string | null
   idempotencyKey: string
   startedAt: Date | null
   completedAt: Date | null
@@ -327,6 +345,8 @@ export type AgentRunWhereInput = {
   output?: Prisma.JsonNullableFilter<"AgentRun">
   lastError?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   attemptCount?: Prisma.IntFilter<"AgentRun"> | number
+  settledAttempt?: Prisma.IntNullableFilter<"AgentRun"> | number | null
+  settledResultDigest?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   idempotencyKey?: Prisma.StringFilter<"AgentRun"> | string
   startedAt?: Prisma.DateTimeNullableFilter<"AgentRun"> | Date | string | null
   completedAt?: Prisma.DateTimeNullableFilter<"AgentRun"> | Date | string | null
@@ -355,6 +375,8 @@ export type AgentRunOrderByWithRelationInput = {
   output?: Prisma.SortOrderInput | Prisma.SortOrder
   lastError?: Prisma.SortOrderInput | Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
+  settledAttempt?: Prisma.SortOrderInput | Prisma.SortOrder
+  settledResultDigest?: Prisma.SortOrderInput | Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -388,6 +410,8 @@ export type AgentRunWhereUniqueInput = Prisma.AtLeast<{
   output?: Prisma.JsonNullableFilter<"AgentRun">
   lastError?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   attemptCount?: Prisma.IntFilter<"AgentRun"> | number
+  settledAttempt?: Prisma.IntNullableFilter<"AgentRun"> | number | null
+  settledResultDigest?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   idempotencyKey?: Prisma.StringFilter<"AgentRun"> | string
   startedAt?: Prisma.DateTimeNullableFilter<"AgentRun"> | Date | string | null
   completedAt?: Prisma.DateTimeNullableFilter<"AgentRun"> | Date | string | null
@@ -416,6 +440,8 @@ export type AgentRunOrderByWithAggregationInput = {
   output?: Prisma.SortOrderInput | Prisma.SortOrder
   lastError?: Prisma.SortOrderInput | Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
+  settledAttempt?: Prisma.SortOrderInput | Prisma.SortOrder
+  settledResultDigest?: Prisma.SortOrderInput | Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   startedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -447,6 +473,8 @@ export type AgentRunScalarWhereWithAggregatesInput = {
   output?: Prisma.JsonNullableWithAggregatesFilter<"AgentRun">
   lastError?: Prisma.StringNullableWithAggregatesFilter<"AgentRun"> | string | null
   attemptCount?: Prisma.IntWithAggregatesFilter<"AgentRun"> | number
+  settledAttempt?: Prisma.IntNullableWithAggregatesFilter<"AgentRun"> | number | null
+  settledResultDigest?: Prisma.StringNullableWithAggregatesFilter<"AgentRun"> | string | null
   idempotencyKey?: Prisma.StringWithAggregatesFilter<"AgentRun"> | string
   startedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"AgentRun"> | Date | string | null
   completedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"AgentRun"> | Date | string | null
@@ -467,6 +495,8 @@ export type AgentRunCreateInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -495,6 +525,8 @@ export type AgentRunUncheckedCreateInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -517,6 +549,8 @@ export type AgentRunUpdateInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -545,6 +579,8 @@ export type AgentRunUncheckedUpdateInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -570,6 +606,8 @@ export type AgentRunCreateManyInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -590,6 +628,8 @@ export type AgentRunUpdateManyMutationInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -613,6 +653,8 @@ export type AgentRunUncheckedUpdateManyInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -656,6 +698,8 @@ export type AgentRunCountOrderByAggregateInput = {
   output?: Prisma.SortOrder
   lastError?: Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
+  settledAttempt?: Prisma.SortOrder
+  settledResultDigest?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
@@ -666,6 +710,7 @@ export type AgentRunCountOrderByAggregateInput = {
 export type AgentRunAvgOrderByAggregateInput = {
   agentVersion?: Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
+  settledAttempt?: Prisma.SortOrder
 }
 
 export type AgentRunMaxOrderByAggregateInput = {
@@ -682,6 +727,8 @@ export type AgentRunMaxOrderByAggregateInput = {
   createdByUserId?: Prisma.SortOrder
   lastError?: Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
+  settledAttempt?: Prisma.SortOrder
+  settledResultDigest?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
@@ -703,6 +750,8 @@ export type AgentRunMinOrderByAggregateInput = {
   createdByUserId?: Prisma.SortOrder
   lastError?: Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
+  settledAttempt?: Prisma.SortOrder
+  settledResultDigest?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
   startedAt?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
@@ -713,6 +762,7 @@ export type AgentRunMinOrderByAggregateInput = {
 export type AgentRunSumOrderByAggregateInput = {
   agentVersion?: Prisma.SortOrder
   attemptCount?: Prisma.SortOrder
+  settledAttempt?: Prisma.SortOrder
 }
 
 export type AgentRunScalarRelationFilter = {
@@ -808,6 +858,14 @@ export type EnumAgentRunStatusFieldUpdateOperationsInput = {
   set?: $Enums.AgentRunStatus
 }
 
+export type NullableIntFieldUpdateOperationsInput = {
+  set?: number | null
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
 export type AgentRunCreateNestedManyWithoutOrganizationAgentVersionInput = {
   create?: Prisma.XOR<Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput, Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput> | Prisma.AgentRunCreateWithoutOrganizationAgentVersionInput[] | Prisma.AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput[]
   connectOrCreate?: Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput | Prisma.AgentRunCreateOrConnectWithoutOrganizationAgentVersionInput[]
@@ -891,6 +949,8 @@ export type AgentRunCreateWithoutCreatedByUserInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -917,6 +977,8 @@ export type AgentRunUncheckedCreateWithoutCreatedByUserInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -971,6 +1033,8 @@ export type AgentRunScalarWhereInput = {
   output?: Prisma.JsonNullableFilter<"AgentRun">
   lastError?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   attemptCount?: Prisma.IntFilter<"AgentRun"> | number
+  settledAttempt?: Prisma.IntNullableFilter<"AgentRun"> | number | null
+  settledResultDigest?: Prisma.StringNullableFilter<"AgentRun"> | string | null
   idempotencyKey?: Prisma.StringFilter<"AgentRun"> | string
   startedAt?: Prisma.DateTimeNullableFilter<"AgentRun"> | Date | string | null
   completedAt?: Prisma.DateTimeNullableFilter<"AgentRun"> | Date | string | null
@@ -991,6 +1055,8 @@ export type AgentRunCreateWithoutOrganizationInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1017,6 +1083,8 @@ export type AgentRunUncheckedCreateWithoutOrganizationInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1065,6 +1133,8 @@ export type AgentRunCreateWithoutOrganizationAgentVersionInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1090,6 +1160,8 @@ export type AgentRunUncheckedCreateWithoutOrganizationAgentVersionInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1138,6 +1210,8 @@ export type AgentRunCreateWithoutToolExecutionsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1165,6 +1239,8 @@ export type AgentRunUncheckedCreateWithoutToolExecutionsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1202,6 +1278,8 @@ export type AgentRunUpdateWithoutToolExecutionsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1229,6 +1307,8 @@ export type AgentRunUncheckedUpdateWithoutToolExecutionsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1250,6 +1330,8 @@ export type AgentRunCreateWithoutContentProjectsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1277,6 +1359,8 @@ export type AgentRunUncheckedCreateWithoutContentProjectsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1314,6 +1398,8 @@ export type AgentRunUpdateWithoutContentProjectsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1341,6 +1427,8 @@ export type AgentRunUncheckedUpdateWithoutContentProjectsInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1364,6 +1452,8 @@ export type AgentRunCreateManyCreatedByUserInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1384,6 +1474,8 @@ export type AgentRunUpdateWithoutCreatedByUserInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1410,6 +1502,8 @@ export type AgentRunUncheckedUpdateWithoutCreatedByUserInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1434,6 +1528,8 @@ export type AgentRunUncheckedUpdateManyWithoutCreatedByUserInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1456,6 +1552,8 @@ export type AgentRunCreateManyOrganizationInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1476,6 +1574,8 @@ export type AgentRunUpdateWithoutOrganizationInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1502,6 +1602,8 @@ export type AgentRunUncheckedUpdateWithoutOrganizationInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1526,6 +1628,8 @@ export type AgentRunUncheckedUpdateManyWithoutOrganizationInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1547,6 +1651,8 @@ export type AgentRunCreateManyOrganizationAgentVersionInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: string | null
   attemptCount?: number
+  settledAttempt?: number | null
+  settledResultDigest?: string | null
   idempotencyKey: string
   startedAt?: Date | string | null
   completedAt?: Date | string | null
@@ -1567,6 +1673,8 @@ export type AgentRunUpdateWithoutOrganizationAgentVersionInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1592,6 +1700,8 @@ export type AgentRunUncheckedUpdateWithoutOrganizationAgentVersionInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1615,6 +1725,8 @@ export type AgentRunUncheckedUpdateManyWithoutOrganizationAgentVersionInput = {
   output?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   lastError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   attemptCount?: Prisma.IntFieldUpdateOperationsInput | number
+  settledAttempt?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  settledResultDigest?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
   startedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1678,6 +1790,8 @@ export type AgentRunSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   output?: boolean
   lastError?: boolean
   attemptCount?: boolean
+  settledAttempt?: boolean
+  settledResultDigest?: boolean
   idempotencyKey?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -1707,6 +1821,8 @@ export type AgentRunSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   output?: boolean
   lastError?: boolean
   attemptCount?: boolean
+  settledAttempt?: boolean
+  settledResultDigest?: boolean
   idempotencyKey?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -1733,6 +1849,8 @@ export type AgentRunSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   output?: boolean
   lastError?: boolean
   attemptCount?: boolean
+  settledAttempt?: boolean
+  settledResultDigest?: boolean
   idempotencyKey?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -1759,6 +1877,8 @@ export type AgentRunSelectScalar = {
   output?: boolean
   lastError?: boolean
   attemptCount?: boolean
+  settledAttempt?: boolean
+  settledResultDigest?: boolean
   idempotencyKey?: boolean
   startedAt?: boolean
   completedAt?: boolean
@@ -1766,7 +1886,7 @@ export type AgentRunSelectScalar = {
   updatedAt?: boolean
 }
 
-export type AgentRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "agentId" | "agentVersion" | "runtime" | "status" | "organizationId" | "organizationAgentVersionId" | "modelPolicyId" | "modelId" | "modelPricingRevisionId" | "createdByUserId" | "input" | "output" | "lastError" | "attemptCount" | "idempotencyKey" | "startedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["agentRun"]>
+export type AgentRunOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "agentId" | "agentVersion" | "runtime" | "status" | "organizationId" | "organizationAgentVersionId" | "modelPolicyId" | "modelId" | "modelPricingRevisionId" | "createdByUserId" | "input" | "output" | "lastError" | "attemptCount" | "settledAttempt" | "settledResultDigest" | "idempotencyKey" | "startedAt" | "completedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["agentRun"]>
 export type AgentRunInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   organization?: boolean | Prisma.OrganizationDefaultArgs<ExtArgs>
   organizationAgentVersion?: boolean | Prisma.AgentRun$organizationAgentVersionArgs<ExtArgs>
@@ -1811,6 +1931,8 @@ export type $AgentRunPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     output: runtime.JsonValue | null
     lastError: string | null
     attemptCount: number
+    settledAttempt: number | null
+    settledResultDigest: string | null
     idempotencyKey: string
     startedAt: Date | null
     completedAt: Date | null
@@ -2259,6 +2381,8 @@ export interface AgentRunFieldRefs {
   readonly output: Prisma.FieldRef<"AgentRun", 'Json'>
   readonly lastError: Prisma.FieldRef<"AgentRun", 'String'>
   readonly attemptCount: Prisma.FieldRef<"AgentRun", 'Int'>
+  readonly settledAttempt: Prisma.FieldRef<"AgentRun", 'Int'>
+  readonly settledResultDigest: Prisma.FieldRef<"AgentRun", 'String'>
   readonly idempotencyKey: Prisma.FieldRef<"AgentRun", 'String'>
   readonly startedAt: Prisma.FieldRef<"AgentRun", 'DateTime'>
   readonly completedAt: Prisma.FieldRef<"AgentRun", 'DateTime'>
