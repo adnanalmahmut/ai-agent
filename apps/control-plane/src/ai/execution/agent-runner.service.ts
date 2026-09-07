@@ -9,15 +9,12 @@ import type {
   AgentRuntimeResult,
   AgentValue,
 } from '../agents/agent.types';
-import {
-  APPLICATION_MODEL_CATALOG,
-  type AgentModelId,
-} from '../models/model-catalog';
 import { ToolGateway } from '../tools/tool.gateway';
 import { AGENT_CONTEXT, type AgentContextPort } from './agent-context.port';
 import { AgentOutputContractError } from './agent-output-contract.error';
 import { AgentRuntimeRegistry } from './agent-runtime.registry';
 import { AgentRunService } from './agent-run.service';
+import { contextQueryOf, resolveModelId } from './step-pinning';
 
 @Injectable()
 export class AgentRunner {
@@ -58,7 +55,7 @@ export class AgentRunner {
       );
     }
 
-    const model = pinnedModel(definition, run);
+    const model = resolveModelId(definition, run);
 
     const { organizationAgentVersionId } = run;
     const pinned = await this.runs.pinnedVersionFor({
@@ -90,7 +87,7 @@ export class AgentRunner {
     const context = await this.context.assemble({
       organizationId: run.organizationId,
       policy: definition.contextPolicy,
-      query: queryOf(parsedInput.data as AgentValue),
+      query: contextQueryOf(parsedInput.data as AgentValue),
     });
 
     const result = await this.runtimes.resolve(definition.runtime).run({
@@ -124,49 +121,6 @@ export class AgentRunner {
   }
 }
 
-function pinnedModel(
-  definition: AgentDefinition,
-  run: Pick<
-    AgentRun,
-    'modelPolicyId' | 'modelId' | 'modelPricingRevisionId' | 'createdAt'
-  >,
-): AgentModelId {
-  const identities = [
-    run.modelPolicyId,
-    run.modelId,
-    run.modelPricingRevisionId,
-  ];
-  if (identities.every((value) => value === null)) return definition.model;
-  if (identities.some((value) => value === null)) {
-    throw new AgentConfigurationError(
-      'AgentRun model pin is only partially populated',
-    );
-  }
-  if (
-    run.modelPolicyId !== definition.modelPolicy.id ||
-    !definition.modelPolicy.allowedModelIds.includes(run.modelId!)
-  ) {
-    throw new AgentConfigurationError(
-      'AgentRun model does not satisfy its pinned definition policy',
-    );
-  }
-  try {
-    APPLICATION_MODEL_CATALOG.agentModel(run.modelId!);
-    const pricing = APPLICATION_MODEL_CATALOG.pricingRevision(
-      run.modelId!,
-      run.createdAt,
-    );
-    if (pricing.id !== run.modelPricingRevisionId) {
-      throw new Error('pricing mismatch');
-    }
-  } catch {
-    throw new AgentConfigurationError(
-      'AgentRun model or pricing revision is unavailable for execution',
-    );
-  }
-  return run.modelId!;
-}
-
 function parseConfiguration(
   definition: AgentDefinition,
   stored: AgentConfiguration | null,
@@ -191,30 +145,4 @@ function parseConfiguration(
       `AgentRun configuration does not satisfy definition "${definition.id}@${definition.version}"`,
     );
   }
-}
-
-function queryOf(input: AgentValue): string {
-  const parts: string[] = [];
-
-  const walk = (value: AgentValue): void => {
-    if (typeof value === 'string') {
-      parts.push(value);
-
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      for (const item of value) walk(item);
-
-      return;
-    }
-
-    if (value !== null && typeof value === 'object') {
-      for (const item of Object.values(value)) walk(item);
-    }
-  };
-
-  walk(input);
-
-  return parts.join('\n').trim();
 }

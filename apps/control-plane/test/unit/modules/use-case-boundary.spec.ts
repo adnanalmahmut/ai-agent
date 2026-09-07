@@ -38,7 +38,15 @@ function specifiersIn(file: string): string[] {
 function resolveRelative(from: string, specifier: string): string | null {
   const base = resolve(dirname(from), specifier);
 
-  for (const candidate of [`${base}.ts`, join(base, 'index.ts')]) {
+  // A package compiled for Node's ESM resolver writes `./x.js` and ships
+  // `./x.ts`, so the walk has to follow the specifier as written.
+  const withoutJs = base.endsWith('.js') ? base.slice(0, -'.js'.length) : base;
+
+  for (const candidate of [
+    `${base}.ts`,
+    `${withoutJs}.ts`,
+    join(base, 'index.ts'),
+  ]) {
     if (existsSync(candidate)) return candidate;
   }
 
@@ -78,6 +86,7 @@ function reachableFrom(entryPoints: string[]): {
 describe.each([
   ['runs', 2, 'ai/execution/agent-run.service.ts'],
   ['approvals', 1, 'ai/tools/tool-authorization.service.ts'],
+  ['execution', 2, 'ai/execution/agent-run.service.ts'],
 ])('the %s use-case boundary', (family, useCaseCount, mustReach) => {
   const boundaryFiles = sourceFilesUnder(join(MODULES_ROOT, family));
   // A composition root is allowed to name a transport; a use case is not, so
@@ -182,4 +191,65 @@ describe('the queue handlers the use cases replaced policy in', () => {
       }
     },
   );
+});
+
+/**
+ * The other direction of RF-16's claim: what a service on the far side of the
+ * execution boundary has to have in order to speak it.
+ *
+ * The answer has to be "the contract package and nothing else", because every
+ * name on this list is either a credential, a connection or a Control Plane
+ * class — and a runtime that needs one of them has not been given a boundary,
+ * it has been given the database with extra steps.
+ */
+describe('what an out-of-process execution consumer must import', () => {
+  const CONTRACT_ROOT = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '../../../../../packages/execution-contracts/src',
+  );
+
+  const { files, packages } = reachableFrom(
+    sourceFilesUnder(CONTRACT_ROOT).filter((file) => file.endsWith('index.ts')),
+  );
+
+  it('has something to check', () => {
+    expect(files.size).toBeGreaterThan(1);
+  });
+
+  it.each([
+    '@nestjs/common',
+    '@nestjs/core',
+    '@prisma/client',
+    'bullmq',
+    'ioredis',
+    'better-auth',
+    'pg',
+  ])('needs no %s', (forbidden) => {
+    expect([...packages]).not.toContain(forbidden);
+  });
+
+  it('reaches no Control Plane source at all', () => {
+    expect([...files].filter((file) => file.startsWith(SOURCE_ROOT))).toEqual(
+      [],
+    );
+  });
+
+  it('names no Control Plane authority, connection or credential', () => {
+    const surface = [...files]
+      .map((file) => readFileSync(file, 'utf8'))
+      .join('\n');
+
+    for (const authority of [
+      'PrismaService',
+      'DATABASE_URL',
+      'REDIS_URL',
+      'BETTER_AUTH_SECRET',
+      'AgentRunService',
+      'ToolAuthorizationService',
+      'ToolExecutionService',
+      'AgentDefinitionRegistry',
+    ]) {
+      expect(surface).not.toContain(authority);
+    }
+  });
 });

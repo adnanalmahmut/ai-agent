@@ -82,6 +82,23 @@ adapter therefore holds no Prisma access, no approval record, no organization
 state and no agent definition. MCP sessions expose the same gateway and cannot
 bypass the approval lifecycle.
 
+One route family authenticates as a service rather than a user. `api/internal/`
+is the execution boundary a future AI Runtime or Tool Executor would speak, and
+it exists so that moving execution out of this process stays a deployment
+change: `POST internal/execution/runs/:runId/lease` claims the next attempt and
+returns a serialised `RuntimeStep`, and `POST .../result` applies a
+`RuntimeStepResult`, both defined by `contracts/execution/v1`. Identity is
+proved by a credential whose SHA-256 digest is configured in
+`INTERNAL_SERVICE_CREDENTIALS`, never by a header naming a service;
+authorization is a declared capability per route, separate from identity; and
+the tenant, the pinned definition, the attempt ordinal and the output contract
+are all reloaded from PostgreSQL rather than read from the request. Nothing is
+configured by default, so the boundary authenticates nobody until an operator
+says otherwise, and no production runtime uses it yet. The use cases are
+`modules/execution/`; the caller needs no Prisma, database URL, Redis, BullMQ or
+Better Auth internals, and `test/unit/modules/use-case-boundary.spec.ts` asserts
+that of `@repo/execution-contracts` directly.
+
 Knowledge is organization-scoped. Ingestion stores documents and chunks, then
 uses the outbox for embedding work. Retrieval applies the agent definition's
 space and budget policy before material reaches a model.

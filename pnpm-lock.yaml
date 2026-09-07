@@ -54,6 +54,9 @@ importers:
       '@repo/authz-policy':
         specifier: workspace:*
         version: link:../../packages/authz-policy
+      '@repo/execution-contracts':
+        specifier: workspace:*
+        version: link:../../packages/execution-contracts
       '@repo/i18n-core':
         specifier: workspace:*
         version: link:../../packages/i18n-core

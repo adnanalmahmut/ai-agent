@@ -221,6 +221,19 @@ export class AgentRunService {
     return count === 1;
   }
 
+  /**
+   * The run as durable state has it, with no tenant supplied by the caller.
+   *
+   * Callers that were given a run id by something other than a session use
+   * this and then compare: the organization a run belongs to is read here, not
+   * accepted from whoever is asking.
+   */
+  async findById(runId: string): Promise<AgentRun | null> {
+    const run = await this.prisma.agentRun.findUnique({ where: { id: runId } });
+
+    return run === null ? null : toAgentRun(run);
+  }
+
   async findForOrganization(input: {
     runId: string;
     organizationId: string;
